@@ -22,7 +22,6 @@ wrex-proto-udp = { path = "crates/wrex-proto-udp", version = "0.1.0" }
 wrex-proto-tcp = { path = "crates/wrex-proto-tcp", version = "0.1.0" }
 
 bytes = "1"
-zerocopy = { version = "0.8", features = ["derive"] }
 thiserror = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -37,7 +36,6 @@ proptest = "1"
 etherparse = "0.21"
 assert_cmd = "2"
 predicates = "3"
-arbitrary = { version = "1", features = ["derive"] }
 
 [profile.release]
 debug = 1

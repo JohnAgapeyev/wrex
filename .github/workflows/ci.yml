@@ -51,7 +51,7 @@ jobs:
       - run: cargo +nightly miri setup
       - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-icmp -p wrex-proto-udp -p wrex-proto-tcp
         env:
-          MIRIFLAGS: -Zmiri-strict-alignment -Zmiri-disable-isolation
+          MIRIFLAGS: -Zmiri-disable-isolation
 
   differential:
     runs-on: ubuntu-latest

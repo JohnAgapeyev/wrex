@@ -1,0 +1,9 @@
+# cargo-fuzz build tree and crash artifacts stay local.
+target
+artifacts
+
+# libFuzzer grows the corpus at runtime; only seed-N.bin units are
+# tracked. Re-include depth-1 dirs so the seed negation applies.
+corpus/**
+!corpus/*/
+!corpus/*/seed-*.bin

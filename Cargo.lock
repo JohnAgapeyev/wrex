@@ -1016,7 +1016,6 @@ dependencies = [
  "bytes",
  "proptest",
  "wrex-core",
- "zerocopy",
 ]
 
 [[package]]
@@ -1027,7 +1026,6 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
- "zerocopy",
 ]
 
 [[package]]
@@ -1038,7 +1036,6 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
- "zerocopy",
 ]
 
 [[package]]
@@ -1049,7 +1046,6 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
- "zerocopy",
 ]
 
 [[package]]
@@ -1060,7 +1056,6 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
- "zerocopy",
 ]
 
 [[package]]
@@ -1070,7 +1065,6 @@ dependencies = [
  "bytes",
  "proptest",
  "wrex-core",
- "zerocopy",
 ]
 
 [[package]]

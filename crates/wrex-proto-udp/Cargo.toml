@@ -8,7 +8,6 @@ description = "wrex UDP codec"
 
 [dependencies]
 wrex-core = { workspace = true }
-zerocopy = { workspace = true }
 bytes = { workspace = true }
 
 [dependencies.proptest]

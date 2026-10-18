@@ -8,7 +8,6 @@ description = "wrex Ethernet II codec"
 
 [dependencies]
 wrex-core = { workspace = true }
-zerocopy = { workspace = true }
 bytes = { workspace = true }
 hex = { workspace = true }
 

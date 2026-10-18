@@ -125,6 +125,11 @@ fn coverage(root: &Path, branch: bool, mcdc_probe: bool) {
     args.push("--lcov");
     args.push("--output-path");
     args.push("target/coverage/lcov.info");
+    let dir = root.join("target").join("coverage");
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        eprintln!("xtask coverage: cannot create {}: {e}", dir.display());
+        std::process::exit(1);
+    }
     run(root, "llvm-cov", "cargo", &args);
     if mcdc_probe {
         mcdc_probe_stage(root);

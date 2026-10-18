@@ -8,7 +8,8 @@ edition = "2024"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.13"
+libfuzzer-sys = "0.4"
+bytes = "1"
 arbitrary = { version = "1", features = ["derive"] }
 
 [dependencies.wrex]

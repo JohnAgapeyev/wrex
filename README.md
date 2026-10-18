@@ -103,7 +103,10 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
   (arp, icmp, tcp, udp), committed with expected dissections; import
   more with `cargo xtask corpus-import <pcap> <name>`.
 - Raw-socket tests are env-gated (`WREX_DRIVER_TESTS=1`, run under sudo
-  in CI): send/recv round-trip on `lo`.
+  in CI): send/recv round-trip on `lo`. Without passwordless sudo:
+  `unshare -Urn sh -c 'ip link set lo up; WREX_DRIVER_TESTS=1 cargo
+  test --all-features -p wrex-io -p wrex'` runs them in a user
+  namespace with CAP_NET_RAW.
 - Coverage is advisory (reported, never gated). MC/DC: rustc removed
   `-Zcoverage-options=mcdc` in late 2025; `cargo xtask coverage
   --mcdc-probe` reports nightly availability until the 2026 re-land.
