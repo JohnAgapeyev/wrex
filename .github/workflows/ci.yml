@@ -1,0 +1,116 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      # Socket tests auto-skip (WREX_DRIVER_TESTS unset).
+      - run: PROPTEST_RNG_SEED=31337 cargo test --workspace --all-features
+
+  driver-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      # Raw sockets on `lo`; GH runners have passwordless sudo. No
+      # `--workspace` here: it conflicts with `-p` selection.
+      - run: sudo -E env "PATH=$PATH" WREX_DRIVER_TESTS=1 PROPTEST_RNG_SEED=31337 cargo test --all-features -p wrex-io -p wrex
+
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+      # Deterministic golden/unit tests run under Miri; the proptest-based
+      # suites carry #[cfg_attr(miri, ignore)].
+      - run: cargo +nightly miri setup
+      - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-icmp -p wrex-proto-udp -p wrex-proto-tcp
+        env:
+          MIRIFLAGS: -Zmiri-strict-alignment -Zmiri-disable-isolation
+
+  differential:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: sudo apt-get update && sudo apt-get install -y tshark
+      # `-- differential` filters to the differential suite; tshark oracle
+      # enabled via WREX_DIFF_TSHARK=1.
+      - run: WREX_DIFF_TSHARK=1 PROPTEST_RNG_SEED=31337 cargo test --workspace --all-features -- differential
+
+  coverage:
+    # Advisory only: reported per commit, no numeric gate (owner decision).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +nightly llvm-cov --workspace --all-features --branch --lcov --output-path lcov.info
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info
+      - run: |
+          cargo +nightly llvm-cov --workspace --all-features --branch --html --output-dir coverage-html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage-html
+      # MC/DC availability probe (advisory): rustc removed
+      # -Zcoverage-options=mcdc in late 2025; re-landing is a 2026 goal.
+      - run: |
+          {
+            echo "### MC/DC availability"
+            echo '```'
+            cargo xtask coverage --mcdc-probe 2>&1 | tee -a "$GITHUB_STEP_SUMMARY" >/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install --locked cargo-fuzz
+      # Seed corpora are committed under fuzz/corpus/<target>/.
+      - run: |
+          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_icmp fuzz_dissect_udp fuzz_dissect_tcp fuzz_craft_roundtrip; do
+            cargo +nightly fuzz run "$t" -- -max_total_time=60 -rss_limit_mb=2560
+          done
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

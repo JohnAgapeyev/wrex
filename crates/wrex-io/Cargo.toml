@@ -1,0 +1,14 @@
+[package]
+name = "wrex-io"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex io: Clock, Driver, Linux AF_PACKET raw driver, replay driver, interface table"
+
+[dependencies]
+bytes = { workspace = true }
+thiserror = { workspace = true }
+libc = { workspace = true }
+if-addrs = { workspace = true }
+serde = { workspace = true }

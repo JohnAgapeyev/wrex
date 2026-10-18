@@ -1,0 +1,37 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:07:0d:af:f4:54",
+        "type": "arp"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "hlen": 6,
+        "htype": 1,
+        "oper": 1,
+        "plen": 4,
+        "ptype": 2048,
+        "sha": "00:07:0d:af:f4:54",
+        "spa": "69.76.216.1",
+        "tha": "00:00:00:00:00:00",
+        "tpa": "69.76.221.27"
+      },
+      "kind": "arp",
+      "span": [
+        14,
+        42
+      ]
+    }
+  ],
+  "payload_hex": "04010400000000020100030200000501031a",
+  "start": "eth"
+}

@@ -1,0 +1,23 @@
+[package]
+name = "wrex-proto-ip"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex IPv4 codec (with options)"
+
+[dependencies]
+wrex-core = { workspace = true }
+zerocopy = { workspace = true }
+bytes = { workspace = true }
+hex = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

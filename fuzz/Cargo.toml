@@ -1,0 +1,67 @@
+[package]
+name = "wrex-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.13"
+arbitrary = { version = "1", features = ["derive"] }
+
+[dependencies.wrex]
+path = "../crates/wrex"
+
+[dependencies.wrex-core]
+path = "../crates/wrex-core"
+
+[[bin]]
+name = "fuzz_dissect_eth"
+path = "fuzz_targets/fuzz_dissect_eth.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_arp"
+path = "fuzz_targets/fuzz_dissect_arp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_ipv4"
+path = "fuzz_targets/fuzz_dissect_ipv4.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_icmp"
+path = "fuzz_targets/fuzz_dissect_icmp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_udp"
+path = "fuzz_targets/fuzz_dissect_udp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_tcp"
+path = "fuzz_targets/fuzz_dissect_tcp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_craft_roundtrip"
+path = "fuzz_targets/fuzz_craft_roundtrip.rs"
+test = false
+doc = false
+bench = false

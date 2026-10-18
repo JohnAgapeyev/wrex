@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9edccfb3f06ea2f84feadccb0f4d5627332e10299f9be73b701a1e2270022725 # shrinks to (stack, spec) = ("eth", PacketSpec { layers: [LayerSpec { kind: "eth", fields: {"dst": Mac([64, 0, 0, 0, 0, 0]), "src": Mac([0, 0, 0, 0, 0, 0])} }], payload: Some(Bytes(b"")) })
+cc 8166d31288f4fdbacdae328fc3a1b87de382fa576c335b490e4020da79ae5707 # shrinks to (stack, spec) = ("eth", PacketSpec { layers: [LayerSpec { kind: "eth", fields: {"dst": Mac([112, 0, 0, 0, 0, 0]), "src": Mac([0, 0, 0, 0, 0, 0]), "type": Int(2048)} }], payload: Some(Bytes(b"")) })

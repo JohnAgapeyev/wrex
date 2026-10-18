@@ -1,0 +1,54 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "00:0c:41:82:b2:53",
+        "src": "00:d0:59:6c:40:4e",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 31979,
+        "dst": "192.168.0.1",
+        "flags": [],
+        "frag_off": 0,
+        "id": 2625,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "192.168.50.50",
+        "tos": 0,
+        "total_len": 61,
+        "ttl": 128,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 1961,
+        "dport": 65333,
+        "length": 41,
+        "sport": 65282
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    }
+  ],
+  "payload_hex": "002b0100000100000000000002757304706f6f6c036e7470036f72670000010001",
+  "start": "eth"
+}

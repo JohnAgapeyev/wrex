@@ -1,0 +1,27 @@
+[package]
+name = "wrex-test"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex test support: strategies, oracles, corpus, CLI harness (dev-only crate)"
+
+[dependencies]
+wrex = { workspace = true }
+wrex-core = { workspace = true }
+wrex-io = { workspace = true }
+wrex-proto-eth = { workspace = true, features = ["test-util"] }
+wrex-proto-arp = { workspace = true, features = ["test-util"] }
+wrex-proto-ip = { workspace = true, features = ["test-util"] }
+wrex-proto-icmp = { workspace = true, features = ["test-util"] }
+wrex-proto-udp = { workspace = true, features = ["test-util"] }
+wrex-proto-tcp = { workspace = true, features = ["test-util"] }
+bytes = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+proptest = { workspace = true }
+etherparse = { workspace = true }
+assert_cmd = { workspace = true }
+predicates = { workspace = true }

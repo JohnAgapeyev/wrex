@@ -1,0 +1,50 @@
+[package]
+name = "wrex"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "wrex"
+
+[[bin]]
+name = "wrex"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+wrex-core = { workspace = true }
+wrex-io = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+wrex-proto-eth = { workspace = true, optional = true }
+wrex-proto-arp = { workspace = true, optional = true }
+wrex-proto-ip = { workspace = true, optional = true }
+wrex-proto-icmp = { workspace = true, optional = true }
+wrex-proto-udp = { workspace = true, optional = true }
+wrex-proto-tcp = { workspace = true, optional = true }
+
+[features]
+default = ["proto-eth", "proto-arp", "proto-ip", "proto-icmp", "proto-udp", "proto-tcp"]
+proto-eth = ["dep:wrex-proto-eth"]
+proto-arp = ["dep:wrex-proto-arp"]
+proto-ip = ["dep:wrex-proto-ip"]
+proto-icmp = ["dep:wrex-proto-icmp"]
+proto-udp = ["dep:wrex-proto-udp"]
+proto-tcp = ["dep:wrex-proto-tcp"]
+
+[dev-dependencies]
+wrex-test = { workspace = true }
+proptest = { workspace = true }
+assert_cmd = { workspace = true }
+predicates = { workspace = true }
+hex = { workspace = true }
+serde_json = { workspace = true }

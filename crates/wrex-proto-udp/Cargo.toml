@@ -1,0 +1,22 @@
+[package]
+name = "wrex-proto-udp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex UDP codec"
+
+[dependencies]
+wrex-core = { workspace = true }
+zerocopy = { workspace = true }
+bytes = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }
