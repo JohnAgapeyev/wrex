@@ -1,10 +1,16 @@
-//! CLI spec parser: `--layer`, `--payload`, and `--<kind>-<path>=<value>`
-//! field flags → [`wrex_core::PacketSpec`].
+//! Field-flag → [`wrex_core::PacketSpec`] assembly from parsed matches.
+//!
+//! The flags themselves are clap args built from the registry schemas
+//! ([`crate::cli::field_args`]); this module reads their values back,
+//! applies the value grammar, and determines the layer stack (explicit
+//! `--layer` order, or implied from the flags present, ranked, with
+//! sibling-conflict and parents validation).
 
 use std::collections::BTreeMap;
 
-use wrex_core::value::{parse_bool, parse_value};
-use wrex_core::{FieldSchema, PacketSpec, Registry, ResolvedField, SpecError, Value};
+use clap::ArgMatches;
+use wrex_core::value::parse_value;
+use wrex_core::{FieldSchema, PacketSpec, Registry, SpecError, Value};
 
 /// CLI-only kind alias table (pinned): `ip` → `ipv4`.
 fn resolve_kind(registry: &Registry, wanted: &str) -> Result<&'static str, SpecError> {
@@ -13,7 +19,7 @@ fn resolve_kind(registry: &Registry, wanted: &str) -> Result<&'static str, SpecE
         other => other,
     };
     match registry.get(canonical) {
-        Some(codec) => Ok(codec.schema().kind),
+        Some(c) => Ok(c.schema().kind),
         None => Err(SpecError::UnknownLayer {
             wanted: wanted.to_string(),
             known: registry.kinds().join(", "),
@@ -42,104 +48,75 @@ pub fn render_value_flat(v: &Value) -> String {
         Value::Str(s) => s.clone(),
         Value::Ipv4(a) => a.to_string(),
         Value::Mac(m) => wrex_core::mac_string(*m),
-        Value::List(items) => {
-            let parts: Vec<String> = items.iter().map(render_value_flat).collect();
-            parts.join(",")
-        }
+        Value::List(items) => items
+            .iter()
+            .map(render_value_flat)
+            .collect::<Vec<_>>()
+            .join(","),
     }
 }
 
-/// Parse trailing field-flag tokens into a [`PacketSpec`].
-///
-/// Grammar: `--layer <KIND>` (repeatable), `--payload <VALUE>` (Bytes
-/// grammar), `--<kind>-<path with dots as dashes>[=<VALUE>| <VALUE>]`.
-/// Explicit `--layer` mode validates the parents chain; implied mode sorts
-/// referenced kinds by rank and rejects sibling conflicts.
-pub fn parse_packet_spec(registry: &Registry, tokens: &[String]) -> Result<PacketSpec, SpecError> {
-    let mut declared: Vec<&'static str> = Vec::new();
-    let mut kind_fields: BTreeMap<&'static str, BTreeMap<String, Value>> = BTreeMap::new();
-    let mut payload: Option<Value> = None;
+/// Long-flag spelling of a field path (mirrors [`crate::cli::field_args`]).
+fn flag_long(kind: &str, path: &str) -> String {
+    format!("{kind}-{}", path.replace('.', "-"))
+}
 
-    let mut i = 0usize;
-    while i < tokens.len() {
-        let tok = tokens[i].as_str();
-        if tok == "--layer" {
-            let Some(kind_raw) = tokens.get(i + 1) else {
-                return Err(SpecError::InvalidStack {
-                    detail: "--layer requires a kind argument".into(),
-                });
-            };
-            let kind = resolve_kind(registry, kind_raw)?;
-            declared.push(kind);
-            i += 2;
-        } else if tok == "--payload" || tok.starts_with("--payload=") {
-            let val_raw = if tok == "--payload" {
-                let Some(v) = tokens.get(i + 1) else {
-                    return Err(SpecError::InvalidStack {
-                        detail: "--payload requires a value".into(),
-                    });
-                };
-                i += 2;
-                v.clone()
-            } else {
-                i += 1;
-                tok.strip_prefix("--payload=").unwrap().to_string()
-            };
-            let field = payload_field();
-            payload = Some(parse_value(&field, &val_raw)?);
-        } else if let Some(body) = tok.strip_prefix("--") {
-            let (flag, inline_val) = match body.split_once('=') {
-                Some((f, v)) => (f, Some(v.to_string())),
-                None => (body, None),
-            };
-            let Some((kind_raw, path_dashed)) = flag.split_once('-') else {
-                return Err(SpecError::UnknownField {
-                    layer: "<none>",
-                    path: format!("--{flag}"),
-                });
-            };
-            let kind = resolve_kind(registry, kind_raw)?;
-            // dashes → dots (`tcp-flags-syn` → `flags.syn`)
-            let path = path_dashed.replace('-', ".");
-            let schema = registry.get(kind).unwrap().schema();
-            let resolved = schema
-                .resolve(&path)
-                .ok_or_else(|| SpecError::UnknownField {
-                    layer: kind,
-                    path: path.clone(),
-                })?;
-            let (val_raw, consumed) = match inline_val {
-                Some(v) => (v, 0usize),
-                None => {
-                    let Some(v) = tokens.get(i + 1) else {
-                        return Err(SpecError::BadValue {
-                            path: format!("{kind}.{path}"),
-                            raw: "<missing>".into(),
-                            reason: "field flag requires a value".into(),
-                        });
-                    };
-                    (v.clone(), 1usize)
+/// Assemble a [`PacketSpec`] from the parsed craft/send matches.
+///
+/// Explicit `--layer` order validates the parents chain and requires
+/// every field flag to belong to a declared layer; implied mode sorts
+/// referenced kinds by rank and rejects sibling conflicts.
+pub fn packet_spec_from_matches(
+    registry: &Registry,
+    matches: &ArgMatches,
+) -> Result<PacketSpec, SpecError> {
+    let declared: Vec<&'static str> = matches
+        .get_many::<String>("layer")
+        .map(|vals| {
+            vals.map(|raw| resolve_kind(registry, raw))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let payload = matches
+        .get_one::<String>("payload")
+        .map(|raw| parse_value(&payload_field(), raw))
+        .transpose()?;
+
+    let mut kind_fields: BTreeMap<&'static str, BTreeMap<String, Value>> = BTreeMap::new();
+    for &kind in registry.kinds() {
+        let schema = registry.schema(kind).expect("registered kind");
+        let mut fields: BTreeMap<String, Value> = BTreeMap::new();
+        for field in schema.fields {
+            // Whole-field arg: value through the pinned value grammar.
+            if let Some(raw) = matches.get_one::<String>(&flag_long(kind, field.name)) {
+                fields.insert(field.name.to_string(), parse_value(field, raw)?);
+            }
+            // Per-bit subpaths: boolean flags.
+            if field.kind == wrex_core::FieldKind::FlagSet {
+                for &bit in field.bit_names {
+                    let path = format!("{}.{}", field.name, bit);
+                    if matches.get_flag(&flag_long(kind, &path)) {
+                        fields.insert(path, Value::Bool(true));
+                    }
                 }
-            };
-            let value = match resolved {
-                ResolvedField::Field(field) => parse_value(field, &val_raw)?,
-                ResolvedField::FlagBit { .. } => {
-                    Value::Bool(parse_bool(&val_raw).map_err(|reason| SpecError::BadValue {
-                        path: format!("{kind}.{path}"),
-                        raw: val_raw.clone(),
-                        reason,
-                    })?)
-                }
-            };
-            kind_fields.entry(kind).or_default().insert(path, value);
-            i += 1 + consumed;
-        } else {
-            return Err(SpecError::InvalidStack {
-                detail: format!("unexpected argument `{tok}`"),
-            });
+            }
+        }
+        if !fields.is_empty() {
+            kind_fields.insert(kind, fields);
         }
     }
 
+    finalize(registry, declared, kind_fields, payload)
+}
+
+/// Stack determination + validation, shared by explicit and implied modes.
+fn finalize(
+    registry: &Registry,
+    declared: Vec<&'static str>,
+    kind_fields: BTreeMap<&'static str, BTreeMap<String, Value>>,
+    payload: Option<Value>,
+) -> Result<PacketSpec, SpecError> {
     // Determine the layer stack.
     let layer_kinds: Vec<&'static str> = if !declared.is_empty() {
         // Explicit mode: every field flag must belong to a declared layer.
@@ -199,7 +176,7 @@ pub fn parse_packet_spec(registry: &Registry, tokens: &[String]) -> Result<Packe
     let layers = layer_kinds
         .into_iter()
         .map(|k| {
-            let fields = kind_fields.remove(&k).unwrap_or_default();
+            let fields = kind_fields.get(&k).cloned().unwrap_or_default();
             wrex_core::LayerSpec::with_fields(k, fields)
         })
         .collect();
@@ -209,34 +186,39 @@ pub fn parse_packet_spec(registry: &Registry, tokens: &[String]) -> Result<Packe
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::build_cli;
 
     fn reg() -> Registry {
         crate::standard()
     }
 
-    fn toks(args: &[&str]) -> Vec<String> {
-        args.iter().map(|s| s.to_string()).collect()
+    /// Parse a full `wrex craft …` argv through the real command.
+    fn spec_of(args: &[&str]) -> Result<PacketSpec, SpecError> {
+        let mut argv = vec!["wrex", "craft"];
+        argv.extend_from_slice(args);
+        let cmd = build_cli();
+        let matches = cmd
+            .try_get_matches_from(argv)
+            .expect("argv parses (usage errors assert separately)");
+        packet_spec_from_matches(&reg(), matches.subcommand_matches("craft").unwrap())
     }
 
     #[test]
     fn explicit_golden_spec() {
-        let spec = parse_packet_spec(
-            &reg(),
-            &toks(&[
-                "--layer",
-                "eth",
-                "--layer",
-                "ipv4",
-                "--layer",
-                "udp",
-                "--eth-dst=ff:ff:ff:ff:ff:ff",
-                "--ipv4-src=127.0.0.1",
-                "--ipv4-dst=127.0.0.1",
-                "--udp-sport=4444",
-                "--udp-dport=5555",
-                "--payload=hex:deadbeef",
-            ]),
-        )
+        let spec = spec_of(&[
+            "--layer",
+            "eth",
+            "--layer",
+            "ipv4",
+            "--layer",
+            "udp",
+            "--eth-dst=ff:ff:ff:ff:ff:ff",
+            "--ipv4-src=127.0.0.1",
+            "--ipv4-dst=127.0.0.1",
+            "--udp-sport=4444",
+            "--udp-dport=5555",
+            "--payload=hex:deadbeef",
+        ])
         .unwrap();
         assert_eq!(
             spec.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
@@ -247,17 +229,14 @@ mod tests {
 
     #[test]
     fn implied_mode_sorts_by_rank() {
-        let spec = parse_packet_spec(
-            &reg(),
-            &toks(&[
-                "--udp-sport=4444",
-                "--eth-dst=ff:ff:ff:ff:ff:ff",
-                "--ipv4-src=127.0.0.1",
-                "--ipv4-dst=127.0.0.1",
-                "--udp-dport=5555",
-                "--payload=hex:deadbeef",
-            ]),
-        )
+        let spec = spec_of(&[
+            "--udp-sport=4444",
+            "--eth-dst=ff:ff:ff:ff:ff:ff",
+            "--ipv4-src=127.0.0.1",
+            "--ipv4-dst=127.0.0.1",
+            "--udp-dport=5555",
+            "--payload=hex:deadbeef",
+        ])
         .unwrap();
         assert_eq!(
             spec.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
@@ -267,14 +246,14 @@ mod tests {
 
     #[test]
     fn alias_ip_is_ipv4() {
-        let spec = parse_packet_spec(&reg(), &toks(&["--ip-ttl=63"])).unwrap();
+        let spec = spec_of(&["--ip-ttl=63"]).unwrap();
         assert_eq!(spec.layers[0].kind, "ipv4");
         assert_eq!(spec.layers[0].fields.get("ttl"), Some(&Value::Int(63)));
     }
 
     #[test]
     fn flagbit_subpaths() {
-        let spec = parse_packet_spec(&reg(), &toks(&["--tcp-flags-syn=true"])).unwrap();
+        let spec = spec_of(&["--tcp-flags-syn"]).unwrap();
         assert_eq!(
             spec.layers[0].fields.get("flags.syn"),
             Some(&Value::Bool(true))
@@ -283,34 +262,42 @@ mod tests {
 
     #[test]
     fn errors() {
-        // unknown kind
-        let e = parse_packet_spec(&reg(), &toks(&["--ipx-src=1.2.3.4"])).unwrap_err();
-        assert!(e.to_string().contains("unknown layer"), "{e}");
-        // unknown field
-        let e = parse_packet_spec(&reg(), &toks(&["--ipv4-bogus=1"])).unwrap_err();
-        assert!(e.to_string().contains("unknown field"), "{e}");
         // zero layers (payload only)
-        let e = parse_packet_spec(&reg(), &toks(&["--payload=hex:00"])).unwrap_err();
+        let e = spec_of(&["--payload=hex:00"]).unwrap_err();
         assert!(e.to_string().contains("no layers"), "{e}");
         // sibling conflict: arp+ipv4
-        let e = parse_packet_spec(&reg(), &toks(&["--arp-tpa=10.0.0.1", "--ipv4-src=1.2.3.4"]))
-            .unwrap_err();
+        let e = spec_of(&["--arp-tpa=10.0.0.1", "--ipv4-src=1.2.3.4"]).unwrap_err();
         assert!(e.to_string().contains("sibling conflict"), "{e}");
-        // tcp requires parent ipv4 (implied: tcp alone starts a stack OK)
-        let spec = parse_packet_spec(&reg(), &toks(&["--tcp-sport=1"])).unwrap();
+        // tcp alone implied: valid stack start
+        let spec = spec_of(&["--tcp-sport=1"]).unwrap();
         assert_eq!(spec.layers.len(), 1);
         // explicit bad chain
-        let e = parse_packet_spec(
-            &reg(),
-            &toks(&["--layer", "eth", "--layer", "tcp", "--tcp-sport=1"]),
-        )
-        .unwrap_err();
+        let e = spec_of(&["--layer", "eth", "--layer", "tcp", "--tcp-sport=1"]).unwrap_err();
         assert!(e.to_string().contains("tcp requires parent ipv4"), "{e}");
         // field for undeclared layer
-        let e = parse_packet_spec(&reg(), &toks(&["--layer", "eth", "--tcp-sport=1"])).unwrap_err();
+        let e = spec_of(&["--layer", "eth", "--tcp-sport=1"]).unwrap_err();
         assert!(e.to_string().contains("require `--layer"), "{e}");
         // unknown layer kind for --layer
-        let e = parse_packet_spec(&reg(), &toks(&["--layer", "nope"])).unwrap_err();
+        let e = spec_of(&["--layer", "nope"]).unwrap_err();
         assert!(e.to_string().contains("unknown layer"), "{e}");
+    }
+
+    #[test]
+    fn unknown_and_missing_values_are_usage_errors() {
+        // unknown flag → clap usage error (exit 2), not a SpecError
+        let mut cmd = build_cli();
+        let res = cmd.try_get_matches_from_mut(["wrex", "craft", "--ipx-src=1.2.3.4"]);
+        assert!(res.is_err(), "unknown kind prefix must fail at parse");
+        // unknown field of a known kind → clap usage error too
+        let mut cmd = build_cli();
+        let res = cmd.try_get_matches_from_mut(["wrex", "craft", "--ipv4-bogus=1"]);
+        assert!(res.is_err());
+        // missing value → clap usage error
+        let mut cmd = build_cli();
+        let res = cmd.try_get_matches_from_mut(["wrex", "craft", "--ipv4-ttl"]);
+        assert!(res.is_err());
+        // standard options interleave freely with field flags
+        let spec = spec_of(&["--ipv4-ttl=63", "--format", "hex", "--layer", "ipv4"]).unwrap();
+        assert_eq!(spec.layers[0].fields.get("ttl"), Some(&Value::Int(63)));
     }
 }

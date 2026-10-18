@@ -298,8 +298,9 @@ fn corpus_goldens() {
     assert!(checked >= 16, "only {checked} corpus frames checked");
 }
 
-/// Discoverability: the field flags are not clap args, so their grammar
-/// must be documented in --help; `completions` must emit a script.
+/// Discoverability: the craft/send field flags are real clap args built
+/// from the registry, so --help must list them natively (a new protocol
+/// crate flows through with zero CLI changes); `completions` must emit.
 #[test]
 fn help_documents_field_flags_and_completions_emit() {
     let craft_help = String::from_utf8(
@@ -313,15 +314,18 @@ fn help_documents_field_flags_and_completions_emit() {
     )
     .unwrap();
     for needle in [
-        "FIELD FLAGS",
         "--layer",
         "--payload",
+        "--ipv4-total_len",
+        "--tcp-flags-syn",
+        "--icmp-echo-id",
+        "--eth-dst",
         "wrex fields",
         "EXAMPLES",
     ] {
         assert!(
             craft_help.contains(needle),
-            "craft --help must mention {needle:?}"
+            "craft --help must list {needle:?}"
         );
     }
 

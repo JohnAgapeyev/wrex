@@ -1,20 +1,20 @@
-//! clap definitions. Standard options always precede the trailing field
-//! capture: once a field flag appears, every later token is a field (per the
-//! pinned craft/send grammar).
+//! clap definitions. The craft/send field flags (`--<kind>-<field>`) are
+//! real clap args, built at startup from the registry schemas — one
+//! source of truth for the grammar, the help text, the completions and
+//! the man pages. Standard options and field flags interleave freely.
 
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Command, CommandFactory, Parser, Subcommand};
+use wrex_core::{FieldKind, Registry};
 
 /// Root epilog: the cross-cutting grammars (kinds, values, filters, exit
-/// codes) a user needs before picking a verb. Per-verb examples live on the
-/// verbs (`wrex <verb> --help`).
+/// codes) a user needs before picking a verb. Per-verb flags and examples
+/// live on the verbs (`wrex <verb> --help`).
 pub const ROOT_AFTER_HELP: &str = "\
 FIELD FLAGS:
-  craft and send take per-layer field flags after the standard options:
-    --layer KIND            declare encapsulation order (repeatable)
-    --payload VALUE         terminal payload bytes
-    --<kind>-<field>=VALUE  set one field; dots in the path become dashes
-                            (--ipv4-ttl=63, --tcp-flags-syn, --icmp-echo-id=5)
-  Full grammar and examples: wrex craft --help.
+  craft and send take per-layer field flags, listed in their --help
+  (e.g. --eth-dst, --ipv4-ttl, --tcp-flags-syn, --icmp-echo-id); dots in
+  field paths become dashes in flags. Standard options and field flags
+  interleave freely.
   Every settable field, type, default and bit name: wrex fields [KIND].
 
 LAYER KINDS:
@@ -41,20 +41,19 @@ EXIT CODES:
   2  malformed request: usage errors, bad specs/filters,
      craft/send --strict validation failures";
 
-/// Epilog shared by craft and send: the trailing field-flag grammar is
-/// identical on both verbs, so one text serves both help screens.
+/// Epilog shared by craft and send: the semantics the per-flag help
+/// cannot carry (implied layers, explicit-wins, --strict).
 pub const CRAFT_SEND_AFTER_HELP: &str = "\
-FIELD FLAGS:
-  Beyond the options above, every trailing token is a field flag:
-    --layer KIND              declare encapsulation order (repeatable)
-    --payload VALUE           terminal payload bytes
-    --<kind>-<field>=VALUE   set one field; dots in the path become dashes
-                              (--ipv4-ttl=63, --tcp-flags-syn, --icmp-echo-id=5)
-  Kinds: eth, arp, ipv4 (alias: ip), icmp, udp, tcp. Without --layer,
-  field flags imply their layers in rank order; a sibling conflict
-  (two rank-30 kinds, or arp+ipv4) errors with a hint to pass --layer.
-  Explicit values always win and are kept unvalidated; --strict
-  re-validates the result (violations exit 2).
+LAYER ORDER:
+  --layer KIND declares encapsulation order (repeatable). Without it,
+  layers are implied by the field flags present, ordered by rank;
+  a sibling conflict (two rank-30 kinds, or arp+ipv4) errors with a
+  hint to pass --layer. Field flags for a kind you did not declare
+  require --layer KIND.
+
+SEMANTICS:
+  Explicit values always win over autofill and are kept unvalidated;
+  --strict re-validates the crafted packet (violations exit 2).
   Every settable field, type, default and bit name: wrex fields [KIND].
 
 EXAMPLES:
@@ -133,7 +132,7 @@ impl Cli {
     }
 }
 
-/// Options shared by the verbs (must appear BEFORE any field flag).
+/// Options shared by the verbs.
 #[derive(Args, Debug)]
 pub struct Common {
     /// Interface for send/recv.
@@ -167,13 +166,9 @@ impl Common {
 #[derive(Subcommand, Debug)]
 pub enum Cmd {
     /// Encode a PacketSpec from field flags → stdout.
-    /// Standard options come first; everything after the first field flag
-    /// (--layer, --payload, --<kind>-<field>=<value>) is a field flag.
     Craft(CraftArgs),
 
     /// Print shell completions to stdout (bash|zsh|fish|elvish|powershell).
-    /// The trailing field flags are parsed by wrex itself and are not in
-    /// the completion set; spell them via `wrex fields`.
     Completions(CompletionsArgs),
 
     /// stdin → DissectedPacket → stdout (never fatal).
@@ -192,17 +187,101 @@ pub enum Cmd {
     Fields(FieldsArgs),
 }
 
+/// The craft/send grammar args: `--layer`, `--payload`, and one arg per
+/// registered field path (`--<kind>-<path>`, dots as dashes, `ip` aliases
+/// for `ipv4`, per-bit subpaths as boolean flags).
+///
+/// Built from the registry at startup: a new protocol crate needs no CLI
+/// change, and the help text, completions and man pages enumerate its
+/// flags automatically.
+pub fn field_args(registry: &Registry) -> Vec<clap::Arg> {
+    let mut args = vec![
+        clap::Arg::new("layer")
+            .long("layer")
+            .value_name("KIND")
+            .action(ArgAction::Append)
+            .help("declare encapsulation order (repeatable)"),
+        clap::Arg::new("payload")
+            .long("payload")
+            .value_name("VALUE")
+            .help("terminal payload bytes (hex:…, text:…, @FILE, @-, repeat:NxHEX)"),
+    ];
+    for &kind in registry.kinds() {
+        let schema = registry.schema(kind).expect("registered kind");
+        for field in schema.fields {
+            let long = flag_long(kind, field.name);
+            let mut arg = clap::Arg::new(long.clone())
+                .long(long.clone())
+                .help(field.doc)
+                .value_name(value_hint(field.kind))
+                .num_args(1);
+            // CLI-only kind aliases (pinned): `ip` → `ipv4`.
+            if kind == "ipv4" {
+                arg = arg.alias(format!("ip-{}", dashed(field.name)));
+            }
+            args.push(arg);
+            if field.kind == FieldKind::FlagSet {
+                for &bit in field.bit_names {
+                    let blong = flag_long(kind, &format!("{}.{}", field.name, bit));
+                    args.push(
+                        clap::Arg::new(blong.clone())
+                            .long(blong.clone())
+                            .action(ArgAction::SetTrue)
+                            .help(format!(
+                                "set only the {bit} bit of {kind}.{} (aggregate: --{long})",
+                                field.name
+                            )),
+                    );
+                }
+            }
+        }
+    }
+    args
+}
+
+/// `--<kind>-<path>` long-flag spelling: dots become dashes.
+fn flag_long(kind: &str, path: &str) -> String {
+    format!("{kind}-{}", dashed(path))
+}
+
+fn dashed(path: &str) -> String {
+    path.replace('.', "-")
+}
+
+/// Value placeholder per field kind (help rendering).
+fn value_hint(kind: FieldKind) -> &'static str {
+    match kind {
+        FieldKind::U8 | FieldKind::U16 | FieldKind::U32 | FieldKind::U64 | FieldKind::U128 => "INT",
+        FieldKind::Ipv4 => "IP",
+        FieldKind::Mac => "MAC",
+        FieldKind::Bytes | FieldKind::ByteList => "BYTES",
+        FieldKind::FlagSet => "BITS",
+        FieldKind::Str => "STRING",
+    }
+}
+
+/// The full command: derive skeleton plus the dynamic craft/send field
+/// args. One builder for parsing, `--help`, completions and man pages.
+pub fn build_cli() -> Command {
+    let registry = crate::standard();
+    let field_args = field_args(&registry);
+    let mut cmd = Cli::command();
+    // Thread the field args into craft/send. clap's `args()` builder
+    // consumes `Command`, so clone-write through the &mut (order kept).
+    for sub in cmd.get_subcommands_mut() {
+        let is_grammar = matches!(sub.get_name(), "craft" | "send");
+        if is_grammar {
+            *sub = sub.clone().args(field_args.clone());
+        }
+    }
+    cmd
+}
+
 #[derive(Args, Debug)]
 #[command(after_help = CRAFT_SEND_AFTER_HELP)]
 pub struct CraftArgs {
     #[command(flatten)]
     pub common: Common,
-    #[arg(
-        trailing_var_arg = true,
-        allow_hyphen_values = true,
-        num_args = 0..
-    )]
-    pub fields: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -213,12 +292,6 @@ pub struct DissectArgs {
     /// Dissection start: auto|eth|ipv4|… (default auto).
     #[arg(long)]
     pub start: Option<String>,
-    #[arg(
-        trailing_var_arg = true,
-        allow_hyphen_values = true,
-        num_args = 0..
-    )]
-    pub fields: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -241,12 +314,6 @@ pub struct SendArgs {
     /// Filter for --wait-reply matches (same engine as recv).
     #[arg(long)]
     pub filter: Option<String>,
-    #[arg(
-        trailing_var_arg = true,
-        allow_hyphen_values = true,
-        num_args = 0..
-    )]
-    pub fields: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -266,12 +333,6 @@ pub struct RecvArgs {
     /// Promiscuous mode (opt-in).
     #[arg(long)]
     pub promisc: bool,
-    #[arg(
-        trailing_var_arg = true,
-        allow_hyphen_values = true,
-        num_args = 0..
-    )]
-    pub fields: Vec<String>,
 }
 
 #[derive(Args, Debug)]
@@ -279,17 +340,15 @@ pub struct IfaceArgs {
     #[command(flatten)]
     pub common: Common,
     /// Show a single interface by name.
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 0..)]
-    pub fields: Vec<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Args, Debug)]
 pub struct FieldsArgs {
     #[command(flatten)]
     pub common: Common,
-    /// Show a single layer kind by name.
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true, num_args = 0..)]
-    pub fields: Vec<String>,
+    /// Show a single layer kind by name (e.g. tcp; alias: ip).
+    pub kind: Option<String>,
 }
 
 /// `wrex completions <SHELL>`: emit shell completions to stdout.

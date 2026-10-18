@@ -4,7 +4,7 @@
 .SH NAME
 dissect \- stdin → DissectedPacket → stdout (never fatal)
 .SH SYNOPSIS
-\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFIELDS\fR] 
+\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 stdin → DissectedPacket → stdout (never fatal)
 .SH OPTIONS
@@ -29,9 +29,6 @@ Dissection start: auto|eth|ipv4|… (default auto)
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.TP
-[\fIFIELDS\fR]
-
 .SH EXTRA
 FORMATS:
   raw   input bytes echoed out (byte\-transparent pipelines)

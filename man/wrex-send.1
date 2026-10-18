@@ -4,7 +4,7 @@
 .SH NAME
 send \- Send a crafted frame (or raw stdin bytes) on an interface
 .SH SYNOPSIS
-\fBsend\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-interval\fR] [\fB\-\-timeout\fR] [\fB\-\-wait\-reply\fR] [\fB\-\-filter\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFIELDS\fR] 
+\fBsend\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-interval\fR] [\fB\-\-timeout\fR] [\fB\-\-wait\-reply\fR] [\fB\-\-filter\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 Send a crafted frame (or raw stdin bytes) on an interface
 .SH OPTIONS
@@ -39,23 +39,190 @@ Wait for the first reply frame on the iface, dissect to stdout
 \fB\-\-filter\fR \fI<FILTER>\fR
 Filter for \-\-wait\-reply matches (same engine as recv)
 .TP
+\fB\-\-layer\fR \fI<KIND>\fR
+declare encapsulation order (repeatable)
+.TP
+\fB\-\-payload\fR \fI<VALUE>\fR
+terminal payload bytes (hex:…, text:…, @FILE, @\-, repeat:NxHEX)
+.TP
+\fB\-\-eth\-dst\fR \fI<MAC>\fR
+destination MAC (autofill: ff:ff:ff:ff:ff:ff)
+.TP
+\fB\-\-eth\-src\fR \fI<MAC>\fR
+source MAC (autofill: interface MAC on send)
+.TP
+\fB\-\-eth\-type\fR \fI<INT>\fR
+ethertype (autofill: derived from next layer)
+.TP
+\fB\-\-arp\-htype\fR \fI<INT>\fR
+hardware type (autofill: 1 ethernet)
+.TP
+\fB\-\-arp\-ptype\fR \fI<INT>\fR
+protocol type (autofill: 0x0800 ipv4)
+.TP
+\fB\-\-arp\-hlen\fR \fI<INT>\fR
+hardware address length (autofill: 6)
+.TP
+\fB\-\-arp\-plen\fR \fI<INT>\fR
+protocol address length (autofill: 4)
+.TP
+\fB\-\-arp\-oper\fR \fI<INT>\fR
+operation (autofill: 1 request)
+.TP
+\fB\-\-arp\-sha\fR \fI<MAC>\fR
+sender hardware address (autofill: 00:00:00:00:00:00)
+.TP
+\fB\-\-arp\-spa\fR \fI<IP>\fR
+sender protocol address
+.TP
+\fB\-\-arp\-tha\fR \fI<MAC>\fR
+target hardware address (autofill: 00:00:00:00:00:00)
+.TP
+\fB\-\-arp\-tpa\fR \fI<IP>\fR
+target protocol address (required)
+.TP
+\fB\-\-ipv4\-ver\fR \fI<INT>\fR
+version (autofill: 4)
+.TP
+\fB\-\-ipv4\-ihl\fR \fI<INT>\fR
+header length in 32\-bit words (autofill: derived)
+.TP
+\fB\-\-ipv4\-tos\fR \fI<INT>\fR
+type of service
+.TP
+\fB\-\-ipv4\-total_len\fR \fI<INT>\fR
+total length (autofill: computed)
+.TP
+\fB\-\-ipv4\-id\fR \fI<INT>\fR
+identification (autofill: 0, deterministic)
+.TP
+\fB\-\-ipv4\-flags\fR \fI<BITS>\fR
+flags aggregate [df,mf]; per\-bit subpaths flags.df / flags.mf
+.TP
+\fB\-\-ipv4\-flags\-df\fR
+set only the df bit of ipv4.flags (aggregate: \-\-ipv4\-flags)
+.TP
+\fB\-\-ipv4\-flags\-mf\fR
+set only the mf bit of ipv4.flags (aggregate: \-\-ipv4\-flags)
+.TP
+\fB\-\-ipv4\-frag_off\fR \fI<INT>\fR
+fragment offset
+.TP
+\fB\-\-ipv4\-ttl\fR \fI<INT>\fR
+time to live (autofill: 64)
+.TP
+\fB\-\-ipv4\-proto\fR \fI<INT>\fR
+protocol (autofill: derived from next layer)
+.TP
+\fB\-\-ipv4\-checksum\fR \fI<INT>\fR
+header checksum (autofill: computed)
+.TP
+\fB\-\-ipv4\-src\fR \fI<IP>\fR
+source address (autofill: 127.0.0.1; interface primary on send)
+.TP
+\fB\-\-ipv4\-dst\fR \fI<IP>\fR
+destination address (autofill: 127.0.0.1)
+.TP
+\fB\-\-ipv4\-options\fR \fI<BYTES>\fR
+options: eol,nop,rr:IP…,ssrr:IP…,lsrr:IP…,ts:FLAG,CNT, or hex:…
+.TP
+\fB\-\-icmp\-type\fR \fI<INT>\fR
+type (autofill: 8 echo request)
+.TP
+\fB\-\-icmp\-code\fR \fI<INT>\fR
+code (autofill: 0)
+.TP
+\fB\-\-icmp\-checksum\fR \fI<INT>\fR
+checksum over header+payload (autofill: computed)
+.TP
+\fB\-\-icmp\-echo\-id\fR \fI<INT>\fR
+echo identifier (types 0/8)
+.TP
+\fB\-\-icmp\-echo\-seq\fR \fI<INT>\fR
+echo sequence (types 0/8)
+.TP
+\fB\-\-icmp\-rest\fR \fI<BYTES>\fR
+raw 4\-byte rest of header (non\-echo types)
+.TP
+\fB\-\-udp\-sport\fR \fI<INT>\fR
+source port
+.TP
+\fB\-\-udp\-dport\fR \fI<INT>\fR
+destination port
+.TP
+\fB\-\-udp\-length\fR \fI<INT>\fR
+length incl. header (autofill: computed)
+.TP
+\fB\-\-udp\-checksum\fR \fI<INT>\fR
+checksum over pseudo\-header+segment (autofill: computed)
+.TP
+\fB\-\-tcp\-sport\fR \fI<INT>\fR
+source port
+.TP
+\fB\-\-tcp\-dport\fR \fI<INT>\fR
+destination port
+.TP
+\fB\-\-tcp\-seq\fR \fI<INT>\fR
+sequence number
+.TP
+\fB\-\-tcp\-ack\fR \fI<INT>\fR
+acknowledgment number
+.TP
+\fB\-\-tcp\-data_off\fR \fI<INT>\fR
+data offset in 32\-bit words (autofill: derived)
+.TP
+\fB\-\-tcp\-flags\fR \fI<BITS>\fR
+flag aggregate [cwr,ece,urg,ack,psh,rst,syn,fin]; subpaths flags.<bit>
+.TP
+\fB\-\-tcp\-flags\-cwr\fR
+set only the cwr bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-ece\fR
+set only the ece bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-urg\fR
+set only the urg bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-ack\fR
+set only the ack bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-psh\fR
+set only the psh bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-rst\fR
+set only the rst bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-syn\fR
+set only the syn bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-flags\-fin\fR
+set only the fin bit of tcp.flags (aggregate: \-\-tcp\-flags)
+.TP
+\fB\-\-tcp\-window\fR \fI<INT>\fR
+window (autofill: 64240)
+.TP
+\fB\-\-tcp\-checksum\fR \fI<INT>\fR
+checksum over pseudo\-header+segment (autofill: computed)
+.TP
+\fB\-\-tcp\-urgent\fR \fI<INT>\fR
+urgent pointer
+.TP
+\fB\-\-tcp\-options\fR \fI<BYTES>\fR
+options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:…
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
-.TP
-[\fIFIELDS\fR]
-
 .SH EXTRA
-FIELD FLAGS:
-  Beyond the options above, every trailing token is a field flag:
-    \-\-layer KIND              declare encapsulation order (repeatable)
-    \-\-payload VALUE           terminal payload bytes
-    \-\-<kind>\-<field>=VALUE   set one field; dots in the path become dashes
-                              (\-\-ipv4\-ttl=63, \-\-tcp\-flags\-syn, \-\-icmp\-echo\-id=5)
-  Kinds: eth, arp, ipv4 (alias: ip), icmp, udp, tcp. Without \-\-layer,
-  field flags imply their layers in rank order; a sibling conflict
-  (two rank\-30 kinds, or arp+ipv4) errors with a hint to pass \-\-layer.
-  Explicit values always win and are kept unvalidated; \-\-strict
-  re\-validates the result (violations exit 2).
+LAYER ORDER:
+  \-\-layer KIND declares encapsulation order (repeatable). Without it,
+  layers are implied by the field flags present, ordered by rank;
+  a sibling conflict (two rank\-30 kinds, or arp+ipv4) errors with a
+  hint to pass \-\-layer. Field flags for a kind you did not declare
+  require \-\-layer KIND.
+
+SEMANTICS:
+  Explicit values always win over autofill and are kept unvalidated;
+  \-\-strict re\-validates the crafted packet (violations exit 2).
   Every settable field, type, default and bit name: wrex fields [KIND].
 
 EXAMPLES:

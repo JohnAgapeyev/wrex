@@ -4,7 +4,7 @@
 .SH NAME
 fields \- Registry introspection: every settable field
 .SH SYNOPSIS
-\fBfields\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFIELDS\fR] 
+\fBfields\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIKIND\fR] 
 .SH DESCRIPTION
 Registry introspection: every settable field
 .SH OPTIONS
@@ -27,5 +27,5 @@ Validate the crafted packet after encode (violations → exit 2)
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
-[\fIFIELDS\fR]
-Show a single layer kind by name
+[\fIKIND\fR]
+Show a single layer kind by name (e.g. tcp; alias: ip)

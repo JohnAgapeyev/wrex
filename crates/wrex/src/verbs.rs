@@ -4,10 +4,10 @@
 use std::io::Write;
 use std::time::{Duration, Instant};
 
-use clap::CommandFactory;
+use clap::ArgMatches;
 
 use crate::cli::{Cli, Cmd, Common};
-use crate::spec::parse_packet_spec;
+use crate::spec::packet_spec_from_matches;
 use wrex_core::dissect::dissect;
 use wrex_core::encode::EncodeOpts;
 use wrex_core::render::{dissect_to_json, dissect_to_jsonl, dissect_to_text};
@@ -97,10 +97,10 @@ impl Format {
     }
 }
 
-pub fn dispatch(cli: &Cli) -> Result<(), CliError> {
+pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
     let registry = crate::standard();
     match &cli.cmd {
-        Cmd::Craft(args) => craft(&registry, &args.common, &args.fields),
+        Cmd::Craft(args) => craft(&registry, &args.common, sub_matches(matches, "craft")),
         Cmd::Dissect(args) => dissect_cmd(
             &registry,
             &args.common,
@@ -109,7 +109,7 @@ pub fn dispatch(cli: &Cli) -> Result<(), CliError> {
         Cmd::Send(args) => send(
             &registry,
             &args.common,
-            &args.fields,
+            sub_matches(matches, "send"),
             args.count.unwrap_or(1),
             args.interval.as_deref(),
             args.timeout.as_deref(),
@@ -119,20 +119,26 @@ pub fn dispatch(cli: &Cli) -> Result<(), CliError> {
         Cmd::Recv(args) => recv(
             &registry,
             &args.common,
-            &args.fields,
             args.count,
             args.timeout.as_deref(),
             args.filter.as_deref(),
             args.promisc,
         ),
-        Cmd::Iface(args) => iface(&args.common, &args.fields),
-        Cmd::Fields(args) => fields_cmd(&registry, &args.common, &args.fields),
+        Cmd::Iface(args) => iface(&args.common, args.name.as_deref()),
+        Cmd::Fields(args) => fields_cmd(&registry, &args.common, args.kind.as_deref()),
         Cmd::Completions(args) => {
-            let mut cmd = crate::cli::Cli::command();
+            let mut cmd = crate::cli::build_cli();
             clap_complete::generate(args.shell, &mut cmd, "wrex", &mut std::io::stdout());
             Ok(())
         }
     }
+}
+
+/// The `ArgMatches` of one verb, parsed from the same command.
+fn sub_matches<'a>(matches: &'a ArgMatches, name: &str) -> &'a ArgMatches {
+    matches
+        .subcommand_matches(name)
+        .expect("parsed from the same command")
 }
 
 fn encode_opts(common: &Common) -> EncodeOpts {
@@ -166,8 +172,8 @@ fn write_stdout(bytes: &[u8]) -> Result<(), CliError> {
 
 // --- craft -------------------------------------------------------------------
 
-fn craft(registry: &Registry, common: &Common, fields: &[String]) -> Result<(), CliError> {
-    let spec = parse_packet_spec(registry, fields)?;
+fn craft(registry: &Registry, common: &Common, matches: &ArgMatches) -> Result<(), CliError> {
+    let spec = packet_spec_from_matches(registry, matches)?;
     let format = Format::parse(common, Format::Raw)?;
     let encoded = encode(registry, &spec, &encode_opts(common))?;
     check_strict(common, &encoded)?;
@@ -306,8 +312,7 @@ fn dissect_cmd(registry: &Registry, common: &Common, start: &str) -> Result<(), 
 
 // --- iface / fields ----------------------------------------------------------
 
-fn iface(common: &Common, name_tokens: &[String]) -> Result<(), CliError> {
-    let name = name_tokens.first();
+fn iface(common: &Common, name: Option<&str>) -> Result<(), CliError> {
     let format = Format::parse(common, Format::Text)?;
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
@@ -358,15 +363,11 @@ fn iface(common: &Common, name_tokens: &[String]) -> Result<(), CliError> {
     Ok(())
 }
 
-fn fields_cmd(
-    registry: &Registry,
-    common: &Common,
-    kind_tokens: &[String],
-) -> Result<(), CliError> {
+fn fields_cmd(registry: &Registry, common: &Common, kind: Option<&str>) -> Result<(), CliError> {
     let format = Format::parse(common, Format::Text)?;
-    let kinds: Vec<&'static str> = match kind_tokens.first() {
+    let kinds: Vec<&'static str> = match kind {
         Some(k) => {
-            let canonical = if k == "ip" { "ipv4" } else { k.as_str() };
+            let canonical = if k == "ip" { "ipv4" } else { k };
             match registry.get(canonical) {
                 Some(c) => vec![c.schema().kind],
                 None => {
@@ -486,7 +487,7 @@ fn apply_iface_autofill(spec: &mut PacketSpec, entry: &wrex_io::IfEntry, autofil
 fn send(
     registry: &Registry,
     common: &Common,
-    fields: &[String],
+    matches: &ArgMatches,
     count: u64,
     interval_raw: Option<&str>,
     timeout_raw: Option<&str>,
@@ -513,9 +514,14 @@ fn send(
 
     let mut driver = RawEthDriver::open(iface, false, &table)?;
 
-    // Frame source: field flags, or raw stdin bytes (byte-transparent).
-    let frame: Vec<u8> = if !fields.is_empty() {
-        let mut spec = parse_packet_spec(registry, fields)?;
+    // Frame source: field flags (--layer/--payload/--<kind>-<field>), or
+    // raw stdin bytes (byte-transparent). Presence test against the same
+    // registry-derived arg set clap parsed.
+    let has_field_args = crate::cli::field_args(registry)
+        .iter()
+        .any(|arg| matches.contains_id(arg.get_id().as_str()));
+    let frame: Vec<u8> = if has_field_args {
+        let mut spec = packet_spec_from_matches(registry, matches)?;
         if spec.layers.first().map(|l| l.kind) != Some("eth") {
             return Err(usage(
                 "AF_PACKET send requires an eth (link-layer) stack start",
@@ -589,11 +595,9 @@ fn hum_duration(d: Duration) -> String {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn recv(
     registry: &Registry,
     common: &Common,
-    _fields: &[String],
     count: Option<u64>,
     timeout_raw: Option<&str>,
     filter_raw: Option<&str>,

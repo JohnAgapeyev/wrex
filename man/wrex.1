@@ -17,10 +17,10 @@ Print version
 .SH SUBCOMMANDS
 .TP
 wrex\-craft(1)
-Encode a PacketSpec from field flags → stdout. Standard options come first; everything after the first field flag (\-\-layer, \-\-payload, \-\-<kind>\-<field>=<value>) is a field flag
+Encode a PacketSpec from field flags → stdout
 .TP
 wrex\-completions(1)
-Print shell completions to stdout (bash|zsh|fish|elvish|powershell). The trailing field flags are parsed by wrex itself and are not in the completion set; spell them via `wrex fields`
+Print shell completions to stdout (bash|zsh|fish|elvish|powershell)
 .TP
 wrex\-dissect(1)
 stdin → DissectedPacket → stdout (never fatal)
@@ -41,12 +41,10 @@ wrex\-help(1)
 Print this message or the help of the given subcommand(s)
 .SH EXTRA
 FIELD FLAGS:
-  craft and send take per\-layer field flags after the standard options:
-    \-\-layer KIND            declare encapsulation order (repeatable)
-    \-\-payload VALUE         terminal payload bytes
-    \-\-<kind>\-<field>=VALUE  set one field; dots in the path become dashes
-                            (\-\-ipv4\-ttl=63, \-\-tcp\-flags\-syn, \-\-icmp\-echo\-id=5)
-  Full grammar and examples: wrex craft \-\-help.
+  craft and send take per\-layer field flags, listed in their \-\-help
+  (e.g. \-\-eth\-dst, \-\-ipv4\-ttl, \-\-tcp\-flags\-syn, \-\-icmp\-echo\-id); dots in
+  field paths become dashes in flags. Standard options and field flags
+  interleave freely.
   Every settable field, type, default and bit name: wrex fields [KIND].
 
 LAYER KINDS:

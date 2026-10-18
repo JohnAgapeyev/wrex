@@ -13,7 +13,6 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use clap::CommandFactory as _;
 use wrex_core::schema::LayerSchema;
 
 /// Frozen manual date (man pages conventionally carry a release date;
@@ -24,7 +23,7 @@ const MAN_DATE: &str = "2026-10-18";
 pub fn generate(root: &Path) -> PathBuf {
     let dir = root.join("man");
     std::fs::create_dir_all(&dir).expect("mkdir man/");
-    let cmd = wrex::cli::Cli::command();
+    let cmd = wrex::cli::build_cli();
     let version = cmd.get_version().unwrap_or("0.1.0").to_string();
 
     // wrex(1): straight from the clap definition (== --help).
