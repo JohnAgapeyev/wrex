@@ -1,0 +1,58 @@
+.TH WREX-TCP 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-tcp \- tcp layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fItcp\fR \fB--tcp\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fItcp\fR
+
+.SH DESCRIPTION
+TCP (RFC 9293): 20\-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under \-\-strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per\-bit subpaths \-\-tcp\-flags\-syn exist. checksum over the RFC 9293 pseudo\-header (proto 6) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.
+.
+
+.SH ENCAPSULATION
+Rank 30; stacks on ipv4 (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --tcp-sport).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-tcp\-sport=\fIINT\fR\fR
+source port Type u16. Default: 0.
+.TP
+\fB\-\-tcp\-dport=\fIINT\fR\fR
+destination port Type u16. Default: 0.
+.TP
+\fB\-\-tcp\-seq=\fIINT\fR\fR
+sequence number Type u32. Default: 0.
+.TP
+\fB\-\-tcp\-ack=\fIINT\fR\fR
+acknowledgment number Type u32. Default: 0.
+.TP
+\fB\-\-tcp\-data_off=\fIINT\fR\fR
+data offset in 32\-bit words (autofill: derived) Type u8. Default: 0.
+.TP
+\fB\-\-tcp\-flags\fR
+flag aggregate [cwr,ece,urg,ack,psh,rst,syn,fin]; subpaths flags.<bit> Type flagset. Default: 0.
+Bit names (MSB first): cwr, ece, urg, ack, psh, rst, syn, fin. Aggregate \fB\-\-tcp\-flags\fR sets the whole unit; per-bit \-\-tcp\-flags\-cwr sets one bit.
+.TP
+\fB\-\-tcp\-window=\fIINT\fR\fR
+window (autofill: 64240) Type u16. Default: 64240.
+.TP
+\fB\-\-tcp\-checksum=\fIINT\fR\fR
+checksum over pseudo\-header+segment (autofill: computed) Type u16. Default: 0.
+.TP
+\fB\-\-tcp\-urgent=\fIINT\fR\fR
+urgent pointer Type u16. Default: 0.
+.TP
+\fB\-\-tcp\-options\fR
+options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:… Type bytes. Default: .
+
+.SH EXAMPLES
+wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \-\-layer tcp \\\\
+  \-\-ipv4\-src=127.0.0.1 \-\-ipv4\-dst=127.0.0.1 \\\\
+  \-\-tcp\-sport=1234 \-\-tcp\-dport=80 \-\-tcp\-flags=syn,ack
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7)

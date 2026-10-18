@@ -1,0 +1,54 @@
+.TH WREX-ARP 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-arp \- arp layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIarp\fR \fB--arp\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIarp\fR
+
+.SH DESCRIPTION
+Address Resolution Protocol (RFC 826) for Ethernet: fixed 28\-byte request/reply header (htype=1 Ethernet, ptype=0x0800 IPv4, hlen=6, plen=4). oper: 1=request, 2=reply. Terminal layer; carries no next\-header chain. tpa is required: crafting without it is an Unfillable error.
+.
+
+.SH ENCAPSULATION
+Rank 20; stacks on eth (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --arp-htype).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-arp\-htype=\fIINT\fR\fR
+hardware type (autofill: 1 ethernet) Type u16. Default: 1.
+.TP
+\fB\-\-arp\-ptype=\fIINT\fR\fR
+protocol type (autofill: 0x0800 ipv4) Type u16. Default: 2048.
+.TP
+\fB\-\-arp\-hlen=\fIINT\fR\fR
+hardware address length (autofill: 6) Type u8. Default: 6.
+.TP
+\fB\-\-arp\-plen=\fIINT\fR\fR
+protocol address length (autofill: 4) Type u8. Default: 4.
+.TP
+\fB\-\-arp\-oper=\fIINT\fR\fR
+operation (autofill: 1 request) Type u16. Default: 1.
+.TP
+\fB\-\-arp\-sha=\fIMAC\fR\fR
+sender hardware address (autofill: 00:00:00:00:00:00) Type mac. Default: 00:00:00:00:00:00.
+.TP
+\fB\-\-arp\-spa=\fIIP\fR\fR
+sender protocol address Type ipv4. Default: 0.0.0.0.
+.TP
+\fB\-\-arp\-tha=\fIMAC\fR\fR
+target hardware address (autofill: 00:00:00:00:00:00) Type mac. Default: 00:00:00:00:00:00.
+.TP
+\fB\-\-arp\-tpa=\fIIP\fR\fR
+target protocol address (required) Type ipv4. Default: 0.0.0.0. Required.
+
+.SH EXAMPLES
+wrex craft \-\-format hex \-\-layer eth \-\-layer arp \\\\
+  \-\-arp\-oper=1 \-\-arp\-tpa=10.0.0.1
+# arp.tpa is required: omitting it is an Unfillable error
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7)

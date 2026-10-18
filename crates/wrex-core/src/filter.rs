@@ -353,6 +353,7 @@ mod tests {
             kind: "tcp",
             rank: 30,
             parents: &["ipv4"],
+            doc: "filter-test stand-in",
             fields: TCP_FIELDS.as_slice(),
         });
 
@@ -361,6 +362,7 @@ mod tests {
             kind: "ipv4",
             rank: 20,
             parents: &["eth"],
+            doc: "filter-test stand-in",
             fields: IPV4_FIELDS.as_slice(),
         });
 

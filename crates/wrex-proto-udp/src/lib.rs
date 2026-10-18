@@ -46,6 +46,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "udp",
     rank: 30,
     parents: &["ipv4"],
+    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the RFC 9293 pseudo-header (src, dst, proto 17, length) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero.",
     fields: FIELDS.as_slice(),
 });
 

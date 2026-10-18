@@ -1,6 +1,10 @@
 #![forbid(unsafe_code)]
 //! wrex library facade + protocol registry composition.
 
+pub mod cli;
+pub mod spec;
+pub mod verbs;
+
 pub mod prelude {
     pub use wrex_core::{
         DissectedPacket, EncodeError, LayerSpec, PacketSpec, Registry, SpecError, Value,

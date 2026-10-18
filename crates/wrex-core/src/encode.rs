@@ -451,6 +451,7 @@ mod tests {
         kind: "mock",
         rank: 5,
         parents: &[],
+        doc: "engine-test mock layer",
         fields: MOCK_SCHEMA_FIELDS,
     };
 

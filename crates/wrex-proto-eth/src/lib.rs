@@ -46,6 +46,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "eth",
     rank: 10,
     parents: &[],
+    doc: "Ethernet II (DIX) framing: 14-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 -> ipv4, 0x0806 -> arp, anything else -> synthesized `unknown` layer holding the remaining bytes.",
     fields: FIELDS.as_slice(),
 });
 
@@ -248,6 +249,7 @@ mod tests {
         kind: "ipv4",
         rank: 20,
         parents: &["eth"],
+        doc: "test stand-in",
         fields: MOCK_IP_FIELDS.as_slice(),
     });
     impl Codec for MockIp {

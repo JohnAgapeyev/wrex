@@ -85,6 +85,9 @@ pub struct LayerSchema {
     pub rank: u16,
     /// Kinds this layer may stack on (empty = valid stack start).
     pub parents: &'static [&'static str],
+    /// Layer-level documentation (mirrors the crate/module rustdoc);
+    /// rendered by `wrex fields` and the man-page generator.
+    pub doc: &'static str,
     pub fields: &'static [FieldSchema],
 }
 
@@ -174,6 +177,7 @@ mod tests {
             kind: "tcp",
             rank: 30,
             parents: &["ipv4"],
+            doc: "test stand-in",
             fields: &[FieldSchema {
                 name: "flags",
                 kind: FieldKind::FlagSet,

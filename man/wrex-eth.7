@@ -1,0 +1,36 @@
+.TH WREX-ETH 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-eth \- eth layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIeth\fR \fB--eth\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIeth\fR
+
+.SH DESCRIPTION
+Ethernet II (DIX) framing: 14\-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 \-> ipv4, 0x0806 \-> arp, anything else \-> synthesized `unknown` layer holding the remaining bytes.
+.
+
+.SH ENCAPSULATION
+Rank 10 (valid stack start: no parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --eth-dst).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-eth\-dst=\fIMAC\fR\fR
+destination MAC (autofill: ff:ff:ff:ff:ff:ff) Type mac. Default: ff:ff:ff:ff:ff:ff.
+.TP
+\fB\-\-eth\-src=\fIMAC\fR\fR
+source MAC (autofill: interface MAC on send) Type mac. Default: 00:00:00:00:00:00.
+.TP
+\fB\-\-eth\-type=\fIINT\fR\fR
+ethertype (autofill: derived from next layer) Type u16. Default: 0.
+
+.SH EXAMPLES
+wrex craft \-\-format hex \-\-layer eth \\\\
+  \-\-eth\-dst=ff:ff:ff:ff:ff:ff \-\-eth\-type=0x0800
+wrex fields eth
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-arp\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7)

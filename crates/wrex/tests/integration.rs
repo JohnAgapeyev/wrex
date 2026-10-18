@@ -297,3 +297,57 @@ fn corpus_goldens() {
     }
     assert!(checked >= 16, "only {checked} corpus frames checked");
 }
+
+/// Discoverability: the field flags are not clap args, so their grammar
+/// must be documented in --help; `completions` must emit a script.
+#[test]
+fn help_documents_field_flags_and_completions_emit() {
+    let craft_help = String::from_utf8(
+        wrex()
+            .args(["craft", "--help"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    for needle in [
+        "FIELD FLAGS",
+        "--layer",
+        "--payload",
+        "wrex fields",
+        "EXAMPLES",
+    ] {
+        assert!(
+            craft_help.contains(needle),
+            "craft --help must mention {needle:?}"
+        );
+    }
+
+    let root_help = String::from_utf8(
+        wrex()
+            .args(["--help"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    for needle in ["EXIT CODES", "VALUE GRAMMAR", "completions"] {
+        assert!(root_help.contains(needle), "--help must mention {needle:?}");
+    }
+
+    let completions = String::from_utf8(
+        wrex()
+            .args(["completions", "bash"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(!completions.is_empty() && completions.contains("wrex"));
+}

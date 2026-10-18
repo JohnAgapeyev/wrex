@@ -80,6 +80,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "tcp",
     rank: 30,
     parents: &["ipv4"],
+    doc: "TCP (RFC 9293): 20-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under --strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per-bit subpaths --tcp-flags-syn exist. checksum over the RFC 9293 pseudo-header (proto 6) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.",
     fields: FIELDS.as_slice(),
 });
 

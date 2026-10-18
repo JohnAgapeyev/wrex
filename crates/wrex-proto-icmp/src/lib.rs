@@ -64,6 +64,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "icmp",
     rank: 30,
     parents: &["ipv4"],
+    doc: "ICMP (RFC 792) over IPv4. type 0/8 (echo reply/request) expose echo.id and echo.seq plus payload; every other type renders the 4-byte rest of header as icmp.rest raw bytes. checksum autofilled (explicit wins).",
     fields: FIELDS.as_slice(),
 });
 

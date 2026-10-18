@@ -1,0 +1,63 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH craft 1  "craft " 
+.SH NAME
+craft \- Encode a PacketSpec from field flags → stdout. Standard options come first; everything after the first field flag (\-\-layer, \-\-payload, \-\-<kind>\-<field>=<value>) is a field flag
+.SH SYNOPSIS
+\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFIELDS\fR] 
+.SH DESCRIPTION
+Encode a PacketSpec from field flags → stdout. Standard options come first; everything after the first field flag (\-\-layer, \-\-payload, \-\-<kind>\-<field>=<value>) is a field flag
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIFIELDS\fR]
+
+.SH EXTRA
+FIELD FLAGS:
+  Beyond the options above, every trailing token is a field flag:
+    \-\-layer KIND              declare encapsulation order (repeatable)
+    \-\-payload VALUE           terminal payload bytes
+    \-\-<kind>\-<field>=VALUE   set one field; dots in the path become dashes
+                              (\-\-ipv4\-ttl=63, \-\-tcp\-flags\-syn, \-\-icmp\-echo\-id=5)
+  Kinds: eth, arp, ipv4 (alias: ip), icmp, udp, tcp. Without \-\-layer,
+  field flags imply their layers in rank order; a sibling conflict
+  (two rank\-30 kinds, or arp+ipv4) errors with a hint to pass \-\-layer.
+  Explicit values always win and are kept unvalidated; \-\-strict
+  re\-validates the result (violations exit 2).
+  Every settable field, type, default and bit name: wrex fields [KIND].
+
+EXAMPLES:
+  # 46\-byte golden frame; autofill derives eth.type, ipv4.total_len,
+  # ipv4.checksum, udp.length and udp.checksum from the packet
+  wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \-\-layer udp \\
+    \-\-eth\-dst=ff:ff:ff:ff:ff:ff \-\-ipv4\-src=127.0.0.1 \-\-ipv4\-dst=127.0.0.1 \\
+    \-\-udp\-sport=4444 \-\-udp\-dport=5555 \-\-payload=hex:deadbeef
+
+  # implied mode: the same bytes without \-\-layer (layers come from flags)
+  wrex craft \-\-format hex \\
+    \-\-eth\-dst=ff:ff:ff:ff:ff:ff \-\-ipv4\-src=127.0.0.1 \-\-ipv4\-dst=127.0.0.1 \\
+    \-\-udp\-sport=4444 \-\-udp\-dport=5555 \-\-payload=hex:deadbeef
+
+  # send on an interface (needs CAP_NET_RAW; send stacks start with eth)
+  wrex send \-i lo \-\-layer eth \-\-layer ipv4 \-\-layer udp \\
+    \-\-ipv4\-src=127.0.0.1 \-\-ipv4\-dst=127.0.0.1 \\
+    \-\-udp\-sport=1 \-\-udp\-dport=2 \-\-payload=hex:aa
+
+  # no field flags + piped stdin: raw stdin bytes are sent as\-is

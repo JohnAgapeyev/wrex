@@ -211,7 +211,7 @@ mod tests {
     use super::*;
 
     fn reg() -> Registry {
-        wrex::standard()
+        crate::standard()
     }
 
     fn toks(args: &[&str]) -> Vec<String> {

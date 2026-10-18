@@ -1,0 +1,31 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH iface 1  "iface " 
+.SH NAME
+iface \- Interface table: name, mac, ipv4s, mtu, up
+.SH SYNOPSIS
+\fBiface\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFIELDS\fR] 
+.SH DESCRIPTION
+Interface table: name, mac, ipv4s, mtu, up
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIFIELDS\fR]
+Show a single interface by name

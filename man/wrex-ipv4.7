@@ -1,0 +1,67 @@
+.TH WREX-IPV4 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-ipv4 \- ipv4 layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIipv4\fR \fB--ipv4\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIipv4\fR
+
+.SH DESCRIPTION
+IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under \-\-strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (\-\-ip\-ttl == \-\-ipv4\-ttl).
+.
+
+.SH ENCAPSULATION
+Rank 20; stacks on eth (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --ipv4-ver).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-ipv4\-ver=\fIINT\fR\fR
+version (autofill: 4) Type u8. Default: 4.
+.TP
+\fB\-\-ipv4\-ihl=\fIINT\fR\fR
+header length in 32\-bit words (autofill: derived) Type u8. Default: 0.
+.TP
+\fB\-\-ipv4\-tos=\fIINT\fR\fR
+type of service Type u8. Default: 0.
+.TP
+\fB\-\-ipv4\-total_len=\fIINT\fR\fR
+total length (autofill: computed) Type u16. Default: 0.
+.TP
+\fB\-\-ipv4\-id=\fIINT\fR\fR
+identification (autofill: 0, deterministic) Type u16. Default: 0.
+.TP
+\fB\-\-ipv4\-flags\fR
+flags aggregate [df,mf]; per\-bit subpaths flags.df / flags.mf Type flagset. Default: 0.
+Bit names (MSB first): df, mf. Aggregate \fB\-\-ipv4\-flags\fR sets the whole unit; per-bit \-\-ipv4\-flags\-df sets one bit.
+.TP
+\fB\-\-ipv4\-frag_off=\fIINT\fR\fR
+fragment offset Type u16. Default: 0.
+.TP
+\fB\-\-ipv4\-ttl=\fIINT\fR\fR
+time to live (autofill: 64) Type u8. Default: 64.
+.TP
+\fB\-\-ipv4\-proto=\fIINT\fR\fR
+protocol (autofill: derived from next layer) Type u8. Default: 0.
+.TP
+\fB\-\-ipv4\-checksum=\fIINT\fR\fR
+header checksum (autofill: computed) Type u16. Default: 0.
+.TP
+\fB\-\-ipv4\-src=\fIIP\fR\fR
+source address (autofill: 127.0.0.1; interface primary on send) Type ipv4. Default: 127.0.0.1.
+.TP
+\fB\-\-ipv4\-dst=\fIIP\fR\fR
+destination address (autofill: 127.0.0.1) Type ipv4. Default: 127.0.0.1.
+.TP
+\fB\-\-ipv4\-options\fR
+options: eol,nop,rr:IP…,ssrr:IP…,lsrr:IP…,ts:FLAG,CNT, or hex:… Type bytes. Default: .
+
+.SH EXAMPLES
+wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \\\\
+  \-\-ipv4\-src=127.0.0.1 \-\-ipv4\-dst=127.0.0.1 \-\-ipv4\-ttl=63
+# CLI alias: \-\-ip\-ttl=63 == \-\-ipv4\-ttl=63
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7)

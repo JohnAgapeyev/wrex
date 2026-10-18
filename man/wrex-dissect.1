@@ -1,0 +1,46 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH dissect 1  "dissect " 
+.SH NAME
+dissect \- stdin → DissectedPacket → stdout (never fatal)
+.SH SYNOPSIS
+\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFIELDS\fR] 
+.SH DESCRIPTION
+stdin → DissectedPacket → stdout (never fatal)
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-\-start\fR \fI<START>\fR
+Dissection start: auto|eth|ipv4|… (default auto)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIFIELDS\fR]
+
+.SH EXTRA
+FORMATS:
+  raw   input bytes echoed out (byte\-transparent pipelines)
+  hex   lowercase hex + newline
+  text  indented field tree, \*(Aq! path: message\*(Aq anomaly lines and a
+        trailing payload hexdump (default)
+  json / jsonl  {"start":..,"layers":[..],"payload_hex":..,"anomalies":[..]}
+
+EXAMPLES:
+  wrex craft \-\-format raw \-\-layer eth ... | wrex dissect \-\-format json
+  wrex dissect \-\-start eth < frame.bin
+  # \-\-strict exits 1 when dissection finds anomalies (data failed checks)

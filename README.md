@@ -13,11 +13,35 @@ stdin/stdout pipelines, and the full testing/verification infrastructure
 (property-based, differential vs etherparse + tshark, golden corpus,
 Miri, cargo-fuzz targets, advisory coverage) with per-commit CI.
 
-## Install / build
+## Install
 
 ```sh
-cargo build --workspace        # build everything
-cargo run -q -- --version      # wrex 0.1.0
+cargo install --path crates/wrex
+# or from the remote: cargo install --git https://github.com/JohnAgapeyev/wrex wrex
+wrex --version          # wrex 0.1.0
+```
+
+Release profile, and the default feature set is the full user-facing
+tool: every protocol codec (eth arp ipv4 icmp udp tcp) ships enabled.
+Test/dev machinery (wrex-test, xtask, fuzz) is workspace-only and never
+installed. Slim builds: `cargo install --path crates/wrex
+--no-default-features --features proto-eth,proto-ip,proto-udp`.
+
+Shell completions: `wrex completions bash|zsh|fish|elvish|powershell`.
+
+## Manual
+
+Systemd-style split — regenerate with `cargo xtask man`; CI verifies the
+committed pages stay fresh with the code:
+
+- `man/wrex.1`, `man/wrex-<verb>.1` — the CLI surface, generated from
+  the same clap definition that renders `--help`.
+- `man/wrex-<kind>.7` — one page per protocol, generated from the same
+  in-code schema docs that rustdoc and `wrex fields [KIND]` print.
+
+```sh
+man man/wrex.1
+man man/wrex-ipv4.7
 ```
 
 ## Quickstart
@@ -25,7 +49,7 @@ cargo run -q -- --version      # wrex 0.1.0
 Craft with per-layer flags (`.` in field paths becomes `-`):
 
 ```sh
-cargo run -q -- craft --format hex \
+wrex craft --format hex \
   --layer eth --layer ipv4 --layer udp \
   --eth-dst=ff:ff:ff:ff:ff:ff \
   --ipv4-src=127.0.0.1 --ipv4-dst=127.0.0.1 \
@@ -38,29 +62,35 @@ prints
 Omit the `--layer` flags and the same bytes come out (layers implied from
 the field flags, ordered by rank).
 
+Discover every settable field, type, default and bit name before
+reaching for anything else:
+
+```sh
+wrex fields            # all layers
+wrex fields tcp        # one layer, with per-field docs
+```
+
 Dissect (never fatal; anomalies render as `! path: message`):
 
 ```sh
-cargo run -q -- craft --format raw ... | cargo run -q -- dissect --format json
-cargo run -q -- dissect --format text < frame.bin
+wrex craft --format raw ... | wrex dissect --format json
+wrex dissect --format text < frame.bin
 ```
 
 Send / receive on an interface (needs `CAP_NET_RAW`; the CLI prints the
 `setcap` hint when missing):
 
 ```sh
-cargo run -q -- send -i lo --layer eth --layer ipv4 --layer udp \
+wrex send -i lo --layer eth --layer ipv4 --layer udp \
   --ipv4-src=127.0.0.1 --ipv4-dst=127.0.0.1 \
   --udp-sport=1 --udp-dport=2 --payload=hex:aa
-cargo run -q -- recv -i lo --count 1 --format jsonl --filter 'udp.dport=2'
+wrex recv -i lo --count 1 --format jsonl --filter 'udp.dport=2'
 ```
 
-Introspect the registry (every settable field, with defaults and docs):
+Interfaces:
 
 ```sh
-cargo run -q -- fields
-cargo run -q -- fields tcp
-cargo run -q -- iface
+wrex iface
 ```
 
 Deliberately invalid packets are a feature: explicit values always win
@@ -76,7 +106,8 @@ crates/wrex-io        Clock, Driver, AF_PACKET raw driver (only unsafe crate), i
 crates/wrex-test      test-support: strategies, oracles, corpus, CLI harness
 crates/wrex-proto-*   eth arp ip icmp udp tcp (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)
-xtask/                `cargo xtask` — verify / coverage / corpus-import
+xtask/                `cargo xtask` — verify / coverage / man / corpus-import
+man/                  generated man pages: wrex(1), wrex-<verb>(1), wrex-<kind>(7)
 ```
 
 Protocol extension is a compile-time registry: a new protocol is a new

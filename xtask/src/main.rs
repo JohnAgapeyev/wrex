@@ -3,8 +3,8 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+mod man;
 mod mcdc;
-
 use clap::{Parser, Subcommand};
 
 const PROPTEST_RNG_SEED: &str = "31337";
@@ -36,6 +36,8 @@ enum Cmd {
     },
     /// import a classic pcap into wrex-test/corpus/<name>/ (dev-only, needs tshark)
     CorpusImport { pcap: PathBuf, name: String },
+    /// generate man pages into man/: wrex(1) + wrex-<kind>(7) per protocol
+    Man {},
 }
 
 fn main() {
@@ -54,6 +56,10 @@ fn main() {
         }
         Cmd::CorpusImport { pcap, name } => {
             corpus_import(&root, &pcap, &name);
+        }
+        Cmd::Man {} => {
+            let dir = man::generate(&root);
+            println!("man pages written to {}", dir.display());
         }
     }
 }

@@ -4,6 +4,8 @@
 use std::io::Write;
 use std::time::{Duration, Instant};
 
+use clap::CommandFactory;
+
 use crate::cli::{Cli, Cmd, Common};
 use crate::spec::parse_packet_spec;
 use wrex_core::dissect::dissect;
@@ -96,7 +98,7 @@ impl Format {
 }
 
 pub fn dispatch(cli: &Cli) -> Result<(), CliError> {
-    let registry = wrex::standard();
+    let registry = crate::standard();
     match &cli.cmd {
         Cmd::Craft(args) => craft(&registry, &args.common, &args.fields),
         Cmd::Dissect(args) => dissect_cmd(
@@ -125,6 +127,11 @@ pub fn dispatch(cli: &Cli) -> Result<(), CliError> {
         ),
         Cmd::Iface(args) => iface(&args.common, &args.fields),
         Cmd::Fields(args) => fields_cmd(&registry, &args.common, &args.fields),
+        Cmd::Completions(args) => {
+            let mut cmd = crate::cli::Cli::command();
+            clap_complete::generate(args.shell, &mut cmd, "wrex", &mut std::io::stdout());
+            Ok(())
+        }
     }
 }
 
@@ -393,7 +400,11 @@ fn fields_cmd(
                     .collect();
                 arr.insert(
                     k.to_string(),
-                    serde_json::json!({ "rank": schema.rank, "fields": fields }),
+                    serde_json::json!({
+                        "rank": schema.rank,
+                        "doc": schema.doc,
+                        "fields": fields
+                    }),
                 );
             }
             let mut out = serde_json::to_string(&serde_json::Value::Object(arr))
@@ -406,6 +417,9 @@ fn fields_cmd(
             for &k in &kinds {
                 let schema = registry.schema(k).unwrap();
                 out.push_str(&format!("{k} (rank {})\n", schema.rank));
+                if !schema.doc.is_empty() {
+                    out.push_str(&format!("  {}\n", schema.doc));
+                }
                 for f in schema.fields {
                     let bits = if f.bit_names.is_empty() {
                         String::new()

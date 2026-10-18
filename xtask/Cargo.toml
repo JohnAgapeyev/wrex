@@ -13,3 +13,4 @@ wrex-core = { workspace = true }
 wrex-test = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
+clap_mangen = "0.2"
