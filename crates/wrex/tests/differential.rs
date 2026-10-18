@@ -136,10 +136,11 @@ proptest! {
     #[test]
     fn differential_tshark((stack, spec) in stack_spec()) {
         let tshark = TsharkOracle;
-        prop_assume!(
-            tshark.is_available(),
-            "tshark not on PATH (WREX_DIFF_TSHARK unset): skipping"
-        );
+        if !tshark.is_available() {
+            // Printed notice (prop_assume! would reject silently).
+            eprintln!("differential_tshark: skipping (tshark not on PATH, WREX_DIFF_TSHARK unset)");
+            prop_assume!(false, "tshark unavailable");
+        }
         let reg = registry();
         let encoded = encode(
             &reg,
