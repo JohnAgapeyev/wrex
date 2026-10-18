@@ -19,6 +19,9 @@ use wrex_test::strategies::{packet_strategy, stacks};
 /// flag-set roundtrips: the spec sets a mask, dissection yields names).
 const TCP_FLAGS: &[&str] = &["cwr", "ece", "urg", "ack", "psh", "rst", "syn", "fin"];
 
+/// One skip notice per test binary, not one per proptest case.
+static SKIP_NOTICE: std::sync::Once = std::sync::Once::new();
+
 fn registry() -> Registry {
     wrex::standard()
 }
@@ -133,13 +136,19 @@ proptest! {
     }
 
     /// tshark differential (subprocess) over the same generated frames.
+    /// tshark absent → skip with one printed notice and a plain early
+    /// return per case; `prop_assume!(false)` would burn proptest's
+    /// global reject budget (1024) and abort the run.
     #[test]
     fn differential_tshark((stack, spec) in stack_spec()) {
         let tshark = TsharkOracle;
         if !tshark.is_available() {
-            // Printed notice (prop_assume! would reject silently).
-            eprintln!("differential_tshark: skipping (tshark not on PATH, WREX_DIFF_TSHARK unset)");
-            prop_assume!(false, "tshark unavailable");
+            SKIP_NOTICE.call_once(|| {
+                eprintln!(
+                    "differential_tshark: skipping (tshark not on PATH, WREX_DIFF_TSHARK unset)"
+                );
+            });
+            return Ok(());
         }
         let reg = registry();
         let encoded = encode(
