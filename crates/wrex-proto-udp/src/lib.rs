@@ -46,8 +46,9 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "udp",
     rank: 30,
     parents: &["ipv4"],
-    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the RFC 9293 pseudo-header (src, dst, proto 17, length) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero.",
+    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the RFC 9293 pseudo-header (src, dst, proto 17, length) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec when registered (tranche-3 port dispatch); other ports are terminal (the payload follows).",
     fields: FIELDS.as_slice(),
+    records: &[],
 });
 
 /// UDP codec unit. Register as `&wrex_proto_udp::CODEC`.
@@ -159,8 +160,15 @@ impl Codec for UdpCodec {
             span: ctx.offset..ctx.offset + 8,
             fields,
         };
-        // UDP is terminal (the payload follows).
-        ReadOutcome::Layer(view, Some(Next::Payload))
+        // Port-53 datagrams chain into the dns codec when registered
+        // (tranche 3: tshark-parity dispatch; otherwise the engine
+        // synthesizes the usual `unknown` layer for the payload).
+        let next = if sport == 53 || dport == 53 {
+            Next::Kind("dns")
+        } else {
+            Next::Payload
+        };
+        ReadOutcome::Layer(view, Some(next))
     }
 }
 
@@ -317,5 +325,116 @@ mod tests {
             CODEC.read(&[0x00; 7], &mut ctx),
             ReadOutcome::Anomaly(DecodeError::Truncated { kind: "udp", .. }, _)
         ));
+    }
+
+    /// A minimal stand-in `dns` codec so the port-53 dispatch test does
+    /// not need a cross-crate dependency (proto crates stay isolated).
+    mod dns_dispatch {
+        use super::*;
+        use std::collections::BTreeMap;
+        use std::sync::LazyLock;
+
+        static DNS_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(Vec::new);
+        static DNS_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+            kind: "dns",
+            rank: 40,
+            parents: &["udp"],
+            doc: "dispatch stand-in",
+            fields: DNS_FIELDS.as_slice(),
+            records: &[],
+        });
+
+        struct DnsStub;
+        impl Codec for DnsStub {
+            fn schema(&self) -> &'static LayerSchema {
+                &DNS_SCHEMA
+            }
+            fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+                Ok(0)
+            }
+            fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+                Ok(())
+            }
+            fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+                let mut fields = BTreeMap::new();
+                fields.insert(
+                    "stub".to_string(),
+                    Value::Bytes(bytes::Bytes::copy_from_slice(bytes)),
+                );
+                ReadOutcome::Layer(
+                    LayerView {
+                        kind: "dns",
+                        span: ctx.offset..ctx.offset + bytes.len(),
+                        fields,
+                    },
+                    Some(Next::Payload),
+                )
+            }
+        }
+
+        static DNS_STUB: DnsStub = DnsStub;
+
+        fn dns_registry() -> Registry {
+            let mut r = Registry::empty();
+            r.register(&CODEC);
+            r.register(&DNS_STUB);
+            r
+        }
+
+        #[test]
+        fn port53_chains_into_dns() {
+            let spec = udp_spec(&[("sport", "40000"), ("dport", "53")]);
+            let enc = encode(
+                &dns_registry(),
+                &PacketSpec::new(vec![spec], None),
+                &lo_opts(),
+            )
+            .unwrap();
+            let p = wrex_core::dissect::dissect(&dns_registry(), &enc.bytes, "udp");
+            assert_eq!(
+                p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+                vec!["udp", "dns"],
+                "port 53 must chain into the dns codec"
+            );
+            // source side too
+            let spec = udp_spec(&[("sport", "53"), ("dport", "40000")]);
+            let enc = encode(
+                &dns_registry(),
+                &PacketSpec::new(vec![spec], None),
+                &lo_opts(),
+            )
+            .unwrap();
+            let p = wrex_core::dissect::dissect(&dns_registry(), &enc.bytes, "udp");
+            assert_eq!(
+                p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+                vec!["udp", "dns"]
+            );
+            // other ports stay terminal
+            let spec = udp_spec(&[("sport", "1"), ("dport", "2")]);
+            let enc = encode(
+                &dns_registry(),
+                &PacketSpec::new(vec![spec], None),
+                &lo_opts(),
+            )
+            .unwrap();
+            let p = wrex_core::dissect::dissect(&dns_registry(), &enc.bytes, "udp");
+            assert_eq!(
+                p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+                vec!["udp"]
+            );
+        }
+
+        #[test]
+        fn port53_without_dns_codec_stays_terminal() {
+            // slim registry: the engine synthesizes the usual `unknown`
+            // layer for the remainder — port 53 payloads never vanish.
+            let spec = udp_spec(&[("sport", "1"), ("dport", "53")]);
+            let enc = encode(&registry(), &PacketSpec::new(vec![spec], None), &lo_opts()).unwrap();
+            let p = wrex_core::dissect::dissect(&registry(), &enc.bytes, "udp");
+            assert_eq!(
+                p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+                vec!["udp", "unknown"]
+            );
+        }
     }
 }

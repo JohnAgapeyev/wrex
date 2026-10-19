@@ -4,7 +4,7 @@
 .SH NAME
 craft \- Encode a PacketSpec from field flags → stdout
 .SH SYNOPSIS
-\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 Encode a PacketSpec from field flags → stdout
 .SH OPTIONS
@@ -194,6 +194,54 @@ urgent pointer
 .TP
 \fB\-\-tcp\-options\fR \fI<BYTES>\fR
 options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:…
+.TP
+\fB\-\-dns\-id\fR \fI<INT>\fR
+message id (craft: seeded by wrex query)
+.TP
+\fB\-\-dns\-flags\fR \fI<BITS>\fR
+flag aggregate [qr,aa,tc,rd,ra]; subpaths flags.<bit>
+.TP
+\fB\-\-dns\-flags\-qr\fR
+set only the qr bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
+\fB\-\-dns\-flags\-aa\fR
+set only the aa bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
+\fB\-\-dns\-flags\-tc\fR
+set only the tc bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
+\fB\-\-dns\-flags\-rd\fR
+set only the rd bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
+\fB\-\-dns\-flags\-ra\fR
+set only the ra bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
+\fB\-\-dns\-opcode\fR \fI<INT>\fR
+operation code (4 bits; 0 = QUERY)
+.TP
+\fB\-\-dns\-rcode\fR \fI<INT>\fR
+response code (4 bits; 0 = NOERROR)
+.TP
+\fB\-\-dns\-qdcount\fR \fI<INT>\fR
+question count (autofill: derived from the question)
+.TP
+\fB\-\-dns\-ancount\fR \fI<INT>\fR
+answer count (autofill: 0)
+.TP
+\fB\-\-dns\-nscount\fR \fI<INT>\fR
+authority count (autofill: 0)
+.TP
+\fB\-\-dns\-arcount\fR \fI<INT>\fR
+additional count (autofill: 0)
+.TP
+\fB\-\-dns\-name\fR \fI<STRING>\fR
+question name, dotted presentation form (example.com)
+.TP
+\fB\-\-dns\-type\fR \fI<STRING>\fR
+question type: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, SRV, OPT, ANY, TYPE<n> or a number
+.TP
+\fB\-\-dns\-class\fR \fI<STRING>\fR
+question class: IN, CH, HS, ANY, CLASS<n> or a number
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

@@ -24,11 +24,10 @@ impl ChecksumAccumulator {
 
     /// Big-endian 16-bit words; a trailing odd byte is zero-padded.
     pub fn add_bytes(&mut self, bytes: &[u8]) {
-        let mut chunks = bytes.chunks_exact(2);
-        for c in &mut chunks {
-            self.add_u16(u16::from_be_bytes([c[0], c[1]]));
+        let (chunks, rem) = bytes.as_chunks::<2>();
+        for &c in chunks {
+            self.add_u16(u16::from_be_bytes(c));
         }
-        let rem = chunks.remainder();
         if let Some(&b) = rem.first() {
             self.add_u16(u16::from_be_bytes([b, 0]));
         }

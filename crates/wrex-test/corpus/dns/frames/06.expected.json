@@ -1,0 +1,78 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "aa:bb:cc:dd:ee:ff",
+        "src": "00:00:00:00:00:00",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 63084,
+        "dst": "192.0.2.10",
+        "flags": [],
+        "frag_off": 0,
+        "id": 0,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "192.0.2.53",
+        "tos": 0,
+        "total_len": 65,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 15347,
+        "dport": 40005,
+        "length": 45,
+        "sport": 53
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    },
+    {
+      "fields": {
+        "ancount": 0,
+        "arcount": 0,
+        "flags": [
+          "qr",
+          "rd",
+          "ra"
+        ],
+        "id": 68,
+        "nscount": 0,
+        "opcode": 0,
+        "qd.0.class": "IN",
+        "qd.0.name": "missing.example.com",
+        "qd.0.type": "A",
+        "qdcount": 1,
+        "rcode": 3
+      },
+      "kind": "dns",
+      "span": [
+        42,
+        79
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

@@ -1,0 +1,22 @@
+[package]
+name = "wrex-scan"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex scan: TCP SYN/connect + UDP + ICMP scan orchestration (sans-IO session over wrex-io drivers)"
+
+[dependencies]
+wrex-core = { workspace = true }
+wrex-io = { workspace = true }
+wrex-session = { workspace = true }
+bytes = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+wrex-proto-ip = { workspace = true }
+wrex-proto-icmp = { workspace = true }
+wrex-proto-udp = { workspace = true }
+wrex-proto-tcp = { workspace = true }
+proptest = { workspace = true }
+serde_json = { workspace = true }

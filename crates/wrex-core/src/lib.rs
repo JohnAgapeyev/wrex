@@ -22,7 +22,7 @@ pub use dissect::{
 pub use encode::{EncodeCtx, EncodeOpts, Encoded, Patch, Violation, encode};
 pub use error::{DecodeError, EncodeError, FilterError, SpecError};
 pub use filter::{Filter, Op as FilterOp};
-pub use schema::{FieldKind, FieldSchema, LayerSchema, ResolvedField};
+pub use schema::{FieldKind, FieldSchema, LayerSchema, RecordSchema, ResolvedField};
 pub use spec::{LayerSpec, PacketSpec};
 pub use time::parse_duration;
 pub use value::{Value, mac_string, parse_bool, parse_value, stdin_bytes};

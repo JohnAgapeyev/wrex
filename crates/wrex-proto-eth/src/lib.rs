@@ -48,6 +48,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     parents: &[],
     doc: "Ethernet II (DIX) framing: 14-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 -> ipv4, 0x0806 -> arp, anything else -> synthesized `unknown` layer holding the remaining bytes.",
     fields: FIELDS.as_slice(),
+    records: &[],
 });
 
 /// Ethernet II codec unit. Register as `&wrex_proto_eth::CODEC`.
@@ -251,6 +252,7 @@ mod tests {
         parents: &["eth"],
         doc: "test stand-in",
         fields: MOCK_IP_FIELDS.as_slice(),
+        records: &[],
     });
     impl Codec for MockIp {
         fn schema(&self) -> &'static LayerSchema {

@@ -11,7 +11,7 @@ pub mod prelude {
     };
 }
 
-/// The standard tranche-1 registry: every feature-gated protocol codec.
+/// The standard registry: every feature-gated protocol codec.
 pub fn standard() -> wrex_core::Registry {
     let mut r = wrex_core::Registry::empty();
     #[cfg(feature = "proto-eth")]
@@ -26,5 +26,7 @@ pub fn standard() -> wrex_core::Registry {
     r.register(&wrex_proto_udp::CODEC);
     #[cfg(feature = "proto-tcp")]
     r.register(&wrex_proto_tcp::CODEC);
+    #[cfg(feature = "proto-dns")]
+    r.register(&wrex_proto_dns::CODEC);
     r
 }

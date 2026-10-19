@@ -82,6 +82,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     parents: &["ipv4"],
     doc: "TCP (RFC 9293): 20-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under --strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per-bit subpaths --tcp-flags-syn exist. checksum over the RFC 9293 pseudo-header (proto 6) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.",
     fields: FIELDS.as_slice(),
+    records: &[],
 });
 
 /// TCP codec unit. Register as `&wrex_proto_tcp::CODEC`.
@@ -320,6 +321,9 @@ mod tests {
                 Some(wrex_core::ResolvedField::FlagBit { .. }) => {
                     wrex_core::parse_bool(v).map(Value::Bool).unwrap()
                 }
+                // tcp has no record sections; anything else resolving
+                // here is a test bug.
+                Some(wrex_core::ResolvedField::RecordField { .. }) => panic!("no field {k}"),
                 None => panic!("no field {k}"),
             };
             map.insert(k.to_string(), value);

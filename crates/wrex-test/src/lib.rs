@@ -3,6 +3,7 @@
 //! corpus, CLI harness.
 
 pub mod corpus;
+pub mod dns_oracle;
 pub mod harness;
 pub mod oracle;
 pub mod strategies;

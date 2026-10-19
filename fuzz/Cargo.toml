@@ -18,6 +18,15 @@ path = "../crates/wrex"
 [dependencies.wrex-core]
 path = "../crates/wrex-core"
 
+[dependencies.wrex-io]
+path = "../crates/wrex-io"
+
+[dependencies.wrex-scan]
+path = "../crates/wrex-scan"
+
+[dependencies.wrex-session]
+path = "../crates/wrex-session"
+
 [[bin]]
 name = "fuzz_dissect_eth"
 path = "fuzz_targets/fuzz_dissect_eth.rs"
@@ -63,6 +72,20 @@ bench = false
 [[bin]]
 name = "fuzz_craft_roundtrip"
 path = "fuzz_targets/fuzz_craft_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_scan_session"
+path = "fuzz_targets/fuzz_scan_session.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_dns"
+path = "fuzz_targets/fuzz_dissect_dns.rs"
 test = false
 doc = false
 bench = false

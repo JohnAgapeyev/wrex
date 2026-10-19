@@ -1,0 +1,4 @@
+source_url = "/tmp/opencode/dns-corpus.pcap"
+imported = "2026-10-19"
+start = "auto"
+frames = ["01", "02", "03", "04", "05", "06", "07", "08"]

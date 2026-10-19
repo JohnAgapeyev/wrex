@@ -1,0 +1,84 @@
+{
+  "anomalies": [
+    {
+      "message": "truncated record (need type/class/ttl/rdlength)",
+      "path": "dns.an.0.name"
+    }
+  ],
+  "layers": [
+    {
+      "fields": {
+        "dst": "aa:bb:cc:dd:ee:ff",
+        "src": "00:00:00:00:00:00",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 63086,
+        "dst": "192.0.2.10",
+        "flags": [],
+        "frag_off": 0,
+        "id": 0,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "192.0.2.53",
+        "tos": 0,
+        "total_len": 63,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 32230,
+        "dport": 40007,
+        "length": 43,
+        "sport": 53
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    },
+    {
+      "fields": {
+        "ancount": 1,
+        "arcount": 0,
+        "flags": [
+          "qr",
+          "tc",
+          "rd",
+          "ra"
+        ],
+        "id": 70,
+        "nscount": 0,
+        "opcode": 0,
+        "qd.0.class": "IN",
+        "qd.0.name": "example.com",
+        "qd.0.type": "A",
+        "qdcount": 1,
+        "rcode": 0
+      },
+      "kind": "dns",
+      "span": [
+        42,
+        71
+      ]
+    }
+  ],
+  "payload_hex": "c00c00010001",
+  "start": "eth"
+}

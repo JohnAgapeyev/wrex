@@ -103,6 +103,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     parents: &["eth"],
     doc: "IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under --strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (--ip-ttl == --ipv4-ttl).",
     fields: FIELDS.as_slice(),
+    records: &[],
 });
 
 /// IPv4 codec unit. Register as `&wrex_proto_ip::CODEC`.

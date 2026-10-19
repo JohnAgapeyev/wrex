@@ -65,12 +65,11 @@ impl Corpus {
         let mut out = Vec::new();
         if let Ok(rd) = std::fs::read_dir(&corpus_root) {
             for dent in rd.flatten() {
-                if dent.path().join("manifest.toml").is_file() {
-                    if let Some(c) =
+                if dent.path().join("manifest.toml").is_file()
+                    && let Some(c) =
                         Corpus::load(dent.file_name().to_string_lossy().to_string().as_str())
-                    {
-                        out.push(c);
-                    }
+                {
+                    out.push(c);
                 }
             }
         }

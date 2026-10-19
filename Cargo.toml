@@ -6,20 +6,25 @@ exclude = ["fuzz"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+# 1.88: hickory-proto 0.26 (the DNS differential oracle) floors here.
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 wrex = { path = "crates/wrex", version = "0.1.0" }
 wrex-core = { path = "crates/wrex-core", version = "0.1.0" }
 wrex-io = { path = "crates/wrex-io", version = "0.1.0" }
+wrex-session = { path = "crates/wrex-session", version = "0.1.0" }
+wrex-scan = { path = "crates/wrex-scan", version = "0.1.0" }
 wrex-test = { path = "crates/wrex-test", version = "0.1.0" }
+wrex-dns = { path = "crates/wrex-dns", version = "0.1.0" }
 wrex-proto-eth = { path = "crates/wrex-proto-eth", version = "0.1.0" }
 wrex-proto-arp = { path = "crates/wrex-proto-arp", version = "0.1.0" }
 wrex-proto-ip = { path = "crates/wrex-proto-ip", version = "0.1.0" }
 wrex-proto-icmp = { path = "crates/wrex-proto-icmp", version = "0.1.0" }
 wrex-proto-udp = { path = "crates/wrex-proto-udp", version = "0.1.0" }
 wrex-proto-tcp = { path = "crates/wrex-proto-tcp", version = "0.1.0" }
+wrex-proto-dns = { path = "crates/wrex-proto-dns", version = "0.1.0" }
 
 bytes = "1"
 thiserror = "2"
@@ -35,6 +40,10 @@ if-addrs = "0.13"
 toml = "0.8"
 proptest = "1"
 etherparse = "0.21"
+# DNS differential oracle (in-process). Pinned >= 0.26.1 for
+# RUSTSEC-2026-0119 (name-compression DoS); 0.25.x would trip the CI
+# audit job.
+hickory-proto = "0.26.3"
 assert_cmd = "2"
 predicates = "3"
 

@@ -13,7 +13,9 @@ pub struct DiffReport {
 }
 
 impl DiffReport {
-    fn push(&mut self, path: &str, ours: String, theirs: String) {
+    /// Record one mismatch (ours vs theirs). Also used by the DNS
+    /// oracle (tranche 3).
+    pub fn push(&mut self, path: &str, ours: String, theirs: String) {
         self.mismatches.push((path.to_string(), ours, theirs));
     }
 }
@@ -305,62 +307,61 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
     let by_kind = |k: &str| actual.layers.iter().find(|l| l.kind == k);
 
     // eth
-    if let Some(eth_json) = layers.get("eth") {
-        if let Some(ours) = by_kind("eth") {
-            let get = |k: &str| eth_json[k].as_str().map(|s| s.to_string());
-            cmp_str(report, "eth.dst", ours, get("eth.dst"));
-            cmp_str(report, "eth.src", ours, get("eth.src"));
-            cmp_int_prefix(report, "eth.type", ours, get("eth.type"));
-        }
+    if let Some(eth_json) = layers.get("eth")
+        && let Some(ours) = by_kind("eth")
+    {
+        let get = |k: &str| eth_json[k].as_str().map(|s| s.to_string());
+        cmp_str(report, "eth.dst", ours, get("eth.dst"));
+        cmp_str(report, "eth.src", ours, get("eth.src"));
+        cmp_int_prefix(report, "eth.type", ours, get("eth.type"));
     }
     // ip
-    if let Some(ip_json) = layers.get("ip") {
-        if let Some(ours) = by_kind("ipv4") {
-            let get = |k: &str| ip_json[k].as_str().map(|s| s.to_string());
-            cmp_int_str(report, "ipv4.ttl", ours, get("ip.ttl"));
-            cmp_int_str(report, "ipv4.proto", ours, get("ip.proto"));
-            cmp_str(report, "ipv4.src", ours, get("ip.src"));
-            cmp_str(report, "ipv4.dst", ours, get("ip.dst"));
-            cmp_int_str(report, "ipv4.id", ours, get("ip.id"));
-        }
+    if let Some(ip_json) = layers.get("ip")
+        && let Some(ours) = by_kind("ipv4")
+    {
+        let get = |k: &str| ip_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "ipv4.ttl", ours, get("ip.ttl"));
+        cmp_int_str(report, "ipv4.proto", ours, get("ip.proto"));
+        cmp_str(report, "ipv4.src", ours, get("ip.src"));
+        cmp_str(report, "ipv4.dst", ours, get("ip.dst"));
+        cmp_int_str(report, "ipv4.id", ours, get("ip.id"));
     }
     // udp / tcp
-    if let Some(udp_json) = layers.get("udp") {
-        if let Some(ours) = by_kind("udp") {
-            let get = |k: &str| udp_json[k].as_str().map(|s| s.to_string());
-            cmp_int_str(report, "udp.sport", ours, get("udp.srcport"));
-            cmp_int_str(report, "udp.dport", ours, get("udp.dstport"));
-            cmp_int_str(report, "udp.length", ours, get("udp.length"));
-        }
+    if let Some(udp_json) = layers.get("udp")
+        && let Some(ours) = by_kind("udp")
+    {
+        let get = |k: &str| udp_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "udp.sport", ours, get("udp.srcport"));
+        cmp_int_str(report, "udp.dport", ours, get("udp.dstport"));
+        cmp_int_str(report, "udp.length", ours, get("udp.length"));
     }
-    if let Some(tcp_json) = layers.get("tcp") {
-        if let Some(ours) = by_kind("tcp") {
-            let get = |k: &str| tcp_json[k].as_str().map(|s| s.to_string());
-            cmp_int_str(report, "tcp.sport", ours, get("tcp.srcport"));
-            cmp_int_str(report, "tcp.dport", ours, get("tcp.dstport"));
-            cmp_int_str(report, "tcp.seq", ours, get("tcp.seq"));
-            cmp_int_str(report, "tcp.ack", ours, get("tcp.ack"));
-            cmp_int_str(report, "tcp.window", ours, get("tcp.window_size_value"));
-        }
+    if let Some(tcp_json) = layers.get("tcp")
+        && let Some(ours) = by_kind("tcp")
+    {
+        let get = |k: &str| tcp_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "tcp.sport", ours, get("tcp.srcport"));
+        cmp_int_str(report, "tcp.dport", ours, get("tcp.dstport"));
+        cmp_int_str(report, "tcp.seq", ours, get("tcp.seq"));
+        cmp_int_str(report, "tcp.ack", ours, get("tcp.ack"));
+        cmp_int_str(report, "tcp.window", ours, get("tcp.window_size_value"));
     }
     // arp
-    if let Some(arp_json) = layers.get("arp") {
-        if let Some(ours) = by_kind("arp") {
-            let get = |k: &str| arp_json[k].as_str().map(|s| s.to_string());
-            cmp_int_str(report, "arp.oper", ours, get("arp.opcode"));
-            cmp_str(report, "arp.sha", ours, get("arp.src.hw_mac"));
-            cmp_str(report, "arp.tha", ours, get("arp.dst.hw_mac"));
-            cmp_str(report, "arp.spa", ours, get("arp.src.proto_ipv4"));
-            cmp_str(report, "arp.tpa", ours, get("arp.dst.proto_ipv4"));
-        }
+    if let Some(arp_json) = layers.get("arp")
+        && let Some(ours) = by_kind("arp")
+    {
+        let get = |k: &str| arp_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "arp.oper", ours, get("arp.opcode"));
+        cmp_str(report, "arp.sha", ours, get("arp.src.hw_mac"));
+        cmp_str(report, "arp.tha", ours, get("arp.dst.hw_mac"));
+        cmp_str(report, "arp.spa", ours, get("arp.src.proto_ipv4"));
+        cmp_str(report, "arp.tpa", ours, get("arp.dst.proto_ipv4"));
     }
     // icmp
-    if let Some(icmp_json) = layers.get("icmp") {
-        if let Some(ours) = by_kind("icmp") {
-            if let Some(t) = icmp_json["icmp.type"].as_str() {
-                cmp_int_str(report, "icmp.type", ours, Some(t.to_string()));
-            }
-        }
+    if let Some(icmp_json) = layers.get("icmp")
+        && let Some(ours) = by_kind("icmp")
+        && let Some(t) = icmp_json["icmp.type"].as_str()
+    {
+        cmp_int_str(report, "icmp.type", ours, Some(t.to_string()));
     }
 }
 
@@ -433,10 +434,10 @@ pub fn check_all_oracles(
         failures.push((ether.name(), d));
     }
     let tshark = TsharkOracle;
-    if tshark.is_available() {
-        if let Err(d) = tshark.dissect_diff(input, actual) {
-            failures.push((tshark.name(), d));
-        }
+    if tshark.is_available()
+        && let Err(d) = tshark.dissect_diff(input, actual)
+    {
+        failures.push((tshark.name(), d));
     }
     failures
 }

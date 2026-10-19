@@ -1,0 +1,21 @@
+[package]
+name = "wrex-dns"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex query: DNS ask orchestration (sans-IO session over a raw-IP driver)"
+
+[dependencies]
+wrex-core = { workspace = true }
+wrex-io = { workspace = true }
+wrex-session = { workspace = true }
+wrex-proto-dns = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+wrex-proto-ip = { workspace = true }
+wrex-proto-udp = { workspace = true }
+wrex-proto-icmp = { workspace = true }
+wrex-proto-tcp = { workspace = true }
+proptest = { workspace = true }

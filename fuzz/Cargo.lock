@@ -117,6 +117,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.6.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "037e2a1a92236d0aff7e845093f64661d6df4c02c9fcc61a60e9e1d736fa392f"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -617,6 +626,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "clap",
+ "clap_complete",
  "hex",
  "serde",
  "serde_json",
@@ -624,13 +634,17 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wrex-core",
+ "wrex-dns",
  "wrex-io",
  "wrex-proto-arp",
+ "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",
  "wrex-proto-ip",
  "wrex-proto-tcp",
  "wrex-proto-udp",
+ "wrex-scan",
+ "wrex-session",
 ]
 
 [[package]]
@@ -645,6 +659,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-dns"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "wrex-core",
+ "wrex-io",
+ "wrex-proto-dns",
+ "wrex-session",
+]
+
+[[package]]
 name = "wrex-fuzz"
 version = "0.0.0"
 dependencies = [
@@ -653,6 +678,9 @@ dependencies = [
  "libfuzzer-sys",
  "wrex",
  "wrex-core",
+ "wrex-io",
+ "wrex-scan",
+ "wrex-session",
 ]
 
 [[package]]
@@ -668,6 +696,14 @@ dependencies = [
 
 [[package]]
 name = "wrex-proto-arp"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "wrex-core",
+]
+
+[[package]]
+name = "wrex-proto-dns"
 version = "0.1.0"
 dependencies = [
  "bytes",
@@ -716,6 +752,25 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "wrex-core",
+]
+
+[[package]]
+name = "wrex-scan"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "serde",
+ "wrex-core",
+ "wrex-io",
+ "wrex-session",
+]
+
+[[package]]
+name = "wrex-session"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "wrex-io",
 ]
 
 [[package]]

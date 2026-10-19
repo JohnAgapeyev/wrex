@@ -1,0 +1,88 @@
+{
+  "anomalies": [
+    {
+      "message": "reserved label type 0x63",
+      "path": "dns.an.1.name"
+    }
+  ],
+  "layers": [
+    {
+      "fields": {
+        "dst": "aa:bb:cc:dd:ee:ff",
+        "src": "00:00:00:00:00:00",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 63054,
+        "dst": "192.0.2.10",
+        "flags": [],
+        "frag_off": 0,
+        "id": 0,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "192.0.2.53",
+        "tos": 0,
+        "total_len": 95,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 63642,
+        "dport": 40002,
+        "length": 75,
+        "sport": 53
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    },
+    {
+      "fields": {
+        "an.0.class": "IN",
+        "an.0.name": "example.com",
+        "an.0.rdata": "cdn.example.com",
+        "an.0.ttl": 120,
+        "an.0.type": "CNAME",
+        "ancount": 2,
+        "arcount": 0,
+        "flags": [
+          "qr",
+          "rd",
+          "ra"
+        ],
+        "id": 1,
+        "nscount": 0,
+        "opcode": 0,
+        "qd.0.class": "IN",
+        "qd.0.name": "example.com",
+        "qd.0.type": "A",
+        "qdcount": 1,
+        "rcode": 0
+      },
+      "kind": "dns",
+      "span": [
+        42,
+        90
+      ]
+    }
+  ],
+  "payload_hex": "63646ec00c000100010000003c000401020304",
+  "start": "eth"
+}

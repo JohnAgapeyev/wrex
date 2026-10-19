@@ -118,10 +118,10 @@ fn parse_term(registry: &Registry, raw: &str) -> Result<Term, FilterError> {
     // before their one-char prefixes so "<=" never half-matches as "<".
     let mut found: Option<(usize, Op)> = None;
     for spelling in Op::SPELINGS {
-        if let Some(pos) = raw.find(spelling) {
-            if found.is_none_or(|(p, _)| pos < p) {
-                found = Some((pos, Op::parse(spelling).unwrap()));
-            }
+        if let Some(pos) = raw.find(spelling)
+            && found.is_none_or(|(p, _)| pos < p)
+        {
+            found = Some((pos, Op::parse(spelling).unwrap()));
         }
     }
     let (pos, op) = found.ok_or_else(|| bad("expected <path><op><value>".into()))?;
@@ -147,59 +147,8 @@ fn parse_term(registry: &Registry, raw: &str) -> Result<Term, FilterError> {
         .ok_or_else(|| bad(format!("unknown field `{layer_name}.{field_path}`")))?;
 
     let value = match resolved {
-        ResolvedField::Field(field) => match field.kind {
-            FieldKind::U8 | FieldKind::U16 | FieldKind::U32 | FieldKind::U64 | FieldKind::U128 => {
-                TermValue::Int(parse_int(value_raw).map_err(bad)?)
-            }
-            FieldKind::FlagSet => {
-                if op == Op::Eq {
-                    // Bit names (all set) or raw integer.
-                    if let Ok(n) = parse_int(value_raw) {
-                        TermValue::Int(n)
-                    } else {
-                        let names: Vec<String> = value_raw
-                            .split([',', '+'])
-                            .map(str::trim)
-                            .map(str::to_string)
-                            .collect();
-                        if names.iter().any(|n| field.bit_pos(n).is_none()) {
-                            return Err(bad(format!(
-                                "unknown flag(s) in `{value_raw}` (valid: {})",
-                                field.bit_names.join(", ")
-                            )));
-                        }
-                        TermValue::Names(names)
-                    }
-                } else {
-                    TermValue::Int(parse_int(value_raw).map_err(bad)?)
-                }
-            }
-            FieldKind::Ipv4 => {
-                if matches!(op, Op::Eq | Op::Ne) {
-                    let (addr, prefix) = parse_ipv4_cidr(value_raw).map_err(bad)?;
-                    TermValue::Ipv4 { addr, prefix }
-                } else {
-                    return Err(bad("ipv4 fields support only = and != in filters".into()));
-                }
-            }
-            FieldKind::Mac => {
-                if matches!(op, Op::Eq | Op::Ne) {
-                    TermValue::Mac(parse_mac(value_raw).map_err(bad)?)
-                } else {
-                    return Err(bad("mac fields support only = and != in filters".into()));
-                }
-            }
-            FieldKind::Bytes | FieldKind::ByteList => {
-                if matches!(op, Op::Eq | Op::Ne) {
-                    let hex = value_raw.strip_prefix("hex:").unwrap_or(value_raw);
-                    let bytes = crate::value::parse_hex_bytes(hex).map_err(bad)?;
-                    TermValue::HexPrefix(Bytes::from(bytes))
-                } else {
-                    return Err(bad("bytes fields support only = and != in filters".into()));
-                }
-            }
-            FieldKind::Str => TermValue::Str(value_raw.to_string()),
-        },
+        ResolvedField::Field(field) => term_value_for(field, op, value_raw, &bad)?,
+        ResolvedField::RecordField { field, .. } => term_value_for(field, op, value_raw, &bad)?,
         ResolvedField::FlagBit { .. } => {
             if matches!(op, Op::Eq | Op::Ne) {
                 let set = parse_bool(value_raw).map_err(bad)?;
@@ -215,16 +164,88 @@ fn parse_term(registry: &Registry, raw: &str) -> Result<Term, FilterError> {
         }
     };
 
-    // Aggregate field name (`flags.syn` → `flags`).
-    let field = field_path
-        .split_once('.')
-        .map_or(field_path, |(head, _)| head);
+    // Lookup key in the dissected layer: the full path for record fields
+    // (dissect emits `an.0.type` keys directly), the aggregate name
+    // otherwise (`flags.syn` merges into `flags`).
+    let field = match &resolved {
+        ResolvedField::RecordField {
+            record,
+            index,
+            field,
+        } => format!("{}.{}.{}", record.name, index, field.name),
+        _ => field_path
+            .split_once('.')
+            .map_or_else(|| field_path.to_string(), |(head, _)| head.to_string()),
+    };
 
     Ok(Term {
         layer: schema.kind,
         field: field.to_string(),
         op,
         value,
+    })
+}
+
+/// Kind-driven value grammar shared by flat fields and record fields.
+fn term_value_for(
+    field: &FieldSchema,
+    op: Op,
+    value_raw: &str,
+    bad: &dyn Fn(String) -> FilterError,
+) -> Result<TermValue, FilterError> {
+    let bad = |reason: String| bad(reason);
+    Ok(match field.kind {
+        FieldKind::U8 | FieldKind::U16 | FieldKind::U32 | FieldKind::U64 | FieldKind::U128 => {
+            TermValue::Int(parse_int(value_raw).map_err(bad)?)
+        }
+        FieldKind::FlagSet => {
+            if op == Op::Eq {
+                // Bit names (all set) or raw integer.
+                if let Ok(n) = parse_int(value_raw) {
+                    TermValue::Int(n)
+                } else {
+                    let names: Vec<String> = value_raw
+                        .split([',', '+'])
+                        .map(str::trim)
+                        .map(str::to_string)
+                        .collect();
+                    if names.iter().any(|n| field.bit_pos(n).is_none()) {
+                        return Err(bad(format!(
+                            "unknown flag(s) in `{value_raw}` (valid: {})",
+                            field.bit_names.join(", ")
+                        )));
+                    }
+                    TermValue::Names(names)
+                }
+            } else {
+                TermValue::Int(parse_int(value_raw).map_err(bad)?)
+            }
+        }
+        FieldKind::Ipv4 => {
+            if matches!(op, Op::Eq | Op::Ne) {
+                let (addr, prefix) = parse_ipv4_cidr(value_raw).map_err(bad)?;
+                TermValue::Ipv4 { addr, prefix }
+            } else {
+                return Err(bad("ipv4 fields support only = and != in filters".into()));
+            }
+        }
+        FieldKind::Mac => {
+            if matches!(op, Op::Eq | Op::Ne) {
+                TermValue::Mac(parse_mac(value_raw).map_err(bad)?)
+            } else {
+                return Err(bad("mac fields support only = and != in filters".into()));
+            }
+        }
+        FieldKind::Bytes | FieldKind::ByteList => {
+            if matches!(op, Op::Eq | Op::Ne) {
+                let hex = value_raw.strip_prefix("hex:").unwrap_or(value_raw);
+                let bytes = crate::value::parse_hex_bytes(hex).map_err(bad)?;
+                TermValue::HexPrefix(Bytes::from(bytes))
+            } else {
+                return Err(bad("bytes fields support only = and != in filters".into()));
+            }
+        }
+        FieldKind::Str => TermValue::Str(value_raw.to_string()),
     })
 }
 
@@ -342,7 +363,7 @@ mod tests {
     use crate::dissect::{Anomaly, LayerView};
     use crate::encode::EncodeCtx;
     use crate::error::EncodeError;
-    use crate::schema::LayerSchema;
+    use crate::schema::{LayerSchema, RecordSchema};
     use crate::spec::LayerSpec;
     use std::collections::BTreeMap;
 
@@ -355,6 +376,7 @@ mod tests {
             parents: &["ipv4"],
             doc: "filter-test stand-in",
             fields: TCP_FIELDS.as_slice(),
+            records: &[],
         });
 
     static IPV4_SCHEMA: std::sync::LazyLock<LayerSchema> =
@@ -364,7 +386,51 @@ mod tests {
             parents: &["eth"],
             doc: "filter-test stand-in",
             fields: IPV4_FIELDS.as_slice(),
+            records: &[],
         });
+
+    static DNS_SCHEMA: std::sync::LazyLock<LayerSchema> =
+        std::sync::LazyLock::new(|| LayerSchema {
+            kind: "dns",
+            rank: 40,
+            parents: &["udp"],
+            doc: "filter-test stand-in",
+            fields: &[],
+            records: DNS_AN_RECORDS,
+        });
+
+    static DNS_AN_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "name",
+            kind: FieldKind::Str,
+            bit_names: &[],
+            default: Value::Str(String::new()),
+            required: false,
+            doc: "",
+        },
+        FieldSchema {
+            name: "ttl",
+            kind: FieldKind::U32,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "",
+        },
+    ];
+
+    static DNS_AN_RECORDS: &[RecordSchema] = &[RecordSchema {
+        name: "an",
+        fields: DNS_AN_FIELDS,
+        settable: false,
+        max: None,
+        doc: "answers",
+    }];
+
+    fn dns_schema() -> &'static LayerSchema {
+        &DNS_SCHEMA
+    }
+
+    static REG_DNS: SchemaCodec = SchemaCodec(dns_schema);
 
     static TCP_FIELDS: std::sync::LazyLock<Vec<FieldSchema>> = std::sync::LazyLock::new(|| {
         vec![
@@ -451,6 +517,7 @@ mod tests {
         let mut r = Registry::empty();
         r.register(&REG_TCP);
         r.register(&REG_IPV4);
+        r.register(&REG_DNS);
         r
     }
 
@@ -592,5 +659,48 @@ mod tests {
                 .unwrap()
                 .matches(&p)
         );
+    }
+
+    #[test]
+    fn record_fields_filter_by_exact_index() {
+        let r = test_registry();
+        let p = packet(vec![(
+            "dns",
+            vec![
+                ("an.0.name", Value::Str("example.com".into())),
+                ("an.0.ttl", Value::Int(300)),
+                ("an.1.name", Value::Str("other.test".into())),
+            ],
+        )]);
+        // exact-index lookups hit the dissected keys directly
+        assert!(
+            Filter::parse(&r, "dns.an.0.name=example.com")
+                .unwrap()
+                .matches(&p)
+        );
+        assert!(
+            !Filter::parse(&r, "dns.an.1.name=example.com")
+                .unwrap()
+                .matches(&p)
+        );
+        assert!(Filter::parse(&r, "dns.an.0.ttl=300").unwrap().matches(&p));
+        assert!(!Filter::parse(&r, "dns.an.0.ttl<300").unwrap().matches(&p));
+        // absent index → false (never-fatal)
+        assert!(!Filter::parse(&r, "dns.an.2.ttl=1").unwrap().matches(&p));
+        // AND across record fields
+        assert!(
+            Filter::parse(&r, "dns.an.0.name=example.com dns.an.0.ttl=300")
+                .unwrap()
+                .matches(&p)
+        );
+        assert!(
+            !Filter::parse(&r, "dns.an.0.name=example.com dns.an.1.ttl=300")
+                .unwrap()
+                .matches(&p)
+        );
+        // grammar: unknown record field / wildcard rejected upfront
+        assert!(Filter::parse(&r, "dns.an.0.nope=1").is_err());
+        assert!(Filter::parse(&r, "dns.an.*.ttl=1").is_err());
+        assert!(Filter::parse(&r, "dns.qd.0.name=x").is_err()); // no qd section here
     }
 }

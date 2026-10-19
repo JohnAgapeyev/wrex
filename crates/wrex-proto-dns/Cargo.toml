@@ -1,0 +1,24 @@
+[package]
+name = "wrex-proto-dns"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex DNS codec (RFC 1035): single-question craft, full-message dissection with record sections"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+
+[features]
+# proptest strategies for `LayerSpec` (differential suites).
+test-util = ["dep:proptest"]
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }

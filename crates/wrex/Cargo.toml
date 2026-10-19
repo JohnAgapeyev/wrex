@@ -16,6 +16,9 @@ path = "src/lib.rs"
 [dependencies]
 wrex-core = { workspace = true }
 wrex-io = { workspace = true }
+wrex-session = { workspace = true }
+wrex-scan = { workspace = true }
+wrex-dns = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
@@ -32,15 +35,17 @@ wrex-proto-ip = { workspace = true, optional = true }
 wrex-proto-icmp = { workspace = true, optional = true }
 wrex-proto-udp = { workspace = true, optional = true }
 wrex-proto-tcp = { workspace = true, optional = true }
+wrex-proto-dns = { workspace = true, optional = true }
 
 [features]
-default = ["proto-eth", "proto-arp", "proto-ip", "proto-icmp", "proto-udp", "proto-tcp"]
+default = ["proto-eth", "proto-arp", "proto-ip", "proto-icmp", "proto-udp", "proto-tcp", "proto-dns"]
 proto-eth = ["dep:wrex-proto-eth"]
 proto-arp = ["dep:wrex-proto-arp"]
 proto-ip = ["dep:wrex-proto-ip"]
 proto-icmp = ["dep:wrex-proto-icmp"]
 proto-udp = ["dep:wrex-proto-udp"]
 proto-tcp = ["dep:wrex-proto-tcp"]
+proto-dns = ["dep:wrex-proto-dns"]
 
 [dev-dependencies]
 wrex-test = { workspace = true }
@@ -49,3 +54,7 @@ assert_cmd = { workspace = true }
 predicates = { workspace = true }
 hex = { workspace = true }
 serde_json = { workspace = true }
+# craft-parity differential in tests/dns_differential.rs (0.26.3: see
+# the workspace pin note).
+hickory-proto = { workspace = true }
+wrex-proto-dns = { workspace = true, features = ["test-util"] }

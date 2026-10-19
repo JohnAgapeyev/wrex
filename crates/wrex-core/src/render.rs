@@ -28,19 +28,19 @@ pub fn ip_proto_name(v: u8) -> Option<&'static str> {
 }
 
 fn field_json(layer_kind: &str, name: &str, value: &WValue) -> JsonValue {
-    if layer_kind == "eth" && name == "type" {
-        if let WValue::Int(v) = value {
-            if let Some(n) = ethertype_name(*v as u16) {
-                return json!(n);
-            }
-        }
+    if layer_kind == "eth"
+        && name == "type"
+        && let WValue::Int(v) = value
+        && let Some(n) = ethertype_name(*v as u16)
+    {
+        return json!(n);
     }
-    if layer_kind == "ipv4" && name == "proto" {
-        if let WValue::Int(v) = value {
-            if let Some(n) = ip_proto_name(*v as u8) {
-                return json!(n);
-            }
-        }
+    if layer_kind == "ipv4"
+        && name == "proto"
+        && let WValue::Int(v) = value
+        && let Some(n) = ip_proto_name(*v as u8)
+    {
+        return json!(n);
     }
     match value {
         WValue::Bool(b) => json!(b),
@@ -90,19 +90,19 @@ pub fn dissect_to_jsonl(p: &DissectedPacket) -> String {
 }
 
 fn field_text(kind: &str, name: &str, value: &WValue) -> String {
-    if kind == "eth" && name == "type" {
-        if let WValue::Int(v) = value {
-            if let Some(n) = ethertype_name(*v as u16) {
-                return n.to_string();
-            }
-        }
+    if kind == "eth"
+        && name == "type"
+        && let WValue::Int(v) = value
+        && let Some(n) = ethertype_name(*v as u16)
+    {
+        return n.to_string();
     }
-    if kind == "ipv4" && name == "proto" {
-        if let WValue::Int(v) = value {
-            if let Some(n) = ip_proto_name(*v as u8) {
-                return n.to_string();
-            }
-        }
+    if kind == "ipv4"
+        && name == "proto"
+        && let WValue::Int(v) = value
+        && let Some(n) = ip_proto_name(*v as u8)
+    {
+        return n.to_string();
     }
     match value {
         WValue::Bool(b) => b.to_string(),

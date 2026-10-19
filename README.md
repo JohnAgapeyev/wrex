@@ -5,13 +5,30 @@ crafting, sending, capture, and dissection. A long-term fusion of
 curl/nmap/dig/scapy/tshark, built sans-IO, modular, and incremental over
 successive tranches.
 
-**Tranche 1** (this repo state): the Cargo workspace and core engine,
+**Tranche 1** (delivered): the Cargo workspace and core engine,
 L2–L4 protocol codecs (Ethernet, ARP, IPv4, ICMP, UDP, TCP), Linux
 `AF_PACKET` raw send/recv, and the `wrex` binary with per-layer-flag
 crafting plus `dissect`/`iface`/`fields` verbs, byte-transparent
 stdin/stdout pipelines, and the full testing/verification infrastructure
 (property-based, differential vs etherparse + tshark, golden corpus,
 Miri, cargo-fuzz targets, advisory coverage) with per-commit CI.
+
+**Tranche 2** (delivered): `wrex scan` — TCP SYN/connect, UDP and ICMP
+scan orchestration as a sans-IO state machine (the frozen `Session`
+contract in `wrex-session`), a kernel-routed raw-IP driver
+(`wrex-io` `RawIpDriver`), seeded jitter/pacing, and target/port
+grammar (IPv4, CIDR, ranges, top-100 TCP defaults). The receive path
+now skips its own outgoing copies (`sll_pkttype`), resolving the
+tranche-1 loopback-duplicate TODO.
+
+**Tranche 3** (delivered): `wrex query` — DNS. A `wrex-proto-dns` codec
+(one craftable question, full-message dissection with indexed record
+paths `an.0.name`, `an.0.rdata`, … and compression-pointer decoding),
+a records extension to the core schema (settable record sections,
+`dns.an.0.ttl=300`-style filters), UDP port-53 dispatch, and a
+seeded raw-UDP ask session (`wrex-dns`). Differentials: hickory-proto
+(in-process; craft is byte-identical) and dig (subprocess, stub-server,
+no external network).
 
 ## Install
 
@@ -93,6 +110,46 @@ Interfaces:
 wrex iface
 ```
 
+Scan (tranche 2; needs `CAP_NET_RAW` like send/recv):
+
+```sh
+# default: syn scan of the top-100 TCP ports
+wrex scan -i eth0 192.168.1.10
+
+# explicit ports + ranges, 500 packets/sec, reproducible under a pinned seed
+wrex scan -i eth0 --ports 22,80,443,8000-8100 --rate 500 --seed 42 192.168.1.10
+
+# UDP scan (ICMP port-unreachable quotes are attributed per-probe)
+wrex scan -i eth0 --mode udp --ports 53,161 192.168.1.10
+
+# host sweep: echo ping across a range
+wrex scan -i eth0 --mode icmp 10.0.0.1-10.0.0.99
+```
+
+Results stream as they resolve (`--format text|json|jsonl`); a scan
+completes with exit 0 regardless of findings. Pacing defaults to
+100 packets/sec (`--rate 0` = uncapped burst), `--jitter` is seeded
+from `--seed`, and probe identities (source ports, tcp seqs, icmp
+ids) are bit-reproducible under a pinned seed.
+
+DNS (tranche 3; needs `CAP_NET_RAW`):
+
+```sh
+# ask one question over raw UDP; the reply dissects to stdout
+wrex query -i eth0 --server 192.168.1.1 example.com
+wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
+
+# craft/dissect DNS directly (records surface as indexed paths)
+wrex craft --format hex --layer dns --dns-name example.com --dns-type AAAA
+wrex dissect --start dns < reply.bin        # an.0.rdata, an.0.ttl, …
+wrex fields dns
+```
+
+A reply is exit 0 whatever the rcode says (NXDOMAIN/SERVFAIL are
+data); silence after `--retries` attempts is exit 1. Under a pinned
+`--seed` the query bytes (source port + 16-bit id) are
+bit-reproducible.
+
 Deliberately invalid packets are a feature: explicit values always win
 and are kept unvalidated; `--strict` validates and reports violations
 (`wrex: <layer>.<field>: <message>`, exit 2).
@@ -101,10 +158,13 @@ and are kept unvalidated; `--strict` validates and reports violations
 
 ```
 crates/wrex           CLI + library facade + registry composition
-crates/wrex-core      field/value model, schema, codecs, encode/dissect engines
-crates/wrex-io        Clock, Driver, AF_PACKET raw driver (only unsafe crate), ifaces
-crates/wrex-test      test-support: strategies, oracles, corpus, CLI harness
-crates/wrex-proto-*   eth arp ip icmp udp tcp (one crate each; no cross-deps)
+crates/wrex-core      field/value model, schema (+record sections), codecs, encode/dissect engines
+crates/wrex-io        Clock, Rng, Driver, AF_PACKET + raw-IP drivers (only unsafe crate), ifaces
+crates/wrex-session   sans-IO Session contract + the shared runtime loop
+crates/wrex-scan      scan orchestration: probe table, scheduler, seeded jitter
+crates/wrex-dns       query orchestration: the DNS ask session
+crates/wrex-test      test-support: strategies, oracles (+hickory/dig DNS), corpus, CLI harness
+crates/wrex-proto-*   eth arp ip icmp udp tcp dns (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)
 xtask/                `cargo xtask` — verify / coverage / man / corpus-import
 man/                  generated man pages: wrex(1), wrex-<verb>(1), wrex-<kind>(7)
@@ -128,13 +188,17 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
 
 - Property-based: 256 cases/run, deterministic via `PROPTEST_RNG_SEED=31337`.
 - Differential: our dissection vs etherparse (in-process) and tshark
-  (subprocess over a hand-written classic-pcap wrapper). tshark tests
-  skip with a printed notice when tshark is absent.
+  (subprocess over a hand-written classic-pcap wrapper); DNS vs
+  hickory-proto (in-process) and dig (subprocess against an in-test
+  stub server — no external network). Missing tools skip with a
+  printed notice.
 - Golden corpus: 4 real captures under `crates/wrex-test/corpus/`
   (arp, icmp, tcp, udp), committed with expected dissections; import
   more with `cargo xtask corpus-import <pcap> <name>`.
 - Raw-socket tests are env-gated (`WREX_DRIVER_TESTS=1`, run under sudo
-  in CI): send/recv round-trip on `lo`. Without passwordless sudo:
+  in CI): send/recv round-trip on `lo`, plus scan ground truth (bound
+  listener → open, unbound → closed, UDP/ICMP semantics, seed
+  determinism, concurrent scans). Without passwordless sudo:
   `unshare -Urn sh -c 'ip link set lo up; WREX_DRIVER_TESTS=1 cargo
   test --all-features -p wrex-io -p wrex'` runs them in a user
   namespace with CAP_NET_RAW.

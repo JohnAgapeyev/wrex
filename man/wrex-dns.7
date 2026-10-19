@@ -1,0 +1,84 @@
+.TH WREX-DNS 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-dns \- dns layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIdns\fR \fB--dns\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIdns\fR
+
+.SH DESCRIPTION
+DNS (RFC 1035) over UDP/53. Craft carries the 12\-byte header plus one question (\-\-dns\-name anchors it; \-\-dns\-type/\-\-dns\-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect\-only record sections with indexed paths (an.0.name, an.0.rdata, …). Multi\-question craft, settable answer records, typed MX/SOA/SRV rdata, AAAA\-as\-ipv6 (waits for T7) and EDNS crafting are tranche\-3 deferrals.
+.
+
+.SH ENCAPSULATION
+Rank 40; stacks on udp (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --dns-id).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-dns\-id=\fIINT\fR\fR
+message id (craft: seeded by wrex query) Type u16. Default: 0.
+.TP
+\fB\-\-dns\-flags\fR
+flag aggregate [qr,aa,tc,rd,ra]; subpaths flags.<bit> Type flagset. Default: 0.
+Bit names (MSB first): qr, aa, tc, rd, ra. Aggregate \fB\-\-dns\-flags\fR sets the whole unit; per-bit \-\-dns\-flags\-qr sets one bit.
+.TP
+\fB\-\-dns\-opcode=\fIINT\fR\fR
+operation code (4 bits; 0 = QUERY) Type u8. Default: 0.
+.TP
+\fB\-\-dns\-rcode=\fIINT\fR\fR
+response code (4 bits; 0 = NOERROR) Type u8. Default: 0.
+.TP
+\fB\-\-dns\-qdcount=\fIINT\fR\fR
+question count (autofill: derived from the question) Type u16. Default: 0.
+.TP
+\fB\-\-dns\-ancount=\fIINT\fR\fR
+answer count (autofill: 0) Type u16. Default: 0.
+.TP
+\fB\-\-dns\-nscount=\fIINT\fR\fR
+authority count (autofill: 0) Type u16. Default: 0.
+.TP
+\fB\-\-dns\-arcount=\fIINT\fR\fR
+additional count (autofill: 0) Type u16. Default: 0.
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (qd.0.field).
+
+.TP
+\fBqd\fR (settable, at most 1)
+the question section (one question craftable at tranche 3)
+  name (str; default ). question name, dotted presentation form (example.com)
+  type (str; default A). question type: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, SRV, OPT, ANY, TYPE<n> or a number
+  class (str; default IN). question class: IN, CH, HS, ANY, CLASS<n> or a number
+.TP
+\fBan\fR (dissect\-only)
+answer records (dissect\-only; indexed an.0.*, an.1.*, …)
+  name (str; default ). record owner name (compression pointers resolved)
+  type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
+  class (str; default ). record class (IN, …; CLASS<n> otherwise)
+  ttl (u32; default 0). record TTL in seconds
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)
+.TP
+\fBns\fR (dissect\-only)
+authority records (dissect\-only; indexed ns.0.*, …)
+  name (str; default ). record owner name (compression pointers resolved)
+  type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
+  class (str; default ). record class (IN, …; CLASS<n> otherwise)
+  ttl (u32; default 0). record TTL in seconds
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)
+.TP
+\fBar\fR (dissect\-only)
+additional records (dissect\-only; indexed ar.0.*, …; EDNS OPT lands here)
+  name (str; default ). record owner name (compression pointers resolved)
+  type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
+  class (str; default ). record class (IN, …; CLASS<n> otherwise)
+  ttl (u32; default 0). record TTL in seconds
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)
+
+.SH EXAMPLES
+wrex fields dns
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7)

@@ -1,0 +1,29 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "12:34:01:00:00:01",
+        "src": "00:00:00:00:00:00",
+        "type": 1893
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "hex": "78616d706c6503636f6d0000010001"
+      },
+      "kind": "unknown",
+      "span": [
+        14,
+        29
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

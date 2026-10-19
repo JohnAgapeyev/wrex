@@ -206,7 +206,7 @@ pub fn parse_bool(raw: &str) -> Result<bool, String> {
 }
 
 pub fn parse_hex_bytes(raw: &str) -> Result<Vec<u8>, String> {
-    if raw.len() % 2 != 0 {
+    if !raw.len().is_multiple_of(2) {
         return Err("hex string must have even length".to_string());
     }
     let bytes = hex::decode(raw).map_err(|e| format!("invalid hex: {e}"))?;

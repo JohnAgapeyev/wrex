@@ -34,7 +34,7 @@ struct FuzzSpec {
     payload: Option<Vec<u8>>,
 }
 
-const KINDS: &[&str] = &["eth", "arp", "ipv4", "icmp", "udp", "tcp"];
+const KINDS: &[&str] = &["eth", "arp", "ipv4", "icmp", "udp", "tcp", "dns"];
 
 fn to_packet_spec(f: &FuzzSpec) -> PacketSpec {
     let registry = standard();

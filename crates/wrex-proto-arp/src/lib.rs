@@ -89,6 +89,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     parents: &["eth"],
     doc: "Address Resolution Protocol (RFC 826) for Ethernet: fixed 28-byte request/reply header (htype=1 Ethernet, ptype=0x0800 IPv4, hlen=6, plen=4). oper: 1=request, 2=reply. Terminal layer; carries no next-header chain. tpa is required: crafting without it is an Unfillable error.",
     fields: FIELDS.as_slice(),
+    records: &[],
 });
 
 /// ARP codec unit. Register as `&wrex_proto_arp::CODEC`.

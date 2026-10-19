@@ -16,6 +16,7 @@ wrex-proto-ip = { workspace = true, features = ["test-util"] }
 wrex-proto-icmp = { workspace = true, features = ["test-util"] }
 wrex-proto-udp = { workspace = true, features = ["test-util"] }
 wrex-proto-tcp = { workspace = true, features = ["test-util"] }
+wrex-proto-dns = { workspace = true, features = ["test-util"] }
 bytes = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
@@ -23,5 +24,9 @@ serde_json = { workspace = true }
 toml = { workspace = true }
 proptest = { workspace = true }
 etherparse = { workspace = true }
+# DNS differential oracle (in-process). Pinned >= 0.26.1 for
+# RUSTSEC-2026-0119 (name-compression DoS); 0.25.x would trip the CI
+# audit job. 0.26 uses public fields (message.metadata, record.name…).
+hickory-proto = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }

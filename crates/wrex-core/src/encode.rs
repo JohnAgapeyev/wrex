@@ -453,6 +453,7 @@ mod tests {
         parents: &[],
         doc: "engine-test mock layer",
         fields: MOCK_SCHEMA_FIELDS,
+        records: &[],
     };
 
     struct MockCodec;

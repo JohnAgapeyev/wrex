@@ -102,6 +102,22 @@ pub fn packet_spec_from_matches(
                 }
             }
         }
+        // Record-section shorthands (settable, max 1): the arg id is the
+        // full dashed path (`dns-qd-0-name` → spec key `qd.0.name`).
+        for record in schema.records {
+            if !(record.settable && record.max == Some(1)) {
+                continue;
+            }
+            for field in record.fields {
+                let arg_id = flag_long(kind, &format!("{}.0.{}", record.name, field.name));
+                if let Some(raw) = matches.get_one::<String>(&arg_id) {
+                    fields.insert(
+                        format!("{}.0.{}", record.name, field.name),
+                        parse_value(field, raw)?,
+                    );
+                }
+            }
+        }
         if !fields.is_empty() {
             kind_fields.insert(kind, fields);
         }

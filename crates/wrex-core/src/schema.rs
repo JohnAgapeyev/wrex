@@ -81,7 +81,8 @@ impl FieldSchema {
 #[derive(Clone, Debug)]
 pub struct LayerSchema {
     pub kind: &'static str,
-    /// Encapsulation ordering rank (eth=10, arp/ipv4=20, icmp/udp/tcp=30).
+    /// Encapsulation ordering rank (eth=10, arp/ipv4=20, icmp/udp/tcp=30,
+    /// dns=40).
     pub rank: u16,
     /// Kinds this layer may stack on (empty = valid stack start).
     pub parents: &'static [&'static str],
@@ -89,19 +90,60 @@ pub struct LayerSchema {
     /// rendered by `wrex fields` and the man-page generator.
     pub doc: &'static str,
     pub fields: &'static [FieldSchema],
+    /// Repeated record sections (tranche 3; empty for every tranche-1
+    /// codec). A layer may carry a variable number of records per
+    /// section (`dns` questions/answers); record fields surface in
+    /// dissected layers under `<record>.<index>.<field>` paths.
+    pub records: &'static [RecordSchema],
+}
+
+/// One repeated record section of a layer.
+///
+/// Paths are `<record>.<index>.<field>` with **exact** indices
+/// (`dns.an.0.type`); wildcards are a deliberate deferral.
+///
+/// - Dissect-only sections (`settable: false`) never generate craft
+///   flags (the tranche-3 `dns` an/ns/ar sections).
+/// - A settable section bounded by `max: Some(1)` gets an unindexed
+///   flag shorthand (`--dns-name` → `qd.0.name`); future tranches may
+///   lift the bound with indexed flags.
+#[derive(Clone, Debug)]
+pub struct RecordSchema {
+    /// Section prefix in paths (`"qd"`, `"an"`, …).
+    pub name: &'static str,
+    /// Fields of ONE record instance.
+    pub fields: &'static [FieldSchema],
+    /// Craft may set instances (dissect-only otherwise).
+    pub settable: bool,
+    /// Craft bound (`Some(1)` → flag shorthand; `None` = dissect-only).
+    pub max: Option<usize>,
+    pub doc: &'static str,
+}
+
+impl RecordSchema {
+    /// Whole record fields only.
+    pub fn field(&self, name: &str) -> Option<&'static FieldSchema> {
+        self.fields.iter().find(|f| f.name == name)
+    }
 }
 
 /// A dotted-path lookup against a [`LayerSchema`].
 ///
 /// `Field` is a whole-field reference; `FlagBit` is a per-bit subpath of a
 /// [`FieldKind::FlagSet`] aggregate (`tcp.flags.syn`), where `bit` follows the
-/// same MSB-first convention as [`FieldSchema::bit_names`].
+/// same MSB-first convention as [`FieldSchema::bit_names`];
+/// `RecordField` is an indexed record field (`dns.an.0.type`).
 #[derive(Clone, Copy, Debug)]
 pub enum ResolvedField {
     Field(&'static FieldSchema),
     FlagBit {
         parent: &'static FieldSchema,
         bit: u8,
+    },
+    RecordField {
+        record: &'static RecordSchema,
+        index: usize,
+        field: &'static FieldSchema,
     },
 }
 
@@ -113,12 +155,30 @@ impl LayerSchema {
         self.fields.iter().find(|f| f.name == name)
     }
 
-    /// Resolve `name` or a dotted flag subpath (`flags.syn`).
+    /// A record section by name.
+    pub fn record(&self, name: &str) -> Option<&'static RecordSchema> {
+        self.records.iter().find(|r| r.name == name)
+    }
+
+    /// Resolve `name`, a dotted flag subpath (`flags.syn`) or an
+    /// indexed record field (`an.0.type`).
+    ///
+    /// Flat fields shadow record sections of the same name.
     pub fn resolve(&self, path: &str) -> Option<ResolvedField> {
         if let Some(f) = self.field(path) {
             return Some(ResolvedField::Field(f));
         }
         let (head, tail) = path.split_once('.')?;
+        if let Some(record) = self.record(head) {
+            let (index_raw, field_raw) = tail.split_once('.')?;
+            let index: usize = index_raw.parse().ok()?;
+            let field = record.field(field_raw)?;
+            return Some(ResolvedField::RecordField {
+                record,
+                index,
+                field,
+            });
+        }
         let parent = self.field(head)?;
         if parent.kind != FieldKind::FlagSet {
             return None;
@@ -171,6 +231,22 @@ mod tests {
         assert_eq!(fs2.bit_pos("mf"), Some(0));
     }
 
+    static AN_FIELDS: &[FieldSchema] = &[FieldSchema {
+        name: "type",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(String::new()),
+        required: false,
+        doc: "",
+    }];
+    static AN_RECORDS: &[RecordSchema] = &[RecordSchema {
+        name: "an",
+        fields: AN_FIELDS,
+        settable: false,
+        max: None,
+        doc: "",
+    }];
+
     #[test]
     fn resolve_paths() {
         let schema = LayerSchema {
@@ -186,6 +262,7 @@ mod tests {
                 required: false,
                 doc: "",
             }],
+            records: AN_RECORDS,
         };
         assert!(matches!(
             schema.resolve("flags"),
@@ -195,6 +272,23 @@ mod tests {
             Some(ResolvedField::FlagBit { bit, .. }) => assert_eq!(bit, 1),
             other => panic!("unexpected: {other:?}"),
         }
+        match schema.resolve("an.0.type") {
+            Some(ResolvedField::RecordField {
+                record,
+                index,
+                field,
+            }) => {
+                assert_eq!(record.name, "an");
+                assert_eq!(index, 0);
+                assert_eq!(field.name, "type");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+        // exact indices only: wildcards and non-numeric indices reject
+        assert!(schema.resolve("an.*.type").is_none());
+        assert!(schema.resolve("an.x.type").is_none());
+        assert!(schema.resolve("an.0").is_none());
+        assert!(schema.resolve("an.0.nope").is_none());
         assert!(schema.resolve("nope").is_none());
         assert!(schema.resolve("flags.nope").is_none());
     }

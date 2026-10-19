@@ -1,0 +1,138 @@
+//! Shared AF_PACKET receive path (Linux): poll + `recvfrom` with a
+//! `sockaddr_ll` so the driver can see `sll_pkttype` and skip its own
+//! outgoing copies (the tranche-1 TODO: loopback and locally-routed
+//! frames otherwise come back as phantom duplicates).
+//!
+//! Tranche 1 used plain `recv`; the pkttype filter is a tranche-2 fix
+//! shared by [`crate::driver::RawEthDriver`] and
+//! [`crate::driver::RawIpDriver`].
+
+use std::io;
+use std::time::Instant;
+
+/// Receive buffer headroom: Ethernet MTU + jumbo margin (16 KiB, the
+/// tranche-1 recv sizing).
+const RX_BUF: usize = 16 * 1024;
+
+/// Open an `AF_PACKET`/`SOCK_RAW` socket bound to `ifindex` for protocol
+/// `protocol_be` (ethertype in network byte order, e.g.
+/// `htons(ETH_P_ALL)` or `htons(ETH_P_IP)`).
+///
+/// SAFETY: caller owns the returned descriptor; `close` releases it.
+#[cfg(target_os = "linux")]
+pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::Result<i32> {
+    // SAFETY: `socket` is a simple libc syscall with integer args.
+    let fd = unsafe { libc::socket(libc::AF_PACKET, libc::SOCK_RAW, protocol_be as i32) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let sockaddr = libc::sockaddr_ll {
+        sll_family: libc::AF_PACKET as u16,
+        sll_protocol: protocol_be,
+        sll_ifindex: ifindex,
+        sll_hatype: 0,
+        sll_pkttype: 0,
+        sll_halen: 0,
+        sll_addr: [0; 8],
+    };
+    // SAFETY: `bind` reads `sockaddr`; `fd` is a valid descriptor owned
+    // by this function.
+    let ret = unsafe {
+        libc::bind(
+            fd,
+            &sockaddr as *const libc::sockaddr_ll as *const libc::sockaddr,
+            std::mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t,
+        )
+    };
+    if ret < 0 {
+        let err = io::Error::last_os_error();
+        // SAFETY: releasing our own descriptor; no double-close.
+        unsafe { libc::close(fd) };
+        return Err(err);
+    }
+    Ok(fd)
+}
+
+/// One received frame's bytes plus its `sll_pkttype`.
+#[cfg(target_os = "linux")]
+pub(crate) struct RxFrame {
+    pub bytes: Vec<u8>,
+    /// `PACKET_HOST`, `PACKET_OUTGOING`, … as reported by the kernel.
+    pub pkttype: u8,
+}
+
+/// Receive one frame before `deadline` (`Ok(None)` on timeout), polling
+/// with the deadline as the poll timeout so partial waits are honored.
+///
+/// Does NOT skip outgoing copies; callers decide (both current drivers
+/// skip them — kept explicit so the eth driver could someday opt out).
+#[cfg(target_os = "linux")]
+pub(crate) fn recv_raw(fd: i32, deadline: Instant) -> io::Result<Option<RxFrame>> {
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            return Ok(None);
+        }
+        let remaining = deadline - now;
+        let timeout_ms = remaining.as_millis().min(u32::MAX as u128) as u32;
+        let mut pfd = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // SAFETY: `poll` writes into `pfd` (stack-local, owned here) and
+        // reads only its size argument; `fd` is valid.
+        let ready = unsafe {
+            libc::poll(
+                &mut pfd as *mut libc::pollfd,
+                1,
+                timeout_ms.min(i32::MAX as u32) as i32,
+            )
+        };
+        if ready < 0 {
+            let err = io::Error::last_os_error();
+            if err.raw_os_error() == Some(libc::EINTR) {
+                continue;
+            }
+            return Err(err);
+        }
+        if ready == 0 {
+            // poll(2) may round down to 0ms for sub-ms remainders; only
+            // treat as timeout if the deadline has actually passed.
+            if Instant::now() >= deadline {
+                return Ok(None);
+            }
+            continue;
+        }
+        let mut buf = vec![0u8; RX_BUF];
+        let mut addr: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
+        let mut alen = std::mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t;
+        // SAFETY: `recvfrom` writes at most `buf.len()` bytes into `buf`
+        // and `sockaddr_ll`-sized metadata into `addr`; `fd` is valid.
+        let n = unsafe {
+            libc::recvfrom(
+                fd,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                buf.len(),
+                0,
+                &mut addr as *mut libc::sockaddr_ll as *mut libc::sockaddr,
+                &mut alen,
+            )
+        };
+        if n < 0 {
+            let err = io::Error::last_os_error();
+            if err.raw_os_error() == Some(libc::EINTR) {
+                continue;
+            }
+            return Err(err);
+        }
+        if n == 0 {
+            continue;
+        }
+        buf.truncate(n as usize);
+        return Ok(Some(RxFrame {
+            bytes: buf,
+            pkttype: addr.sll_pkttype,
+        }));
+    }
+}

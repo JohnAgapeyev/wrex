@@ -13,7 +13,7 @@ use wrex_core::encode::EncodeOpts;
 use wrex_core::render::{dissect_to_json, dissect_to_jsonl, dissect_to_text};
 use wrex_core::value::Value;
 use wrex_core::{Filter, FilterError, PacketSpec, Registry, SpecError, encode};
-use wrex_io::driver::{Driver, DriverError, RawEthDriver};
+use wrex_io::driver::{Driver, DriverError, RawEthDriver, RawIpDriver};
 use wrex_io::iface::IfTable;
 
 pub const MAX_STDIN: usize = 64 * 1024 * 1024;
@@ -124,6 +124,8 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
             args.filter.as_deref(),
             args.promisc,
         ),
+        Cmd::Scan(args) => scan(&registry, args),
+        Cmd::Query(args) => query(&registry, args),
         Cmd::Iface(args) => iface(&args.common, args.name.as_deref()),
         Cmd::Fields(args) => fields_cmd(&registry, &args.common, args.kind.as_deref()),
         Cmd::Completions(args) => {
@@ -399,12 +401,38 @@ fn fields_cmd(registry: &Registry, common: &Common, kind: Option<&str>) -> Resul
                         })
                     })
                     .collect();
+                let records: Vec<serde_json::Value> = schema
+                    .records
+                    .iter()
+                    .map(|rec| {
+                        let fields: Vec<serde_json::Value> = rec
+                            .fields
+                            .iter()
+                            .map(|f| {
+                                serde_json::json!({
+                                    "name": f.name,
+                                    "kind": f.kind.type_name(),
+                                    "default": crate::spec::render_value_flat(&f.default),
+                                    "doc": f.doc,
+                                })
+                            })
+                            .collect();
+                        serde_json::json!({
+                            "name": rec.name,
+                            "settable": rec.settable,
+                            "max": rec.max,
+                            "doc": rec.doc,
+                            "fields": fields,
+                        })
+                    })
+                    .collect();
                 arr.insert(
                     k.to_string(),
                     serde_json::json!({
                         "rank": schema.rank,
                         "doc": schema.doc,
-                        "fields": fields
+                        "fields": fields,
+                        "records": records
                     }),
                 );
             }
@@ -438,6 +466,38 @@ fn fields_cmd(registry: &Registry, common: &Common, kind: Option<&str>) -> Resul
                     if !f.doc.is_empty() {
                         out.push_str(&format!("    {}\n", f.doc));
                     }
+                }
+                for rec in schema.records {
+                    let setting = if rec.settable {
+                        match rec.max {
+                            Some(n) => format!("settable, max {n}"),
+                            None => "settable".to_string(),
+                        }
+                    } else {
+                        "dissect-only".to_string()
+                    };
+                    out.push_str(&format!("  record {} ({})\n", rec.name, setting));
+                    if !rec.doc.is_empty() {
+                        out.push_str(&format!("    {}\n", rec.doc));
+                    }
+                    for f in rec.fields {
+                        out.push_str(&format!(
+                            "    {:<12}{:<8}default={}\n",
+                            f.name,
+                            f.kind.type_name(),
+                            crate::spec::render_value_flat(&f.default)
+                        ));
+                        if !f.doc.is_empty() {
+                            out.push_str(&format!("      {}\n", f.doc));
+                        }
+                    }
+                    out.push_str(&format!(
+                        "    paths: {}.0.{}, {}.1.{}, …\n",
+                        rec.name,
+                        rec.fields.first().map(|f| f.name).unwrap_or("field"),
+                        rec.name,
+                        rec.fields.first().map(|f| f.name).unwrap_or("field")
+                    ));
                 }
             }
             write_stdout(out.as_bytes())?;
@@ -543,10 +603,10 @@ fn send(
         driver
             .send(&frame)
             .map_err(|e| CliError::Runtime(format!("send: {e}")))?;
-        if let Some(d) = interval {
-            if i + 1 < count {
-                std::thread::sleep(d);
-            }
+        if let Some(d) = interval
+            && i + 1 < count
+        {
+            std::thread::sleep(d);
         }
     }
 
@@ -627,10 +687,10 @@ fn recv(
             return Ok(());
         };
         let packet = dissect(registry, &frame.bytes, "auto");
-        if let Some(f) = &filter {
-            if !f.matches(&packet) {
-                continue;
-            }
+        if let Some(f) = &filter
+            && !f.matches(&packet)
+        {
+            continue;
         }
         seen += 1;
         match format {
@@ -659,11 +719,256 @@ fn recv(
                 write_stdout(line.as_bytes())?;
             }
         }
-        if let Some(c) = count {
-            if seen >= c {
-                return Ok(());
+        if let Some(c) = count
+            && seen >= c
+        {
+            return Ok(());
+        }
+    }
+}
+
+// --- scan ----------------------------------------------------------------------
+
+/// Scan defaults (mirror `wrex_scan`'s; spelled here for the help text).
+const SCAN_DEFAULT_TIMEOUT: Duration = Duration::from_secs(1);
+
+/// Time-derived seed (pin reproducibility with `--seed`).
+fn time_seed() -> u64 {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+    nanos ^ (u64::from(std::process::id()) << 32)
+}
+
+/// `wrex scan`: build a [`wrex_scan::ScanSession`] over a
+/// [`RawIpDriver`] and run it under the sans-IO runtime loop.
+fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError> {
+    use wrex_scan::{DEFAULT_RATE, ScanConfig, ScanMode};
+
+    let common = &args.common;
+    let Some(iface) = common.iface.as_deref() else {
+        return Err(usage("scan requires -i/--iface"));
+    };
+    let mode = ScanMode::parse(args.mode.as_deref()).map_err(usage)?;
+    // Registry gating up front (usage → exit 2).
+    for kind in mode.needs() {
+        if registry.get(kind).is_none() {
+            return Err(usage(format!(
+                "{kind} layer not registered (registered: {})",
+                registry.kinds().join(", ")
+            )));
+        }
+    }
+
+    // Pacing: --rate and --interval are mutually exclusive; default rate
+    // 100/s (`--rate 0` / `--interval 0` = uncapped burst).
+    let interval = match (args.rate, args.interval.as_deref()) {
+        (Some(_), Some(_)) => {
+            return Err(usage("scan: --rate and --interval are mutually exclusive"));
+        }
+        (Some(rate), None) => {
+            if rate == 0 {
+                Duration::ZERO
+            } else {
+                Duration::from_secs_f64(1.0 / rate as f64)
             }
         }
+        (None, Some(raw)) => {
+            let d = duration_arg(Some(raw))?;
+            d.unwrap_or(Duration::ZERO)
+        }
+        (None, None) => Duration::from_secs_f64(1.0 / DEFAULT_RATE as f64),
+    };
+    let jitter = duration_arg(args.jitter.as_deref())?.unwrap_or(Duration::ZERO);
+    let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
+    let retries = args.retries.unwrap_or(1);
+    let concurrent = args.concurrent.unwrap_or(256);
+    let seed = args.seed.unwrap_or_else(time_seed);
+
+    let cfg = ScanConfig::build(
+        mode,
+        &args.targets,
+        args.ports.as_deref(),
+        interval,
+        jitter,
+        seed,
+        retries,
+        timeout,
+        concurrent,
+    )
+    .map_err(|e| usage(format!("scan: {e}")))?;
+
+    // Formats: text (default) / json (pretty array) / jsonl (per line);
+    // raw/hex carry no scan results → reject before doing any work.
+    let format = Format::parse(common, Format::Text)?;
+    if matches!(format, Format::Raw | Format::Hex) {
+        return Err(usage(
+            "scan --format supports text|json|jsonl (raw/hex carry no scan results)",
+        ));
+    }
+
+    // Interface + source address (kernel routes on the datagram dst).
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let entry = table
+        .get(iface)
+        .ok_or_else(|| {
+            CliError::Runtime(format!(
+                "unknown iface `{iface}` (available: {})",
+                table.names().join(", ")
+            ))
+        })?
+        .clone();
+    let src =
+        entry.ipv4s.first().copied().ok_or_else(|| {
+            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+        })?;
+
+    let mut driver = RawIpDriver::open(iface, &table)?;
+    let mut session =
+        wrex_scan::ScanSession::new(registry, cfg, src, Instant::now()).map_err(usage)?;
+    let results = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+        .map_err(|e| CliError::Runtime(format!("scan: {e}")))?;
+
+    let mut out = String::new();
+    match format {
+        Format::Json => {
+            let json = serde_json::to_string_pretty(&results)
+                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+            out.push_str(&json);
+            out.push('\n');
+        }
+        Format::Text => {
+            for r in &results {
+                out.push_str(&r.text_line());
+                if let Some(rtt) = r.rtt_hum() {
+                    out.push_str(&format!("  ({rtt})"));
+                }
+                out.push('\n');
+            }
+        }
+        Format::Jsonl => {
+            for r in &results {
+                let json = serde_json::to_string(r)
+                    .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                out.push_str(&json);
+                out.push('\n');
+            }
+        }
+        Format::Raw | Format::Hex => unreachable!("rejected above"),
+    }
+    write_stdout(out.as_bytes())?;
+    // Scan completed → exit 0 regardless of findings.
+    Ok(())
+}
+
+// --- query --------------------------------------------------------------------
+
+/// `wrex query`: one seeded DNS question over a raw UDP datagram, the
+/// reply dissected to stdout. A reply is exit 0 whatever the rcode says
+/// (NXDOMAIN/SERVFAIL are data); silence after all attempts is exit 1.
+fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliError> {
+    use wrex_dns::{DnsReply, DnsSession, QueryConfig};
+
+    let common = &args.common;
+    let Some(iface) = common.iface.as_deref() else {
+        return Err(usage("query requires -i/--iface"));
+    };
+    // Formats: the reply is a DissectedPacket; raw/hex make no sense.
+    let format = Format::parse(common, Format::Text)?;
+    if matches!(format, Format::Raw | Format::Hex) {
+        return Err(usage(
+            "query --format supports text|json|jsonl (raw/hex carry no reply)",
+        ));
+    }
+    // Registry gating up front (usage → exit 2).
+    for kind in ["ipv4", "udp", "dns"] {
+        if registry.get(kind).is_none() {
+            return Err(usage(format!(
+                "{kind} layer not registered (registered: {})",
+                registry.kinds().join(", ")
+            )));
+        }
+    }
+    let Some(server_raw) = args.server.as_deref() else {
+        return Err(usage("query requires --server (e.g. --server 1.1.1.1)"));
+    };
+    let server: std::net::Ipv4Addr = server_raw
+        .parse()
+        .map_err(|_| usage(format!("bad server `{server_raw}` (expected IPv4)")))?;
+    let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
+    let retries = args.retries.unwrap_or(1);
+    let seed = args.seed.unwrap_or_else(time_seed);
+    let cfg = QueryConfig {
+        server,
+        port: args.port.unwrap_or(53),
+        name: args.name.trim().trim_end_matches('.').to_string(),
+        qtype: args.qtype.clone().unwrap_or_else(|| "A".to_string()),
+        qclass: args.qclass.clone().unwrap_or_else(|| "IN".to_string()),
+        rd: !common.no_autofill,
+        retries,
+        timeout,
+        seed,
+    };
+
+    // Interface + source address (the kernel routes on the datagram dst).
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let entry = table
+        .get(iface)
+        .ok_or_else(|| {
+            CliError::Runtime(format!(
+                "unknown iface `{iface}` (available: {})",
+                table.names().join(", ")
+            ))
+        })?
+        .clone();
+    let src =
+        entry.ipv4s.first().copied().ok_or_else(|| {
+            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+        })?;
+
+    // Session first: grammar/name errors surface as usage (exit 2)
+    // BEFORE any raw socket is opened.
+    let mut session = DnsSession::new(registry, cfg, src, Instant::now())
+        .map_err(|e| usage(format!("query: {e}")))?;
+    let mut driver = RawIpDriver::open(iface, &table)?;
+    let outcomes = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+        .map_err(|e| CliError::Runtime(format!("query: {e}")))?;
+
+    match outcomes.into_iter().next() {
+        Some(DnsReply::Reply(pkt)) => {
+            let out = match format {
+                Format::Text => {
+                    let mut s = dissect_to_text(&pkt);
+                    s.push('\n');
+                    s
+                }
+                Format::Json => {
+                    let mut s = serde_json::to_string_pretty(&dissect_to_json(&pkt))
+                        .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                    s.push('\n');
+                    s
+                }
+                Format::Jsonl => {
+                    let mut s = dissect_to_jsonl(&pkt);
+                    s.push('\n');
+                    s
+                }
+                Format::Raw | Format::Hex => unreachable!("rejected above"),
+            };
+            write_stdout(out.as_bytes())?;
+            Ok(())
+        }
+        Some(DnsReply::NoReply { attempts }) => Err(CliError::Runtime(format!(
+            "no reply from {server} within {} x {attempts} ({})",
+            hum_duration(timeout),
+            args.name
+        ))),
+        // run() returns one outcome per session; none means the session
+        // never started (gated above) — unreachable in practice.
+        None => Err(CliError::Runtime("query produced no outcome".to_string())),
     }
 }
 

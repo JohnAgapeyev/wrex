@@ -157,6 +157,45 @@ fn proto_page(schema: &LayerSchema, all_kinds: &[&str], version: &str) -> String
     }
     let _ = writeln!(s);
 
+    if !schema.records.is_empty() {
+        let _ = writeln!(s, ".SH \"RECORD SECTIONS\"");
+        let _ = writeln!(
+            s,
+            "Repeated record sections; dissected fields carry indexed paths ({}.{}.field).",
+            schema.records[0].name, 0
+        );
+        let _ = writeln!(s);
+        for rec in schema.records {
+            let setting = if rec.settable {
+                match rec.max {
+                    Some(n) => format!("settable, at most {n}"),
+                    None => "settable".to_string(),
+                }
+            } else {
+                "dissect\\-only".to_string()
+            };
+            let _ = writeln!(s, ".TP");
+            let _ = writeln!(s, "\\fB{}\\fR ({setting})", esc(rec.name));
+            if !rec.doc.is_empty() {
+                let _ = writeln!(s, "{}", esc(rec.doc));
+            }
+            for f in rec.fields {
+                let _ = write!(
+                    s,
+                    "  {} ({}; default {}). ",
+                    esc(f.name),
+                    f.kind.type_name(),
+                    esc(&wrex::spec::render_value_flat(&f.default))
+                );
+                if !f.doc.is_empty() {
+                    let _ = write!(s, "{}", esc(f.doc));
+                }
+                let _ = writeln!(s);
+            }
+        }
+        let _ = writeln!(s);
+    }
+
     let _ = writeln!(s, ".SH EXAMPLES");
     for line in examples(kind) {
         let _ = writeln!(s, "{}", esc(&line));

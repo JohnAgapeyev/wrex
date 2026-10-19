@@ -1,0 +1,82 @@
+//! Scan results: one record per resolved probe, streamed in resolution
+//! order. `serde`-serializable for `--format json/jsonl`; text lines
+//! render `127.0.0.1  443/tcp  open`.
+
+use std::net::Ipv4Addr;
+use std::time::Duration;
+
+/// One resolved probe.
+///
+/// States: `open` / `closed` / `filtered` (tcp), `open` / `closed` /
+/// `filtered` / `open|filtered` (udp), `alive` / `dead` (icmp).
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ScanResult {
+    pub target: Ipv4Addr,
+    /// Probed port (`None` for icmp).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    /// Wire protocol: `tcp` / `udp` / `icmp`.
+    pub proto: &'static str,
+    /// Classification string (see type docs).
+    pub state: &'static str,
+    /// Sends performed for this probe (first + retransmissions).
+    pub attempts: u32,
+    /// Reply round-trip in milliseconds (`None` when no reply).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rtt_ms: Option<u64>,
+}
+
+impl ScanResult {
+    /// Text rendering: `127.0.0.1  443/tcp  open` /
+    /// `127.0.0.1  icmp  alive`.
+    pub fn text_line(&self) -> String {
+        match self.port {
+            Some(port) => format!("{}  {}/{}  {}", self.target, port, self.proto, self.state),
+            None => format!("{}  {}  {}", self.target, self.proto, self.state),
+        }
+    }
+
+    /// Human milliseconds for the rtt (text suffix).
+    pub fn rtt_hum(&self) -> Option<String> {
+        self.rtt_ms.map(|ms| format!("{ms}ms"))
+    }
+
+    /// Round-trip from a duration, millisecond precision.
+    pub fn rtt_from(d: Duration) -> u64 {
+        d.as_millis().min(u64::MAX as u128) as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_and_json() {
+        let r = ScanResult {
+            target: "127.0.0.1".parse().unwrap(),
+            port: Some(443),
+            proto: "tcp",
+            state: "open",
+            attempts: 1,
+            rtt_ms: Some(2),
+        };
+        assert_eq!(r.text_line(), "127.0.0.1  443/tcp  open");
+        let j = serde_json::to_value(&r).unwrap();
+        assert_eq!(j["port"], 443);
+        assert_eq!(j["rtt_ms"], 2);
+        assert!(j.get("payload").is_none());
+        let r2 = ScanResult {
+            target: "10.0.0.1".parse().unwrap(),
+            port: None,
+            proto: "icmp",
+            state: "alive",
+            attempts: 1,
+            rtt_ms: None,
+        };
+        assert_eq!(r2.text_line(), "10.0.0.1  icmp  alive");
+        let j2 = serde_json::to_value(&r2).unwrap();
+        assert!(j2.get("port").is_none());
+        assert!(j2.get("rtt_ms").is_none());
+    }
+}

@@ -18,8 +18,9 @@ FIELD FLAGS:
   Every settable field, type, default and bit name: wrex fields [KIND].
 
 LAYER KINDS:
-  eth, arp, ipv4 (CLI alias: ip), icmp, udp, tcp.
-  Ranks: eth 10; arp/ipv4 20; icmp/udp/tcp 30 (stack on ipv4).
+  eth, arp, ipv4 (CLI alias: ip), icmp, udp, tcp, dns.
+  Ranks: eth 10; arp/ipv4 20; icmp/udp/tcp 30 (stack on ipv4); dns 40
+  (stacks on udp; port-53 datagrams dissect into it).
   Man pages: wrex(1), wrex-<kind>(7) in man/ of the source checkout.
 
 VALUE GRAMMAR:
@@ -105,6 +106,55 @@ NOTES:
   stops at --count matching frames or after --timeout (exit 0);
   --promisc opts into promiscuous mode. Needs CAP_NET_RAW.";
 
+/// Epilog for scan: modes, grammar, pacing and the seeded RNG.
+pub const SCAN_AFTER_HELP: &str = "\
+TARGETS:
+  repeatable positional: IPv4, CIDR (10.0.0.0/24; network and
+  broadcast skipped below /31), or inclusive ranges
+  (10.0.0.1-10.0.0.9; tails allowed: 10.0.0.0-0.255).
+
+MODES (--mode):
+  syn      TCP SYN scan (default): SYN+ACK -> open (RST sent to kill
+           the half-open), RST -> closed, silence -> filtered
+  connect  full handshake: ACK then RST after SYN+ACK -> open
+  udp      empty datagrams: UDP reply -> open, ICMP 3/3 -> closed,
+           ICMP 3/{1,2,9,10,13} -> filtered, silence -> open|filtered
+  icmp     echo sweep (no ports): reply -> alive, silence -> dead
+
+PORTS (--ports):
+  comma list with ranges (22,80,100-200). syn/connect default to a
+  committed top-100 TCP list (see wrex fields / the man page);
+  udp REQUIRES --ports; icmp takes none.
+
+TIMING:
+  --rate N        packets/sec (default 100; 0 = uncapped burst)
+  --interval DUR  explicit pacing (e.g. 200ms); overrides --rate
+  --jitter DUR    seeded +/- jitter on the pacing step
+  --seed U64      pins the RNG (default: time-derived): probe source
+                  ports, tcp seqs, icmp ids and the jitter schedule
+                  are bit-reproducible under a pinned seed
+  --timeout DUR   per-attempt reply timeout (default 1s)
+  --retries N     extra attempts per probe (default 1)
+  --concurrent N  max in-flight probes (default 256)
+
+PROBES:
+  IPv4 datagrams injected via a raw-IP socket (kernel routes and
+  fragments; needs CAP_NET_RAW); replies are captured on -i IFACE.
+  Results stream as they resolve (--format text|json|jsonl).
+
+EXAMPLES:
+  # default TCP scan of one host (top-100 ports)
+  wrex scan -i eth0 192.168.1.10
+
+  # explicit ports, syn scan of a /24, 500 packets/sec
+  wrex scan -i eth0 --ports 22,80,443,8000-8100 --rate 500 192.168.0.0/24
+
+  # host sweep: which of 10.0.0.1-99 answers pings
+  wrex scan -i eth0 --mode icmp 10.0.0.1-10.0.0.99
+
+  # reproducible UDP scan (pinned seed)
+  wrex scan -i eth0 --mode udp --ports 53,161 --seed 42 10.0.0.5";
+
 #[derive(Parser)]
 #[command(
     name = "wrex",
@@ -125,6 +175,8 @@ impl Cli {
             Cmd::Dissect(a) => a.common.verbose,
             Cmd::Send(a) => a.common.verbose,
             Cmd::Recv(a) => a.common.verbose,
+            Cmd::Scan(a) => a.common.verbose,
+            Cmd::Query(a) => a.common.verbose,
             Cmd::Iface(a) => a.common.verbose,
             Cmd::Fields(a) => a.common.verbose,
             Cmd::Completions(_) => 0,
@@ -180,6 +232,12 @@ pub enum Cmd {
     /// Receive frames on an interface, filtered, until count/timeout/Ctrl-C.
     Recv(RecvArgs),
 
+    /// Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts.
+    Scan(ScanArgs),
+
+    /// Ask a DNS server one question over raw UDP and dissect the reply.
+    Query(QueryArgs),
+
     /// Interface table: name, mac, ipv4s, mtu, up.
     Iface(IfaceArgs),
 
@@ -206,6 +264,7 @@ pub fn field_args(registry: &Registry) -> Vec<clap::Arg> {
             .value_name("VALUE")
             .help("terminal payload bytes (hex:…, text:…, @FILE, @-, repeat:NxHEX)"),
     ];
+    let mut used_longs: std::collections::HashSet<String> = Default::default();
     for &kind in registry.kinds() {
         let schema = registry.schema(kind).expect("registered kind");
         for field in schema.fields {
@@ -220,6 +279,7 @@ pub fn field_args(registry: &Registry) -> Vec<clap::Arg> {
                 arg = arg.alias(format!("ip-{}", dashed(field.name)));
             }
             args.push(arg);
+            used_longs.insert(long.clone());
             if field.kind == FieldKind::FlagSet {
                 for &bit in field.bit_names {
                     let blong = flag_long(kind, &format!("{}.{}", field.name, bit));
@@ -232,7 +292,36 @@ pub fn field_args(registry: &Registry) -> Vec<clap::Arg> {
                                 field.name
                             )),
                     );
+                    used_longs.insert(blong);
                 }
+            }
+        }
+        // Record-section flags: a settable record bounded at max 1 gets
+        // an unindexed shorthand (`--dns-name` → `qd.0.name`); the arg
+        // id stays the full dashed path so spec assembly is unambiguous.
+        // Other records are dissect-only and take no flags.
+        for record in schema.records {
+            if !(record.settable && record.max == Some(1)) {
+                continue;
+            }
+            for field in record.fields {
+                let arg_id = flag_long(kind, &format!("{}.0.{}", record.name, field.name));
+                let short = format!("{kind}-{}", field.name);
+                let long = if used_longs.insert(short.clone()) {
+                    short
+                } else {
+                    // flat field or earlier shorthand already owns the
+                    // short spelling: fall back to the indexed form.
+                    used_longs.insert(arg_id.clone());
+                    arg_id.clone()
+                };
+                args.push(
+                    clap::Arg::new(arg_id)
+                        .long(long.clone())
+                        .help(field.doc)
+                        .value_name(value_hint(field.kind))
+                        .num_args(1),
+                );
             }
         }
     }
@@ -333,6 +422,99 @@ pub struct RecvArgs {
     /// Promiscuous mode (opt-in).
     #[arg(long)]
     pub promisc: bool,
+}
+
+/// Epilog for query: the DNS ask verb (tranche 3).
+pub const QUERY_AFTER_HELP: &str = "\
+QUERY GRAMMAR:
+  wrex query -i IFACE --server IP [--port 53] [options] NAME
+
+  Sends one seeded DNS question (UDP/53 via a raw-IP datagram; the
+  kernel routes it) and waits for the matching reply: id + 4-tuple.
+  --retries re-sends the SAME query (same dns id) after --timeout.
+  A reply received is a success (exit 0) whatever the rcode says —
+  NXDOMAIN/SERVFAIL are data, printed in the dissected reply.
+
+RECORD FIELDS (wrex dissect --filter also accepts these):
+  answers/authority/additional records dissect into indexed paths:
+  dns.an.0.name, dns.an.0.type, dns.an.0.ttl, dns.an.0.rdata …
+  A rdata is typed ipv4; CNAME/NS/PTR resolve (compression pointers
+  included) to names; TXT and everything else stay raw hex bytes.
+
+EXAMPLES:
+  wrex query -i eth0 --server 192.168.1.1 example.com
+  wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
+  wrex query -i eth0 --server 1.1.1.1 --format json example.com AAAA";
+
+/// `wrex scan`: TCP SYN/connect + UDP + ICMP scan over a raw-IP driver.
+#[derive(Args, Debug)]
+#[command(after_help = SCAN_AFTER_HELP)]
+pub struct ScanArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Scan mode: syn|connect|udp|icmp (default syn).
+    #[arg(long)]
+    pub mode: Option<String>,
+    /// Targets: IPv4, CIDR or START-END ranges (repeatable).
+    #[arg(value_name = "TARGET", required = true)]
+    pub targets: Vec<String>,
+    /// Ports: comma list with ranges (default: top-100 TCP for
+    /// syn/connect; required for udp; illegal for icmp).
+    #[arg(long)]
+    pub ports: Option<String>,
+    /// Send rate in packets/sec (default 100; 0 = uncapped burst).
+    #[arg(long)]
+    pub rate: Option<u64>,
+    /// Pacing between sends (e.g. 200ms); overrides --rate.
+    #[arg(long)]
+    pub interval: Option<String>,
+    /// Seeded jitter magnitude (+/-) on the pacing step.
+    #[arg(long)]
+    pub jitter: Option<String>,
+    /// RNG seed (default: time-derived; pins reproducible scans).
+    #[arg(long)]
+    pub seed: Option<u64>,
+    /// Extra attempts per probe beyond the first (default 1).
+    #[arg(long)]
+    pub retries: Option<u32>,
+    /// Per-attempt reply timeout (default 1s).
+    #[arg(long)]
+    pub timeout: Option<String>,
+    /// Max in-flight probes (default 256).
+    #[arg(long)]
+    pub concurrent: Option<usize>,
+}
+
+/// `wrex query`: one seeded DNS question over a raw UDP datagram.
+#[derive(Args, Debug)]
+#[command(after_help = QUERY_AFTER_HELP)]
+pub struct QueryArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// DNS server to ask.
+    #[arg(long)]
+    pub server: Option<String>,
+    /// Server port (default 53).
+    #[arg(long)]
+    pub port: Option<u16>,
+    /// Question type (default A; names or numbers: A, AAAA, MX, …).
+    #[arg(long = "type")]
+    pub qtype: Option<String>,
+    /// Question class (default IN).
+    #[arg(long = "class")]
+    pub qclass: Option<String>,
+    /// Extra attempts beyond the first, same query id (default 1).
+    #[arg(long)]
+    pub retries: Option<u32>,
+    /// Per-attempt reply timeout (default 1s).
+    #[arg(long)]
+    pub timeout: Option<String>,
+    /// RNG seed (default: time-derived; pins query id + source port).
+    #[arg(long)]
+    pub seed: Option<u64>,
+    /// Question name (dotted form, e.g. example.com).
+    #[arg(value_name = "NAME")]
+    pub name: String,
 }
 
 #[derive(Args, Debug)]

@@ -1,0 +1,11 @@
+[package]
+name = "wrex-session"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex session: sans-IO event/queue state-machine contract plus the shared runtime loop"
+
+[dependencies]
+wrex-io = { workspace = true }
+bytes = { workspace = true }

@@ -1,5 +1,11 @@
-//! Raw Ethernet drivers: send/recv over Linux `AF_PACKET`, plus the
+//! Raw drivers: Linux `AF_PACKET` send/recv for Ethernet frames and
+//! `AF_INET`/`AF_PACKET` send/recv for IPv4 datagrams, plus the
 //! driver-level error type.
+//!
+//! The receive paths are shared (`crate::rx`): poll + `recvfrom` with a
+//! `sockaddr_ll`, skipping our own outgoing copies (`sll_pkttype ==
+//! PACKET_OUTGOING`) — resolving the tranche-1 loopback-duplicate TODO
+//! for both drivers at once.
 
 use std::io;
 use std::time::{Duration, Instant};
@@ -35,12 +41,42 @@ pub const PERMISSION_HINT: &str =
 
 /// Send/recv contract for packet drivers (sans-IO; `wrex scan` in T2 builds
 /// on this).
+///
+/// `send`/`recv` payloads start at the driver's start layer: Ethernet
+/// frames for [`RawEthDriver`], IPv4 datagrams for [`RawIpDriver`].
 pub trait Driver: Send {
     /// Send one raw frame.
     fn send(&mut self, frame: &[u8]) -> io::Result<()>;
     /// Receive one frame before `deadline`; `Ok(None)` on timeout.
     fn recv(&mut self, deadline: Instant) -> io::Result<Option<Frame>>;
 }
+
+/// Map an `EPERM`/`EACCES` errno to the hinted error, else `Io`.
+fn map_socket_err(err: io::Error) -> DriverError {
+    match err.raw_os_error() {
+        Some(libc::EPERM) | Some(libc::EACCES) => DriverError::PermissionDenied {
+            hint: PERMISSION_HINT.to_string(),
+        },
+        _ => DriverError::Io { source: err },
+    }
+}
+
+/// Resolve `iface` against `iftable`, mapping the not-found case.
+fn resolve_iface<'t>(
+    iface: &str,
+    iftable: &'t IfTable,
+) -> Result<&'t crate::iface::IfEntry, DriverError> {
+    iftable
+        .get(iface)
+        .ok_or_else(|| DriverError::IfaceNotFound {
+            wanted: iface.to_string(),
+            available: iftable.names().join(", "),
+        })
+}
+
+// ---------------------------------------------------------------------------
+// RawEthDriver
+// ---------------------------------------------------------------------------
 
 /// Linux `AF_PACKET` raw Ethernet driver: `socket(AF_PACKET, SOCK_RAW,
 /// htons(ETH_P_ALL))` bound to `iface`, optional promiscuous mode.
@@ -64,32 +100,14 @@ impl RawEthDriver {
             source: io::Error::other(e),
         })?;
 
-        let entry = iftable
-            .get(iface)
-            .ok_or_else(|| DriverError::IfaceNotFound {
-                wanted: iface.to_string(),
-                available: iftable.names().join(", "),
-            })?;
+        let entry = resolve_iface(iface, iftable)?;
         let ifindex = entry.ifindex;
 
         // socket(2): AF_PACKET + SOCK_RAW requires CAP_NET_RAW.
-        // SAFETY: `socket` is a simple libc syscall with integer args.
-        let fd = unsafe {
-            libc::socket(
-                libc::AF_PACKET,
-                libc::SOCK_RAW,
-                libc::htons(libc::ETH_P_ALL as u16) as i32,
-            )
-        };
-        if fd < 0 {
-            let err = io::Error::last_os_error();
-            return Err(match err.raw_os_error() {
-                Some(libc::EPERM) | Some(libc::EACCES) => DriverError::PermissionDenied {
-                    hint: PERMISSION_HINT.to_string(),
-                },
-                _ => DriverError::Io { source: err },
-            });
-        }
+        // SAFETY: `open_packet_socket` owns its descriptor until Ok.
+        let fd =
+            unsafe { crate::rx::open_packet_socket(ifindex, libc::htons(libc::ETH_P_ALL as u16)) }
+                .map_err(map_socket_err)?;
 
         if promisc {
             // SAFETY: `setsockopt` writes into a stack-local `packet_mreq`;
@@ -116,34 +134,6 @@ impl RawEthDriver {
                 unsafe { libc::close(fd) };
                 return Err(DriverError::Io { source: err });
             }
-        }
-
-        // Bind to the interface via sockaddr_ll.
-        let sockaddr = libc::sockaddr_ll {
-            sll_family: libc::AF_PACKET as u16,
-            sll_protocol: libc::htons(libc::ETH_P_ALL as u16),
-            sll_ifindex: ifindex,
-            sll_hatype: 0,
-            sll_pkttype: 0,
-            sll_halen: 0,
-            sll_addr: [0; 8],
-        };
-        // SAFETY: `bind` reads `sockaddr`; `fd` is valid and owned here;
-        // `CString` is NUL-terminated by construction... (not used; sockaddr
-        // is a fixed struct).
-        // (iface name is not needed beyond ifindex for bind)
-        let ret = unsafe {
-            libc::bind(
-                fd,
-                &sockaddr as *const libc::sockaddr_ll as *const libc::sockaddr,
-                std::mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t,
-            )
-        };
-        if ret < 0 {
-            let err = io::Error::last_os_error();
-            // SAFETY: releasing our own descriptor; no aliasing.
-            unsafe { libc::close(fd) };
-            return Err(DriverError::Io { source: err });
         }
 
         Ok(Self {
@@ -200,62 +190,18 @@ impl Driver for RawEthDriver {
 
     fn recv(&mut self, deadline: Instant) -> io::Result<Option<Frame>> {
         loop {
-            let now = Instant::now();
-            if now >= deadline {
+            // SAFETY: `fd` is a valid descriptor owned by `Self`.
+            let Some(rx) = crate::rx::recv_raw(self.fd, deadline)? else {
                 return Ok(None);
-            }
-            let remaining = deadline - now;
-            let timeout_ms = remaining.as_millis().min(u32::MAX as u128) as u32;
-            let mut pfd = libc::pollfd {
-                fd: self.fd,
-                events: libc::POLLIN,
-                revents: 0,
             };
-            // SAFETY: `poll` writes into `pfd` (stack-local, owned here) and
-            // reads only its size argument; `fd` is valid.
-            let ready = unsafe {
-                libc::poll(
-                    &mut pfd as *mut libc::pollfd,
-                    1,
-                    timeout_ms.min(i32::MAX as u32) as i32,
-                )
-            };
-            if ready < 0 {
-                let err = io::Error::last_os_error();
-                if err.raw_os_error() == Some(libc::EINTR) {
-                    continue;
-                }
-                return Err(err);
-            }
-            if ready == 0 {
-                // poll(2) may round down to 0ms for sub-ms remainders; treat
-                // as timeout only if the deadline has actually passed.
-                if Instant::now() >= deadline {
-                    return Ok(None);
-                }
+            // Loopback and locally-routed frames come back as outgoing
+            // copies; skip them (tranche-2 fix; the ingress copy is what
+            // a listener should see).
+            if rx.pkttype == libc::PACKET_OUTGOING {
                 continue;
             }
-            // Frame buffer: Ethernet MTU headroom (plan: jumbo-safe 16 KiB).
-            let mut buf = vec![0u8; 16 * 1024];
-            // SAFETY: `recv` writes at most `buf.len()` bytes into `buf`;
-            // `fd` is valid and owned by `Self`.
-            let n =
-                unsafe { libc::recv(self.fd, buf.as_mut_ptr() as *mut libc::c_void, buf.len(), 0) };
-            if n < 0 {
-                let err = io::Error::last_os_error();
-                if err.raw_os_error() == Some(libc::EINTR) {
-                    continue;
-                }
-                return Err(err);
-            }
-            if n == 0 {
-                continue;
-            }
-            buf.truncate(n as usize);
-            // TODO(tranche-2): sll_pkttype filtering (loopback copies) via
-            // recvmsg; plain recv is sufficient for tranche 1.
             return Ok(Some(Frame {
-                bytes: Bytes::from(buf),
+                bytes: Bytes::from(rx.bytes),
                 iface: self.iface.clone(),
                 ts: std::time::SystemTime::now(),
             }));
@@ -272,13 +218,183 @@ impl Drop for RawEthDriver {
     }
 }
 
+// ---------------------------------------------------------------------------
+// RawIpDriver
+// ---------------------------------------------------------------------------
+
+/// Linux raw-IP driver: kernel-routed IPv4 send, `AF_PACKET` receive.
+///
+/// - **Send** (`send`): `socket(AF_INET, SOCK_RAW, IPPROTO_RAW)` with
+///   `IP_HDRINCL`; the payload is a full IPv4 datagram (the destination
+///   is taken from its header for routing) and the kernel handles
+///   routing, ARP/next-hop resolution and fragmentation — that is what
+///   makes scanning off-link targets work without a route engine.
+/// - **Receive** (`recv`): an `AF_PACKET` socket bound to `iface` with
+///   `ETH_P_IP`, yielding the IPv4 datagram (Ethernet header stripped,
+///   outgoing copies skipped).
+///
+/// Non-Linux builds compile this type but `open` returns
+/// [`DriverError::UnsupportedPlatform`].
+pub struct RawIpDriver {
+    #[cfg(target_os = "linux")]
+    tx_fd: i32,
+    #[cfg(target_os = "linux")]
+    rx_fd: i32,
+    #[cfg(target_os = "linux")]
+    iface: String,
+    #[cfg(not(target_os = "linux"))]
+    _unsupported: (),
+}
+
+/// EtherType for IPv4 (Ethernet II).
+const ETHERTYPE_IPV4: u16 = 0x0800;
+
+impl RawIpDriver {
+    #[cfg(target_os = "linux")]
+    pub fn open(iface: &str, iftable: &IfTable) -> Result<Self, DriverError> {
+        use std::ffi::CString;
+        let _iface_c = CString::new(iface).map_err(|e| DriverError::Io {
+            source: io::Error::other(e),
+        })?;
+
+        let entry = resolve_iface(iface, iftable)?;
+        let ifindex = entry.ifindex;
+
+        // TX: AF_INET raw socket; IP_HDRINCL hands the full header to us.
+        // SAFETY: `socket` is a simple libc syscall with integer args.
+        let tx_fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_RAW, libc::IPPROTO_RAW) };
+        if tx_fd < 0 {
+            return Err(map_socket_err(io::Error::last_os_error()));
+        }
+        // SAFETY: `setsockopt` reads `one`; `tx_fd` is valid and owned here.
+        let one: libc::c_int = 1;
+        let ret = unsafe {
+            libc::setsockopt(
+                tx_fd,
+                libc::IPPROTO_IP,
+                libc::IP_HDRINCL,
+                &one as *const libc::c_int as *const libc::c_void,
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        if ret < 0 {
+            let err = io::Error::last_os_error();
+            // SAFETY: releasing our own descriptor; no double-close.
+            unsafe { libc::close(tx_fd) };
+            return Err(DriverError::Io { source: err });
+        }
+
+        // RX: AF_PACKET on the same iface, IPv4 only.
+        // SAFETY: `open_packet_socket` owns its descriptor until Ok.
+        let rx_fd =
+            match unsafe { crate::rx::open_packet_socket(ifindex, libc::htons(ETHERTYPE_IPV4)) } {
+                Ok(fd) => fd,
+                Err(err) => {
+                    // SAFETY: releasing our own descriptor; no double-close.
+                    unsafe { libc::close(tx_fd) };
+                    return Err(map_socket_err(err));
+                }
+            };
+
+        Ok(Self {
+            tx_fd,
+            rx_fd,
+            iface: iface.to_string(),
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn open(_iface: &str, _iftable: &IfTable) -> Result<Self, DriverError> {
+        Err(DriverError::UnsupportedPlatform)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Driver for RawIpDriver {
+    fn send(&mut self, frame: &[u8]) -> io::Result<()> {
+        if frame.len() < 20 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "raw-ip send needs a full IPv4 datagram (>= 20 bytes)",
+            ));
+        }
+        // Destination for sendto(2): the kernel routes on it (the header
+        // destination matches for our packets).
+        let dst = u32::from_be_bytes([frame[16], frame[17], frame[18], frame[19]]);
+        let addr = libc::sockaddr_in {
+            sin_family: libc::AF_INET as u16,
+            sin_port: 0, // raw sockets ignore the port
+            sin_addr: libc::in_addr {
+                s_addr: dst.to_be(),
+            },
+            sin_zero: [0; 8],
+        };
+        // SAFETY: `sendto` reads `frame`'s bytes and `addr` (owned here);
+        // `self.tx_fd` is a valid descriptor owned by `Self`.
+        let n = unsafe {
+            libc::sendto(
+                self.tx_fd,
+                frame.as_ptr() as *const libc::c_void,
+                frame.len(),
+                0,
+                &addr as *const libc::sockaddr_in as *const libc::sockaddr,
+                std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+            )
+        };
+        if n < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    fn recv(&mut self, deadline: Instant) -> io::Result<Option<Frame>> {
+        loop {
+            // SAFETY: `self.rx_fd` is a valid descriptor owned by `Self`.
+            let Some(rx) = crate::rx::recv_raw(self.rx_fd, deadline)? else {
+                return Ok(None);
+            };
+            // Skip our own egress copies (kernel-injected sends on `lo`
+            // appear as outgoing before the stack processes them).
+            if rx.pkttype == libc::PACKET_OUTGOING {
+                continue;
+            }
+            // Strip the Ethernet header: frames start at IPv4 for this
+            // driver (bound ETH_P_IP, but verify the ethertype).
+            let bytes = rx.bytes;
+            if bytes.len() < 14 {
+                continue; // runt
+            }
+            if u16::from_be_bytes([bytes[12], bytes[13]]) != ETHERTYPE_IPV4 {
+                continue;
+            }
+            return Ok(Some(Frame {
+                bytes: Bytes::from(bytes[14..].to_vec()),
+                iface: self.iface.clone(),
+                ts: std::time::SystemTime::now(),
+            }));
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for RawIpDriver {
+    fn drop(&mut self) {
+        // SAFETY: both descriptors are valid and uniquely owned by `Self`;
+        // closing them here releases each resource exactly once.
+        unsafe {
+            libc::close(self.tx_fd);
+            libc::close(self.rx_fd);
+        }
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub fn poll_timeout_for(deadline: Instant) -> u32 {
     let remaining = deadline.saturating_duration_since(Instant::now());
     remaining.as_millis().min(u32::MAX as u128) as u32
 }
 
-// Silence dead-code warnings for the helper on non-test builds.
+// Silence dead-code warnings for the helpers on non-test builds.
 #[allow(dead_code)]
 fn _unused_duration(_d: Duration) {}
 
@@ -308,6 +424,10 @@ mod tests {
             RawEthDriver::open("lo", false, &t),
             Err(DriverError::UnsupportedPlatform)
         ));
+        assert!(matches!(
+            RawIpDriver::open("lo", &t),
+            Err(DriverError::UnsupportedPlatform)
+        ));
     }
 
     // Real-socket behavior is exercised by env-gated integration tests
@@ -322,6 +442,13 @@ mod tests {
             Err(DriverError::PermissionDenied { .. }) => {
                 // sandboxed CI may lack CAP_NET_RAW: acceptable
             }
+            Err(e) => panic!("expected iface-not-found or permission, got {e}"),
+            Ok(_) => panic!("open should not succeed with an unknown iface"),
+        }
+        let r = RawIpDriver::open("definitely-not-here2", &t);
+        match r {
+            Err(DriverError::IfaceNotFound { .. }) => {}
+            Err(DriverError::PermissionDenied { .. }) => {}
             Err(e) => panic!("expected iface-not-found or permission, got {e}"),
             Ok(_) => panic!("open should not succeed with an unknown iface"),
         }

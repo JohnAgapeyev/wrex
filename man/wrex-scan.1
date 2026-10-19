@@ -1,0 +1,105 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH scan 1  "scan " 
+.SH NAME
+scan \- Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
+.SH SYNOPSIS
+\fBscan\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-mode\fR] [\fB\-\-ports\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-concurrent\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> 
+.SH DESCRIPTION
+Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-\-mode\fR \fI<MODE>\fR
+Scan mode: syn|connect|udp|icmp (default syn)
+.TP
+\fB\-\-ports\fR \fI<PORTS>\fR
+Ports: comma list with ranges (default: top\-100 TCP for syn/connect; required for udp; illegal for icmp)
+.TP
+\fB\-\-rate\fR \fI<RATE>\fR
+Send rate in packets/sec (default 100; 0 = uncapped burst)
+.TP
+\fB\-\-interval\fR \fI<INTERVAL>\fR
+Pacing between sends (e.g. 200ms); overrides \-\-rate
+.TP
+\fB\-\-jitter\fR \fI<JITTER>\fR
+Seeded jitter magnitude (+/\-) on the pacing step
+.TP
+\fB\-\-seed\fR \fI<SEED>\fR
+RNG seed (default: time\-derived; pins reproducible scans)
+.TP
+\fB\-\-retries\fR \fI<RETRIES>\fR
+Extra attempts per probe beyond the first (default 1)
+.TP
+\fB\-\-timeout\fR \fI<TIMEOUT>\fR
+Per\-attempt reply timeout (default 1s)
+.TP
+\fB\-\-concurrent\fR \fI<CONCURRENT>\fR
+Max in\-flight probes (default 256)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fITARGET\fR>
+Targets: IPv4, CIDR or START\-END ranges (repeatable)
+.SH EXTRA
+TARGETS:
+  repeatable positional: IPv4, CIDR (10.0.0.0/24; network and
+  broadcast skipped below /31), or inclusive ranges
+  (10.0.0.1\-10.0.0.9; tails allowed: 10.0.0.0\-0.255).
+
+MODES (\-\-mode):
+  syn      TCP SYN scan (default): SYN+ACK \-> open (RST sent to kill
+           the half\-open), RST \-> closed, silence \-> filtered
+  connect  full handshake: ACK then RST after SYN+ACK \-> open
+  udp      empty datagrams: UDP reply \-> open, ICMP 3/3 \-> closed,
+           ICMP 3/{1,2,9,10,13} \-> filtered, silence \-> open|filtered
+  icmp     echo sweep (no ports): reply \-> alive, silence \-> dead
+
+PORTS (\-\-ports):
+  comma list with ranges (22,80,100\-200). syn/connect default to a
+  committed top\-100 TCP list (see wrex fields / the man page);
+  udp REQUIRES \-\-ports; icmp takes none.
+
+TIMING:
+  \-\-rate N        packets/sec (default 100; 0 = uncapped burst)
+  \-\-interval DUR  explicit pacing (e.g. 200ms); overrides \-\-rate
+  \-\-jitter DUR    seeded +/\- jitter on the pacing step
+  \-\-seed U64      pins the RNG (default: time\-derived): probe source
+                  ports, tcp seqs, icmp ids and the jitter schedule
+                  are bit\-reproducible under a pinned seed
+  \-\-timeout DUR   per\-attempt reply timeout (default 1s)
+  \-\-retries N     extra attempts per probe (default 1)
+  \-\-concurrent N  max in\-flight probes (default 256)
+
+PROBES:
+  IPv4 datagrams injected via a raw\-IP socket (kernel routes and
+  fragments; needs CAP_NET_RAW); replies are captured on \-i IFACE.
+  Results stream as they resolve (\-\-format text|json|jsonl).
+
+EXAMPLES:
+  # default TCP scan of one host (top\-100 ports)
+  wrex scan \-i eth0 192.168.1.10
+
+  # explicit ports, syn scan of a /24, 500 packets/sec
+  wrex scan \-i eth0 \-\-ports 22,80,443,8000\-8100 \-\-rate 500 192.168.0.0/24
+
+  # host sweep: which of 10.0.0.1\-99 answers pings
+  wrex scan \-i eth0 \-\-mode icmp 10.0.0.1\-10.0.0.99
+
+  # reproducible UDP scan (pinned seed)
+  wrex scan \-i eth0 \-\-mode udp \-\-ports 53,161 \-\-seed 42 10.0.0.5
