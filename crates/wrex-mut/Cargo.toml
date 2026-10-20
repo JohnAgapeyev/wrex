@@ -1,0 +1,19 @@
+[package]
+name = "wrex-mut"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex mutation engine: seeded, dissect-aware frame mutation (tranche 6a)"
+
+[dependencies]
+wrex-core = { workspace = true }
+wrex-io = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+wrex-proto-eth = { workspace = true }
+wrex-proto-ip = { workspace = true }
+wrex-proto-udp = { workspace = true }
+wrex-proto-tcp = { workspace = true }
+wrex-proto-icmp = { workspace = true }

@@ -173,6 +173,34 @@ Any completed exchange is exit 0; the response dissects to
 text/json/raw (`raw` = body bytes only). https:// is out of charter
 (no TLS this tranche).
 
+**Tranche 5** (delivered): `wrex capture`/`wrex replay` — an in-house
+classic pcap reader/writer (`wrex-pcap`, no libpcap; all four magic
+variants read, streaming LE-µs write), the AF_PACKET capture tap
+(`-w FILE.pcap`, optional `--format` tee), and offline dissect /
+paced verbatim re-send of captured files.
+
+**Tranche 6** (delivered): over-the-wire fuzzing. `wrex mut`
+(`wrex-mut`) — seeded, dissect-aware frame mutation (field/len/flip/
+splice/raw strategies; checksums re-derive) into stdout or a pcap
+corpus; `wrex fuzz` (`wrex-fuzz`) — the stateful recording prober:
+baseline + mutated probes over the raw-IP driver, replies matched
+per probe (post-mutation identity), one finding per probe with the
+exact probe bytes (replayable with `wrex send`/`replay`) for offline
+differential.
+
+Mutation and probing (tranche 6; `mut` needs no privileges, `fuzz`
+injects via a raw-IP socket — `CAP_NET_RAW`):
+
+```sh
+# 8 seeded mutants of a golden frame (deterministic under --seed)
+wrex mut --count 8 --seed 42 <frame.hex>
+wrex mut -r capture.pcap --strategy field -w mut.pcap
+
+# prober: one baseline + 4 mutated rounds per slot, findings as jsonl
+wrex fuzz -i lo --baseline --rounds 4 --format jsonl 127.0.0.1
+wrex fuzz -i eth0 --mode udp --ports 53,161 --seed 7 10.0.0.0/24
+```
+
 Deliberately invalid packets are a feature: explicit values always win
 and are kept unvalidated; `--strict` validates and reports violations
 (`wrex: <layer>.<field>: <message>`, exit 2).
@@ -187,6 +215,9 @@ crates/wrex-session   sans-IO Session contract + the shared runtime loop
 crates/wrex-scan      scan orchestration: probe table, scheduler, seeded jitter
 crates/wrex-dns       query orchestration: DNS ask sessions (udp + tcp)
 crates/wrex-http      HTTP/1.1 client session (httparse + http types) + recipes
+crates/wrex-pcap      classic pcap reader + streaming writer (no libpcap)
+crates/wrex-mut       seeded, dissect-aware mutation engine (tranche 6a)
+crates/wrex-fuzz      stateful recording prober session (tranche 6b)
 crates/wrex-test      test-support: strategies, oracles (+hickory/dig/reqwest), corpus, CLI harness
 crates/wrex-proto-*   eth arp ip icmp udp tcp dns (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)

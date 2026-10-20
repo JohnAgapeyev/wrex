@@ -1,0 +1,105 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH fuzz 1  "fuzz " 
+.SH NAME
+fuzz \- Probe targets with mutated packets; record replies as findings
+.SH SYNOPSIS
+\fBfuzz\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-mode\fR] [\fB\-\-ports\fR] [\fB\-\-rounds\fR] [\fB\-\-baseline\fR] [\fB\-\-strategy\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-concurrent\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> 
+.SH DESCRIPTION
+Probe targets with mutated packets; record replies as findings
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-\-mode\fR \fI<MODE>\fR
+Probe mode: tcp|udp|icmp (default udp)
+.TP
+\fB\-\-ports\fR \fI<PORTS>\fR
+Ports: comma list with ranges (tcp defaults to the top\-100 list; required for udp; illegal for icmp)
+.TP
+\fB\-\-rounds\fR \fI<ROUNDS>\fR
+Mutated rounds per (target, port) slot (default 4)
+.TP
+\fB\-\-baseline\fR
+Send one unmutated baseline probe per slot first
+.TP
+\fB\-\-strategy\fR \fI<STRATEGY>\fR
+Mutation strategy for the rounds: field|len|flip|splice|raw|all
+.TP
+\fB\-\-rate\fR \fI<RATE>\fR
+Send rate in packets/sec (default 100; 0 = uncapped burst)
+.TP
+\fB\-\-interval\fR \fI<INTERVAL>\fR
+Pacing between sends (e.g. 200ms); overrides \-\-rate
+.TP
+\fB\-\-jitter\fR \fI<JITTER>\fR
+Seeded jitter magnitude (+/\-) on the pacing step
+.TP
+\fB\-\-seed\fR \fI<SEED>\fR
+RNG seed (default time\-derived; pins identities + mutations)
+.TP
+\fB\-\-retries\fR \fI<RETRIES>\fR
+Extra attempts per probe beyond the first (default 1)
+.TP
+\fB\-\-timeout\fR \fI<TIMEOUT>\fR
+Per\-attempt reply timeout (default 1s)
+.TP
+\fB\-\-concurrent\fR \fI<CONCURRENT>\fR
+Max in\-flight probes (default 256)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fITARGET\fR>
+Targets: IPv4, CIDR or START\-END ranges (repeatable)
+.SH EXTRA
+GRAMMAR:
+  wrex fuzz \-i IFACE [\-\-mode tcp|udp|icmp] [options] TARGET...
+
+  For every (target, port) slot: an optional unmutated baseline probe
+  (\-\-baseline), then \-\-rounds mutated probes (wrex\-mut strategies).
+  Probes inject via a raw\-IP socket (kernel routes; needs
+  CAP_NET_RAW), replies captured on \-i. Every probe resolves to one
+  recorded finding: a matching reply (reply bytes included), an
+  ICMP\-unreachable attribution, or silence after \-\-retries.
+
+MODES (\-\-mode, default udp):
+  tcp    SYN probes; any segment on the probe 4\-tuple is a reply
+  udp    empty datagrams; any datagram on the 4\-tuple is a reply;
+         ICMP 3/x unreachables attribute via the quoted datagram
+  icmp   echo sweeps (no ports); type\-0 replies with a matching id
+
+  Reply keys derive from the POST\-mutation dissection: a mutation
+  that moved the identity still matches its own replies.
+
+PORTS (\-\-ports): comma list with ranges. tcp defaults to the
+  committed top\-100 list (same as scan); udp REQUIRES \-\-ports; icmp
+  takes none.
+
+TIMING (same vocabulary as scan): \-\-rate N (default 100; 0 = burst),
+  \-\-interval DUR, \-\-jitter DUR, \-\-seed U64 (identities, mutation
+  streams, jitter), \-\-timeout DUR (default 1s), \-\-retries N,
+  \-\-concurrent N (default 256).
+
+FINDINGS: one line per probe — \-\-format text (default), json (array)
+  or jsonl; every finding carries the exact probe bytes (hex), so
+  anything interesting replays with `wrex send`/`wrex replay`, and a
+  baseline run diffs offline against the mutated rounds.
+
+EXAMPLES:
+  wrex fuzz \-i lo \-\-baseline \-\-rounds 4 127.0.0.1
+  wrex fuzz \-i eth0 \-\-mode udp \-\-ports 53,161 \-\-rounds 16 \-\-seed 7 10.0.0.0/24
+  wrex fuzz \-i eth0 \-\-mode tcp \-\-ports 22,443 \-\-strategy field 10.0.0.5

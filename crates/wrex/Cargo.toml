@@ -21,6 +21,8 @@ wrex-scan = { workspace = true }
 wrex-dns = { workspace = true }
 wrex-http = { workspace = true }
 wrex-pcap = { workspace = true }
+wrex-mut = { workspace = true }
+wrex-fuzz = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }

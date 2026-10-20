@@ -1,0 +1,76 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH mut 1  "mut " 
+.SH NAME
+mut \- Mutate seed frames (dissect\-aware, seeded) → stdout / pcap
+.SH SYNOPSIS
+\fBmut\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-r\fR|\fB\-\-read\fR] [\fB\-\-strategy\fR] [\fB\-\-count\fR] [\fB\-\-seed\fR] [\fB\-w\fR|\fB\-\-write\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFRAME\fR] 
+.SH DESCRIPTION
+Mutate seed frames (dissect\-aware, seeded) → stdout / pcap
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-r\fR, \fB\-\-read\fR \fI<FILE>\fR
+Classic pcap to read seed frames from (repeatable)
+.TP
+\fB\-\-strategy\fR \fI<STRATEGY>\fR
+Mutation strategy: field|len|flip|splice|raw|all (default all)
+.TP
+\fB\-\-count\fR \fI<COUNT>\fR
+Mutants to produce (default 8)
+.TP
+\fB\-\-seed\fR \fI<SEED>\fR
+RNG seed (default time\-derived; pins the mutant stream)
+.TP
+\fB\-w\fR, \fB\-\-write\fR \fI<FILE>\fR
+Write the mutants as a classic pcap file
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIFRAME\fR]
+Seed frames as hex (repeatable); \-r/\-\-read and stdin also feed
+.SH EXTRA
+GRAMMAR:
+  wrex mut [FRAMES...] [\-r FILE.pcap] [\-\-strategy S] [\-\-count N]
+                 [\-\-seed U64] [\-\-format FMT] [\-w FILE.pcap]
+
+  Seeds: positional hex frames, \-r/\-\-read classic pcap records
+  (all 4 magic variants), and/or raw stdin. Mutants print per
+  \-\-format (default hex): hex/raw are the bytes; text/json/jsonl
+  dissect the mutant. \-w writes the mutants as a classic pcap
+  (LE microsecond, EN10MB) — a mutated corpus `wrex replay` and
+  `wrex fuzz` consume.
+
+STRATEGIES (\-\-strategy, default all):
+  field   dissect the seed, mutate one typed field value, re\-encode
+          with autofill (checksums re\-derive)
+  len     perturb a length field explicitly (autofill keeps it)
+  flip    raw bit flip, biased toward header bytes
+  splice  cross\-over A[..k] + B[k..] of two seeds (needs >= 2)
+  raw     byte surgery anywhere: flip/overwrite/insert/delete
+  all     seeded weighted mix of the rest
+
+DETERMINISM:
+  \-\-seed U64 pins the stream (default time\-derived): the same seeds
+  + seed yield byte\-identical mutants, replayable anywhere.
+
+EXAMPLES:
+  wrex mut \-\-format hex \-\-seed 42 \-\-count 8 45...1f
+  wrex mut \-r capture.pcap \-\-strategy field \-\-count 100 \-w mut.pcap
+  wrex craft \-\-format raw \-\-layer eth \-\-layer ipv4 \-\-layer udp \\
+    \-\-ipv4\-dst=10.0.0.5 \-\-udp\-dport=53 | wrex mut \-\-count 4

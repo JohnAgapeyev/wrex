@@ -213,6 +213,8 @@ impl Cli {
             Cmd::Capture(a) => a.common.verbose,
             Cmd::Replay(a) => a.common.verbose,
             Cmd::Scan(a) => a.common.verbose,
+            Cmd::Mut(a) => a.common.verbose,
+            Cmd::Fuzz(a) => a.common.verbose,
             Cmd::Http(a) => a.common.verbose,
             Cmd::Query(a) => a.common.verbose,
             Cmd::Iface(a) => a.common.verbose,
@@ -278,6 +280,12 @@ pub enum Cmd {
 
     /// Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts.
     Scan(ScanArgs),
+
+    /// Mutate seed frames (dissect-aware, seeded) → stdout / pcap.
+    Mut(MutArgs),
+
+    /// Probe targets with mutated packets; record replies as findings.
+    Fuzz(FuzzArgs),
 
     /// One HTTP/1.1 exchange: send a request, dissect the response.
     Http(HttpArgs),
@@ -592,6 +600,152 @@ EXAMPLES:
   wrex query -i eth0 --server 192.168.1.1 example.com
   wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
   wrex query --tcp --server 192.168.1.1 example.com";
+
+/// Epilog for mut: the tranche-6a mutation verb.
+pub const MUT_AFTER_HELP: &str = "\
+GRAMMAR:
+  wrex mut [FRAMES...] [-r FILE.pcap] [--strategy S] [--count N]
+                 [--seed U64] [--format FMT] [-w FILE.pcap]
+
+  Seeds: positional hex frames, -r/--read classic pcap records
+  (all 4 magic variants), and/or raw stdin. Mutants print per
+  --format (default hex): hex/raw are the bytes; text/json/jsonl
+  dissect the mutant. -w writes the mutants as a classic pcap
+  (LE microsecond, EN10MB) — a mutated corpus `wrex replay` and
+  `wrex fuzz` consume.
+
+STRATEGIES (--strategy, default all):
+  field   dissect the seed, mutate one typed field value, re-encode
+          with autofill (checksums re-derive)
+  len     perturb a length field explicitly (autofill keeps it)
+  flip    raw bit flip, biased toward header bytes
+  splice  cross-over A[..k] + B[k..] of two seeds (needs >= 2)
+  raw     byte surgery anywhere: flip/overwrite/insert/delete
+  all     seeded weighted mix of the rest
+
+DETERMINISM:
+  --seed U64 pins the stream (default time-derived): the same seeds
+  + seed yield byte-identical mutants, replayable anywhere.
+
+EXAMPLES:
+  wrex mut --format hex --seed 42 --count 8 45...1f
+  wrex mut -r capture.pcap --strategy field --count 100 -w mut.pcap
+  wrex craft --format raw --layer eth --layer ipv4 --layer udp \\
+    --ipv4-dst=10.0.0.5 --udp-dport=53 | wrex mut --count 4";
+
+/// Epilog for fuzz: the tranche-6b recording prober.
+pub const FUZZ_AFTER_HELP: &str = "\
+GRAMMAR:
+  wrex fuzz -i IFACE [--mode tcp|udp|icmp] [options] TARGET...
+
+  For every (target, port) slot: an optional unmutated baseline probe
+  (--baseline), then --rounds mutated probes (wrex-mut strategies).
+  Probes inject via a raw-IP socket (kernel routes; needs
+  CAP_NET_RAW), replies captured on -i. Every probe resolves to one
+  recorded finding: a matching reply (reply bytes included), an
+  ICMP-unreachable attribution, or silence after --retries.
+
+MODES (--mode, default udp):
+  tcp    SYN probes; any segment on the probe 4-tuple is a reply
+  udp    empty datagrams; any datagram on the 4-tuple is a reply;
+         ICMP 3/x unreachables attribute via the quoted datagram
+  icmp   echo sweeps (no ports); type-0 replies with a matching id
+
+  Reply keys derive from the POST-mutation dissection: a mutation
+  that moved the identity still matches its own replies.
+
+PORTS (--ports): comma list with ranges. tcp defaults to the
+  committed top-100 list (same as scan); udp REQUIRES --ports; icmp
+  takes none.
+
+TIMING (same vocabulary as scan): --rate N (default 100; 0 = burst),
+  --interval DUR, --jitter DUR, --seed U64 (identities, mutation
+  streams, jitter), --timeout DUR (default 1s), --retries N,
+  --concurrent N (default 256).
+
+FINDINGS: one line per probe — --format text (default), json (array)
+  or jsonl; every finding carries the exact probe bytes (hex), so
+  anything interesting replays with `wrex send`/`wrex replay`, and a
+  baseline run diffs offline against the mutated rounds.
+
+EXAMPLES:
+  wrex fuzz -i lo --baseline --rounds 4 127.0.0.1
+  wrex fuzz -i eth0 --mode udp --ports 53,161 --rounds 16 --seed 7 10.0.0.0/24
+  wrex fuzz -i eth0 --mode tcp --ports 22,443 --strategy field 10.0.0.5";
+
+/// `wrex mut`: seeded, dissect-aware frame mutation.
+#[derive(Args, Debug)]
+#[command(after_help = MUT_AFTER_HELP)]
+pub struct MutArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Seed frames as hex (repeatable); -r/--read and stdin also feed.
+    #[arg(value_name = "FRAME")]
+    pub frames: Vec<String>,
+    /// Classic pcap to read seed frames from (repeatable).
+    #[arg(short = 'r', long = "read", value_name = "FILE")]
+    pub read: Vec<String>,
+    /// Mutation strategy: field|len|flip|splice|raw|all (default all).
+    #[arg(long)]
+    pub strategy: Option<String>,
+    /// Mutants to produce (default 8).
+    #[arg(long)]
+    pub count: Option<u64>,
+    /// RNG seed (default time-derived; pins the mutant stream).
+    #[arg(long)]
+    pub seed: Option<u64>,
+    /// Write the mutants as a classic pcap file.
+    #[arg(short = 'w', long = "write", value_name = "FILE")]
+    pub write: Option<String>,
+}
+
+/// `wrex fuzz`: the stateful recording prober.
+#[derive(Args, Debug)]
+#[command(after_help = FUZZ_AFTER_HELP)]
+pub struct FuzzArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Probe mode: tcp|udp|icmp (default udp).
+    #[arg(long)]
+    pub mode: Option<String>,
+    /// Targets: IPv4, CIDR or START-END ranges (repeatable).
+    #[arg(value_name = "TARGET", required = true)]
+    pub targets: Vec<String>,
+    /// Ports: comma list with ranges (tcp defaults to the top-100
+    /// list; required for udp; illegal for icmp).
+    #[arg(long)]
+    pub ports: Option<String>,
+    /// Mutated rounds per (target, port) slot (default 4).
+    #[arg(long)]
+    pub rounds: Option<u32>,
+    /// Send one unmutated baseline probe per slot first.
+    #[arg(long)]
+    pub baseline: bool,
+    /// Mutation strategy for the rounds: field|len|flip|splice|raw|all.
+    #[arg(long)]
+    pub strategy: Option<String>,
+    /// Send rate in packets/sec (default 100; 0 = uncapped burst).
+    #[arg(long)]
+    pub rate: Option<u64>,
+    /// Pacing between sends (e.g. 200ms); overrides --rate.
+    #[arg(long)]
+    pub interval: Option<String>,
+    /// Seeded jitter magnitude (+/-) on the pacing step.
+    #[arg(long)]
+    pub jitter: Option<String>,
+    /// RNG seed (default time-derived; pins identities + mutations).
+    #[arg(long)]
+    pub seed: Option<u64>,
+    /// Extra attempts per probe beyond the first (default 1).
+    #[arg(long)]
+    pub retries: Option<u32>,
+    /// Per-attempt reply timeout (default 1s).
+    #[arg(long)]
+    pub timeout: Option<String>,
+    /// Max in-flight probes (default 256).
+    #[arg(long)]
+    pub concurrent: Option<usize>,
+}
 
 /// `wrex scan`: TCP SYN/connect + UDP + ICMP scan over a raw-IP driver.
 #[derive(Args, Debug)]

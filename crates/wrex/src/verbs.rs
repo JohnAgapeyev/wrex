@@ -136,6 +136,8 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
         Cmd::Capture(args) => capture(&registry, &args.common, args),
         Cmd::Replay(args) => replay(&registry, &args.common, args),
         Cmd::Scan(args) => scan(&registry, args),
+        Cmd::Mut(args) => mut_verb(&registry, &args.common, args),
+        Cmd::Fuzz(args) => fuzz(&registry, args),
         Cmd::Http(args) => http(args),
         Cmd::Query(args) => query(&registry, args),
         Cmd::Iface(args) => iface(&args.common, args.name.as_deref()),
@@ -1105,6 +1107,218 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
     }
     write_stdout(out.as_bytes())?;
     // Scan completed → exit 0 regardless of findings.
+    Ok(())
+}
+
+// --- mut / fuzz (tranche 6) ----------------------------------------------------
+
+/// Default mutants per `wrex mut` invocation.
+const MUT_DEFAULT_COUNT: u64 = 8;
+/// Default stored bytes per mut pcap record (matches capture).
+const MUT_DEFAULT_SNAPLEN: usize = 65535;
+
+/// `wrex mut`: seeded, dissect-aware frame mutation → stdout (and
+/// optionally a pcap). Seeds: positional hex frames, `-r` pcaps and
+/// raw stdin; grammar errors are usage (exit 2) before any output.
+fn mut_verb(
+    registry: &Registry,
+    common: &Common,
+    args: &crate::cli::MutArgs,
+) -> Result<(), CliError> {
+    use wrex_mut::{Mutator, Strategy};
+
+    let format = Format::parse(common, Format::Hex)?;
+    let strategy = Strategy::parse(args.strategy.as_deref()).map_err(usage)?;
+    let count = args.count.unwrap_or(MUT_DEFAULT_COUNT);
+    let seed = args.seed.unwrap_or_else(time_seed);
+
+    // Seed frames: positional hex, then every -r pcap record, then
+    // raw stdin (when piped). Empty seed set → usage error.
+    let mut seeds: Vec<Vec<u8>> = Vec::new();
+    for raw in &args.frames {
+        let bytes = wrex_core::value::parse_hex_bytes(raw)
+            .map_err(|e| usage(format!("bad seed frame `{raw}`: {e}")))?;
+        if bytes.is_empty() {
+            return Err(usage(format!("empty seed frame `{raw}`")));
+        }
+        seeds.push(bytes);
+    }
+    for path in &args.read {
+        let pcap_bytes = std::fs::read(path)
+            .map_err(|e| CliError::Runtime(format!("mut: cannot read `{path}`: {e}")))?;
+        let file = wrex_pcap::read(&pcap_bytes)
+            .map_err(|e| CliError::Runtime(format!("mut: `{path}`: {e}")))?;
+        for rec in &file.records {
+            if !rec.bytes.is_empty() {
+                seeds.push(rec.bytes.clone());
+            }
+        }
+    }
+    {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() && args.frames.is_empty() && args.read.is_empty() {
+            seeds.push(read_stdin_capped()?);
+        }
+    }
+
+    let mut mutator = Mutator::new(registry, seeds, strategy, seed).map_err(usage)?;
+    let mut writer = match &args.write {
+        Some(path) => {
+            let file = std::fs::File::create(path)
+                .map_err(|e| CliError::Runtime(format!("mut: cannot create `{path}`: {e}")))?;
+            Some(
+                wrex_pcap::PcapWriter::new(std::io::BufWriter::new(file))
+                    .map_err(|e| CliError::Runtime(format!("mut: `{path}`: {e}")))?,
+            )
+        }
+        None => None,
+    };
+
+    for _ in 0..count {
+        let mutant = mutator.next_mutant();
+        if let Some(w) = writer.as_mut() {
+            w.write_record(std::time::SystemTime::now(), &mutant, MUT_DEFAULT_SNAPLEN)
+                .map_err(|e| CliError::Runtime(format!("mut: write: {e}")))?;
+        }
+        match format {
+            Format::Hex => {
+                let mut line = hex::encode(&mutant);
+                line.push('\n');
+                write_stdout(line.as_bytes())?;
+            }
+            Format::Raw => write_stdout(&mutant)?,
+            Format::Text | Format::Json | Format::Jsonl => {
+                // The mutant dissected: what the mutation actually did.
+                let packet = dissect(registry, &mutant, "auto");
+                print_frame(format, &packet, &mutant)?;
+            }
+        }
+    }
+    if let Some(w) = writer.as_mut() {
+        w.flush()
+            .map_err(|e| CliError::Runtime(format!("mut: write: {e}")))?;
+    }
+    Ok(())
+}
+
+/// `wrex fuzz`: the stateful recording prober — baseline + mutated
+/// probes over a [`RawIpDriver`], one finding per probe.
+fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError> {
+    use wrex_fuzz::{DEFAULT_ROUNDS, FuzzConfig, ProbeMode};
+    use wrex_mut::Strategy;
+
+    let common = &args.common;
+    let Some(iface) = common.iface.as_deref() else {
+        return Err(usage("fuzz requires -i/--iface"));
+    };
+    let mode = ProbeMode::parse(args.mode.as_deref()).map_err(usage)?;
+    // Registry gating up front (usage → exit 2).
+    for kind in mode.needs() {
+        if registry.get(kind).is_none() {
+            return Err(usage(format!(
+                "{kind} layer not registered (registered: {})",
+                registry.kinds().join(", ")
+            )));
+        }
+    }
+    let strategy = Strategy::parse(args.strategy.as_deref()).map_err(usage)?;
+
+    // Pacing (same vocabulary as scan): --rate/--interval exclusive;
+    // default 100/s (`--rate 0` = uncapped burst).
+    let interval = match (args.rate, args.interval.as_deref()) {
+        (Some(_), Some(_)) => {
+            return Err(usage("fuzz: --rate and --interval are mutually exclusive"));
+        }
+        (Some(rate), None) => {
+            if rate == 0 {
+                Duration::ZERO
+            } else {
+                Duration::from_secs_f64(1.0 / rate as f64)
+            }
+        }
+        (None, Some(raw)) => duration_arg(Some(raw))?.unwrap_or(Duration::ZERO),
+        (None, None) => Duration::from_secs_f64(1.0 / wrex_scan::DEFAULT_RATE as f64),
+    };
+    let jitter = duration_arg(args.jitter.as_deref())?.unwrap_or(Duration::ZERO);
+    let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
+    let retries = args.retries.unwrap_or(1);
+    let concurrent = args.concurrent.unwrap_or(256);
+    let rounds = args.rounds.unwrap_or(DEFAULT_ROUNDS);
+    let seed = args.seed.unwrap_or_else(time_seed);
+
+    let cfg = FuzzConfig::build(
+        mode,
+        &args.targets,
+        args.ports.as_deref(),
+        rounds,
+        args.baseline,
+        strategy,
+        interval,
+        jitter,
+        seed,
+        retries,
+        timeout,
+        concurrent,
+    )
+    .map_err(|e| usage(format!("fuzz: {e}")))?;
+
+    // Formats: raw/hex carry no findings → reject before any socket.
+    let format = Format::parse(common, Format::Text)?;
+    if matches!(format, Format::Raw | Format::Hex) {
+        return Err(usage(
+            "fuzz --format supports text|json|jsonl (raw/hex carry no findings)",
+        ));
+    }
+
+    // Interface + source address (kernel routes on the datagram dst).
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let entry = table
+        .get(iface)
+        .ok_or_else(|| {
+            CliError::Runtime(format!(
+                "unknown iface `{iface}` (available: {})",
+                table.names().join(", ")
+            ))
+        })?
+        .clone();
+    let src =
+        entry.ipv4s.first().copied().ok_or_else(|| {
+            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+        })?;
+
+    let mut driver = RawIpDriver::open(iface, &table)?;
+    let mut session =
+        wrex_fuzz::ProberSession::new(registry, cfg, src, Instant::now()).map_err(usage)?;
+    let findings = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+        .map_err(|e| CliError::Runtime(format!("fuzz: {e}")))?;
+
+    let mut out = String::new();
+    match format {
+        Format::Json => {
+            let json = serde_json::to_string_pretty(&findings)
+                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+            out.push_str(&json);
+            out.push('\n');
+        }
+        Format::Text => {
+            for f in &findings {
+                out.push_str(&f.text_line());
+                out.push('\n');
+            }
+        }
+        Format::Jsonl => {
+            for f in &findings {
+                let json = serde_json::to_string(f)
+                    .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                out.push_str(&json);
+                out.push('\n');
+            }
+        }
+        Format::Raw | Format::Hex => unreachable!("rejected above"),
+    }
+    write_stdout(out.as_bytes())?;
+    // Probe run completed → exit 0 regardless of what the findings say.
     Ok(())
 }
 

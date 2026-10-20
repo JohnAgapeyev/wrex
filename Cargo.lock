@@ -1871,8 +1871,10 @@ dependencies = [
  "tracing-subscriber",
  "wrex-core",
  "wrex-dns",
+ "wrex-fuzz",
  "wrex-http",
  "wrex-io",
+ "wrex-mut",
  "wrex-pcap",
  "wrex-proto-arp",
  "wrex-proto-dns",
@@ -1915,6 +1917,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-fuzz"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "hex",
+ "serde",
+ "wrex-core",
+ "wrex-io",
+ "wrex-mut",
+ "wrex-proto-icmp",
+ "wrex-proto-ip",
+ "wrex-proto-tcp",
+ "wrex-proto-udp",
+ "wrex-scan",
+ "wrex-session",
+]
+
+[[package]]
 name = "wrex-http"
 version = "0.1.0"
 dependencies = [
@@ -1936,6 +1956,20 @@ dependencies = [
  "libc",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "wrex-mut"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "wrex-core",
+ "wrex-io",
+ "wrex-proto-eth",
+ "wrex-proto-icmp",
+ "wrex-proto-ip",
+ "wrex-proto-tcp",
+ "wrex-proto-udp",
 ]
 
 [[package]]

@@ -109,8 +109,53 @@ T(n+1)".
   automatically). Deliberate deferrals: pcapng (read + write), BPF
   filter compilation (the wrex filter language serves), non-Ethernet
   capture linktypes, ring-buffer/rotation, raw-IP capture.
-- **T6 — over-the-wire fuzzing**: mutation strategies (`wrex mut`),
-  stateful prober, `wrex fuzz` against external stacks.
+- **T6 — over-the-wire fuzzing** — ✅ delivered. In-house mutation
+  engine in the new `wrex-mut` crate (tranche 6a): seeded, sans-IO,
+  dissect-aware strategies — `field` (mutate one typed field value,
+  re-encode with autofill so checksums re-derive), `len` (perturb a
+  length field *explicitly* so autofill keeps the mutation), `flip`
+  (header-biased raw bit flip), `splice` (A[..k]+B[k..] cross-over of
+  two seeds), `raw` (flip/overwrite/insert/delete), and `all` (a
+  seeded weighted mix); derived fields (checksums, lengths) are
+  dropped when a dissection becomes a spec so re-encodes stay
+  dissectable; inapplicable strategies fall through to the raw level
+  so a mutant stream is always producible. `wrex mut` (seeds from
+  positional hex, repeatable `-r FILE.pcap`, or raw stdin; `--strategy
+  --count --seed`, `--format` with text/json/jsonl dissecting each
+  mutant, `-w FILE.pcap` writing a mutated corpus the replay/fuzz
+  verbs consume). Tranche 6b: the stateful recording prober in the
+  new `wrex-fuzz` crate — a `Session` over the frozen T2 contract
+  (baseline probe + `--rounds` mutated probes per target/port slot,
+  reply matching by 4-tuple/echo id where the key derives from the
+  *post-mutation* dissection, retransmissions repeat the exact
+  mutated bytes, ICMP-unreachable quote attribution), one finding per
+  probe (outcome + the exact probe hex, reply hex when a reply
+  arrived) — a recording prober: `--baseline` collects the unmutated
+  table for offline diffing; no in-run differential engine. `wrex
+  fuzz` with the scan target/port grammar (tcp defaults to the
+  committed top-100 list; udp requires `--ports`; icmp is a host
+  sweep) and the full T2 timing vocabulary (`--rate/--interval/
+  --jitter/--seed/--retries/--timeout/--concurrent`), findings as
+  text/json/jsonl. Deliberate deferrals (re-deferred from T4): the
+  userspace TCP stack (the prober works at L3/L4-inject level via
+  RawEth/RawIp drivers — no kernel-TCP application-layer state), and
+  cross-stack differential targets (findings JSONL is the offline
+  diff substrate). Verification: wrex-mut units (per-strategy
+  production, determinism, dissectability, len perturbation, splice
+  fallback) + CLI suite (count/determinism, format family, pcap
+  write→read roundtrip == printed mutants, stdin raw, usage exit
+  codes), wrex-fuzz state-machine walkthrough units (probe accounting,
+  reply recording with bytes, mutated-identity self-matching,
+  cross-talk, retransmit-identity, tcp/icmp shapes, unreachable
+  attribution, same-seed byte-identical probe streams, the
+  ScriptedDriver+FakeClock runtime loop), a fuzz-CLI usage suite,
+  env-gated ground truth on `lo` (a bound UDP responder → baseline
+  reply findings, an unbound port → `unreachable:3` attribution,
+  seed reproducibility), and `fuzz_mut_strategies` +
+  `fuzz_prober_session` cargo-fuzz targets (never-panic, bounds,
+  per-probe resolution, stream determinism) in the smoke job (CI list
+  + xtask). Man pages and completions regenerated (the verbs enumerate
+  automatically).
 - **T7 — protocol expansion**: ipv6, vlan, dhcp, dissect-only profiles,
   dynamic `.so` plugin ABI revisit — each new codec follows the
   tranche-1 contract and plugs into the same wrex-test extension points.

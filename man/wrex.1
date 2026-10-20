@@ -40,6 +40,12 @@ Read a pcap (dissect to stdout) or re\-send it on an interface
 wrex\-scan(1)
 Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
 .TP
+wrex\-mut(1)
+Mutate seed frames (dissect\-aware, seeded) → stdout / pcap
+.TP
+wrex\-fuzz(1)
+Probe targets with mutated packets; record replies as findings
+.TP
 wrex\-http(1)
 One HTTP/1.1 exchange: send a request, dissect the response
 .TP

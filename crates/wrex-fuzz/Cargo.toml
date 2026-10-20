@@ -1,0 +1,23 @@
+[package]
+name = "wrex-fuzz"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex stateful prober: mutated probes over the wire, replies recorded as findings (tranche 6b)"
+
+[dependencies]
+wrex-core = { workspace = true }
+wrex-io = { workspace = true }
+wrex-session = { workspace = true }
+wrex-mut = { workspace = true }
+wrex-scan = { workspace = true }
+bytes = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+wrex-proto-ip = { workspace = true }
+wrex-proto-udp = { workspace = true }
+wrex-proto-tcp = { workspace = true }
+wrex-proto-icmp = { workspace = true }
