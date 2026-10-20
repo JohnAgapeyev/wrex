@@ -112,9 +112,14 @@ fn udp_baseline_and_rounds_ground_truth() {
         "reply bytes recorded\n{stdout}"
     );
     assert_eq!(baseline["port"].as_u64(), Some(u64::from(port)));
-    // Mutated rounds carry their labels.
-    assert_eq!(rows[1]["round"], serde_json::json!(1));
-    assert_eq!(rows[2]["round"], serde_json::json!(2));
+    // Mutated rounds carry their labels (findings resolve in time
+    // order, not probe-ordinal order — compare as sets).
+    let mut rounds: Vec<u64> = rows[1..]
+        .iter()
+        .filter_map(|r| r["round"].as_u64())
+        .collect();
+    rounds.sort_unstable();
+    assert_eq!(rounds, vec![1, 2], "both mutated rounds recorded\n{stdout}");
 }
 
 #[test]
@@ -151,9 +156,10 @@ fn udp_unbound_port_unreachable() {
     let rows = findings(&stdout);
     assert_eq!(rows.len(), 1);
     // The kernel answers the empty datagram with an ICMP port
-    // unreachable quoting it — the recorded attribution.
+    // unreachable quoting it — the recorded attribution (a newtype
+    // variant: {"unreachable": <code>}).
     assert_eq!(
-        rows[0]["outcome"]["unreachable"]["code"],
+        rows[0]["outcome"]["unreachable"],
         serde_json::json!(3),
         "unbound port must attribute unreachable:3\n{stdout}"
     );
@@ -173,7 +179,7 @@ fn seed_reproducibility() {
         "--rounds",
         "2",
         "--seed",
-        "0xBEEF",
+        "48879", // 0xBEEF (clap u64 takes decimal)
         "--format",
         "jsonl",
         "127.0.0.1",
