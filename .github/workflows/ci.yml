@@ -127,6 +127,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: rustsec/audit-check@v2
+      - uses: Swatinem/rust-cache@v2
+      # rustsec/audit-check@v2 (latest major) still targets the Node-20
+      # runner; cargo-audit directly is the same engine without the
+      # deprecated composite action. Both lockfiles: workspace + fuzz.
+      - uses: taiki-e/install-action@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tool: cargo-audit
+      - run: cargo audit
+      - run: cargo audit --file fuzz/Cargo.lock
