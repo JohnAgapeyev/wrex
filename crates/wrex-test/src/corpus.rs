@@ -142,45 +142,11 @@ pub fn import(pcap: &Path, name: &str) -> Result<PathBuf, String> {
 pub const MAX_FRAMES: usize = 16;
 
 /// Parse a classic pcap file into raw frames (all endianness/nanosecond
-/// magic variants).
+/// magic variants). Delegates to `wrex-pcap` (the tranche-5 shared
+/// reader); timestamps are kept there — the corpus only needs bytes.
 pub fn read_classic_pcap(bytes: &[u8]) -> Result<Vec<Vec<u8>>, String> {
-    if bytes.len() < 24 {
-        return Err("pcap too short".into());
-    }
-    let magic = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-    let (be, nano) = match magic {
-        0xa1b2_c3d4 => (false, false),
-        0xd4c3_b2a1 => (true, false),
-        0xa1b2_3c4d => (false, true),
-        0x4d3c_b2a1 => (true, true),
-        _ => return Err(format!("not a classic pcap (magic 0x{magic:08x})")),
-    };
-    let u32_at = |off: usize| -> u32 {
-        let b = [bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]];
-        if be {
-            u32::from_be_bytes(b)
-        } else {
-            u32::from_le_bytes(b)
-        }
-    };
-    let mut off = 24usize;
-    let mut out = Vec::new();
-    while off + 16 <= bytes.len() {
-        let _ts_sec = u32_at(off);
-        let _ts_usec = u32_at(off + 4);
-        if nano {
-            let _ = _ts_usec;
-        }
-        let incl_len = u32_at(off + 8) as usize;
-        let _orig_len = u32_at(off + 12);
-        off += 16;
-        if off + incl_len > bytes.len() {
-            return Err("pcap truncated record".into());
-        }
-        out.push(bytes[off..off + incl_len].to_vec());
-        off += incl_len;
-    }
-    Ok(out)
+    let file = wrex_pcap::read(bytes).map_err(|e| e.to_string())?;
+    Ok(file.records.into_iter().map(|r| r.bytes).collect())
 }
 
 fn chrono_today() -> String {

@@ -30,6 +30,9 @@ path = "../crates/wrex-session"
 [dependencies.wrex-http]
 path = "../crates/wrex-http"
 
+[dependencies.wrex-pcap]
+path = "../crates/wrex-pcap"
+
 [[bin]]
 name = "fuzz_dissect_eth"
 path = "fuzz_targets/fuzz_dissect_eth.rs"
@@ -96,6 +99,20 @@ bench = false
 [[bin]]
 name = "fuzz_http_session"
 path = "fuzz_targets/fuzz_http_session.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_pcap_reader"
+path = "fuzz_targets/fuzz_pcap_reader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_pcap_roundtrip"
+path = "fuzz_targets/fuzz_pcap_roundtrip.rs"
 test = false
 doc = false
 bench = false

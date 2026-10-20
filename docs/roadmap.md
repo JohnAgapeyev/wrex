@@ -80,8 +80,35 @@ T(n+1)".
   and `fuzz_dissect_dns`. Deliberate deferrals: TLS (https → pointed
   out-of-charter error), keep-alive, chunked request bodies,
   userspace TCP.
-- **T5 — capture/replay**: `wrex capture` (AF_PACKET + pcap writer),
-  pcap import, `wrex replay`.
+- **T5 — capture/replay** — ✅ delivered. In-house classic pcap
+  reader/writer in the new `wrex-pcap` crate (no libpcap): all four
+  magic variants read — LE/BE × µs/ns — with the record timestamps the
+  tranche-1 corpus reader discarded now kept; streaming LE-µs EN10MB
+  writer (global header on open, snaplen truncation with `orig_len`
+  preserved). `wrex capture` (AF_PACKET recv loop into `-w FILE.pcap`,
+  `--count/--timeout/--filter/--promisc/--snaplen`, optional
+  `--format` tee to stdout sharing recv's per-frame printers), `wrex
+  replay` (offline dissect-and-print by default — jsonl default, the
+  same `--format/--filter/--count` family; `-i IFACE` switches to
+  verbatim wire re-send with capture-delta pacing by default and the
+  T2 timing vocabulary `--rate/--interval/--seed/--jitter` as
+  override, jitter seeded via the shared SplitMix64). The corpus
+  reader (xtask `corpus-import`) now delegates to `wrex-pcap` (same
+  CLI, same outputs). Verification: writer→reader roundtrip units +
+  a 256-case proptest, BE/µs and ns/LE variant vectors, a
+  truncated-record error suite, CLI offline tests (replay jsonl ==
+  dissect jsonl of the same frame, `--format raw` concatenation,
+  `--count`/`--filter` gating, usage exit codes, bad-pcap exit 1),
+  env-gated ground truth on `lo` (capture under live traffic → valid
+  pcap with wall-clock timestamps; captured pcap replayed onto `lo`
+  and observed by a concurrent recv), `fuzz_pcap_reader` +
+  `fuzz_pcap_roundtrip` in the smoke job, wrex-pcap in the Miri job,
+  and a scoped Kani proof (record-header encode/decode roundtrip
+  over symbolic u32s) in the kani job under the 6 GB ceiling. Man
+  pages and completions regenerated (the verbs enumerate
+  automatically). Deliberate deferrals: pcapng (read + write), BPF
+  filter compilation (the wrex filter language serves), non-Ethernet
+  capture linktypes, ring-buffer/rotation, raw-IP capture.
 - **T6 — over-the-wire fuzzing**: mutation strategies (`wrex mut`),
   stateful prober, `wrex fuzz` against external stacks.
 - **T7 — protocol expansion**: ipv6, vlan, dhcp, dissect-only profiles,

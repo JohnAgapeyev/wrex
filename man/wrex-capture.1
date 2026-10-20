@@ -1,0 +1,63 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH capture 1  "capture " 
+.SH NAME
+capture \- Capture frames from an interface into a classic pcap file
+.SH SYNOPSIS
+\fBcapture\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] <\fB\-w\fR|\fB\-\-write\fR> [\fB\-\-count\fR] [\fB\-\-timeout\fR] [\fB\-\-filter\fR] [\fB\-\-promisc\fR] [\fB\-\-snaplen\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+.SH DESCRIPTION
+Capture frames from an interface into a classic pcap file
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-w\fR, \fB\-\-write\fR \fI<FILE>\fR
+Output pcap file (frames land here; \-\-format tees to stdout)
+.TP
+\fB\-\-count\fR \fI<COUNT>\fR
+Stop after N written frames
+.TP
+\fB\-\-timeout\fR \fI<TIMEOUT>\fR
+Stop after this duration (exit 0)
+.TP
+\fB\-\-filter\fR \fI<FILTER>\fR
+Filter expression (space\-separated AND\-terms: path<op>value)
+.TP
+\fB\-\-promisc\fR
+Promiscuous mode (opt\-in)
+.TP
+\fB\-\-snaplen\fR \fI<SNAPLEN>\fR
+Max stored bytes per frame (default 65535; wire length kept)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.SH EXTRA
+GRAMMAR:
+  wrex capture \-i IFACE \-w FILE.pcap [options]
+
+  AF_PACKET receive loop (like recv) into a classic pcap file:
+  little\-endian microsecond, link type EN10MB (in\-house writer, no
+  libpcap). Frames pass \-\-filter before they are written; \-\-snaplen
+  truncates the stored copy (orig_len keeps the wire length).
+
+FORMATS (optional tee):
+  without \-\-format: pcap file only (nothing on stdout)
+  with \-\-format:    the same per\-frame output as recv (default jsonl)
+  on stdout WHILE the records land in the file
+
+NOTES:
+  stops at \-\-count written frames or after \-\-timeout (exit 0);
+  \-\-promisc opts into promiscuous mode. Needs CAP_NET_RAW.

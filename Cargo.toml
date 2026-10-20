@@ -19,6 +19,7 @@ wrex-scan = { path = "crates/wrex-scan", version = "0.1.0" }
 wrex-test = { path = "crates/wrex-test", version = "0.1.0" }
 wrex-dns = { path = "crates/wrex-dns", version = "0.1.0" }
 wrex-http = { path = "crates/wrex-http", version = "0.1.0" }
+wrex-pcap = { path = "crates/wrex-pcap", version = "0.1.0" }
 wrex-proto-eth = { path = "crates/wrex-proto-eth", version = "0.1.0" }
 wrex-proto-arp = { path = "crates/wrex-proto-arp", version = "0.1.0" }
 wrex-proto-ip = { path = "crates/wrex-proto-ip", version = "0.1.0" }

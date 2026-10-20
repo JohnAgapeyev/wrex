@@ -10,6 +10,7 @@ description = "wrex test support: strategies, oracles, corpus, CLI harness (dev-
 wrex = { workspace = true }
 wrex-core = { workspace = true }
 wrex-io = { workspace = true }
+wrex-pcap = { workspace = true }
 wrex-proto-eth = { workspace = true, features = ["test-util"] }
 wrex-proto-arp = { workspace = true, features = ["test-util"] }
 wrex-proto-ip = { workspace = true, features = ["test-util"] }

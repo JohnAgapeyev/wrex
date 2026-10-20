@@ -1,0 +1,17 @@
+[package]
+name = "wrex-pcap"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex classic pcap file reader/writer (in-house, no libpcap): all magic variants in, LE-microsecond Ethernet out"
+
+[dependencies]
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints.rust]
+# Kani proofs live behind cfg(kani); normal builds never see them.
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(kani)'] }

@@ -1,0 +1,72 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH replay 1  "replay " 
+.SH NAME
+replay \- Read a pcap (dissect to stdout) or re\-send it on an interface
+.SH SYNOPSIS
+\fBreplay\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-filter\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIFILE\fR> 
+.SH DESCRIPTION
+Read a pcap (dissect to stdout) or re\-send it on an interface
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-\-count\fR \fI<COUNT>\fR
+Stop after N matching frames
+.TP
+\fB\-\-filter\fR \fI<FILTER>\fR
+Filter expression (space\-separated AND\-terms: path<op>value)
+.TP
+\fB\-\-rate\fR \fI<RATE>\fR
+Send rate in frames/sec (send mode only; 0 = uncapped burst)
+.TP
+\fB\-\-interval\fR \fI<INTERVAL>\fR
+Pacing between sends (e.g. 200ms); overrides \-\-rate
+.TP
+\fB\-\-jitter\fR \fI<JITTER>\fR
+Seeded jitter magnitude (+/\-) on the pacing step
+.TP
+\fB\-\-seed\fR \fI<SEED>\fR
+RNG seed (default: time\-derived; pins the jitter schedule)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIFILE\fR>
+Classic pcap file to read
+.SH EXTRA
+GRAMMAR:
+  wrex replay FILE.pcap [\-\-filter EXPR] [\-\-count N] [\-\-format FMT]
+  wrex replay FILE.pcap \-i IFACE [\-\-rate N|\-\-interval DUR] [\-\-jitter DUR]
+                        [\-\-seed U64]
+
+  Offline (default): dissect each captured frame and print it —
+  the same \-\-format family as recv (default jsonl), \-\-filter and
+  \-\-count apply. No raw sockets.
+
+SEND MODE (\-i/\-\-iface): re\-send the captured frames verbatim on the
+  interface (AF_PACKET; needs CAP_NET_RAW). Pacing:
+    default          original capture\-delta (sleeps between frames)
+    \-\-rate N         fixed N frames/sec (0 = uncapped burst)
+    \-\-interval DUR   explicit pacing (overrides \-\-rate)
+    \-\-jitter DUR     seeded +/\- jitter on the pacing step
+    \-\-seed U64       pins the jitter schedule (default: time\-derived)
+  \-\-rate/\-\-interval are mutually exclusive; \-\-jitter needs \-\-seed or
+  settles on the time\-derived seed.
+
+PCAP:
+  classic files only (all 4 magic variants read; pcapng is out of the
+  tranche\-5 charter — write out with text2pcap/mergecap if needed).

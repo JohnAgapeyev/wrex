@@ -1873,6 +1873,7 @@ dependencies = [
  "wrex-dns",
  "wrex-http",
  "wrex-io",
+ "wrex-pcap",
  "wrex-proto-arp",
  "wrex-proto-dns",
  "wrex-proto-eth",
@@ -1934,6 +1935,14 @@ dependencies = [
  "if-addrs",
  "libc",
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "wrex-pcap"
+version = "0.1.0"
+dependencies = [
+ "proptest",
  "thiserror",
 ]
 
@@ -2048,6 +2057,7 @@ dependencies = [
  "wrex",
  "wrex-core",
  "wrex-io",
+ "wrex-pcap",
  "wrex-proto-arp",
  "wrex-proto-dns",
  "wrex-proto-eth",

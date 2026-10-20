@@ -103,6 +103,7 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
             "wrex-scan",
             "wrex-dns",
             "wrex-http",
+            "wrex-pcap",
         ];
         let mut args = vec!["+nightly", "miri", "test"];
         for p in pkgs {
@@ -154,7 +155,7 @@ fn kani_stage(root: &Path) {
         eprintln!("xtask verify --with-kani: SKIPPED (advisory): cargo kani not installed");
         return;
     }
-    for pkg in ["wrex-core", "wrex-http"] {
+    for pkg in ["wrex-core", "wrex-http", "wrex-pcap"] {
         run(
             root,
             pkg,
@@ -204,6 +205,8 @@ fn fuzz_stage(root: &Path) {
         "fuzz_craft_roundtrip",
         "fuzz_scan_session",
         "fuzz_http_session",
+        "fuzz_pcap_reader",
+        "fuzz_pcap_roundtrip",
     ];
     let nightly = Command::new("cargo")
         .arg("+nightly")

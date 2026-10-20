@@ -210,6 +210,8 @@ impl Cli {
             Cmd::Dissect(a) => a.common.verbose,
             Cmd::Send(a) => a.common.verbose,
             Cmd::Recv(a) => a.common.verbose,
+            Cmd::Capture(a) => a.common.verbose,
+            Cmd::Replay(a) => a.common.verbose,
             Cmd::Scan(a) => a.common.verbose,
             Cmd::Http(a) => a.common.verbose,
             Cmd::Query(a) => a.common.verbose,
@@ -267,6 +269,12 @@ pub enum Cmd {
 
     /// Receive frames on an interface, filtered, until count/timeout/Ctrl-C.
     Recv(RecvArgs),
+
+    /// Capture frames from an interface into a classic pcap file.
+    Capture(CaptureArgs),
+
+    /// Read a pcap (dissect to stdout) or re-send it on an interface.
+    Replay(ReplayArgs),
 
     /// Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts.
     Scan(ScanArgs),
@@ -461,6 +469,105 @@ pub struct RecvArgs {
     /// Promiscuous mode (opt-in).
     #[arg(long)]
     pub promisc: bool,
+}
+
+/// Epilog for capture: the tranche-5 pcap tap.
+pub const CAPTURE_AFTER_HELP: &str = "\
+GRAMMAR:
+  wrex capture -i IFACE -w FILE.pcap [options]
+
+  AF_PACKET receive loop (like recv) into a classic pcap file:
+  little-endian microsecond, link type EN10MB (in-house writer, no
+  libpcap). Frames pass --filter before they are written; --snaplen
+  truncates the stored copy (orig_len keeps the wire length).
+
+FORMATS (optional tee):
+  without --format: pcap file only (nothing on stdout)
+  with --format:    the same per-frame output as recv (default jsonl)
+  on stdout WHILE the records land in the file
+
+NOTES:
+  stops at --count written frames or after --timeout (exit 0);
+  --promisc opts into promiscuous mode. Needs CAP_NET_RAW.";
+
+/// Epilog for replay: offline dissection or wire re-send.
+pub const REPLAY_AFTER_HELP: &str = "\
+GRAMMAR:
+  wrex replay FILE.pcap [--filter EXPR] [--count N] [--format FMT]
+  wrex replay FILE.pcap -i IFACE [--rate N|--interval DUR] [--jitter DUR]
+                        [--seed U64]
+
+  Offline (default): dissect each captured frame and print it —
+  the same --format family as recv (default jsonl), --filter and
+  --count apply. No raw sockets.
+
+SEND MODE (-i/--iface): re-send the captured frames verbatim on the
+  interface (AF_PACKET; needs CAP_NET_RAW). Pacing:
+    default          original capture-delta (sleeps between frames)
+    --rate N         fixed N frames/sec (0 = uncapped burst)
+    --interval DUR   explicit pacing (overrides --rate)
+    --jitter DUR     seeded +/- jitter on the pacing step
+    --seed U64       pins the jitter schedule (default: time-derived)
+  --rate/--interval are mutually exclusive; --jitter needs --seed or
+  settles on the time-derived seed.
+
+PCAP:
+  classic files only (all 4 magic variants read; pcapng is out of the
+  tranche-5 charter — write out with text2pcap/mergecap if needed).";
+
+/// `wrex capture`: AF_PACKET recv loop into a classic pcap file.
+#[derive(Args, Debug)]
+#[command(after_help = CAPTURE_AFTER_HELP)]
+pub struct CaptureArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Output pcap file (frames land here; --format tees to stdout).
+    #[arg(short = 'w', long = "write", value_name = "FILE", required = true)]
+    pub write: String,
+    /// Stop after N written frames.
+    #[arg(long)]
+    pub count: Option<u64>,
+    /// Stop after this duration (exit 0).
+    #[arg(long)]
+    pub timeout: Option<String>,
+    /// Filter expression (space-separated AND-terms: path<op>value).
+    #[arg(long)]
+    pub filter: Option<String>,
+    /// Promiscuous mode (opt-in).
+    #[arg(long)]
+    pub promisc: bool,
+    /// Max stored bytes per frame (default 65535; wire length kept).
+    #[arg(long)]
+    pub snaplen: Option<usize>,
+}
+
+/// `wrex replay`: offline dissection or re-send of a classic pcap.
+#[derive(Args, Debug)]
+#[command(after_help = REPLAY_AFTER_HELP)]
+pub struct ReplayArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Classic pcap file to read.
+    #[arg(value_name = "FILE")]
+    pub pcap: String,
+    /// Stop after N matching frames.
+    #[arg(long)]
+    pub count: Option<u64>,
+    /// Filter expression (space-separated AND-terms: path<op>value).
+    #[arg(long)]
+    pub filter: Option<String>,
+    /// Send rate in frames/sec (send mode only; 0 = uncapped burst).
+    #[arg(long)]
+    pub rate: Option<u64>,
+    /// Pacing between sends (e.g. 200ms); overrides --rate.
+    #[arg(long)]
+    pub interval: Option<String>,
+    /// Seeded jitter magnitude (+/-) on the pacing step.
+    #[arg(long)]
+    pub jitter: Option<String>,
+    /// RNG seed (default: time-derived; pins the jitter schedule).
+    #[arg(long)]
+    pub seed: Option<u64>,
 }
 
 /// Epilog for query: the DNS ask verb (tranche 3).

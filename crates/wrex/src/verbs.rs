@@ -95,6 +95,15 @@ impl Format {
             ))),
         }
     }
+
+    /// The capture tee: no `--format` means no stdout output at all
+    /// (the pcap file is the product; the tee is opt-in).
+    pub fn parse_opt(common: &Common) -> Result<Option<Format>, CliError> {
+        match common.format.as_deref() {
+            None => Ok(None),
+            Some(_) => Ok(Some(Format::parse(common, Format::Jsonl)?)),
+        }
+    }
 }
 
 pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
@@ -124,6 +133,8 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
             args.filter.as_deref(),
             args.promisc,
         ),
+        Cmd::Capture(args) => capture(&registry, &args.common, args),
+        Cmd::Replay(args) => replay(&registry, &args.common, args),
         Cmd::Scan(args) => scan(&registry, args),
         Cmd::Http(args) => http(args),
         Cmd::Query(args) => query(&registry, args),
@@ -726,6 +737,239 @@ fn recv(
             return Ok(());
         }
     }
+}
+
+// --- capture / replay (tranche 5) ---------------------------------------------
+
+/// Per-frame output in the shared `--format` family (recv, the capture
+/// tee and offline replay all print the same shapes).
+fn print_frame(
+    format: Format,
+    packet: &wrex_core::dissect::DissectedPacket,
+    raw: &[u8],
+) -> Result<(), CliError> {
+    match format {
+        Format::Jsonl => {
+            let mut line = dissect_to_jsonl(packet);
+            line.push('\n');
+            write_stdout(line.as_bytes())?;
+        }
+        Format::Raw => {
+            write_stdout(raw)?;
+        }
+        Format::Text => {
+            let mut out = dissect_to_text(packet);
+            out.push('\n');
+            write_stdout(out.as_bytes())?;
+        }
+        Format::Json => {
+            let mut out = serde_json::to_string(&dissect_to_json(packet))
+                .map_err(|e| usage(format!("json: {e}")))?;
+            out.push('\n');
+            write_stdout(out.as_bytes())?;
+        }
+        Format::Hex => {
+            let mut line = hex::encode(raw);
+            line.push('\n');
+            write_stdout(line.as_bytes())?;
+        }
+    }
+    Ok(())
+}
+
+/// Default stored bytes per capture record (`--snaplen` overrides).
+const CAPTURE_DEFAULT_SNAPLEN: usize = 65535;
+
+/// `wrex capture`: AF_PACKET recv loop into a classic pcap file, with an
+/// optional `--format` tee to stdout (the same per-frame shapes as
+/// recv). Stop conditions and exit codes mirror recv: count/timeout → 0.
+fn capture(
+    registry: &Registry,
+    common: &Common,
+    args: &crate::cli::CaptureArgs,
+) -> Result<(), CliError> {
+    let Some(iface) = common.iface.as_deref() else {
+        return Err(usage("capture requires -i/--iface"));
+    };
+    // The tee is opt-in: no --format means the pcap file is the product.
+    let tee = Format::parse_opt(common)?;
+    let timeout = duration_arg(args.timeout.as_deref())?;
+    let filter = match args.filter.as_deref() {
+        Some(f) => Some(Filter::parse(registry, f)?),
+        None => None,
+    };
+    let snaplen = args.snaplen.unwrap_or(CAPTURE_DEFAULT_SNAPLEN);
+
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let mut driver = RawEthDriver::open(iface, args.promisc, &table)?;
+    let file = std::fs::File::create(&args.write)
+        .map_err(|e| CliError::Runtime(format!("capture: cannot create `{}`: {e}", args.write)))?;
+    let mut writer = wrex_pcap::PcapWriter::new(std::io::BufWriter::new(file))
+        .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+
+    let mut seen: u64 = 0;
+    let deadline = timeout.map(|d| Instant::now() + d);
+    loop {
+        let next_deadline = deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(3600));
+        let Some(frame) = driver
+            .recv(next_deadline)
+            .map_err(|e| CliError::Runtime(format!("recv: {e}")))?
+        else {
+            // Timeout end → success (exit 0), pcap valid as-is.
+            writer
+                .flush()
+                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+            return Ok(());
+        };
+        let packet = dissect(registry, &frame.bytes, "auto");
+        if let Some(f) = &filter
+            && !f.matches(&packet)
+        {
+            continue;
+        }
+        writer
+            .write_record(frame.ts, &frame.bytes, snaplen)
+            .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+        if let Some(fmt) = tee {
+            print_frame(fmt, &packet, &frame.bytes)?;
+        }
+        seen += 1;
+        if let Some(c) = args.count
+            && seen >= c
+        {
+            writer
+                .flush()
+                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+            return Ok(());
+        }
+    }
+}
+
+/// A replay-eligible frame: the captured bytes, their dissection and
+/// the capture timestamp (send-mode pacing).
+struct ReplayFrame {
+    ts: std::time::SystemTime,
+    bytes: Vec<u8>,
+    packet: wrex_core::dissect::DissectedPacket,
+}
+
+/// Seeded step: base pacing +/- jitter, clamped non-negative.
+fn jittered_step(base: Duration, jitter: Duration, rng: &mut wrex_io::Rng) -> Duration {
+    let secs = base.as_secs_f64() + rng.jitter_secs(jitter);
+    if secs <= 0.0 {
+        Duration::ZERO
+    } else {
+        Duration::from_secs_f64(secs)
+    }
+}
+
+/// `wrex replay`: offline dissection (default) or verbatim re-send on
+/// an interface (`-i`). Pacing: capture-delta by default, or the T2
+/// timing vocabulary (`--rate`/`--interval` override, seeded `--jitter`).
+fn replay(
+    registry: &Registry,
+    common: &Common,
+    args: &crate::cli::ReplayArgs,
+) -> Result<(), CliError> {
+    // Grammar gates before any file/socket work (usage → exit 2).
+    if args.rate.is_some() && args.interval.is_some() {
+        return Err(usage(
+            "replay: --rate and --interval are mutually exclusive",
+        ));
+    }
+    if args.jitter.is_some() && common.iface.is_none() {
+        return Err(usage("replay: --jitter is send-mode pacing (-i IFACE)"));
+    }
+    if args.rate.is_some() && common.iface.is_none() {
+        return Err(usage("replay: --rate is send-mode pacing (-i IFACE)"));
+    }
+    if args.interval.is_some() && common.iface.is_none() {
+        return Err(usage("replay: --interval is send-mode pacing (-i IFACE)"));
+    }
+
+    // Read + dissect: filter/count apply to both modes identically so
+    // the offline print and the wire send see the same frames.
+    let pcap_bytes = std::fs::read(&args.pcap)
+        .map_err(|e| CliError::Runtime(format!("replay: cannot read `{}`: {e}", args.pcap)))?;
+    let file = wrex_pcap::read(&pcap_bytes)
+        .map_err(|e| CliError::Runtime(format!("replay: `{}`: {e}", args.pcap)))?;
+    let filter = match args.filter.as_deref() {
+        Some(f) => Some(Filter::parse(registry, f)?),
+        None => None,
+    };
+    let mut frames: Vec<ReplayFrame> = Vec::with_capacity(file.records.len());
+    for rec in &file.records {
+        let packet = dissect(registry, &rec.bytes, "auto");
+        if let Some(f) = &filter
+            && !f.matches(&packet)
+        {
+            continue;
+        }
+        frames.push(ReplayFrame {
+            ts: rec.ts,
+            bytes: rec.bytes.clone(),
+            packet,
+        });
+    }
+    if let Some(c) = args.count {
+        frames.truncate(c as usize);
+    }
+
+    let Some(iface) = common.iface.as_deref() else {
+        // Offline mode: dissect-and-print (jsonl default, like recv).
+        let format = Format::parse(common, Format::Jsonl)?;
+        for f in &frames {
+            print_frame(format, &f.packet, &f.bytes)?;
+        }
+        return Ok(());
+    };
+
+    // Send mode: verbatim re-send with pacing.
+    let format = Format::parse_opt(common)?;
+    let jitter = duration_arg(args.jitter.as_deref())?.unwrap_or(Duration::ZERO);
+    let seed = args.seed.unwrap_or_else(time_seed);
+    let mut rng = wrex_io::Rng::new(seed);
+
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let mut driver = RawEthDriver::open(iface, false, &table)?;
+
+    // Pace schedule: fixed interval (--rate/--interval) or the original
+    // capture deltas; jitter is seeded on top in both shapes.
+    let mut prev_ts: Option<std::time::SystemTime> = None;
+    for (i, f) in frames.iter().enumerate() {
+        let base = if args.rate.is_some() || args.interval.is_some() {
+            let step = match (args.rate, args.interval.as_deref()) {
+                (Some(0), _) => Duration::ZERO,
+                (Some(r), _) => Duration::from_secs_f64(1.0 / r as f64),
+                (None, Some(raw)) => duration_arg(Some(raw))?.unwrap_or(Duration::ZERO),
+                (None, None) => unreachable!("gated above"),
+            };
+            if i == 0 { Duration::ZERO } else { step }
+        } else if i == 0 {
+            Duration::ZERO
+        } else {
+            // Capture delta (ts[i] - ts[i-1]); before-epoch / non-monotonic
+            // captures clamp to an immediate send.
+            match prev_ts {
+                Some(prev) => f.ts.duration_since(prev).unwrap_or(Duration::ZERO),
+                None => Duration::ZERO,
+            }
+        };
+        prev_ts = Some(f.ts);
+        let sleep = jittered_step(base, jitter, &mut rng);
+        if !sleep.is_zero() {
+            std::thread::sleep(sleep);
+        }
+        driver
+            .send(&f.bytes)
+            .map_err(|e| CliError::Runtime(format!("replay: send: {e}")))?;
+        if let Some(fmt) = format {
+            print_frame(fmt, &f.packet, &f.bytes)?;
+        }
+    }
+    Ok(())
 }
 
 // --- scan ----------------------------------------------------------------------
