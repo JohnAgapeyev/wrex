@@ -1,0 +1,40 @@
+name: fuzz
+
+# The release fuzz gate: the full cargo-fuzz target list with a real
+# libFuzzer budget per target. Too expensive for per-commit CI (the
+# target list x the budget plus a fresh nightly build was the slowest
+# job in the matrix by an order of magnitude), so it runs on version
+# tags (the release process) and on demand. Per-commit CI keeps the
+# unit/proptest/reference-model suites; `cargo xtask verify --with-fuzz`
+# mirrors this locally at a 60s/target smoke budget.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'libFuzzer budget per target (seconds)'
+        default: '300'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    # 14 targets x 300s budget + nightly build + corpus sync.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install --locked cargo-fuzz
+      # Seed corpora are committed under fuzz/corpus/<target>/.
+      - name: Fuzz all targets
+        env:
+          BUDGET: ${{ inputs.seconds || '300' }}
+        run: |
+          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_icmp fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session; do
+            cargo +nightly fuzz run "$t" -- -max_total_time="$BUDGET" -rss_limit_mb=2560
+          done

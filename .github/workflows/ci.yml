@@ -16,7 +16,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -27,7 +27,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       # Socket tests auto-skip (WREX_DRIVER_TESTS unset).
       - run: PROPTEST_RNG_SEED=31337 cargo test --workspace --all-features
@@ -35,7 +35,7 @@ jobs:
   driver-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       # Raw sockets on `lo`; GH runners have passwordless sudo. Covers the
       # tranche-1 send/recv roundtrip and the tranche-2 scan ground truth
@@ -46,7 +46,7 @@ jobs:
   miri:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
@@ -61,7 +61,7 @@ jobs:
   differential:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
       - run: sudo apt-get update && sudo apt-get install -y tshark dnsutils
       # `-- differential` filters to the differential suite; tshark oracle
@@ -79,9 +79,9 @@ jobs:
     # memory regression fails the gate instead of swapping the runner.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.kani
@@ -96,20 +96,20 @@ jobs:
     # Advisory only: reported per commit, no numeric gate (owner decision).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
       - uses: Swatinem/rust-cache@v2
       - run: cargo +nightly llvm-cov --workspace --all-features --branch --lcov --output-path lcov.info
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov
           path: lcov.info
       - run: |
           cargo +nightly llvm-cov --workspace --all-features --branch --html --output-dir coverage-html
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: coverage-html
@@ -123,23 +123,10 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  fuzz-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo install --locked cargo-fuzz
-      # Seed corpora are committed under fuzz/corpus/<target>/.
-      - run: |
-          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_icmp fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session; do
-            cargo +nightly fuzz run "$t" -- -max_total_time=60 -rss_limit_mb=2560
-          done
-
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -242,6 +242,12 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
 ```
 
 - Property-based: 256 cases/run, deterministic via `PROPTEST_RNG_SEED=31337`.
+- Fuzzing: cargo-fuzz targets do **not** run per commit — the full
+  list with a real libFuzzer budget is the release gate
+  (`.github/workflows/fuzz.yml`: version tags + manual dispatch,
+  300s/target; `cargo xtask verify --with-fuzz` is the local 60s/target
+  smoke mirror). Per-commit CI carries the unit, proptest and
+  reference-model suites over the same engines.
 - Differential: our dissection vs etherparse (in-process) and tshark
   (subprocess over a hand-written classic-pcap wrapper); DNS vs
   hickory-proto (in-process) and dig (subprocess against an in-test

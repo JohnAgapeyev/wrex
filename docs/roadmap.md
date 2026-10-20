@@ -102,7 +102,8 @@ T(n+1)".
   env-gated ground truth on `lo` (capture under live traffic → valid
   pcap with wall-clock timestamps; captured pcap replayed onto `lo`
   and observed by a concurrent recv), `fuzz_pcap_reader` +
-  `fuzz_pcap_roundtrip` in the smoke job, wrex-pcap in the Miri job,
+  `fuzz_pcap_roundtrip` in the fuzz gate (release workflow + xtask
+  smoke), wrex-pcap in the Miri job,
   and a scoped Kani proof (record-header encode/decode roundtrip
   over symbolic u32s) in the kani job under the 6 GB ceiling. Man
   pages and completions regenerated (the verbs enumerate
@@ -153,9 +154,9 @@ T(n+1)".
   reply findings, an unbound port → `unreachable:3` attribution,
   seed reproducibility), and `fuzz_mut_strategies` +
   `fuzz_prober_session` cargo-fuzz targets (never-panic, bounds,
-  per-probe resolution, stream determinism) in the smoke job (CI list
-  + xtask). Man pages and completions regenerated (the verbs enumerate
-  automatically).
+  per-probe resolution, stream determinism) in the fuzz gate (the
+  release workflow + the xtask smoke list). Man pages and completions
+  regenerated (the verbs enumerate automatically).
 - **T7 — protocol expansion**: ipv6, vlan, dhcp, dissect-only profiles,
   dynamic `.so` plugin ABI revisit — each new codec follows the
   tranche-1 contract and plugs into the same wrex-test extension points.
