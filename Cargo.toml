@@ -18,6 +18,7 @@ wrex-session = { path = "crates/wrex-session", version = "0.1.0" }
 wrex-scan = { path = "crates/wrex-scan", version = "0.1.0" }
 wrex-test = { path = "crates/wrex-test", version = "0.1.0" }
 wrex-dns = { path = "crates/wrex-dns", version = "0.1.0" }
+wrex-http = { path = "crates/wrex-http", version = "0.1.0" }
 wrex-proto-eth = { path = "crates/wrex-proto-eth", version = "0.1.0" }
 wrex-proto-arp = { path = "crates/wrex-proto-arp", version = "0.1.0" }
 wrex-proto-ip = { path = "crates/wrex-proto-ip", version = "0.1.0" }
@@ -44,6 +45,13 @@ etherparse = "0.21"
 # RUSTSEC-2026-0119 (name-compression DoS); 0.25.x would trip the CI
 # audit job.
 hickory-proto = "0.26.3"
+# HTTP wire parser + typed model (tranche 4; `http` is types-only, the
+# vocabulary the reqwest oracle also speaks).
+httparse = "1"
+http = "1"
+# HTTP differential oracle (in-process; blocking client, TLS-less —
+# only http:// is in charter).
+reqwest = { version = "0.12", default-features = false, features = ["blocking"] }
 assert_cmd = "2"
 predicates = "3"
 

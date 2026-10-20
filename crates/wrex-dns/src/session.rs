@@ -145,6 +145,12 @@ impl<'a> DnsSession<'a> {
         &self.query
     }
 
+    /// The seeded 16-bit dns id (shared with the TCP transport so the
+    /// same seed identifies the same exchange on either wire).
+    pub fn query_id(&self) -> u16 {
+        self.id
+    }
+
     /// Does a dissected frame match our 4-tuple?
     fn matches_udp(&self, pkt: &DissectedPacket) -> bool {
         let Some(ip) = pkt.layers.iter().find(|l| l.kind == "ipv4") else {
@@ -253,6 +259,37 @@ impl<'a> Session for DnsSession<'a> {
     }
 }
 
+/// Build a bare `[dns]` query message (no L3/L4): what DNS-over-TCP
+/// carries inside the RFC 7766 length prefix. Same seeded identity as
+/// the UDP query's dns layer.
+pub fn build_tcp_query(
+    registry: &Registry,
+    cfg: &QueryConfig,
+    sport: u16,
+    id: u16,
+) -> Result<Bytes, String> {
+    let _ = sport;
+    let mut dns_fields = BTreeMap::new();
+    dns_fields.insert("id".to_string(), Value::Int(id as u128));
+    if cfg.rd {
+        dns_fields.insert("flags.rd".to_string(), Value::Bool(true));
+    }
+    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone()));
+    dns_fields.insert("qd.0.type".to_string(), Value::Str(cfg.qtype.clone()));
+    dns_fields.insert("qd.0.class".to_string(), Value::Str(cfg.qclass.clone()));
+    let spec = PacketSpec::new(vec![LayerSpec::with_fields("dns", dns_fields)], None);
+    let encoded = encode(
+        registry,
+        &spec,
+        &EncodeOpts {
+            autofill: true,
+            ..Default::default()
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(encoded.bytes)
+}
+
 /// Build the `[ipv4, udp, dns]` query datagram through the encode
 /// engine (autofilled lengths/checksums; the kernel routes it).
 fn build_query(
@@ -301,11 +338,14 @@ fn build_query(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests_support {
+    //! Helpers shared by the udp session tests and the tcp session
+    //! tests (registry fixture, cfg, src, t0).
+
     use super::*;
     use std::time::Duration;
 
-    fn registry() -> Registry {
+    pub(crate) fn registry() -> Registry {
         let mut r = Registry::empty();
         r.register(&wrex_proto_ip::CODEC);
         r.register(&wrex_proto_udp::CODEC);
@@ -315,7 +355,7 @@ mod tests {
         r
     }
 
-    fn cfg() -> QueryConfig {
+    pub(crate) fn cfg() -> QueryConfig {
         QueryConfig {
             server: "127.0.0.1".parse().unwrap(),
             port: 53,
@@ -329,13 +369,19 @@ mod tests {
         }
     }
 
-    fn src() -> Ipv4Addr {
+    pub(crate) fn src() -> Ipv4Addr {
         "127.0.0.1".parse().unwrap()
     }
 
-    fn t0() -> Instant {
+    pub(crate) fn t0() -> Instant {
         Instant::now()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tests_support::{cfg, registry, src, t0};
+    use super::*;
 
     fn frame(bytes: Vec<u8>) -> Frame {
         Frame {

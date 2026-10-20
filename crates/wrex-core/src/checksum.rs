@@ -77,6 +77,29 @@ impl PseudoHeader {
     }
 }
 
+#[cfg(kani)]
+mod verification {
+    //! Kani proof: the accumulator folds any byte string without
+    //! panicking (odd lengths included) and `value()`'s fold loop
+    //! terminates within the unwind bound (tranche-4 backfill of the
+    //! tranche-1 checksum core).
+    use super::*;
+
+    #[kani::proof]
+    // 16 covers the symbolic init loop; 2+ covers value()'s fold.
+    #[kani::unwind(18)]
+    fn add_bytes_and_value_never_panic() {
+        const N: usize = 16;
+        let mut bytes = [0u8; N];
+        for b in bytes.iter_mut() {
+            *b = kani::any();
+        }
+        let mut acc = ChecksumAccumulator::new();
+        acc.add_bytes(&bytes);
+        let _ = acc.value();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

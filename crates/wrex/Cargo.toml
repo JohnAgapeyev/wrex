@@ -19,6 +19,7 @@ wrex-io = { workspace = true }
 wrex-session = { workspace = true }
 wrex-scan = { workspace = true }
 wrex-dns = { workspace = true }
+wrex-http = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
@@ -58,3 +59,6 @@ serde_json = { workspace = true }
 # the workspace pin note).
 hickory-proto = { workspace = true }
 wrex-proto-dns = { workspace = true, features = ["test-util"] }
+# HTTP differential oracle (in-process, blocking; http:// only).
+reqwest = { workspace = true }
+wrex-http = { workspace = true }

@@ -217,4 +217,27 @@ mod tests {
         // overlong single label claim inside a short buffer
         assert!(decode_name(&[0x40], 0).is_err());
     }
+
+    /// The pointer-jump cap, from every entry offset of a canonical
+    /// self-referencing pointer chain (the pointer at 2 targets 2).
+    /// Constant message ⇒ these are exactly the concrete paths a
+    /// pinned-shape Kani harness would walk — kept as a unit test
+    /// after the solver version cost 10GB (nested-loop unrolling; see
+    /// the verification module docs).
+    #[test]
+    fn pointer_cap_terminates_from_every_offset() {
+        let msg: [u8; 8] = [0xC0, 0x02, 0xC0, 0x02, 0x00, 0x00, 0x00, 0x00];
+        for offset in 0..msg.len() {
+            // Pointer loops (offsets 0..3) must Err via the MAX_JUMPS
+            // cap, not hang or panic — and the cursor-jumps-backward
+            // underflow guard must hold. Terminators elsewhere decode
+            // without over-claiming `consumed`.
+            if let Ok((_, consumed)) = decode_name(&msg, offset) {
+                assert!(consumed <= msg.len());
+            }
+        }
+        // The cap specifically: a self-pointer reachable from offset 2
+        // loops until the jump counter fires.
+        assert!(decode_name(&msg, 2).is_err());
+    }
 }

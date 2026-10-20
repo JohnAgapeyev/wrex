@@ -125,6 +125,7 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
             args.promisc,
         ),
         Cmd::Scan(args) => scan(&registry, args),
+        Cmd::Http(args) => http(args),
         Cmd::Query(args) => query(&registry, args),
         Cmd::Iface(args) => iface(&args.common, args.name.as_deref()),
         Cmd::Fields(args) => fields_cmd(&registry, &args.common, args.kind.as_deref()),
@@ -863,6 +864,298 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
     Ok(())
 }
 
+// --- http ---------------------------------------------------------------------
+
+/// Default `wrex http` response budget (64 MiB, the frozen plan value).
+const HTTP_DEFAULT_MAX_BYTES: u64 = 64 * 1024 * 1024;
+const HTTP_DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// Body input grammar: literal text, `@FILE`, or `hex:BYTES`.
+fn http_body(raw: &str) -> Result<bytes::Bytes, CliError> {
+    if let Some(path) = raw.strip_prefix('@') {
+        let data = std::fs::read(path).map_err(|e| usage(format!("cannot read `{path}`: {e}")))?;
+        return Ok(bytes::Bytes::from(data));
+    }
+    if let Some(hexpart) = raw.strip_prefix("hex:") {
+        let data = wrex_core::value::parse_hex_bytes(hexpart)
+            .map_err(|e| usage(format!("bad hex body: {e}")))?;
+        return Ok(bytes::Bytes::from(data));
+    }
+    Ok(bytes::Bytes::from(raw.as_bytes().to_vec()))
+}
+
+/// `wrex http`: one HTTP/1.1 exchange over a kernel TCP connection.
+/// A completed exchange is exit 0 whatever the status says (--fail
+/// opts 4xx/5xx into exit 1); connect/timeout/protocol failures are
+/// exit 1; grammar/recipe errors exit 2 (all before any socket).
+fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
+    use wrex_http::{HttpClientSession, HttpConfig, HttpOutcome};
+
+    let common = &args.common;
+    let format = Format::parse(common, Format::Text)?;
+    if matches!(format, Format::Hex) {
+        return Err(usage(
+            "http --format supports text|json|raw (hex carries no http sense)",
+        ));
+    }
+
+    // Materialize the request up front: every usage error (recipe
+    // schema, grammar, https, bad headers) surfaces before connect.
+    let (spec, cfg) = build_http_request(args)?;
+
+    // Retry loop: fresh connection per attempt (close-mode).
+    let attempts = cfg.retries + 1;
+    let mut last_err: Option<String> = None;
+    for _ in 0..attempts {
+        let peer = tcp_peer(&spec.url)?;
+        let bind = tcp_bind(common, args.source_port)?;
+        let driver = match wrex_io::TcpDriver::connect(peer, bind, cfg.timeout) {
+            Ok(d) => d,
+            Err(e) => return Err(CliError::Runtime(format!("http: {e}"))),
+        };
+        let mut session = HttpClientSession::new(
+            &spec,
+            HttpConfig {
+                timeout: cfg.timeout,
+                max_bytes: cfg.max_bytes as usize,
+            },
+            Instant::now(),
+        )
+        .map_err(|e| usage(format!("http: {e}")))?;
+        let outcomes = wrex_session::run(&mut session, &mut { driver }, &wrex_io::SystemClock)
+            .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+        match outcomes.into_iter().next() {
+            Some(HttpOutcome::Response(resp)) => {
+                return render_http_response(&resp, format, args.fail);
+            }
+            Some(HttpOutcome::Malformed(detail)) => {
+                last_err = Some(format!("malformed response: {detail}"));
+            }
+            Some(HttpOutcome::Truncated) => {
+                last_err = Some("connection closed mid-response".to_string());
+            }
+            Some(HttpOutcome::TooLarge) => {
+                return Err(CliError::Runtime(format!(
+                    "http: response exceeded the {} byte budget",
+                    cfg.max_bytes
+                )));
+            }
+            Some(HttpOutcome::Timeout) => {
+                last_err = Some(format!("no response within {}", hum_duration(cfg.timeout)));
+            }
+            None => return Err(CliError::Runtime("http: no outcome".to_string())),
+        }
+    }
+    Err(CliError::Runtime(format!(
+        "http: {}",
+        last_err.unwrap_or_else(|| "exchange failed".to_string())
+    )))
+}
+
+/// Resolved request + the knobs a recipe may override.
+struct HttpVerbConfig {
+    retries: u32,
+    timeout: Duration,
+    max_bytes: u64,
+}
+
+fn build_http_request(
+    args: &crate::cli::HttpArgs,
+) -> Result<(wrex_http::HttpRequestSpec, HttpVerbConfig), CliError> {
+    use wrex_http::{HttpRequestSpec, Recipe};
+
+    let (spec, overrides) = if let Some(path) = args.recipe.as_deref() {
+        if !args.positional.is_empty() {
+            return Err(usage(
+                "--recipe is exclusive with METHOD/URL (the recipe carries them)",
+            ));
+        }
+        if args.data.is_some() {
+            return Err(usage("--recipe is exclusive with --data"));
+        }
+        let raw = std::fs::read_to_string(path)
+            .map_err(|e| usage(format!("cannot read recipe `{path}`: {e}")))?;
+        let recipe: Recipe =
+            serde_json::from_str(&raw).map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
+        let (spec, o) = recipe
+            .into_request()
+            .map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
+        (spec, o)
+    } else {
+        // Positional grammar: [METHOD] URL. A lone argument is the URL
+        // (GET implied); two arguments are method + URL; more is usage.
+        let (method, url) = match args.positional.as_slice() {
+            [url] => ("GET", url.as_str()),
+            [method, url] => (method.as_str(), url.as_str()),
+            [] => {
+                return Err(usage(
+                    "http needs a URL (or --recipe FILE): wrex http [METHOD] URL",
+                ));
+            }
+            _ => {
+                return Err(usage(
+                    "http takes at most [METHOD] URL (use -H/--data for the rest)",
+                ));
+            }
+        };
+        if method.eq_ignore_ascii_case("get") && method != "GET" {
+            return Err(usage(format!(
+                "bad method `{method}` (http verbs are uppercase tokens)"
+            )));
+        }
+        let mut headers: Vec<(&str, &str)> = Vec::with_capacity(args.header.len());
+        for h in &args.header {
+            let (name, value) = h
+                .split_once(':')
+                .ok_or_else(|| usage(format!("bad header `{h}` (expected NAME:VALUE)")))?;
+            headers.push((name.trim(), value.trim()));
+        }
+        let body = args
+            .data
+            .as_deref()
+            .map(http_body)
+            .transpose()?
+            .unwrap_or_default();
+        let spec = HttpRequestSpec::build(method, url, &headers, body)
+            .map_err(|e| usage(format!("http: {e}")))?;
+        (spec, wrex_http::recipe::RecipeOverrides::default())
+    };
+
+    let cfg = HttpVerbConfig {
+        retries: overrides.retries.unwrap_or(args.retries.unwrap_or(0)),
+        timeout: overrides
+            .timeout_ms
+            .map(Duration::from_millis)
+            .or_else(|| duration_arg(args.timeout.as_deref()).ok().flatten())
+            .unwrap_or(HTTP_DEFAULT_TIMEOUT),
+        max_bytes: overrides
+            .max_bytes
+            .or(args.max_bytes)
+            .unwrap_or(HTTP_DEFAULT_MAX_BYTES),
+    };
+    Ok((spec, cfg))
+}
+
+/// Resolve the URI's authority to a socket address for TcpDriver.
+fn tcp_peer(uri: &wrex_http::http::Uri) -> Result<std::net::SocketAddr, CliError> {
+    use std::net::ToSocketAddrs;
+    let authority = uri
+        .authority()
+        .ok_or_else(|| usage("url has no host".to_string()))?;
+    let host = authority.host();
+    let port = authority
+        .port_u16()
+        .or_else(|| uri.scheme_str().map(|_| 80))
+        .unwrap_or(80);
+    // Hosts are IP addresses for the driver; resolve names via std.
+    let mut addrs = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| CliError::Runtime(format!("cannot resolve `{host}`: {e}")))?;
+    let addr = addrs
+        .next()
+        .ok_or_else(|| CliError::Runtime(format!("no address for `{host}`")))?;
+    if !addr.is_ipv4() {
+        return Err(CliError::Runtime(format!(
+            "`{host}` resolved to a non-IPv4 address (out of charter)"
+        )));
+    }
+    Ok(addr)
+}
+
+/// Local bind for the TCP connection: -i's address when given (multi-
+/// homed determinism), with --source-port honored.
+fn tcp_bind(
+    common: &Common,
+    source_port: Option<u16>,
+) -> Result<Option<std::net::SocketAddr>, CliError> {
+    let Some(iface) = common.iface.as_deref() else {
+        return Ok(None);
+    };
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let entry = table
+        .get(iface)
+        .ok_or_else(|| {
+            CliError::Runtime(format!(
+                "unknown iface `{iface}` (available: {})",
+                table.names().join(", ")
+            ))
+        })?
+        .clone();
+    let ip =
+        entry.ipv4s.first().copied().ok_or_else(|| {
+            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+        })?;
+    Ok(Some(std::net::SocketAddr::new(
+        std::net::IpAddr::V4(ip),
+        source_port.unwrap_or(0),
+    )))
+}
+
+fn render_http_response(
+    resp: &wrex_http::HttpResponse,
+    format: Format,
+    fail: bool,
+) -> Result<(), CliError> {
+    let status = resp.status.as_u16();
+    // --fail: 4xx/5xx are still a completed exchange, but the flag opts
+    // the user into a non-zero exit (the pinned 1 = outcome table).
+    if fail && status >= 400 {
+        return Err(CliError::Runtime(format!("http: status {status} (--fail)")));
+    }
+    match format {
+        Format::Raw => write_stdout(&resp.body)?,
+        Format::Text => {
+            let mut out = format!(
+                "HTTP/1.{} {} {}\r\n",
+                if resp.version == wrex_http::http::Version::HTTP_10 {
+                    0
+                } else {
+                    1
+                },
+                status,
+                resp.reason
+            );
+            for (name, value) in resp.headers.iter() {
+                out.push_str(&format!(
+                    "{}: {}\r\n",
+                    name,
+                    String::from_utf8_lossy(value.as_bytes())
+                ));
+            }
+            out.push_str("\r\n");
+            write_stdout(out.as_bytes())?;
+            write_stdout(&resp.body)?;
+        }
+        Format::Json => {
+            let mut headers = serde_json::Map::new();
+            for (name, value) in resp.headers.iter() {
+                let key = name.as_str().to_string();
+                let val = String::from_utf8_lossy(value.as_bytes()).to_string();
+                match headers.get_mut(&key) {
+                    Some(serde_json::Value::Array(items)) => items.push(serde_json::json!(val)),
+                    Some(_) | None => {
+                        headers.insert(key, serde_json::json!([val]));
+                    }
+                }
+            }
+            let json = serde_json::json!({
+                "status": status,
+                "reason": resp.reason,
+                "version": if resp.version == wrex_http::http::Version::HTTP_10 { "HTTP/1.0" } else { "HTTP/1.1" },
+                "headers": headers,
+                "body_hex": hex::encode(&resp.body),
+            });
+            let mut out = serde_json::to_string_pretty(&json)
+                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+            out.push('\n');
+            write_stdout(out.as_bytes())?;
+        }
+        Format::Jsonl | Format::Hex => unreachable!("rejected above"),
+    }
+    Ok(())
+}
+
 // --- query --------------------------------------------------------------------
 
 /// `wrex query`: one seeded DNS question over a raw UDP datagram, the
@@ -872,9 +1165,10 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
     use wrex_dns::{DnsReply, DnsSession, QueryConfig};
 
     let common = &args.common;
-    let Some(iface) = common.iface.as_deref() else {
-        return Err(usage("query requires -i/--iface"));
-    };
+    // --tcp rides kernel TCP (no iface, no caps); the raw UDP path
+    // needs -i for its source address. The gate is checked after the
+    // grammar below so usage errors take precedence.
+    let iface = common.iface.as_deref();
     // Formats: the reply is a DissectedPacket; raw/hex make no sense.
     let format = Format::parse(common, Format::Text)?;
     if matches!(format, Format::Raw | Format::Hex) {
@@ -912,7 +1206,16 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
         seed,
     };
 
-    // Interface + source address (the kernel routes on the datagram dst).
+    // Session first: grammar/name errors surface as usage (exit 2)
+    // BEFORE any socket is opened. --tcp needs no interface (kernel
+    // TCP routes and picks the source); the raw UDP path needs -i.
+    if args.tcp {
+        let src = std::net::Ipv4Addr::LOCALHOST;
+        return query_tcp(registry, cfg, args, format, src);
+    }
+    let Some(iface) = iface else {
+        return Err(usage("query requires -i/--iface (unless --tcp)"));
+    };
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
     let entry = table
@@ -928,9 +1231,6 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
         entry.ipv4s.first().copied().ok_or_else(|| {
             CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
         })?;
-
-    // Session first: grammar/name errors surface as usage (exit 2)
-    // BEFORE any raw socket is opened.
     let mut session = DnsSession::new(registry, cfg, src, Instant::now())
         .map_err(|e| usage(format!("query: {e}")))?;
     let mut driver = RawIpDriver::open(iface, &table)?;
@@ -970,6 +1270,87 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
         // never started (gated above) — unreachable in practice.
         None => Err(CliError::Runtime("query produced no outcome".to_string())),
     }
+}
+
+/// `query --tcp`: RFC 7766 length-prefixed DNS over a fresh kernel TCP
+/// connection per attempt (the UDP session retries internally; TCP
+/// reconnects, per the frozen plan).
+#[allow(clippy::too_many_arguments)]
+fn query_tcp(
+    registry: &Registry,
+    cfg: wrex_dns::QueryConfig,
+    args: &crate::cli::QueryArgs,
+    format: Format,
+    src: std::net::Ipv4Addr,
+) -> Result<(), CliError> {
+    use wrex_dns::{DnsTcpReply, DnsTcpSession};
+
+    // Seeded identity comes from the same rng draw as UDP (same seed ⇒
+    // same id); the TCP wire payload is the BARE dns message (the
+    // kernel owns L3/L4 here — no ipv4/udp layers in the bytes).
+    let mut rng = wrex_io::Rng::new(cfg.seed);
+    let _sport = rng.range_u16(32768, 60999);
+    let id = (rng.next_u64() & 0xffff) as u16;
+    let query = wrex_dns::build_tcp_query(registry, &cfg, 0, id)
+        .map_err(|e| usage(format!("query: {e}")))?;
+
+    let server = cfg.server;
+    let timeout = cfg.timeout;
+    let attempts = cfg.retries + 1;
+    // Kernel TCP: the stack picks the source address/port; `src` is the
+    // identity seed only (the query bytes derive from it via the UDP
+    // builder and stay identical on either transport).
+    let _ = src;
+    for attempt in 1..=attempts {
+        let peer = std::net::SocketAddr::new(std::net::IpAddr::V4(server), cfg.port);
+        let bind = None;
+        let mut driver = wrex_io::TcpDriver::connect(peer, bind, timeout)
+            .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?;
+        let mut session =
+            DnsTcpSession::new(registry, cfg.clone(), query.clone(), id, Instant::now())
+                .map_err(|e| usage(format!("query: {e}")))?;
+        let outcomes = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+            .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?;
+        match outcomes.into_iter().next() {
+            Some(DnsTcpReply::Reply(pkt)) => {
+                let out = match format {
+                    Format::Text => {
+                        let mut s = dissect_to_text(&pkt);
+                        s.push('\n');
+                        s
+                    }
+                    Format::Json => {
+                        let mut s = serde_json::to_string_pretty(&dissect_to_json(&pkt))
+                            .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                        s.push('\n');
+                        s
+                    }
+                    Format::Jsonl => {
+                        let mut s = dissect_to_jsonl(&pkt);
+                        s.push('\n');
+                        s
+                    }
+                    Format::Raw | Format::Hex => unreachable!("rejected in query()"),
+                };
+                write_stdout(out.as_bytes())?;
+                return Ok(());
+            }
+            // Failed attempt: a fresh connection is the retry (RFC 7766).
+            Some(DnsTcpReply::Truncated { .. }) | Some(DnsTcpReply::NoReply) | None => {
+                if attempt < attempts {
+                    eprintln!(
+                        "wrex: query --tcp: attempt {attempt}/{attempts} failed; reconnecting"
+                    );
+                }
+                continue;
+            }
+        }
+    }
+    Err(CliError::Runtime(format!(
+        "no reply from {server} over tcp within {} x {attempts} ({})",
+        hum_duration(timeout),
+        args.name
+    )))
 }
 
 #[cfg(test)]

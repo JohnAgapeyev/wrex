@@ -12,6 +12,8 @@
 //! query.
 
 mod session;
+mod tcp;
 
-pub use session::{DnsReply, DnsSession, QueryConfig};
+pub use session::{DnsReply, DnsSession, QueryConfig, build_tcp_query};
+pub use tcp::{DnsTcpReply, DnsTcpSession};
 pub use wrex_proto_dns::types;

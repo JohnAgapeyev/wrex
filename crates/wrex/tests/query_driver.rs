@@ -187,3 +187,65 @@ fn query_seed_determinism_on_the_wire() {
     }
     assert_eq!(queries[0], queries[1], "same seed must be byte-identical");
 }
+
+#[test]
+fn query_tcp_ground_truth() {
+    if !driver_tests_enabled() {
+        skip("query_tcp_ground_truth");
+        return;
+    }
+    // A TCP DNS stub: read the 2-byte length prefix + query, reply with
+    // the same id, length-prefixed. Plain sockets (no caps needed),
+    // env-gated alongside the other wire tests for consistency.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let Ok((mut conn, _)) = listener.accept() else {
+            return;
+        };
+        use std::io::{Read, Write};
+        let mut len_buf = [0u8; 2];
+        conn.read_exact(&mut len_buf).unwrap();
+        let len = u16::from_be_bytes(len_buf) as usize;
+        let mut query = vec![0u8; len];
+        conn.read_exact(&mut query).unwrap();
+        // reply: id echoed, qr/rd/ra, one A answer
+        let mut reply = Vec::new();
+        reply.extend_from_slice(&query[..2]);
+        reply.extend_from_slice(&[0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);
+        reply.extend_from_slice(&query[12..]);
+        reply.extend_from_slice(&[
+            0xC0, 0x0C, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x04, 93, 184, 216,
+            34,
+        ]);
+        conn.write_all(&(reply.len() as u16).to_be_bytes()).unwrap();
+        conn.write_all(&reply).unwrap();
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "query",
+            "--server",
+            "127.0.0.1",
+            "--port",
+            &port.to_string(),
+            "--tcp",
+            "--timeout",
+            "800ms",
+            "example.com",
+        ])
+        .output()
+        .expect("spawn wrex query --tcp");
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "query --tcp must succeed\n{stdout}\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("an.0.rdata: 93.184.216.34"),
+        "typed A rdata must surface\n{stdout}"
+    );
+    server.join().unwrap();
+}

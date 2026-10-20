@@ -106,6 +106,41 @@ NOTES:
   stops at --count matching frames or after --timeout (exit 0);
   --promisc opts into promiscuous mode. Needs CAP_NET_RAW.";
 
+/// Epilog for http: the HTTP/1.1 ask verb (tranche 4).
+pub const HTTP_AFTER_HELP: &str = "\
+HTTP GRAMMAR:
+  wrex http [METHOD] URL [-H NAME:VALUE]... [--data TEXT|@FILE|hex:…]
+           [--timeout DUR] [--retries N] [--max-bytes N]
+           [--source-port N] [--fail] [--recipe FILE]
+           [--format text|json|raw]
+
+  One HTTP/1.1 exchange per connection (Connection: close): the
+  request is fully materialized first, so the same arguments (or the
+  same --recipe FILE) replay byte-identical wire bytes. Host,
+  User-Agent, Accept and Content-Length derive automatically with
+  explicit-wins semantics (user headers come first, in order).
+
+  Bodies: content-length and chunked (trailers merge into headers),
+  read-to-close when neither is declared; 1xx skipped; HEAD/204/304
+  carry no body. https:// is out of the tranche-4 charter (no TLS).
+
+  Any completed exchange is exit 0 whatever the status says; --fail
+  turns 4xx/5xx into exit 1; connect/timeout/protocol failures are
+  exit 1; grammar and recipe errors are exit 2.
+
+RECIPE (--recipe FILE, JSON):
+  {\"method\": \"POST\", \"url\": \"http://host/api\",
+   \"headers\": [[\"X-A\", \"1\"]], \"body_hex\": \"deadbeef\",
+   \"timeout_ms\": 1500, \"retries\": 1, \"max_bytes\": 67108864}
+  Ordered header pairs keep wire bytes deterministic; body_hex and
+  body_text are mutually exclusive.
+
+EXAMPLES:
+  wrex http http://example.com/
+  wrex http POST http://example.com/api -H X-Thing:42 --data '{\"a\":1}'
+  wrex http --recipe req.json --format json
+  wrex http GET http://example.com/ --data @body.bin --source-port 42424";
+
 /// Epilog for scan: modes, grammar, pacing and the seeded RNG.
 pub const SCAN_AFTER_HELP: &str = "\
 TARGETS:
@@ -176,6 +211,7 @@ impl Cli {
             Cmd::Send(a) => a.common.verbose,
             Cmd::Recv(a) => a.common.verbose,
             Cmd::Scan(a) => a.common.verbose,
+            Cmd::Http(a) => a.common.verbose,
             Cmd::Query(a) => a.common.verbose,
             Cmd::Iface(a) => a.common.verbose,
             Cmd::Fields(a) => a.common.verbose,
@@ -234,6 +270,9 @@ pub enum Cmd {
 
     /// Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts.
     Scan(ScanArgs),
+
+    /// One HTTP/1.1 exchange: send a request, dissect the response.
+    Http(HttpArgs),
 
     /// Ask a DNS server one question over raw UDP and dissect the reply.
     Query(QueryArgs),
@@ -427,13 +466,14 @@ pub struct RecvArgs {
 /// Epilog for query: the DNS ask verb (tranche 3).
 pub const QUERY_AFTER_HELP: &str = "\
 QUERY GRAMMAR:
-  wrex query -i IFACE --server IP [--port 53] [options] NAME
+  wrex query [-i IFACE] --server IP [--port 53] [--tcp] [options] NAME
 
-  Sends one seeded DNS question (UDP/53 via a raw-IP datagram; the
-  kernel routes it) and waits for the matching reply: id + 4-tuple.
-  --retries re-sends the SAME query (same dns id) after --timeout.
-  A reply received is a success (exit 0) whatever the rcode says —
-  NXDOMAIN/SERVFAIL are data, printed in the dissected reply.
+  Sends one seeded DNS question and waits for the matching reply
+  (id + 4-tuple over UDP; with --tcp: RFC 7766 length-prefixed DNS
+  over a fresh TCP connection per attempt). --retries re-sends the
+  SAME query (same dns id) after --timeout. A reply received is a
+  success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
+  data, printed in the dissected reply.
 
 RECORD FIELDS (wrex dissect --filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
@@ -444,7 +484,7 @@ RECORD FIELDS (wrex dissect --filter also accepts these):
 EXAMPLES:
   wrex query -i eth0 --server 192.168.1.1 example.com
   wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
-  wrex query -i eth0 --server 1.1.1.1 --format json example.com AAAA";
+  wrex query --tcp --server 192.168.1.1 example.com";
 
 /// `wrex scan`: TCP SYN/connect + UDP + ICMP scan over a raw-IP driver.
 #[derive(Args, Debug)]
@@ -497,6 +537,9 @@ pub struct QueryArgs {
     /// Server port (default 53).
     #[arg(long)]
     pub port: Option<u16>,
+    /// Use DNS over TCP (RFC 7766; fresh connection per attempt).
+    #[arg(long)]
+    pub tcp: bool,
     /// Question type (default A; names or numbers: A, AAAA, MX, …).
     #[arg(long = "type")]
     pub qtype: Option<String>,
@@ -515,6 +558,42 @@ pub struct QueryArgs {
     /// Question name (dotted form, e.g. example.com).
     #[arg(value_name = "NAME")]
     pub name: String,
+}
+
+/// `wrex http`: one HTTP/1.1 exchange over a kernel TCP connection.
+#[derive(Args, Debug)]
+#[command(after_help = HTTP_AFTER_HELP)]
+pub struct HttpArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Positional grammar: [METHOD] URL (URL alone ⇒ GET). Declared as
+    /// one vec so clap cannot mis-assign a URL to the method slot.
+    #[arg(value_name = "URL_OR_METHOD")]
+    pub positional: Vec<String>,
+    /// Request header, repeatable (NAME:VALUE).
+    #[arg(short = 'H', long, value_name = "NAME:VALUE")]
+    pub header: Vec<String>,
+    /// Request body: literal text, @FILE or hex:BYTES.
+    #[arg(long, value_name = "TEXT|@FILE|hex:…")]
+    pub data: Option<String>,
+    /// Replay a recipe file (method/url/headers/body in JSON).
+    #[arg(long, value_name = "FILE")]
+    pub recipe: Option<String>,
+    /// Per-attempt exchange timeout (default 10s).
+    #[arg(long)]
+    pub timeout: Option<String>,
+    /// Extra attempts beyond the first on timeout/truncation (default 0).
+    #[arg(long)]
+    pub retries: Option<u32>,
+    /// Response byte budget, head included (default 64 MiB).
+    #[arg(long)]
+    pub max_bytes: Option<u64>,
+    /// Bind this local source port (determinism on multihomed hosts).
+    #[arg(long)]
+    pub source_port: Option<u16>,
+    /// Exit 1 on 4xx/5xx statuses (completed exchanges stay data).
+    #[arg(long)]
+    pub fail: bool,
 }
 
 #[derive(Args, Debug)]

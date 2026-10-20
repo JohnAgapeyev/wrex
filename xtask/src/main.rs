@@ -26,6 +26,8 @@ enum Cmd {
         with_differential: bool,
         #[arg(long)]
         with_fuzz: bool,
+        #[arg(long)]
+        with_kani: bool,
     },
     /// advisory coverage report (no gate)
     Coverage {
@@ -48,8 +50,9 @@ fn main() {
             with_miri,
             with_differential,
             with_fuzz,
+            with_kani,
         } => {
-            verify(&root, with_miri, with_differential, with_fuzz);
+            verify(&root, with_miri, with_differential, with_fuzz, with_kani);
         }
         Cmd::Coverage { branch, mcdc_probe } => {
             coverage(&root, branch, mcdc_probe);
@@ -64,7 +67,7 @@ fn main() {
     }
 }
 
-fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool) {
+fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool, with_kani: bool) {
     run(root, "fmt --check", "cargo", &["fmt", "--all", "--check"]);
     run(
         root,
@@ -99,6 +102,7 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
             "wrex-session",
             "wrex-scan",
             "wrex-dns",
+            "wrex-http",
         ];
         let mut args = vec!["+nightly", "miri", "test"];
         for p in pkgs {
@@ -124,8 +128,49 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
     if with_fuzz {
         fuzz_stage(root);
     }
+    if with_kani {
+        kani_stage(root);
+    }
     println!("xtask verify: all requested stages green");
 }
+
+/// Kani proofs (tranche 4): curated tight-bounds harnesses, gating.
+/// Skips with a notice when cargo-kani is not installed (advisory
+/// locally; the CI `kani` job always runs them).
+///
+/// Memory discipline: harnesses are deliberately tiny (symbolic-byte
+/// count is the exponential cost driver — see the per-harness docs),
+/// and each proof runs under a virtual-memory ceiling so a regression
+/// fails the gate loudly instead of swapping the machine. Runs are
+/// sequential: solver peaks must not stack.
+fn kani_stage(root: &Path) {
+    let kani = Command::new("cargo")
+        .arg("kani")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !kani {
+        eprintln!("xtask verify --with-kani: SKIPPED (advisory): cargo kani not installed");
+        return;
+    }
+    for pkg in ["wrex-core", "wrex-http"] {
+        run(
+            root,
+            pkg,
+            "sh",
+            &[
+                "-c",
+                &format!("ulimit -v {KANI_VMEM_KB}; exec cargo kani -p {pkg}"),
+            ],
+        );
+    }
+}
+
+/// Virtual-memory ceiling per proof (~6 GB): solver-peak guardrail.
+/// The curated harnesses verify well under 1 GB; this ceiling exists so
+/// a harness regression fails the gate instead of swapping machines.
+const KANI_VMEM_KB: u64 = 6 * 1024 * 1024;
 
 fn coverage(root: &Path, branch: bool, mcdc_probe: bool) {
     let mut args = vec!["+nightly", "llvm-cov", "--workspace", "--all-features"];
@@ -158,6 +203,7 @@ fn fuzz_stage(root: &Path) {
         "fuzz_dissect_dns",
         "fuzz_craft_roundtrip",
         "fuzz_scan_session",
+        "fuzz_http_session",
     ];
     let nightly = Command::new("cargo")
         .arg("+nightly")

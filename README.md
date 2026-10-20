@@ -30,6 +30,15 @@ seeded raw-UDP ask session (`wrex-dns`). Differentials: hickory-proto
 (in-process; craft is byte-identical) and dig (subprocess, stub-server,
 no external network).
 
+**Tranche 4** (delivered): `wrex http` — an HTTP/1.1 client session
+(`wrex-http`, httparse + `http` types, close-mode, chunked-with-trailers)
+over the new kernel-TCP `TcpDriver` (unprivileged; `--source-port`),
+`wrex query --tcp` (RFC 7766), and a deterministic recipe JSON format
+(byte-identical replay; T6's mutation substrate). Differentials:
+reqwest (in-process) + curl (subprocess, stub-server), plus Kani
+proofs as a gating CI stage (chunked decoder, dns name decoding,
+checksum folding). https:// is out of charter (no TLS this tranche).
+
 ## Install
 
 ```sh
@@ -148,7 +157,21 @@ wrex fields dns
 A reply is exit 0 whatever the rcode says (NXDOMAIN/SERVFAIL are
 data); silence after `--retries` attempts is exit 1. Under a pinned
 `--seed` the query bytes (source port + 16-bit id) are
-bit-reproducible.
+bit-reproducible. `--tcp` carries the same question over a fresh TCP
+connection per attempt (RFC 7766).
+
+HTTP (tranche 4; plain kernel TCP — no capabilities needed):
+
+```sh
+wrex http http://example.com/
+wrex http POST http://example.com/api -H X-Thing:42 --data '{"a":1}'
+wrex http --recipe req.json --format json     # deterministic replay
+wrex http http://example.com/ --fail          # 4xx/5xx -> exit 1
+```
+
+Any completed exchange is exit 0; the response dissects to
+text/json/raw (`raw` = body bytes only). https:// is out of charter
+(no TLS this tranche).
 
 Deliberately invalid packets are a feature: explicit values always win
 and are kept unvalidated; `--strict` validates and reports violations
@@ -159,14 +182,15 @@ and are kept unvalidated; `--strict` validates and reports violations
 ```
 crates/wrex           CLI + library facade + registry composition
 crates/wrex-core      field/value model, schema (+record sections), codecs, encode/dissect engines
-crates/wrex-io        Clock, Rng, Driver, AF_PACKET + raw-IP drivers (only unsafe crate), ifaces
+crates/wrex-io        Clock, Rng, Driver, AF_PACKET/raw-IP/kernel-TCP drivers (only unsafe crate), ifaces
 crates/wrex-session   sans-IO Session contract + the shared runtime loop
 crates/wrex-scan      scan orchestration: probe table, scheduler, seeded jitter
-crates/wrex-dns       query orchestration: the DNS ask session
-crates/wrex-test      test-support: strategies, oracles (+hickory/dig DNS), corpus, CLI harness
+crates/wrex-dns       query orchestration: DNS ask sessions (udp + tcp)
+crates/wrex-http      HTTP/1.1 client session (httparse + http types) + recipes
+crates/wrex-test      test-support: strategies, oracles (+hickory/dig/reqwest), corpus, CLI harness
 crates/wrex-proto-*   eth arp ip icmp udp tcp dns (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)
-xtask/                `cargo xtask` — verify / coverage / man / corpus-import
+xtask/                `cargo xtask` — verify (+kani) / coverage / man / corpus-import
 man/                  generated man pages: wrex(1), wrex-<verb>(1), wrex-<kind>(7)
 ```
 
@@ -190,18 +214,25 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
 - Differential: our dissection vs etherparse (in-process) and tshark
   (subprocess over a hand-written classic-pcap wrapper); DNS vs
   hickory-proto (in-process) and dig (subprocess against an in-test
-  stub server — no external network). Missing tools skip with a
+  stub server — no external network); HTTP vs reqwest (in-process)
+  and curl (subprocess, stub server). Missing tools skip with a
   printed notice.
+- Kani proofs (gating CI job, scoped for cost): chunked-body decoder
+  panic-freedom and checksum folding — curated bounds under a 6GB
+  memory ceiling (a dns decode_name proof was retired: every scoped
+  variant cost multi-GB solver state; that decoder is carried by 18
+  unit vectors and `fuzz_dissect_dns`).
+- Raw-socket tests are env-gated (`WREX_DRIVER_TESTS=1`, run under sudo
+  in CI): send/recv round-trip on `lo`, scan + query ground truth
+  (bound listener → open, unbound → closed, UDP/ICMP semantics, seed
+  determinism, query --tcp). Without passwordless sudo:
+  `unshare -Urn sh -c 'ip link set lo up; WREX_DRIVER_TESTS=1 cargo
+  test --all-features -p wrex-io -p wrex'` runs them in a user
+  namespace with CAP_NET_RAW. HTTP and query --tcp ride plain kernel
+  TCP: their stub-server suites run unprivileged everywhere.
 - Golden corpus: 4 real captures under `crates/wrex-test/corpus/`
   (arp, icmp, tcp, udp), committed with expected dissections; import
   more with `cargo xtask corpus-import <pcap> <name>`.
-- Raw-socket tests are env-gated (`WREX_DRIVER_TESTS=1`, run under sudo
-  in CI): send/recv round-trip on `lo`, plus scan ground truth (bound
-  listener → open, unbound → closed, UDP/ICMP semantics, seed
-  determinism, concurrent scans). Without passwordless sudo:
-  `unshare -Urn sh -c 'ip link set lo up; WREX_DRIVER_TESTS=1 cargo
-  test --all-features -p wrex-io -p wrex'` runs them in a user
-  namespace with CAP_NET_RAW.
 - Coverage is advisory (reported, never gated). MC/DC: rustc removed
   `-Zcoverage-options=mcdc` in late 2025; `cargo xtask coverage
   --mcdc-probe` reports nightly availability until the 2026 re-land.

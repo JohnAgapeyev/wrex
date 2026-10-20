@@ -1,5 +1,6 @@
-//! wrex-io: Clock, Driver, Linux AF_PACKET raw Ethernet + raw IP drivers,
-//! replay/scripted drivers, interface table.
+//! wrex-io: Clock, Driver, Linux AF_PACKET raw Ethernet + raw IP
+//! drivers, kernel TCP client driver, replay/scripted drivers,
+//! interface table.
 //!
 //! This is the ONLY crate in the workspace permitted to contain `unsafe`;
 //! every block carries a `// SAFETY:` comment.
@@ -8,6 +9,7 @@ pub mod driver;
 pub mod iface;
 pub mod replay;
 pub mod rng;
+pub mod tcp;
 
 pub(crate) mod rx;
 
@@ -15,6 +17,7 @@ pub use driver::{Driver, DriverError, Frame, RawEthDriver, RawIpDriver};
 pub use iface::{IfEntry, IfTable};
 pub use replay::{FakeClock, ReplayDriver, ScriptedDriver};
 pub use rng::Rng;
+pub use tcp::TcpDriver;
 
 use std::time::Instant;
 

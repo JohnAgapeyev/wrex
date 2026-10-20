@@ -1,0 +1,88 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH http 1  "http " 
+.SH NAME
+http \- One HTTP/1.1 exchange: send a request, dissect the response
+.SH SYNOPSIS
+\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
+.SH DESCRIPTION
+One HTTP/1.1 exchange: send a request, dissect the response
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-H\fR, \fB\-\-header\fR \fI<NAME:VALUE>\fR
+Request header, repeatable (NAME:VALUE)
+.TP
+\fB\-\-data\fR \fI<TEXT|@FILE|hex:…>\fR
+Request body: literal text, @FILE or hex:BYTES
+.TP
+\fB\-\-recipe\fR \fI<FILE>\fR
+Replay a recipe file (method/url/headers/body in JSON)
+.TP
+\fB\-\-timeout\fR \fI<TIMEOUT>\fR
+Per\-attempt exchange timeout (default 10s)
+.TP
+\fB\-\-retries\fR \fI<RETRIES>\fR
+Extra attempts beyond the first on timeout/truncation (default 0)
+.TP
+\fB\-\-max\-bytes\fR \fI<MAX_BYTES>\fR
+Response byte budget, head included (default 64 MiB)
+.TP
+\fB\-\-source\-port\fR \fI<SOURCE_PORT>\fR
+Bind this local source port (determinism on multihomed hosts)
+.TP
+\fB\-\-fail\fR
+Exit 1 on 4xx/5xx statuses (completed exchanges stay data)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIURL_OR_METHOD\fR]
+Positional grammar: [METHOD] URL (URL alone ⇒ GET). Declared as one vec so clap cannot mis\-assign a URL to the method slot
+.SH EXTRA
+HTTP GRAMMAR:
+  wrex http [METHOD] URL [\-H NAME:VALUE]... [\-\-data TEXT|@FILE|hex:…]
+           [\-\-timeout DUR] [\-\-retries N] [\-\-max\-bytes N]
+           [\-\-source\-port N] [\-\-fail] [\-\-recipe FILE]
+           [\-\-format text|json|raw]
+
+  One HTTP/1.1 exchange per connection (Connection: close): the
+  request is fully materialized first, so the same arguments (or the
+  same \-\-recipe FILE) replay byte\-identical wire bytes. Host,
+  User\-Agent, Accept and Content\-Length derive automatically with
+  explicit\-wins semantics (user headers come first, in order).
+
+  Bodies: content\-length and chunked (trailers merge into headers),
+  read\-to\-close when neither is declared; 1xx skipped; HEAD/204/304
+  carry no body. https:// is out of the tranche\-4 charter (no TLS).
+
+  Any completed exchange is exit 0 whatever the status says; \-\-fail
+  turns 4xx/5xx into exit 1; connect/timeout/protocol failures are
+  exit 1; grammar and recipe errors are exit 2.
+
+RECIPE (\-\-recipe FILE, JSON):
+  {"method": "POST", "url": "http://host/api",
+   "headers": [["X\-A", "1"]], "body_hex": "deadbeef",
+   "timeout_ms": 1500, "retries": 1, "max_bytes": 67108864}
+  Ordered header pairs keep wire bytes deterministic; body_hex and
+  body_text are mutually exclusive.
+
+EXAMPLES:
+  wrex http http://example.com/
+  wrex http POST http://example.com/api \-H X\-Thing:42 \-\-data \*(Aq{"a":1}\*(Aq
+  wrex http \-\-recipe req.json \-\-format json
+  wrex http GET http://example.com/ \-\-data @body.bin \-\-source\-port 42424

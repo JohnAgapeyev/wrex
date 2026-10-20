@@ -30,11 +30,13 @@ fn query_err(args: &[&str]) -> (i32, String) {
 fn iface_and_server_required() {
     let (code, stderr) = query_err(&["example.com"]);
     assert_eq!(code, 2);
-    assert!(stderr.contains("query requires -i"), "{stderr}");
-
-    let (code, stderr) = query_err(&["-i", "lo", "example.com"]);
-    assert_eq!(code, 2);
     assert!(stderr.contains("query requires --server"), "{stderr}");
+
+    // --server alone (no -i): valid for --tcp; the UDP path errors on
+    // the missing iface once it reaches socket setup.
+    let (code, stderr) = query_err(&["--server", "127.0.0.1", "example.com"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("query requires -i"), "{stderr}");
 }
 
 #[test]

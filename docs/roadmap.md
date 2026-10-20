@@ -52,9 +52,34 @@ T(n+1)".
   `fuzz_dissect_dns`, and the MSRV bump to 1.88 that hickory-proto
   0.26 requires. Post-charter additions already in the tree: the
   SplitMix64 `Rng` moved to `wrex-io` (shared sans-IO vocabulary).
-- **T4 — HTTP/1.1**: in-house sans-IO client session (httparse/http as
-  parser substrate), `wrex http`, differential vs curl (subprocess) +
-  reqwest (in-process); recipe JSON format.
+- **T4 — HTTP/1.1** — ✅ delivered. In-house sans-IO client session in
+  the new `wrex-http` crate (httparse wire parsing + `http`-crate
+  types; close-mode: one exchange per connection; content-length /
+  chunked-with-trailers / read-to-close framing; 1xx skipped;
+  HEAD/204/304 no-body; `--max-bytes` budget over all response bytes),
+  `wrex http` (positional `[METHOD] URL` grammar, `-H/--data/--fail/
+  --format text|json|raw`, deterministic ordered-header recipe JSON,
+  byte-identical replay), and `wrex query --tcp` (RFC 7766 length-
+  prefixed DNS, fresh connection per attempt) closing the tranche-3
+  deferral. Transport: kernel TCP via the new `wrex-io` `TcpDriver`
+  (optional `-i` source bind, `--source-port`, stream EOF as an empty
+  frame — no CAP_NET_RAW, no kernel-RST conflict; a userspace TCP
+  stack remains possible later for T6's prober). Verification: a
+  boundary-sweep session suite (every split position of every framing
+  mode), reqwest in-process oracle + curl subprocess differential
+  (gating in the CI differential job; reqwest shares httparse lineage,
+  so curl stays the independent check), `fuzz_http_session`
+  (1.6M runs), and scoped Kani proofs as a new gating CI job (under a
+  6GB memory ceiling): chunked-decoder panic-freedom (wrex-http,
+  4s/0.3GB) and checksum folding (wrex-core, 1s/0.07GB). A dns
+  decode_name proof was attempted and retired after measurement —
+  the function's nested-loop unrolling and allocation-heavy body made
+  every scope (exhaustive, pointer-universe, and 8-byte non-pointer)
+  cost multi-GB and multi-minute solver state; the decoder stays with
+  18 unit vectors (including the pointer-cap-from-every-offset sweep)
+  and `fuzz_dissect_dns`. Deliberate deferrals: TLS (https → pointed
+  out-of-charter error), keep-alive, chunked request bodies,
+  userspace TCP.
 - **T5 — capture/replay**: `wrex capture` (AF_PACKET + pcap writer),
   pcap import, `wrex replay`.
 - **T6 — over-the-wire fuzzing**: mutation strategies (`wrex mut`),

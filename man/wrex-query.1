@@ -4,7 +4,7 @@
 .SH NAME
 query \- Ask a DNS server one question over raw UDP and dissect the reply
 .SH SYNOPSIS
-\fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-tcp\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH DESCRIPTION
 Ask a DNS server one question over raw UDP and dissect the reply
 .SH OPTIONS
@@ -30,6 +30,9 @@ DNS server to ask
 \fB\-\-port\fR \fI<PORT>\fR
 Server port (default 53)
 .TP
+\fB\-\-tcp\fR
+Use DNS over TCP (RFC 7766; fresh connection per attempt)
+.TP
 \fB\-\-type\fR \fI<QTYPE>\fR
 Question type (default A; names or numbers: A, AAAA, MX, …)
 .TP
@@ -52,13 +55,14 @@ Print help
 Question name (dotted form, e.g. example.com)
 .SH EXTRA
 QUERY GRAMMAR:
-  wrex query \-i IFACE \-\-server IP [\-\-port 53] [options] NAME
+  wrex query [\-i IFACE] \-\-server IP [\-\-port 53] [\-\-tcp] [options] NAME
 
-  Sends one seeded DNS question (UDP/53 via a raw\-IP datagram; the
-  kernel routes it) and waits for the matching reply: id + 4\-tuple.
-  \-\-retries re\-sends the SAME query (same dns id) after \-\-timeout.
-  A reply received is a success (exit 0) whatever the rcode says —
-  NXDOMAIN/SERVFAIL are data, printed in the dissected reply.
+  Sends one seeded DNS question and waits for the matching reply
+  (id + 4\-tuple over UDP; with \-\-tcp: RFC 7766 length\-prefixed DNS
+  over a fresh TCP connection per attempt). \-\-retries re\-sends the
+  SAME query (same dns id) after \-\-timeout. A reply received is a
+  success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
+  data, printed in the dissected reply.
 
 RECORD FIELDS (wrex dissect \-\-filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
@@ -69,4 +73,4 @@ RECORD FIELDS (wrex dissect \-\-filter also accepts these):
 EXAMPLES:
   wrex query \-i eth0 \-\-server 192.168.1.1 example.com
   wrex query \-i eth0 \-\-server 1.1.1.1 \-\-type MX \-\-seed 42 example.com
-  wrex query \-i eth0 \-\-server 1.1.1.1 \-\-format json example.com AAAA
+  wrex query \-\-tcp \-\-server 192.168.1.1 example.com

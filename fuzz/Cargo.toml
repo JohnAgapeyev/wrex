@@ -27,6 +27,9 @@ path = "../crates/wrex-scan"
 [dependencies.wrex-session]
 path = "../crates/wrex-session"
 
+[dependencies.wrex-http]
+path = "../crates/wrex-http"
+
 [[bin]]
 name = "fuzz_dissect_eth"
 path = "fuzz_targets/fuzz_dissect_eth.rs"
@@ -86,6 +89,13 @@ bench = false
 [[bin]]
 name = "fuzz_dissect_dns"
 path = "fuzz_targets/fuzz_dissect_dns.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_http_session"
+path = "fuzz_targets/fuzz_http_session.rs"
 test = false
 doc = false
 bench = false

@@ -1,0 +1,22 @@
+[package]
+name = "wrex-http"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex http: HTTP/1.1 client session (sans-IO, httparse substrate) over the kernel TCP driver"
+
+[dependencies]
+wrex-io = { workspace = true }
+wrex-session = { workspace = true }
+httparse = { workspace = true }
+http = { workspace = true }
+bytes = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[lints.rust]
+# Kani proofs live behind cfg(kani); normal builds never see them.
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(kani)'] }
