@@ -37,7 +37,8 @@ const SEND_ARGS: &[&str] = &[
     "--ipv4-dst=127.0.0.1",
     "--udp-sport=1",
     "--udp-dport=2",
-    "--payload=hex:54535",
+    // "TS#" — ASCII bytes, even-length hex.
+    "--payload=hex:545323",
 ];
 
 /// §Verification T5: capture live `lo` traffic into a pcap, then

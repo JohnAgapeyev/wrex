@@ -87,7 +87,7 @@ jobs:
             ~/.kani
             ~/.cargo/bin/kani*
           key: kani-${{ runner.os }}-v0.68
-      - run: cargo install --locked kani-verifier && cargo kani setup
+      - run: cargo install --locked --force kani-verifier && cargo kani setup
       - run: sh -c 'ulimit -v 6291456; exec cargo kani -p wrex-core'
       - run: sh -c 'ulimit -v 6291456; exec cargo kani -p wrex-http'
       - run: sh -c 'ulimit -v 6291456; exec cargo kani -p wrex-pcap'
