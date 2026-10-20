@@ -80,6 +80,44 @@ fn etherparse_map(
             &Value::Int(u16::from(eth.ether_type()) as u128),
         );
     }
+    // vlan (single or QinQ double): our vlan layers in order, outer first.
+    if let Some(vlan) = parsed.vlan() {
+        let ours: Vec<&wrex_core::dissect::LayerView> =
+            actual.layers.iter().filter(|l| l.kind == "vlan").collect();
+        let slices: Vec<&etherparse::SingleVlanSlice<'_>> = match &vlan {
+            etherparse::VlanSlice::SingleVlan(s) => vec![s],
+            etherparse::VlanSlice::DoubleVlan(d) => vec![&d.outer, &d.inner],
+        };
+        for (i, s) in slices.iter().enumerate() {
+            let Some(ours) = ours.get(i) else {
+                continue;
+            };
+            field_eq(
+                report,
+                "vlan.pcp",
+                ours,
+                &Value::Int(u8::from(s.priority_code_point()) as u128),
+            );
+            field_eq(
+                report,
+                "vlan.dei",
+                ours,
+                &Value::Int(u8::from(s.drop_eligible_indicator()) as u128),
+            );
+            field_eq(
+                report,
+                "vlan.vid",
+                ours,
+                &Value::Int(u16::from(s.vlan_identifier()) as u128),
+            );
+            field_eq(
+                report,
+                "vlan.type",
+                ours,
+                &Value::Int(u16::from(s.ether_type()) as u128),
+            );
+        }
+    }
     if let (Some(etherparse::NetSlice::Ipv4(ip)), Some(ours)) = (&parsed.net, by_kind("ipv4")) {
         let ip = ip.header();
         field_eq(report, "ipv4.ttl", ours, &Value::Int(ip.ttl() as u128));
@@ -315,6 +353,36 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_str(report, "eth.src", ours, get("eth.src"));
         cmp_int_prefix(report, "eth.type", ours, get("eth.type"));
     }
+    // vlan tags: 0x8100 layers land under `vlan`, an outer 802.1ad tag
+    // under `ieee8021ad` (its etype, sic, under `ieee8021ah.etype`).
+    // tshark emits repeated `vlan` keys for 8100-in-8100 frames which
+    // collapse when parsed, so tags match by value, not position.
+    let ours_vlans: Vec<&wrex_core::dissect::LayerView> =
+        actual.layers.iter().filter(|l| l.kind == "vlan").collect();
+    if let Some(vlan_json) = layers.get("vlan") {
+        let get = |k: &str| vlan_json[k].as_str().map(|s| s.to_string());
+        cmp_vlan_tag(
+            report,
+            "vlan",
+            &ours_vlans,
+            get("vlan.priority"),
+            get("vlan.dei"),
+            get("vlan.id"),
+            get("vlan.etype"),
+        );
+    }
+    if let Some(ad_json) = layers.get("ieee8021ad") {
+        let get = |k: &str| ad_json[k].as_str().map(|s| s.to_string());
+        cmp_vlan_tag(
+            report,
+            "ieee8021ad",
+            &ours_vlans,
+            get("ieee8021ad.priority"),
+            get("ieee8021ad.dei"),
+            get("ieee8021ad.id"),
+            get("ieee8021ah.etype"),
+        );
+    }
     // ip
     if let Some(ip_json) = layers.get("ip")
         && let Some(ours) = by_kind("ipv4")
@@ -362,6 +430,52 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         && let Some(t) = icmp_json["icmp.type"].as_str()
     {
         cmp_int_str(report, "icmp.type", ours, Some(t.to_string()));
+    }
+}
+
+/// Compare a tshark vlan tag object against our vlan layers by value
+/// (position-independent; see the call site). All four TCI fields plus
+/// the etype must agree with one of our layers.
+fn cmp_vlan_tag(
+    report: &mut DiffReport,
+    label: &str,
+    ours: &[&wrex_core::dissect::LayerView],
+    pcp: Option<String>,
+    dei: Option<String>,
+    vid: Option<String>,
+    ethertype: Option<String>,
+) {
+    let (Some(pcp), Some(dei), Some(vid), Some(ethertype)) = (pcp, dei, vid, ethertype) else {
+        return;
+    };
+    let want = (
+        parse_int_value(&pcp),
+        parse_int_value(&dei),
+        parse_int_value(&vid),
+        parse_int_value(&ethertype),
+    );
+    let field = |l: &wrex_core::dissect::LayerView, n: &str| {
+        l.fields.get(n).cloned().unwrap_or(Value::Int(u128::MAX))
+    };
+    let matches = ours.iter().any(|l| {
+        (
+            field(l, "pcp"),
+            field(l, "dei"),
+            field(l, "vid"),
+            field(l, "type"),
+        ) == (
+            Value::Int(want.0),
+            Value::Int(want.1),
+            Value::Int(want.2),
+            Value::Int(want.3),
+        )
+    });
+    if !matches {
+        report.push(
+            &format!("vlan tag ({label})"),
+            format!("none of our {} vlan layers matched", ours.len()),
+            format!("{pcp}/{dei}/{vid}/{ethertype}"),
+        );
     }
 }
 

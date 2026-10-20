@@ -86,8 +86,8 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "arp",
     rank: 20,
-    parents: &["eth"],
-    doc: "Address Resolution Protocol (RFC 826) for Ethernet: fixed 28-byte request/reply header (htype=1 Ethernet, ptype=0x0800 IPv4, hlen=6, plen=4). oper: 1=request, 2=reply. Terminal layer; carries no next-header chain. tpa is required: crafting without it is an Unfillable error.",
+    parents: &["eth", "vlan"],
+    doc: "Address Resolution Protocol (RFC 826) for Ethernet: fixed 28-byte request/reply header (htype=1 Ethernet, ptype=0x0800 IPv4, hlen=6, plen=4). oper: 1=request, 2=reply. Terminal layer; carries no next-header chain. Stacks on eth or vlan (802.1Q tag). tpa is required: crafting without it is an Unfillable error.",
     fields: FIELDS.as_slice(),
     records: &[],
 });

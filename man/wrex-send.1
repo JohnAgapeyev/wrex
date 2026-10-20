@@ -4,7 +4,7 @@
 .SH NAME
 send \- Send a crafted frame (or raw stdin bytes) on an interface
 .SH SYNOPSIS
-\fBsend\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-interval\fR] [\fB\-\-timeout\fR] [\fB\-\-wait\-reply\fR] [\fB\-\-filter\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBsend\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-interval\fR] [\fB\-\-timeout\fR] [\fB\-\-wait\-reply\fR] [\fB\-\-filter\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-vlan\-pcp\fR] [\fB\-\-vlan\-dei\fR] [\fB\-\-vlan\-vid\fR] [\fB\-\-vlan\-type\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 Send a crafted frame (or raw stdin bytes) on an interface
 .SH OPTIONS
@@ -80,6 +80,18 @@ target hardware address (autofill: 00:00:00:00:00:00)
 .TP
 \fB\-\-arp\-tpa\fR \fI<IP>\fR
 target protocol address (required)
+.TP
+\fB\-\-vlan\-pcp\fR \fI<INT>\fR
+priority code point (0\-7, 3 bits)
+.TP
+\fB\-\-vlan\-dei\fR \fI<INT>\fR
+drop eligible indicator (0/1, 1 bit)
+.TP
+\fB\-\-vlan\-vid\fR \fI<INT>\fR
+VLAN identifier (0\-4095, 12 bits; 0 = priority tag)
+.TP
+\fB\-\-vlan\-type\fR \fI<INT>\fR
+encapsulated ethertype (autofill: derived from next layer)
 .TP
 \fB\-\-ipv4\-ver\fR \fI<INT>\fR
 version (autofill: 4)

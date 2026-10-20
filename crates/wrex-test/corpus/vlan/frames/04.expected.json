@@ -1,0 +1,42 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:11:22:33:44:55",
+        "type": "vlan"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dei": 0,
+        "pcp": 5,
+        "type": 0,
+        "vid": 300
+      },
+      "kind": "vlan",
+      "span": [
+        14,
+        18
+      ]
+    },
+    {
+      "fields": {
+        "hex": "aabbccdd"
+      },
+      "kind": "unknown",
+      "span": [
+        18,
+        22
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

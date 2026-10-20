@@ -18,6 +18,8 @@ pub fn standard() -> wrex_core::Registry {
     r.register(&wrex_proto_eth::CODEC);
     #[cfg(feature = "proto-arp")]
     r.register(&wrex_proto_arp::CODEC);
+    #[cfg(feature = "proto-vlan")]
+    r.register(&wrex_proto_vlan::CODEC);
     #[cfg(feature = "proto-ip")]
     r.register(&wrex_proto_ip::CODEC);
     #[cfg(feature = "proto-icmp")]

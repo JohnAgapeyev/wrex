@@ -40,9 +40,10 @@ wrex-proto-icmp = { workspace = true, optional = true }
 wrex-proto-udp = { workspace = true, optional = true }
 wrex-proto-tcp = { workspace = true, optional = true }
 wrex-proto-dns = { workspace = true, optional = true }
+wrex-proto-vlan = { workspace = true, optional = true }
 
 [features]
-default = ["proto-eth", "proto-arp", "proto-ip", "proto-icmp", "proto-udp", "proto-tcp", "proto-dns"]
+default = ["proto-eth", "proto-arp", "proto-ip", "proto-icmp", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan"]
 proto-eth = ["dep:wrex-proto-eth"]
 proto-arp = ["dep:wrex-proto-arp"]
 proto-ip = ["dep:wrex-proto-ip"]
@@ -50,6 +51,7 @@ proto-icmp = ["dep:wrex-proto-icmp"]
 proto-udp = ["dep:wrex-proto-udp"]
 proto-tcp = ["dep:wrex-proto-tcp"]
 proto-dns = ["dep:wrex-proto-dns"]
+proto-vlan = ["dep:wrex-proto-vlan"]
 
 [dev-dependencies]
 wrex-test = { workspace = true }

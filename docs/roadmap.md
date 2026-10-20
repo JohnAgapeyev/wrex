@@ -157,15 +157,51 @@ T(n+1)".
   per-probe resolution, stream determinism) in the fuzz gate (the
   release workflow + the xtask smoke list). Man pages and completions
   regenerated (the verbs enumerate automatically).
-- **T7 — protocol expansion**: ipv6, vlan, dhcp, dissect-only profiles,
-  dynamic `.so` plugin ABI revisit — each new codec follows the
-  tranche-1 contract and plugs into the same wrex-test extension points.
+- **T7 — protocol expansion**: ipv6, vlan, dhcp, the plugin ABI
+  revisit — each new codec follows the tranche-1 contract and plugs
+  into the same wrex-test extension points. Planned as sub-tranches:
+  - **T7a — vlan** — ✅ delivered. `wrex-proto-vlan` (kind `vlan`,
+    rank 15, parents `eth|vlan` for QinQ/802.1ad stacking): 4-byte
+    header, `pcp` (3 bits) / `dei` (1 bit) / `vid` (12 bits) packed
+    into the TCI plus the encapsulated ethertype (`type`, autofilled
+    from the next layer like `eth.type`); craft always emits 0x8100,
+    0x88a8 dissect-only. `eth` dispatches 0x8100/0x88a8 → `vlan`;
+    `ipv4`/`arp` stack on `vlan` (parents extended, additive);
+    `ethertype_name` renders `vlan.type` like `eth.type`. The CLI,
+    filters (`vlan.vid=100`), `wrex fields`, man pages and
+    completations enumerate automatically. Verification: codec units
+    (golden TCI, autofill derivation, QinQ chains, truncation,
+    >12-bit explicit vid kept), new differential stacks
+    (`eth-vlan`, `eth-vlan-vlan`, `eth-vlan-ipv4-{udp,tcp,icmp}`;
+    the vlan stacks' eth drops explicit `type` so the chain follows
+    the spec) against etherparse + tshark (tshark's repeated `vlan`
+    JSON keys collapse — tags match by value; 802.1ad outer tags
+    land under `ieee8021ad`), a `vlan` golden corpus (single, QinQ,
+    802.1ad, arp-in-vlan, terminal), `fuzz_dissect_vlan`, and CLI
+    roundtrips in the integration suite.
+  - **T7b — ipv6 + icmpv6** — planned. Decisions recorded at the
+    T7a planning pass: kernel-routed v6 TX via AF_PACKET L3
+    injection (there is no `IPV6_HDRINCL`; full v6 frames at
+    ethertype 0x86dd through the existing `RawEthDriver` machinery
+    rather than `AF_INET6` + `sendmsg` cmsgs), and full craft for
+    ICMPv6 echo *and* NDP (RS/RA/NS/NA, checksums over the v6
+    pseudo-header). Needs core type generalization (`NetFacts`,
+    `Patch::Checksum` pseudo-header, a `FieldKind::Ipv6`) — additive,
+    not breaking, per the standing rules.
+  - **T7c — dhcp** — planned. Port-67/68 dispatch in the udp codec
+    (the tranche-3 port-dispatch pattern) plus dns-style record
+    sections for the options space.
+  - **T7d — plugin ABI revisit** — ✅ resolved by decision
+    ([ADR 1](adr/0001-compile-time-registry.md)): the registry stays
+    compile-time; no dynamic `.so` loading. "Dissect-only profiles"
+    are dropped from the roadmap (no protocol needs the toggle;
+    dns record sections already carry the dissect-only surface).
 
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a
   new feature-gated crate plus one `register` line — no dynamic loading
-  until the T7 ABI revisit says otherwise.
+  ([ADR 1](adr/0001-compile-time-registry.md) resolved the T7 revisit).
 - Later tranches never break the frozen contracts of earlier ones;
   anything that would, gets its own planning pass first.
 - Every tranche lands with its verification story (oracles, corpora,

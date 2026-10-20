@@ -79,6 +79,12 @@ name = "fuzz_dissect_tcp"
 path = "fuzz_targets/fuzz_dissect_tcp.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fuzz_dissect_vlan"
+path = "fuzz_targets/fuzz_dissect_vlan.rs"
+test = false
+doc = false
 bench = false
 
 [[bin]]

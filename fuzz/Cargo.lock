@@ -663,6 +663,7 @@ dependencies = [
  "wrex-proto-ip",
  "wrex-proto-tcp",
  "wrex-proto-udp",
+ "wrex-proto-vlan",
  "wrex-scan",
  "wrex-session",
 ]
@@ -814,6 +815,14 @@ dependencies = [
 
 [[package]]
 name = "wrex-proto-udp"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "wrex-core",
+]
+
+[[package]]
+name = "wrex-proto-vlan"
 version = "0.1.0"
 dependencies = [
  "bytes",

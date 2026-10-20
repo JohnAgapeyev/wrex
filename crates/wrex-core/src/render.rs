@@ -7,11 +7,12 @@ use crate::dissect::{Anomaly, DissectedPacket, LayerView};
 use crate::value::Value as WValue;
 use crate::value::mac_string;
 
-/// Ethertype → protocol name (for rendering `eth.type`).
+/// Ethertype → protocol name (for rendering `eth.type` / `vlan.type`).
 pub fn ethertype_name(v: u16) -> Option<&'static str> {
     Some(match v {
         0x0800 => "ipv4",
         0x0806 => "arp",
+        0x8100 => "vlan",
         0x86dd => "ipv6",
         _ => return None,
     })
@@ -29,6 +30,13 @@ pub fn ip_proto_name(v: u8) -> Option<&'static str> {
 
 fn field_json(layer_kind: &str, name: &str, value: &WValue) -> JsonValue {
     if layer_kind == "eth"
+        && name == "type"
+        && let WValue::Int(v) = value
+        && let Some(n) = ethertype_name(*v as u16)
+    {
+        return json!(n);
+    }
+    if layer_kind == "vlan"
         && name == "type"
         && let WValue::Int(v) = value
         && let Some(n) = ethertype_name(*v as u16)
@@ -91,6 +99,13 @@ pub fn dissect_to_jsonl(p: &DissectedPacket) -> String {
 
 fn field_text(kind: &str, name: &str, value: &WValue) -> String {
     if kind == "eth"
+        && name == "type"
+        && let WValue::Int(v) = value
+        && let Some(n) = ethertype_name(*v as u16)
+    {
+        return n.to_string();
+    }
+    if kind == "vlan"
         && name == "type"
         && let WValue::Int(v) = value
         && let Some(n) = ethertype_name(*v as u16)

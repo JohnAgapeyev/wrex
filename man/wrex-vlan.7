@@ -1,0 +1,37 @@
+.TH WREX-VLAN 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-vlan \- vlan layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIvlan\fR \fB--vlan\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIvlan\fR
+
+.SH DESCRIPTION
+IEEE 802.1Q VLAN tag: 4\-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect\-only). type drives the chain like eth.type: 0x0800 \-> ipv4, 0x0806 \-> arp, 0x8100/0x88a8 \-> vlan, else synthesized `unknown`.
+.
+
+.SH ENCAPSULATION
+Rank 15; stacks on eth, vlan (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --vlan-pcp).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-vlan\-pcp=\fIINT\fR\fR
+priority code point (0\-7, 3 bits) Type u8. Default: 0.
+.TP
+\fB\-\-vlan\-dei=\fIINT\fR\fR
+drop eligible indicator (0/1, 1 bit) Type u8. Default: 0.
+.TP
+\fB\-\-vlan\-vid=\fIINT\fR\fR
+VLAN identifier (0\-4095, 12 bits; 0 = priority tag) Type u16. Default: 0.
+.TP
+\fB\-\-vlan\-type=\fIINT\fR\fR
+encapsulated ethertype (autofill: derived from next layer) Type u16. Default: 0.
+
+.SH EXAMPLES
+wrex fields vlan
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)

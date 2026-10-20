@@ -241,11 +241,157 @@ fn fields_verb_lists_registry() {
     // per-bit flags are settable through the CLI grammar
     let all = wrex().args(["fields"]).assert().success();
     let text_all = String::from_utf8(all.get_output().stdout.clone()).unwrap();
-    for k in ["eth", "arp", "ipv4", "icmp", "udp", "tcp"] {
+    for k in ["eth", "arp", "vlan", "ipv4", "icmp", "udp", "tcp"] {
         assert!(text_all.contains(k), "missing {k} in fields output");
     }
     // unknown kind → exit 2
     wrex().args(["fields", "ipx"]).assert().failure().code(2);
+}
+
+/// Tranche 7a: the vlan codec flows through the registry end to end —
+/// craft (tagged + QinQ stacks), dissect chains, fields, filters.
+#[test]
+fn vlan_craft_dissect_roundtrip() {
+    // single tag: eth -> vlan -> ipv4 -> udp
+    let bytes = wrex()
+        .args([
+            "craft",
+            "--format",
+            "raw",
+            "--layer",
+            "eth",
+            "--layer",
+            "vlan",
+            "--layer",
+            "ipv4",
+            "--layer",
+            "udp",
+            "--eth-dst=ff:ff:ff:ff:ff:ff",
+            "--vlan-pcp=3",
+            "--vlan-dei=1",
+            "--vlan-vid=100",
+            "--ipv4-src=10.0.0.1",
+            "--ipv4-dst=10.0.0.2",
+            "--udp-sport=4444",
+            "--udp-dport=5555",
+            "--payload=hex:deadbeef",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    // eth.type derives 0x8100 from the vlan layer; tci = 3<<13|1<<12|100
+    assert_eq!(&bytes[12..14], &[0x81, 0x00][..]);
+    assert_eq!(&bytes[14..18], &[0x70, 0x64, 0x08, 0x00][..]);
+    let json: serde_json::Value = serde_json::from_slice(
+        &wrex()
+            .args(["dissect", "--format", "json"])
+            .write_stdin(bytes.clone())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let kinds: Vec<&str> = json["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, vec!["eth", "vlan", "ipv4", "udp"]);
+    let vlan = &json["layers"][1]["fields"];
+    assert_eq!(vlan["pcp"], 3);
+    assert_eq!(vlan["dei"], 1);
+    assert_eq!(vlan["vid"], 100);
+    assert_eq!(vlan["type"], "ipv4");
+    assert_eq!(json["anomalies"].as_array().unwrap().len(), 0);
+
+    // QinQ: double tag, inner chains from the outer's derived 0x8100
+    let qinq = wrex()
+        .args([
+            "craft",
+            "--format",
+            "raw",
+            "--layer",
+            "eth",
+            "--layer",
+            "vlan",
+            "--layer",
+            "vlan",
+            "--layer",
+            "ipv4",
+            "--layer",
+            "udp",
+            "--eth-dst=ff:ff:ff:ff:ff:ff",
+            "--vlan-vid=100",
+            "--ipv4-src=10.0.0.1",
+            "--ipv4-dst=10.0.0.2",
+            "--udp-sport=4444",
+            "--udp-dport=5555",
+            "--payload=hex:aa",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(
+        &wrex()
+            .args(["dissect", "--format", "json"])
+            .write_stdin(qinq)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let kinds: Vec<&str> = json["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, vec!["eth", "vlan", "vlan", "ipv4", "udp"]);
+
+    // fields enumerates the vlan schema
+    let fields = String::from_utf8(
+        wrex()
+            .args(["fields", "vlan"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(fields.contains("vid"), "{fields}");
+    assert!(fields.contains("pcp"), "{fields}");
+
+    // filters speak the vlan field paths (registry-driven parse + match)
+    use wrex_core::filter::Filter;
+    use wrex_core::{LayerSpec, PacketSpec};
+    let reg = wrex::standard();
+    let spec = PacketSpec::new(
+        vec![LayerSpec::with_fields(
+            "vlan",
+            [("vid".into(), wrex_core::Value::Int(100))]
+                .into_iter()
+                .collect(),
+        )],
+        None,
+    );
+    let frame =
+        wrex_core::encode::encode(&reg, &spec, &wrex_core::encode::EncodeOpts::default()).unwrap();
+    let p = wrex_core::dissect::dissect(&reg, &frame.bytes, "vlan");
+    assert!(Filter::parse(&reg, "vlan.vid=100").unwrap().matches(&p));
+    assert!(!Filter::parse(&reg, "vlan.vid=101").unwrap().matches(&p));
+    assert!(!Filter::parse(&reg, "vlan.pcp>0").unwrap().matches(&p)); // pcp is 0
+    assert!(Filter::parse(&reg, "vlan.pcp>=0").unwrap().matches(&p));
+    assert!(Filter::parse(&reg, "vlan.nope=1").is_err()); // unknown path
 }
 
 #[test]
@@ -320,6 +466,7 @@ fn help_documents_field_flags_and_completions_emit() {
         "--tcp-flags-syn",
         "--icmp-echo-id",
         "--eth-dst",
+        "--vlan-vid",
         "wrex fields",
         "EXAMPLES",
     ] {

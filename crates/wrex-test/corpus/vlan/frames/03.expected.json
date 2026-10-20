@@ -1,0 +1,50 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:11:22:33:44:55",
+        "type": "vlan"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dei": 0,
+        "pcp": 0,
+        "type": "arp",
+        "vid": 100
+      },
+      "kind": "vlan",
+      "span": [
+        14,
+        18
+      ]
+    },
+    {
+      "fields": {
+        "hlen": 6,
+        "htype": 1,
+        "oper": 1,
+        "plen": 4,
+        "ptype": 2048,
+        "sha": "00:11:22:33:44:55",
+        "spa": "192.168.1.10",
+        "tha": "00:00:00:00:00:00",
+        "tpa": "192.168.1.1"
+      },
+      "kind": "arp",
+      "span": [
+        18,
+        46
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

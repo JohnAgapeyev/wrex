@@ -16,6 +16,7 @@ wrex-proto-arp = { workspace = true, features = ["test-util"] }
 wrex-proto-ip = { workspace = true, features = ["test-util"] }
 wrex-proto-icmp = { workspace = true, features = ["test-util"] }
 wrex-proto-udp = { workspace = true, features = ["test-util"] }
+wrex-proto-vlan = { workspace = true, features = ["test-util"] }
 wrex-proto-tcp = { workspace = true, features = ["test-util"] }
 wrex-proto-dns = { workspace = true, features = ["test-util"] }
 bytes = { workspace = true }

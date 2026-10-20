@@ -100,8 +100,8 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "ipv4",
     rank: 20,
-    parents: &["eth"],
-    doc: "IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under --strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (--ip-ttl == --ipv4-ttl).",
+    parents: &["eth", "vlan"],
+    doc: "IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under --strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (--ip-ttl == --ipv4-ttl).",
     fields: FIELDS.as_slice(),
     records: &[],
 });

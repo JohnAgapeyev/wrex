@@ -202,6 +202,7 @@ fn fuzz_stage(root: &Path) {
         "fuzz_dissect_udp",
         "fuzz_dissect_tcp",
         "fuzz_dissect_dns",
+        "fuzz_dissect_vlan",
         "fuzz_craft_roundtrip",
         "fuzz_scan_session",
         "fuzz_http_session",

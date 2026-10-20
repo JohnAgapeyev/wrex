@@ -1,0 +1,68 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:11:22:33:44:55",
+        "type": 34984
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dei": 0,
+        "pcp": 0,
+        "type": "ipv4",
+        "vid": 100
+      },
+      "kind": "vlan",
+      "span": [
+        14,
+        18
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 26331,
+        "dst": "10.0.0.2",
+        "flags": [],
+        "frag_off": 0,
+        "id": 0,
+        "ihl": 5,
+        "options": "",
+        "proto": "icmp",
+        "src": "10.0.0.1",
+        "tos": 0,
+        "total_len": 32,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        18,
+        38
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 46859,
+        "code": 0,
+        "echo.id": 7855,
+        "echo.seq": 1,
+        "type": 8
+      },
+      "kind": "icmp",
+      "span": [
+        38,
+        46
+      ]
+    }
+  ],
+  "payload_hex": "00112233",
+  "start": "eth"
+}
