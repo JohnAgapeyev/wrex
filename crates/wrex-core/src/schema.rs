@@ -129,6 +129,93 @@ impl RecordSchema {
     }
 }
 
+/// Fixed wire layout of one field (tranche 11b): byte offset + length
+/// within the layer header, or a bit window for bit-packed subfields.
+///
+/// Declared per codec as a static table through [`crate::codec::Codec::layouts`]
+/// (a default trait method so test mocks and dynamic-layout codecs — dns,
+/// dhcp until their tranche-11b slice — inherit empty). The dissect engine
+/// populates [`crate::dissect::LayerView::field_spans`] from these;
+/// fields absent from the table (dynamic regions: ipv4/tcp `options`,
+/// record sections) resolve to [`crate::dissect::FieldSpan::None`] — the
+/// **total-presence invariant**: every dissected field key gets a span
+/// entry, and the *variant* carries the policy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    /// `len` bytes at byte offset `at` of the layer.
+    Bytes { at: usize, len: usize },
+    /// `width` bits at bit offset `shift` (MSB-first) within the
+    /// big-endian byte window starting at `at`. The container is
+    /// `ceil((shift + width) / 8)` bytes.
+    Bits { at: usize, shift: u8, width: u8 },
+}
+
+impl Layout {
+    /// Container byte length of a [`Layout::Bits`] window.
+    pub fn container_len(&self) -> usize {
+        match *self {
+            Layout::Bytes { len, .. } => len,
+            Layout::Bits { shift, width, .. } => {
+                (shift as usize + width as usize).div_ceil(8).max(1)
+            }
+        }
+    }
+}
+
+/// One derived-field recomputation the wire→wire consistency walk can
+/// perform (tranche 11b): the declarative mirror of the encode-side
+/// deferred [`crate::encode::Patch`] resolution, addressed by field and
+/// driven by edit invalidation under a caller-selected
+/// [`crate::patch::Scope`] instead of autofill.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Derived {
+    /// `u16 at` = (frame end − layer start): `ipv4.total_len`,
+    /// `ipv6.payload_len`, `udp.length` style fields.
+    Length { field: &'static str, at: usize },
+    /// Internet checksum at `u16 at`, accumulated over the covered
+    /// range plus the pseudo-header when `pseudo` selects one.
+    Checksum {
+        field: &'static str,
+        at: usize,
+        /// Range end: to the frame end (`Frame`) or to the layer's span
+        /// end (`Layer`, e.g. the ipv4 header including options).
+        end: ChecksumEnd,
+        /// Pseudo-header provenance: none (ipv4 header checksum), or
+        /// from the dissected net facts (udp/tcp/icmpv6 — family
+        /// follows the network-layer parent).
+        pseudo: PseudoSource,
+    },
+}
+
+impl Derived {
+    /// The field name this derivation owns (`"checksum"`, `"length"`).
+    pub fn field(&self) -> &'static str {
+        match *self {
+            Derived::Length { field, .. } => field,
+            Derived::Checksum { field, .. } => field,
+        }
+    }
+}
+
+/// Covered-range end of a [`Derived::Checksum`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChecksumEnd {
+    /// To the end of the frame (payload included: icmp, udp, tcp).
+    Frame,
+    /// To the end of this layer's span (ipv4 header incl. options).
+    Layer,
+}
+
+/// Pseudo-header provenance of a [`Derived::Checksum`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PseudoSource {
+    /// No pseudo-header (the ipv4 header checksum covers only itself).
+    None,
+    /// From the dissected net facts — family follows the network-layer
+    /// parent (udp/tcp over v4 or v6, icmpv6 always v6).
+    FromFacts,
+}
+
 /// A dotted-path lookup against a [`LayerSchema`].
 ///
 /// `Field` is a whole-field reference; `FlagBit` is a per-bit subpath of a

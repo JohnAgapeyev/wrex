@@ -12,7 +12,9 @@ use std::net::Ipv4Addr;
 use wrex_core::dissect::{LayerView, NetFacts};
 use wrex_core::encode::{EncodeCtx, Patch, flagset_or_default, int_or_default, ipv4_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -333,9 +335,74 @@ impl Codec for IpCodec {
         let view = LayerView {
             kind: "ipv4",
             span: ctx.offset..ctx.offset + hlen,
+            field_spans: Default::default(),
             fields,
         };
         ReadOutcome::Layer(view, Some(Next::Kind(proto_to_kind(proto))))
+    }
+
+    /// Tranche 11b fixed layouts (base 20 bytes; ver/ihl and
+    /// flags/frag_off are bit windows; `options` is dynamic → None).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            (
+                "ver",
+                Layout::Bits {
+                    at: 0,
+                    shift: 0,
+                    width: 4,
+                },
+            ),
+            (
+                "ihl",
+                Layout::Bits {
+                    at: 0,
+                    shift: 4,
+                    width: 4,
+                },
+            ),
+            ("tos", Layout::Bytes { at: 1, len: 1 }),
+            ("total_len", Layout::Bytes { at: 2, len: 2 }),
+            ("id", Layout::Bytes { at: 4, len: 2 }),
+            (
+                "flags",
+                Layout::Bits {
+                    at: 6,
+                    shift: 0,
+                    width: 3,
+                },
+            ),
+            (
+                "frag_off",
+                Layout::Bits {
+                    at: 6,
+                    shift: 3,
+                    width: 13,
+                },
+            ),
+            ("ttl", Layout::Bytes { at: 8, len: 1 }),
+            ("proto", Layout::Bytes { at: 9, len: 1 }),
+            ("checksum", Layout::Bytes { at: 10, len: 2 }),
+            ("src", Layout::Bytes { at: 12, len: 4 }),
+            ("dst", Layout::Bytes { at: 16, len: 4 }),
+        ]
+    }
+
+    /// `total_len` = frame end − layer start; `checksum` covers the
+    /// header (layer span end, options included), no pseudo-header.
+    fn derived(&self) -> &'static [Derived] {
+        &[
+            Derived::Length {
+                field: "total_len",
+                at: 2,
+            },
+            Derived::Checksum {
+                field: "checksum",
+                at: 10,
+                end: ChecksumEnd::Layer,
+                pseudo: PseudoSource::None,
+            },
+        ]
     }
 }
 

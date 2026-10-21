@@ -12,7 +12,9 @@ use bytes::{BufMut, Bytes};
 use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, flagset_or_default, int_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -243,10 +245,45 @@ impl Codec for TcpCodec {
         let view = LayerView {
             kind: "tcp",
             span: ctx.offset..ctx.offset + hlen,
+            field_spans: Default::default(),
             fields,
         };
         // TCP is terminal (the payload follows).
         ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// Tranche 11b fixed layouts (base 20 bytes; data_off is the top
+    /// nibble of byte 12; `options` is dynamic → None).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("sport", Layout::Bytes { at: 0, len: 2 }),
+            ("dport", Layout::Bytes { at: 2, len: 2 }),
+            ("seq", Layout::Bytes { at: 4, len: 4 }),
+            ("ack", Layout::Bytes { at: 8, len: 4 }),
+            (
+                "data_off",
+                Layout::Bits {
+                    at: 12,
+                    shift: 0,
+                    width: 4,
+                },
+            ),
+            ("flags", Layout::Bytes { at: 13, len: 1 }),
+            ("window", Layout::Bytes { at: 14, len: 2 }),
+            ("checksum", Layout::Bytes { at: 16, len: 2 }),
+            ("urgent", Layout::Bytes { at: 18, len: 2 }),
+        ]
+    }
+
+    /// `checksum` covers the segment to the frame end over the
+    /// pseudo-header from the net facts (family follows the parent).
+    fn derived(&self) -> &'static [Derived] {
+        &[Derived::Checksum {
+            field: "checksum",
+            at: 16,
+            end: ChecksumEnd::Frame,
+            pseudo: PseudoSource::FromFacts,
+        }]
     }
 }
 

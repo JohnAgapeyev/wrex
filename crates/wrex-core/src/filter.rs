@@ -587,6 +587,7 @@ mod tests {
                     LayerView {
                         kind,
                         span: 0..0,
+                        field_spans: Default::default(),
                         fields: map,
                     }
                 })
@@ -594,6 +595,7 @@ mod tests {
             payload: Bytes::new(),
             anomalies: vec![Anomaly::new("x", "y")],
             frame: Bytes::new(),
+            facts: Default::default(),
         }
     }
 

@@ -9,7 +9,9 @@ use bytes::{BufMut, Bytes};
 use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, bytes_or_empty, int_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -174,10 +176,33 @@ impl Codec for IcmpCodec {
         let view = LayerView {
             kind: "icmp",
             span: ctx.offset..ctx.offset + 8,
+            field_spans: Default::default(),
             fields,
         };
         // ICMP is terminal (the payload follows).
         ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// Tranche 11b fixed layouts (type-dependent 4..8 tail: echo vs rest).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("type", Layout::Bytes { at: 0, len: 1 }),
+            ("code", Layout::Bytes { at: 1, len: 1 }),
+            ("checksum", Layout::Bytes { at: 2, len: 2 }),
+            ("echo.id", Layout::Bytes { at: 4, len: 2 }),
+            ("echo.seq", Layout::Bytes { at: 6, len: 2 }),
+            ("rest", Layout::Bytes { at: 4, len: 4 }),
+        ]
+    }
+
+    /// `checksum` covers header + payload (no pseudo-header over v4).
+    fn derived(&self) -> &'static [Derived] {
+        &[Derived::Checksum {
+            field: "checksum",
+            at: 2,
+            end: ChecksumEnd::Frame,
+            pseudo: PseudoSource::None,
+        }]
     }
 }
 

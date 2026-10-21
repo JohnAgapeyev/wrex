@@ -221,11 +221,13 @@ mod tests {
                 LayerView {
                     kind: "eth",
                     span: 0..14,
+                    field_spans: Default::default(),
                     fields: eth_fields,
                 },
                 LayerView {
                     kind: "udp",
                     span: 14..22,
+                    field_spans: Default::default(),
                     fields: udp_fields,
                 },
             ],
@@ -235,6 +237,7 @@ mod tests {
                 "mismatch (computed 0x7ccb, found 0x1234)",
             )],
             frame: B::new(),
+            facts: Default::default(),
         }
     }
 

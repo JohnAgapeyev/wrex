@@ -429,6 +429,7 @@ impl Codec for DnsCodec {
         let view = LayerView {
             kind: "dns",
             span: ctx.offset..ctx.offset + bytes.len(),
+            field_spans: Default::default(),
             fields,
         };
         ReadOutcome::Layer(view, Some(Next::Payload))
@@ -445,6 +446,7 @@ fn partial(
         LayerView {
             kind: "dns",
             span: ctx.offset..ctx.offset + consumed,
+            field_spans: Default::default(),
             fields,
         },
         Some(Next::Payload),

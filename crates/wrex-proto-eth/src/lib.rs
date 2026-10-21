@@ -8,7 +8,7 @@ use bytes::BufMut;
 use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, mac_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, Layout};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -136,9 +136,19 @@ impl Codec for EthCodec {
         let view = LayerView {
             kind: "eth",
             span: ctx.offset..ctx.offset + 14,
+            field_spans: Default::default(),
             fields,
         };
         ReadOutcome::Layer(view, Some(Next::Kind(ethertype_to_kind(ethertype))))
+    }
+
+    /// Tranche 11b fixed layouts (14-byte header).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("dst", Layout::Bytes { at: 0, len: 6 }),
+            ("src", Layout::Bytes { at: 6, len: 6 }),
+            ("type", Layout::Bytes { at: 12, len: 2 }),
+        ]
     }
 }
 

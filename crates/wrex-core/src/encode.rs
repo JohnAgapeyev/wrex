@@ -545,6 +545,7 @@ mod tests {
             let view = crate::dissect::LayerView {
                 kind: "mock",
                 span: ctx.offset..ctx.offset + 6,
+                field_spans: Default::default(),
                 fields,
             };
             ReadOutcome::Layer(view, Some(Next::Payload))

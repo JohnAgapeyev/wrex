@@ -17,7 +17,7 @@ use bytes::BufMut;
 use wrex_core::dissect::{LayerView, NetFacts};
 use wrex_core::encode::{EncodeCtx, Patch, int_or_default, ipv6_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{Derived, FieldKind, FieldSchema, LayerSchema, Layout};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -230,9 +230,55 @@ impl Codec for Ip6Codec {
         let view = LayerView {
             kind: "ipv6",
             span: ctx.offset..ctx.offset + HEADER_LEN,
+            field_spans: Default::default(),
             fields,
         };
         ReadOutcome::Layer(view, Some(Next::Kind(next_header_to_kind(next_header))))
+    }
+
+    /// Tranche 11b fixed layouts (40-byte header; the flow word's
+    /// ver/tc/flow are bit windows of the first u32).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            (
+                "ver",
+                Layout::Bits {
+                    at: 0,
+                    shift: 0,
+                    width: 4,
+                },
+            ),
+            (
+                "traffic_class",
+                Layout::Bits {
+                    at: 0,
+                    shift: 4,
+                    width: 8,
+                },
+            ),
+            (
+                "flow_label",
+                Layout::Bits {
+                    at: 0,
+                    shift: 12,
+                    width: 20,
+                },
+            ),
+            ("payload_len", Layout::Bytes { at: 4, len: 2 }),
+            ("next_header", Layout::Bytes { at: 6, len: 1 }),
+            ("hop_limit", Layout::Bytes { at: 7, len: 1 }),
+            ("src", Layout::Bytes { at: 8, len: 16 }),
+            ("dst", Layout::Bytes { at: 24, len: 16 }),
+        ]
+    }
+
+    /// `payload_len` = frame end − layer start (no header checksum,
+    /// RFC 8200 §8.1).
+    fn derived(&self) -> &'static [Derived] {
+        &[Derived::Length {
+            field: "payload_len",
+            at: 4,
+        }]
     }
 }
 

@@ -3,7 +3,7 @@
 use crate::dissect::{DecodeCtx, LayerView};
 use crate::encode::EncodeCtx;
 use crate::error::{DecodeError, EncodeError};
-use crate::schema::LayerSchema;
+use crate::schema::{Derived, LayerSchema, Layout};
 use crate::spec::LayerSpec;
 
 /// Dissection chain continuation returned by [`Codec::read`].
@@ -43,6 +43,24 @@ pub trait Codec: Send + Sync {
     /// (checksum mismatches…) to `ctx.anomalies`. Never fatal: structural
     /// failures return [`ReadOutcome::Anomaly`].
     fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome;
+
+    /// Fixed wire layouts (tranche 11b): a static table of field name →
+    /// [`Layout`] for fixed-header codecs. Empty (the default) for
+    /// dynamic-layout codecs and test mocks; the dissect engine
+    /// populates [`crate::dissect::LayerView::field_spans`] from these.
+    /// Fields absent from the table resolve to
+    /// [`crate::dissect::FieldSpan::None`] (total presence).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[]
+    }
+
+    /// Derived-field recomputation specs (tranche 11b): what the
+    /// wire→wire consistency walk may recompute under a caller-selected
+    /// [`crate::patch::Scope`]. Empty (the default) for codecs with no
+    /// derived fields (eth, vlan, arp) and test mocks.
+    fn derived(&self) -> &'static [Derived] {
+        &[]
+    }
 }
 
 /// Compile-time protocol registry (no dynamic loading).

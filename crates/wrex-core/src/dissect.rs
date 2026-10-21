@@ -48,12 +48,66 @@ pub struct Facts {
     pub link_dst: Option<[u8; 6]>,
 }
 
-/// One dissected layer: kind, byte span in the input, and local fields.
+/// One dissected layer: kind, byte span in the input, local fields, and
+/// per-field wire geometry (tranche 11b).
+///
+/// `field_spans` is a **parallel map** to `fields` — same name keys,
+/// geometry only — kept separate because semantics (scalar/aggregate/
+/// record) resolve through the schema, single-sourced. The
+/// **total-presence invariant** holds: every key of `fields` has a
+/// `field_spans` entry (a real span, or `None` where patching is
+/// deliberately unsupported); absence of a key is always a bug.
+/// Sub-bit paths (`flags.syn`) appear as extra keys derived from
+/// `FieldKind::FlagSet` bit names.
 #[derive(Clone, Debug)]
 pub struct LayerView {
     pub kind: &'static str,
     pub span: Range<usize>,
     pub fields: BTreeMap<String, Value>,
+    /// Per-field wire geometry (tranche 11b), populated by the engine
+    /// from [`crate::codec::Codec::layouts`] after `read` returns.
+    pub field_spans: BTreeMap<String, FieldSpan>,
+}
+
+/// Wire geometry of one dissected field path (tranche 11b): where the
+/// bytes (or bits) live, in **absolute frame offsets**, and how a patch
+/// applies. The closed enum carries geometry only — the schema keeps
+/// semantics.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FieldSpan {
+    /// `len` contiguous bytes at an absolute frame range: scalars,
+    /// hoisted sources, derived wire-homes. A patch overwrites them.
+    Bytes(Range<usize>),
+    /// A bit window (MSB-first `shift`/`width`) inside a container range:
+    /// bit-sliced subfields (`ipv4.ver`, `vlan.vid`), aggregates
+    /// (`ipv4.flags` = its own window), per-bit FlagSet subpaths
+    /// (`tcp.flags.syn`). A patch masked-writes the container.
+    Bits {
+        container: Range<usize>,
+        shift: u8,
+        width: u8,
+    },
+    /// The value re-encodes at this range (NUL-padded, re-derived
+    /// padding: dhcp sname/file). Reserved for the tranche-11b codec
+    /// slices; patching one is a pointed deferral error until then.
+    ReEncode(Range<usize>),
+    /// No span recorded: pointer-resolved (dns compressed names) or
+    /// dynamic regions (options, record sections until their slice).
+    /// Patching is a **pointed error**, never a silent wrong-target
+    /// write.
+    None,
+}
+
+impl FieldSpan {
+    /// The container range a patch writes into (`Bytes`' own range for
+    /// whole-field patches, the `Bits` container otherwise).
+    pub fn container(&self) -> Option<Range<usize>> {
+        match self {
+            FieldSpan::Bytes(r) | FieldSpan::ReEncode(r) => Some(r.start..r.end),
+            FieldSpan::Bits { container, .. } => Some(container.start..container.end),
+            FieldSpan::None => None,
+        }
+    }
 }
 
 /// A non-fatal dissection anomaly (`! path: message` in text output).
@@ -94,6 +148,9 @@ pub struct DissectedPacket {
     pub anomalies: Vec<Anomaly>,
     /// The original dissected input, retained verbatim (tranche 11a).
     pub frame: Bytes,
+    /// Facts recorded by the chain walk (tranche 11b: net-layer
+    /// addresses/protocol for pseudo-header recomputation).
+    pub facts: Facts,
 }
 
 impl DissectedPacket {
@@ -174,9 +231,15 @@ fn unknown_layer(bytes: &[u8], offset: usize) -> LayerView {
         "hex".to_string(),
         Value::Bytes(Bytes::copy_from_slice(bytes)),
     );
+    let mut spans = BTreeMap::new();
+    spans.insert(
+        "hex".to_string(),
+        FieldSpan::Bytes(offset..offset + bytes.len()),
+    );
     LayerView {
         kind: "unknown",
         span: offset..offset + bytes.len(),
+        field_spans: spans,
         fields,
     }
 }
@@ -214,10 +277,11 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
                         let mut ctx = DecodeCtx::new(offset);
                         ctx.facts = facts;
                         match codec.read(rest, &mut ctx) {
-                            ReadOutcome::Layer(view, next) => {
+                            ReadOutcome::Layer(mut view, next) => {
                                 offset += view.span.len();
                                 facts = ctx.facts;
                                 anomalies.append(&mut ctx.anomalies);
+                                populate_field_spans(&mut view, codec.schema(), codec.layouts());
                                 layers.push(view);
                                 chain = Some(next.unwrap_or(Next::Payload));
                             }
@@ -260,7 +324,77 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
         payload: Bytes::copy_from_slice(&bytes[payload_at..]),
         anomalies,
         frame: Bytes::copy_from_slice(bytes),
+        facts,
     }
+}
+
+/// Populate [`LayerView::field_spans`] from the codec's
+/// [`crate::codec::Codec::layouts`] table (tranche 11b).
+///
+/// **Total presence**: every key of `fields` gets an entry — a layout
+/// match → absolute span (`base + at`), no match → `FieldSpan::None`
+/// (dynamic regions, record sections, codec-deferred paths). Sub-bit
+/// paths of `FieldKind::FlagSet` aggregates derive extra entries from
+/// the schema's `bit_names`, MSB-first within the aggregate's own
+/// window.
+fn populate_field_spans(
+    view: &mut LayerView,
+    schema: &crate::schema::LayerSchema,
+    layouts: &[(&'static str, crate::schema::Layout)],
+) {
+    use crate::schema::Layout;
+    let base = view.span.start;
+    let lookup = |name: &str| layouts.iter().find(|(n, _)| *n == name).map(|(_, l)| *l);
+    let mut spans: BTreeMap<String, FieldSpan> = BTreeMap::new();
+    for name in view.fields.keys() {
+        spans.insert(
+            name.clone(),
+            match lookup(name) {
+                Some(Layout::Bytes { at, len }) => FieldSpan::Bytes(base + at..base + at + len),
+                Some(Layout::Bits { at, shift, width }) => FieldSpan::Bits {
+                    container: base + at
+                        ..base + at + Layout::container_len(&Layout::Bits { at, shift, width }),
+                    shift,
+                    width,
+                },
+                None => FieldSpan::None,
+            },
+        );
+    }
+    // Sub-bit paths of FlagSet aggregates that carry layouts: extra
+    // keys, one bit each, MSB-first inside the aggregate's window.
+    for f in schema.fields {
+        if f.kind != crate::schema::FieldKind::FlagSet {
+            continue;
+        }
+        let Some(l) = lookup(f.name) else {
+            continue;
+        };
+        // Only aggregates that were parsed into this view carry a span
+        // (conditional fields: icmpv6 ndp.* only on their NDP types).
+        if !spans.contains_key(f.name) {
+            continue;
+        }
+        let (window_shift, window_width) = match l {
+            Layout::Bytes { len, .. } => (0u8, (len * 8) as u8),
+            Layout::Bits { shift, width, .. } => (shift, width),
+        };
+        for bit in f.bit_names {
+            let Some(pos) = f.bit_pos(bit) else {
+                continue;
+            };
+            let shift = window_shift + window_width.saturating_sub(1) - pos;
+            spans.insert(
+                format!("{}.{bit}", f.name),
+                FieldSpan::Bits {
+                    container: FieldSpan::container(&spans[f.name]).expect("aggregate span"),
+                    shift,
+                    width: 1,
+                },
+            );
+        }
+    }
+    view.field_spans = spans;
 }
 
 fn anomaly_for(err: &DecodeError) -> Anomaly {

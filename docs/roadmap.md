@@ -527,10 +527,11 @@ T(n+1)".
     retransmitted NS beyond the single bounded attempt.
 
 - **T11 — lossless dissection + span-patch engine (byte-fidelity
-  contract)** — ✅ T11a delivered; T11b chartered (settled at the T11
-  planning pass as two sub-tranches; the design unifies around the
-  encode engine's existing deferred-`Patch` derived-field resolution,
-  walked in a second direction):
+  contract)** — 🌤 T11a ✅ delivered; T11b-α ✅ delivered (engine core +
+  L2–L4 population), β (dns/dhcp spans) and γ (mut/CLI integration)
+  chartered (settled at the T11 planning pass as sub-tranches; the
+  design unifies around the encode engine's existing deferred-`Patch`
+  derived-field resolution, walked in a second direction):
   - **T11a — frame retention + verbatim reassembly** — ✅ delivered.
     `DissectedPacket` retains the original input (`frame: Bytes`);
     every layer span and the payload tail resolve against it, and
@@ -550,64 +551,77 @@ T(n+1)".
     `preserve`-semantics contract test). Deliberate deferrals:
     `frame` in the dissect JSON output (`--spans` rides T11b),
     span-carrying pcapng options.
-  - **T11b — the span-patch engine** — chartered. Buffer + edits +
-    caller-selected consistency, on the retained frame:
-    - **Span taxonomy**: per-field spans as an enum, not a bare
-      range — `Bytes(Range)` (scalars, hoisted sources, derived
-      wire-homes), `Bits{container, shift, width}` (bit-sliced
-      subfields *and* aggregates: `flags` is the container),
-      `ReEncode(Range)` (trimmed/re-padded: dhcp sname/file — value
-      + NUL + pad re-encoded at the span), `None`
-      (pointer-resolved dns names — a pointed error under
-      span-patching, never a silent wrong-target write). Eight
-      classes enumerated: scalar, bit-sliced/aggregate, hoisted
-      (dhcp `msg_type` → its option-53 source), derived (the `Patch`
-      targets), pointer-resolved, trimmed, record-section entries
-      (`opt.N`/`an.N`), count↔section pairs. Per-codec
-      **population gate**: every registered schema field span-recorded
-      on a golden frame or on an explicit reasoned allowlist.
-    - **Ordered edit list** against the frame: `Overwrite` /
-      `Insert` / `Delete`, applied by splice (`Bytes` slicing,
-      zero-copy outside edited regions). Representability is a pure
-      per-edit function checked as a **pre-pass over the whole set**:
-      all edits apply, or the set falls back, or a pointed error
-      (overlap, unrepresentable, edit-inside-scope conflict) — never
-      partially applied, never last-write-wins.
-    - **Derived-field DAG, walked wire→wire**: the existing
-      `Patch::{Length{at,base}, Checksum{start,end,pseudo}, MinByte}`
-      resolution pass from encode, driven by edit invalidation
-      instead of autofill. One engine, two front-ends.
-    - **Caller-selected consistency scope** — the core design
-      decision: the DAG says what *could* be stale; the **caller**
-      explicitly selects what gets recomputed, per derived field
-      with **layer-wise shorthand** (`dns:*`), default = all layers
-      consistent. The archetypes are scope selections, not engine
-      modes: all (eBPF-style translation/NAT), outer-only (fuzzing
-      broken app payloads over healthy transport), inner-only
-      (fuzzing transport handling), none (craft-invalidity). Edits
-      decide bytes; scope decides recomputation; editing a field
-      also scoped for recompute is a pointed error.
-    - **`normalize`** is a verb-intent flag (canonical spec
-      re-encode), not a patch-engine policy; `preserve` rides by
-      default. Per-verb defaults keep today's bytes: `replay` and
-      the `fuzz` retransmit are degenerate empty-edit cases; `mut`
-      strategies emit **edit sets** applied through the engine —
-      untouched invalidities stop being healed (a recorded
-      one-time re-baseline decision: only outputs that encoded
-      healed-checksum mutations change).
-    - `wrex dissect --spans` emits the taxonomy; SDK-first (the
-      engine is the deliverable, CLI flags are thin). Man pages +
-      completions regenerate.
-    - Verification: population gate per codec; edit-set units
-      (overwrite/bit-mask/insert/delete, a dns record-insert +
-      count walk-through golden); determinism properties (same
-      edits, same bytes; conflicts → pointed errors); the T11a
-      gates still hold for empty edit sets; the wrong-checksum
-      pair — preserved under `preserve`, healed under `normalize`.
-    - Deliberate deferrals: incremental RFC 1071 checksum updates
-      under the recompute walk (compute-from-scratch first; the DAG
-      makes the optimization swappable later), pointer-chain
-      patching, filter-language span selectors.
+  - **T11b — the span-patch engine** — 🌤 α delivered (the engine
+    core + L2–L4 population); β (dns/dhcp spans) and γ (mut/CLI
+    integration) chartered. Buffer + edits + caller-selected
+    consistency, on the retained frame:
+    - **α — engine core + L2–L4 population** — ✅ delivered. The
+      span taxonomy landed as designed: `FieldSpan` is a **closed
+      geometry enum** (`Bytes` / `Bits{container, shift, width}` /
+      `ReEncode` / `None`) — semantics stay in the schema
+      single-sourced; `LayerView.field_spans` is the settled
+      **parallel map**, and presence is **total**: every dissected
+      field key resolves (a real span or `None`-by-policy — dynamic
+      regions: ipv4/tcp `options`, dns/dhcp until their slices);
+      absence is a gate failure, never a convention. Sub-bit paths
+      (`flags.syn`) derive from `FieldKind::FlagSet` bit names,
+      MSB-first inside the aggregate's own window (conditional
+      aggregates — icmpv6 `ndp.*` — skip when unparsed). Layouts are
+      **schema-side declarations** delivered as `Codec::layouts()` /
+      `Codec::derived()` default trait methods (test mocks and
+      dynamic codecs inherit empty): eth, vlan (TCI bit windows),
+      arp, ipv4 (ver/ihl, flags/frag_off bit windows), ipv6 (the
+      flow word), icmp, icmpv6 (NDP windows), udp, tcp (data_off
+      nibble) — nine codecs. The engine (`wrex-core::patch`): an
+      ordered **edit list** (`SetField` by dissected path,
+      `Insert`, `Delete`), a **representability + overlap pre-pass**
+      over the whole set (never partially applied, never
+      last-write-wins), splice application (`Bytes` slicing,
+      zero-copy outside edited regions; `Bits` edits masked-write
+      the container), then the **wire→wire consistency walk**: a
+      fresh dissection of the spliced frame re-resolves spans in
+      new coordinates, and the caller-selected **scope** — per
+      derived field with layer shorthand (`"udp.*"`), default =
+      all — drives the declarative `Derived` specs (`Length`,
+      `Checksum` over `ChecksumEnd::{Frame, Layer}` with
+      `PseudoSource::{None, FromFacts}` from the dissected net
+      facts) through the same RFC 1071 fold the encode side uses
+      (the checksum's own bytes zero during the fold, the encode
+      placeholder rule mirrored). Edits decide bytes; scope decides
+      recomputation; an edit on a derived field its scope also
+      selects is a pointed conflict. Scope-selected recomputation
+      applies regardless of edit presence — `patch(p, [], Scope::all)`
+      *is* the normalize verb, deliberately; `Scope::none` + zero
+      edits is byte-identity (the T11a degenerate; replay/fuzz
+      retransmit ride it). `DissectedPacket` grew `facts`
+      (pseudo-header provenance, SDK surface). No CLI change.
+      Verification: core mock units (scope archetypes, bit masking,
+      pointed errors, determinism, the empty-edit degenerates) and
+      `tests/patch_engine.rs` over the real registry — the
+      **population gate** (total presence on every corpus frame +
+      FlagSet subpaths), real patches with re-dissection ground
+      truth (scope all ⇒ zero anomalies; scope none ⇒ stale
+      checksums carried unhealed; insert/delete ⇒ lengths and
+      checksums recomputed; udp.checksum edit under outer-only
+      scope lands and only udp goes stale; dns ⇒ `UnsupportedPath`
+      pointed), and vlan bit-window patching through the real
+      codec. Deliberate deferrals: dns/dhcp spans (β), record
+      sections, `ReEncode` patch application (the variant exists;
+      applying one is a pointed deferral error), the `wrex-mut`
+      edit-set integration and `dissect --spans` (γ).
+    - **β — dns + dhcp population** — chartered. dns:
+      pointer-resolved names → `None` + pointed-error policy, record
+      sections (`an.N`/`ns.N`), count↔section pairs desyncable by
+      scope choice. dhcp: `msg_type` hoisted → its option-53 source
+      span, `opt.N` records, sname/file `ReEncode`. The formalized
+      per-codec population gate lands here (α's corpus-driven gate
+      already covers the nine populated codecs).
+    - **γ — `wrex-mut` + CLI integration** — chartered. Strategies
+      emit **edit sets** applied through the engine under `preserve`;
+      the recorded one-time re-baseline (untouched invalidities stop
+      being healed) lands here; strategies that cannot represent an
+      edit fall through per the T6 rule. `dissect --spans` emits the
+      taxonomy; man pages + completions regenerate.
 - **T12 — offline findings differential** — chartered. The natural
   completion of the T6/T9 recording-prober design: a small offline verb
   diffing two findings JSONL files (baseline vs mutated run, or two

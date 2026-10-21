@@ -9,7 +9,7 @@ use bytes::BufMut;
 use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, int_or_default, ipv4_or_zero, mac_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, Layout};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -174,10 +174,26 @@ impl Codec for ArpCodec {
         let view = LayerView {
             kind: "arp",
             span: ctx.offset..ctx.offset + 28,
+            field_spans: Default::default(),
             fields,
         };
         // ARP is terminal.
         ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// Tranche 11b fixed layouts (28-byte header).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("htype", Layout::Bytes { at: 0, len: 2 }),
+            ("ptype", Layout::Bytes { at: 2, len: 2 }),
+            ("hlen", Layout::Bytes { at: 4, len: 1 }),
+            ("plen", Layout::Bytes { at: 5, len: 1 }),
+            ("oper", Layout::Bytes { at: 6, len: 2 }),
+            ("sha", Layout::Bytes { at: 8, len: 6 }),
+            ("spa", Layout::Bytes { at: 14, len: 4 }),
+            ("tha", Layout::Bytes { at: 18, len: 6 }),
+            ("tpa", Layout::Bytes { at: 24, len: 4 }),
+        ]
     }
 }
 

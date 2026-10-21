@@ -411,6 +411,7 @@ impl Codec for DhcpCodec {
             let view = LayerView {
                 kind: "dhcp",
                 span: ctx.offset..ctx.offset + HEADER_LEN,
+                field_spans: Default::default(),
                 fields,
             };
             return ReadOutcome::Layer(view, Some(Next::Payload));
@@ -506,6 +507,7 @@ impl Codec for DhcpCodec {
         let view = LayerView {
             kind: "dhcp",
             span: ctx.offset..ctx.offset + consumed,
+            field_spans: Default::default(),
             fields,
         };
         // Terminal: post-`end` bytes are padding/payload.

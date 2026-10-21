@@ -8,6 +8,7 @@ pub mod dissect;
 pub mod encode;
 pub mod error;
 pub mod filter;
+pub mod patch;
 pub mod render;
 pub mod schema;
 pub mod spec;
@@ -17,12 +18,16 @@ pub mod value;
 pub use checksum::{ChecksumAccumulator, PseudoHeader, internet_checksum};
 pub use codec::{Codec, Next, ReadOutcome, Registry};
 pub use dissect::{
-    Anomaly, DecodeCtx, DissectedPacket, Facts, LayerView, NetFacts, auto_start, dissect,
+    Anomaly, DecodeCtx, DissectedPacket, Facts, FieldSpan, LayerView, NetFacts, auto_start, dissect,
 };
 pub use encode::{EncodeCtx, EncodeOpts, Encoded, Patch, Violation, encode};
 pub use error::{DecodeError, EncodeError, FilterError, SpecError};
 pub use filter::{Filter, Op as FilterOp};
-pub use schema::{FieldKind, FieldSchema, LayerSchema, RecordSchema, ResolvedField};
+pub use patch::{Edit, PatchError, Scope, patch};
+pub use schema::{
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource, RecordSchema,
+    ResolvedField,
+};
 pub use spec::{LayerSpec, PacketSpec};
 pub use time::parse_duration;
 pub use value::{Value, mac_string, parse_bool, parse_value, stdin_bytes};

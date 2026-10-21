@@ -18,7 +18,9 @@ use wrex_core::dissect::LayerView;
 use wrex_core::encode::l4_pseudo;
 use wrex_core::encode::{EncodeCtx, Patch, bytes_or_empty, flagset_or_default, int_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, RecordSchema};
+use wrex_core::schema::{
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource, RecordSchema,
+};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -455,10 +457,58 @@ impl Codec for Icmp6Codec {
         let view = LayerView {
             kind: "icmpv6",
             span: ctx.offset..ctx.offset + opt_end,
+            field_spans: Default::default(),
             fields,
         };
         // Terminal: the remaining bytes (after NDP options) are payload.
         ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// Tranche 11b fixed layouts (type-dependent 4..24 tail; NDP flags
+    /// are bit windows; `opt` record sections stay None until their
+    /// tranche-11b slice).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("type", Layout::Bytes { at: 0, len: 1 }),
+            ("code", Layout::Bytes { at: 1, len: 1 }),
+            ("checksum", Layout::Bytes { at: 2, len: 2 }),
+            ("echo.id", Layout::Bytes { at: 4, len: 2 }),
+            ("echo.seq", Layout::Bytes { at: 6, len: 2 }),
+            ("rest", Layout::Bytes { at: 4, len: 4 }),
+            ("ndp.cur_hop_limit", Layout::Bytes { at: 4, len: 1 }),
+            (
+                "ndp.ra_flags",
+                Layout::Bits {
+                    at: 5,
+                    shift: 0,
+                    width: 2,
+                },
+            ),
+            ("ndp.router_lifetime", Layout::Bytes { at: 6, len: 2 }),
+            ("ndp.reachable_time", Layout::Bytes { at: 8, len: 4 }),
+            ("ndp.retrans_timer", Layout::Bytes { at: 12, len: 4 }),
+            (
+                "ndp.na_flags",
+                Layout::Bits {
+                    at: 4,
+                    shift: 0,
+                    width: 3,
+                },
+            ),
+            ("ndp.target", Layout::Bytes { at: 8, len: 16 }),
+        ]
+    }
+
+    /// `checksum` covers the message to the frame end over the v6
+    /// pseudo-header (proto 58, RFC 8200 §8.1 — always FromFacts since
+    /// the parent is ipv6).
+    fn derived(&self) -> &'static [Derived] {
+        &[Derived::Checksum {
+            field: "checksum",
+            at: 2,
+            end: ChecksumEnd::Frame,
+            pseudo: PseudoSource::FromFacts,
+        }]
     }
 }
 

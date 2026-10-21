@@ -256,9 +256,22 @@ zero edits ⇒ byte-identical by construction, malformed input
 included (nothing is re-derived: wrong checksums, compressed names,
 trailing bytes all survive). Gated by `tests/reassemble.rs`: every
 stack strategy, every corpus frame, and a deliberately wrong
-checksum that must stay wrong. The span-patch engine (edits at
-spans + caller-selected derived-field recomputation) is the
-chartered 11b follow-up.
+checksum that must stay wrong.
+
+**Tranche 11b-α** (delivered): the span-patch engine. Per-field
+wire geometry (`FieldSpan`: bytes, bit windows, re-encode, none)
+populated for the L2–L4 codecs (`field_spans`, total presence —
+every dissected field key resolves), and `wrex_core::patch`:
+an ordered edit list (`SetField`/`Insert`/`Delete`) with a
+representability + overlap pre-pass, splice application
+(bit-masked container writes), and the caller-selected
+**consistency scope** (`Scope::all` / `none` / selective with
+layer shorthand) driving derived-field recomputation
+(lengths, checksums over the pseudo-header from the dissected
+facts) — edits decide bytes, scope decides recomputation,
+stale fields outside scope stay verbatim, wrongness included.
+SDK-first; the dns/dhcp spans and `wrex mut` edit-set integration
+are the chartered follow-ups.
 
 ## Layout
 

@@ -10,7 +10,9 @@ use bytes::BufMut;
 use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, int_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema};
+use wrex_core::schema::{
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -156,6 +158,7 @@ impl Codec for UdpCodec {
         let view = LayerView {
             kind: "udp",
             span: ctx.offset..ctx.offset + 8,
+            field_spans: Default::default(),
             fields,
         };
         // Port-53 datagrams chain into the dns codec when registered
@@ -171,6 +174,34 @@ impl Codec for UdpCodec {
             Next::Payload
         };
         ReadOutcome::Layer(view, Some(next))
+    }
+
+    /// Tranche 11b fixed layouts (8-byte header).
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("sport", Layout::Bytes { at: 0, len: 2 }),
+            ("dport", Layout::Bytes { at: 2, len: 2 }),
+            ("length", Layout::Bytes { at: 4, len: 2 }),
+            ("checksum", Layout::Bytes { at: 6, len: 2 }),
+        ]
+    }
+
+    /// `length` = frame end − layer start; `checksum` covers the
+    /// segment to the frame end over the pseudo-header from the net
+    /// facts (family follows the parent).
+    fn derived(&self) -> &'static [Derived] {
+        &[
+            Derived::Length {
+                field: "length",
+                at: 4,
+            },
+            Derived::Checksum {
+                field: "checksum",
+                at: 6,
+                end: ChecksumEnd::Frame,
+                pseudo: PseudoSource::FromFacts,
+            },
+        ]
     }
 }
 
@@ -367,6 +398,7 @@ mod tests {
                     LayerView {
                         kind: "dns",
                         span: ctx.offset..ctx.offset + bytes.len(),
+                        field_spans: Default::default(),
                         fields,
                     },
                     Some(Next::Payload),
@@ -479,6 +511,7 @@ mod tests {
                     LayerView {
                         kind: "dhcp",
                         span: ctx.offset..ctx.offset + bytes.len(),
+                        field_spans: Default::default(),
                         fields,
                     },
                     Some(Next::Payload),
