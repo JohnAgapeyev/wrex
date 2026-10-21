@@ -365,6 +365,74 @@ T(n+1)".
     automatically); wrex-tls stays OUT of the Miri job (rustls + TCP
     sockets are not Miri-safe) and adds no fuzz targets (rustls
     carries its own; the adapter is thin).
+- **T9 — HTTP completeness + application-layer fuzzing** — ✅
+  delivered (chartered at the T9 planning pass as two sub-tranches,
+  both additive; T9a lands first because T9b's transport comes from
+  it):
+  - **T9a — keep-alive + chunked request bodies** — ✅ delivered.
+    The T4 deferral closed. `HttpClientSession` grows an **ordered
+    request queue** over the frozen `Session` contract (the same
+    state machine; `new` keeps the close-mode T4 shape, byte-identical
+    wire): every request but the last serializes
+    `Connection: keep-alive`, the last announces close; the *response*
+    decides reuse — an explicit `Connection: close`, HTTP/1.0, or
+    until-close framing ends the queue — and a mid-queue transport
+    failure resolves the current exchange (Truncated/Timeout/…) with
+    the unsent remainder as the new `HttpOutcome::Closed`. Chunked
+    *request* bodies replace the T4 pointed rejection:
+    `body_framing: "chunked"` + a **fixed** `chunk_size` (default
+    4096, never size-adaptive) keeps serialization deterministic, and
+    an explicit `Transfer-Encoding` header stays a pointed conflict
+    error (the knob owns it). `wrex http [METHOD] URL [URL...]` (a
+    URL-looking first token ⇒ GET + a URL list; `-H/--data` apply to
+    every URL) and the recipe file accept a single object
+    (byte-identical parse, old recipes untouched), a top-level array,
+    or `{"requests": [...]}` — one keep-alive connection, in order;
+    `--format json` wraps a queue in an array (a lone response keeps
+    the T4 object), `--fail` prints then exits 1 on any 4xx/5xx.
+    Verification: session units (queue over one scripted connection,
+    close/until-close/EOF end the queue, per-exchange budget+deadline
+    reset), a queue **boundary sweep** at every split position of
+    every framing mode, chunked-TX golden units (chunk split, empty
+    body, TE conflict), recipe units (single/array/requests-key,
+    framing knobs), and CLI suites against plain-socket stubs: a
+    connection-counting keep-alive stub (two URLs → one connection,
+    both bodies in order), a recipe-array queue, and a recording stub
+    asserting the chunked request wire bytes.
+  - **T9b — application-layer fuzzing over kernel transport** — ✅
+    delivered. The T6 orchestration gap closed *without* the
+    twice-deferred userspace TCP stack (it stays deferred: kernel
+    transport covers application-layer mutation; only mutating TCP
+    state *and* continuing the exchange would need it). `wrex fuzz
+    --mode http|dns`: `ProbeMode` grows the app variants (default
+    ports 80/53; no codecs needed, no `-i`, plain sockets — no
+    CAP_NET_RAW), and the new sans-IO `AppSession` (`wrex-fuzz` crate)
+    is the probe unit: **one fresh kernel `TcpDriver` connection per
+    probe** (mirroring `query --tcp`), send the baseline or mutated
+    *request* bytes (`wrex-mut` strategies over the serialized seed —
+    an ASCII/length-prefixed seed never dissects, so the dissect-aware
+    strategies fall through to the raw level, the T6 rule), read the
+    response stream until orderly EOF (empty frame) under a 64 MiB
+    budget, one `Finding` per probe (outcome + exact probe hex +
+    response bytes, `proto` http/dns). The dns seed is one RFC 7766
+    length-prefixed A query (wrex-dns query bytes); the http seed one
+    `GET /` (wrex-http serialize). Retries repeat the exact mutated
+    bytes on fresh connections; connect refusal is silence; pacing
+    rides the T2 vocabulary (seeded jitter, sleep between probes).
+    v6 targets are a pointed usage error (the kernel `TcpDriver` is
+    v4, the T4 contract). Verification: `AppSession` units (EOF
+    collection, timeout silence, budget cap, the ScriptedDriver
+    runtime loop), config units (mode parse, app port defaults), CLI
+    ground truth on `lo` with plain sockets (a bound TCP responder →
+    baseline + rounds of `reply` findings with probe+reply hex, one
+    connection per probe, the baseline a well-formed GET; a dead port
+    → silence findings; same-seed jsonl byte-identical), v6/format
+    usage errors, and `fuzz_app_session` in the fuzz gate (release
+    workflow + xtask smoke list). Man pages + completions regenerated.
+    Deliberate deferrals: the userspace TCP stack (re-deferred with
+    the above rationale), http-head-aware `field` strategies (raw
+    level covers), TLS-wrapped app probes (the T8a adapter composes
+    the same stream contract; wiring is future work), v6 app targets.
 
 ## Standing rules (carried from the tranche-1 plan)
 

@@ -1,16 +1,27 @@
-//! [`HttpClientSession`]: one HTTP/1.1 exchange per connection
-//! (close-mode) over the frozen [`wrex_session::Session`] contract.
+//! [`HttpClientSession`]: HTTP/1.1 exchanges over the frozen
+//! [`wrex_session::Session`] contract.
+//!
+//! Two shapes share one state machine (tranche 9a):
+//! - **close-mode** ([`HttpClientSession::new`], the T4 shape): one
+//!   request per connection, `Connection: close` on the wire;
+//! - **keep-alive** ([`HttpClientSession::with_requests`]): an ordered
+//!   request queue over one connection — every request but the last
+//!   carries `Connection: keep-alive`, the response's own
+//!   `Connection` header (and HTTP/1.0, and until-close framing)
+//!   decides whether the queue may continue, and requests that never
+//!   left (or lost their transport) resolve as [`HttpOutcome::Closed`].
 //!
 //! The driver is a stream (the `TcpDriver` conventions): chunks in via
 //! `on_frame`, **orderly EOF as an empty frame**, resets as io errors.
 //! The session accumulates into one buffer and drives the parse loop
 //! after every chunk: head (status + headers, 1xx skipped) → body
-//! {content-length | chunked+trailers | until-close} → done.
+//! {content-length | chunked+trailers | until-close} → done, then the
+//! next request or idle.
 //!
-//! Determinism: the serialized request is fixed at construction, so a
-//! pinned recipe replays byte-identically; `--max-bytes` bounds ALL
-//! response bytes (headers included) so hostile streams cannot grow
-//! the buffer without limit.
+//! Determinism: the serialized requests are fixed at construction, so a
+//! pinned recipe queue replays byte-identically; `--max-bytes` bounds
+//! ALL response bytes of an exchange (headers included) so hostile
+//! streams cannot grow the buffer without limit.
 
 use std::time::{Duration, Instant};
 
@@ -53,6 +64,10 @@ pub enum HttpOutcome {
     TooLarge,
     /// The exchange deadline passed.
     Timeout,
+    /// The connection ended (peer close or a failed earlier exchange)
+    /// before this queued request was sent. Only keep-alive queues
+    /// past the first produce it.
+    Closed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,59 +87,158 @@ enum Phase {
     Done,
 }
 
-/// The HTTP/1.1 client state machine.
+/// Does this completed response head allow another request on the same
+/// connection? (HTTP/1.0 and an explicit `Connection: close` do not.)
+fn response_keeps_alive(head: &HttpResponse) -> bool {
+    if head.version == http::Version::HTTP_10 {
+        return false;
+    }
+    match head.headers.get("connection") {
+        Some(v) => {
+            let v = v.to_str().unwrap_or_default().to_ascii_lowercase();
+            // `close` wins when both tokens appear (RFC 9112 §9.3).
+            !v.split(',').any(|t| t.trim() == "close")
+        }
+        // HTTP/1.1 default: persistent.
+        None => true,
+    }
+}
+
+/// The HTTP/1.1 client state machine: one exchange at a time over an
+/// ordered request queue (a single request = close-mode).
 pub struct HttpClientSession {
-    cfg: HttpConfig,
-    request: Bytes,
     now: Instant,
+    /// Serialized requests + their per-exchange config, in order.
+    requests: std::collections::VecDeque<(Bytes, HttpConfig)>,
+    /// The active exchange's config (popped with its request).
+    cur: HttpConfig,
+    /// The active exchange's method (framing decisions need it).
+    method: http::Method,
     deadline: Instant,
-    sent: bool,
     phase: Phase,
+    /// Connection unusable for the rest of the queue (peer closed, a
+    /// failed exchange, or the last response landed).
+    closed: bool,
     buf: BytesMut,
     body: BytesMut,
     /// Accumulated chunked-body bytes (budget check without cloning).
     body_len: usize,
-    /// Total response bytes observed (head + body), for max_bytes.
+    /// Total response bytes observed this exchange (head + body).
     total_seen: usize,
     informationals: u32,
     head: Option<HttpResponse>,
-    result: Option<HttpOutcome>,
+    results: std::collections::VecDeque<HttpOutcome>,
 }
 
 impl HttpClientSession {
-    /// Build the session and serialize the request (usage errors — bad
-    /// scheme, bad headers — surface here, before any socket opens).
+    /// Build a close-mode session (one request,
+    /// `Connection: close`): the T4 shape.
     pub fn new(spec: &HttpRequestSpec, cfg: HttpConfig, t0: Instant) -> Result<Self, String> {
         let request = spec.serialize()?;
-        Ok(Self {
-            cfg,
-            request,
+        Ok(Self::from_queue(std::iter::once((request, cfg)), t0))
+    }
+
+    /// Build a keep-alive session: an ordered request queue over one
+    /// connection. Every request but the last serializes with
+    /// `Connection: keep-alive`; the last announces `close`.
+    pub fn with_requests(
+        specs: &[HttpRequestSpec],
+        cfgs: &[HttpConfig],
+        t0: Instant,
+    ) -> Result<Self, String> {
+        if specs.len() != cfgs.len() {
+            return Err(format!(
+                "queue mismatch: {} requests, {} configs",
+                specs.len(),
+                cfgs.len()
+            ));
+        }
+        let last = specs.len().saturating_sub(1);
+        let queue = specs
+            .iter()
+            .zip(cfgs)
+            .enumerate()
+            .map(|(i, (spec, cfg))| {
+                let bytes = spec.serialize_connection(i < last)?;
+                Ok((bytes, *cfg))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        Ok(Self::from_queue(queue, t0))
+    }
+
+    fn from_queue(queue: impl IntoIterator<Item = (Bytes, HttpConfig)>, t0: Instant) -> Self {
+        let requests: std::collections::VecDeque<_> = queue.into_iter().collect();
+        let cur = requests.front().map(|(_, c)| *c).unwrap_or(HttpConfig {
+            timeout: Duration::ZERO,
+            max_bytes: 0,
+        });
+        let method = requests
+            .front()
+            .map(|(b, _)| method_of(b))
+            .unwrap_or(http::Method::GET);
+        let deadline = t0 + cur.timeout;
+        Self {
             now: t0,
-            deadline: t0 + cfg.timeout,
-            sent: false,
+            requests,
+            cur,
+            method,
+            deadline,
             phase: Phase::Sending,
+            closed: false,
             buf: BytesMut::new(),
             body: BytesMut::new(),
             body_len: 0,
             total_seen: 0,
             informationals: 0,
             head: None,
-            result: None,
-        })
+            results: std::collections::VecDeque::new(),
+        }
     }
 
-    fn finish(&mut self, outcome: HttpOutcome) {
+    /// Per-exchange state for the next request on the same connection.
+    fn reset_exchange(&mut self) {
+        self.buf = BytesMut::new();
+        self.body = BytesMut::new();
+        self.body_len = 0;
+        self.total_seen = 0;
+        self.informationals = 0;
+        self.head = None;
+    }
+
+    /// The current exchange failed terminally: record its outcome and
+    /// close the queue (`Closed` per unsent request).
+    fn fail_exchange(&mut self, outcome: HttpOutcome) {
+        self.results.push_back(outcome);
+        self.close_queue();
+    }
+
+    /// The connection is done: every still-queued request resolves
+    /// `Closed`; the session goes idle after the results drain.
+    fn close_queue(&mut self) {
+        self.closed = true;
+        for _ in 0..self.requests.len() {
+            self.results.push_back(HttpOutcome::Closed);
+        }
+        self.requests.clear();
         self.phase = Phase::Done;
-        self.result = Some(outcome);
     }
 
     fn finish_response(&mut self) {
         let Some(head) = self.head.take() else {
-            self.finish(HttpOutcome::Malformed("internal: no head".into()));
+            self.fail_exchange(HttpOutcome::Malformed("internal: no head".into()));
             return;
         };
         let body = std::mem::take(&mut self.body).freeze();
-        self.finish(HttpOutcome::Response(HttpResponse { body, ..head }));
+        let resp = HttpResponse { body, ..head };
+        let reuse = !self.closed && response_keeps_alive(&resp);
+        self.results.push_back(HttpOutcome::Response(resp));
+        self.reset_exchange();
+        if reuse && !self.requests.is_empty() {
+            // Next queued request on the same connection.
+            self.phase = Phase::Sending;
+        } else {
+            self.close_queue();
+        }
     }
 
     /// Drive the parse loop as far as the buffered bytes allow.
@@ -135,7 +249,7 @@ impl HttpClientSession {
                 Phase::ReadingHead => match parse_head(&self.buf) {
                     crate::response::HeadStep::NeedMore => return,
                     crate::response::HeadStep::Malformed(e) => {
-                        self.finish(HttpOutcome::Malformed(e));
+                        self.fail_exchange(HttpOutcome::Malformed(e));
                         return;
                     }
                     crate::response::HeadStep::Head {
@@ -148,7 +262,7 @@ impl HttpClientSession {
                         let status = match http::StatusCode::from_u16(code) {
                             Ok(s) => s,
                             Err(_) => {
-                                self.finish(HttpOutcome::Malformed(format!(
+                                self.fail_exchange(HttpOutcome::Malformed(format!(
                                     "bad status code {code}"
                                 )));
                                 return;
@@ -166,7 +280,7 @@ impl HttpClientSession {
                             // Skip 1xx and keep reading the real head.
                             self.informationals += 1;
                             if self.informationals > MAX_INFORMATIONALS {
-                                self.finish(HttpOutcome::Malformed(
+                                self.fail_exchange(HttpOutcome::Malformed(
                                     "too many 1xx responses".into(),
                                 ));
                                 return;
@@ -175,9 +289,8 @@ impl HttpClientSession {
                         }
                         self.head = Some(head);
                         // Framing decision.
-                        let method = self.request_method();
                         let head = self.head.as_ref().expect("just set");
-                        match head.framing(&method) {
+                        match head.framing(&self.method) {
                             crate::BodyFraming::None => {
                                 self.finish_response();
                                 return;
@@ -191,15 +304,15 @@ impl HttpClientSession {
                                     Some(Ok(n)) => {
                                         // Early budget check: a Content-Length
                                         // beyond the cap can never be satisfied.
-                                        if n as usize > self.cfg.max_bytes {
-                                            self.finish(HttpOutcome::TooLarge);
+                                        if n as usize > self.cur.max_bytes {
+                                            self.fail_exchange(HttpOutcome::TooLarge);
                                             return;
                                         }
                                         self.phase = Phase::BodyLength(n);
                                         continue;
                                     }
                                     Some(Err(e)) => {
-                                        self.finish(HttpOutcome::Malformed(e));
+                                        self.fail_exchange(HttpOutcome::Malformed(e));
                                         return;
                                     }
                                     None => unreachable!("framing said length"),
@@ -229,14 +342,14 @@ impl HttpClientSession {
                         // budget can never hold (a lying chunk size
                         // must not force unbounded buffering).
                         if let ChunkHeader::Chunk { size, .. } = parse_chunk_header(&self.buf)
-                            && self.body_len.saturating_add(size as usize) > self.cfg.max_bytes
+                            && self.body_len.saturating_add(size as usize) > self.cur.max_bytes
                         {
-                            self.finish(HttpOutcome::TooLarge);
+                            self.fail_exchange(HttpOutcome::TooLarge);
                         }
                         return;
                     }
                     crate::response::ChunkStep::Malformed(e) => {
-                        self.finish(HttpOutcome::Malformed(e));
+                        self.fail_exchange(HttpOutcome::Malformed(e));
                         return;
                     }
                     crate::response::ChunkStep::Last { consumed } => {
@@ -256,7 +369,7 @@ impl HttpClientSession {
                 Phase::Trailers => match parse_trailers(&self.buf) {
                     TrailersStep::NeedMore => return,
                     TrailersStep::Malformed(e) => {
-                        self.finish(HttpOutcome::Malformed(e));
+                        self.fail_exchange(HttpOutcome::Malformed(e));
                         return;
                     }
                     TrailersStep::Done { consumed, headers } => {
@@ -284,14 +397,14 @@ impl HttpClientSession {
             }
         }
     }
+}
 
-    /// The request method is all framing needs from the request; parsed
-    /// once at head time (the request line leads the serialized bytes).
-    fn request_method(&self) -> http::Method {
-        let line_end = self.request.iter().position(|&b| b == b' ').unwrap_or(0);
-        let method = String::from_utf8_lossy(&self.request[..line_end]);
-        http::Method::from_bytes(method.as_bytes()).unwrap_or(http::Method::GET)
-    }
+/// The request method is all framing needs from the request; parsed
+/// once per exchange from the serialized request line.
+fn method_of(request: &[u8]) -> http::Method {
+    let line_end = request.iter().position(|&b| b == b' ').unwrap_or(0);
+    let method = String::from_utf8_lossy(&request[..line_end]);
+    http::Method::from_bytes(method.as_bytes()).unwrap_or(http::Method::GET)
 }
 
 impl Session for HttpClientSession {
@@ -307,17 +420,23 @@ impl Session for HttpClientSession {
             match self.phase {
                 Phase::BodyUntilClose => {
                     self.body = std::mem::take(&mut self.buf);
+                    self.closed = true;
                     self.finish_response();
                 }
                 Phase::Done => {}
-                _ => self.finish(HttpOutcome::Truncated),
+                Phase::Sending => {
+                    // EOF between exchanges: nothing was in flight, so
+                    // every still-queued request resolves Closed.
+                    self.close_queue();
+                }
+                _ => self.fail_exchange(HttpOutcome::Truncated),
             }
             return;
         }
         // Byte budget: every response byte counts (head + body).
         self.total_seen += frame.bytes.len();
-        if self.total_seen > self.cfg.max_bytes {
-            self.finish(HttpOutcome::TooLarge);
+        if self.total_seen > self.cur.max_bytes {
+            self.fail_exchange(HttpOutcome::TooLarge);
             return;
         }
         self.buf.extend_from_slice(&frame.bytes);
@@ -329,14 +448,21 @@ impl Session for HttpClientSession {
         if self.phase == Phase::Done {
             return;
         }
-        self.finish(HttpOutcome::Timeout);
+        self.fail_exchange(HttpOutcome::Timeout);
     }
 
     fn poll_action(&mut self) -> Option<SessionAction> {
+        // Next queued request (keep-alive reuse lands here too).
         if self.phase == Phase::Sending {
-            self.sent = true;
-            self.phase = Phase::ReadingHead;
-            return Some(SessionAction::Send(self.request.clone()));
+            if let Some((bytes, cfg)) = self.requests.pop_front() {
+                self.cur = cfg;
+                self.method = method_of(&bytes);
+                self.deadline = self.now + self.cur.timeout;
+                self.phase = Phase::ReadingHead;
+                return Some(SessionAction::Send(bytes));
+            }
+            // Queue empty: idle once the results drain.
+            self.phase = Phase::Done;
         }
         None
     }
@@ -349,7 +475,7 @@ impl Session for HttpClientSession {
     }
 
     fn poll_result(&mut self) -> Option<HttpOutcome> {
-        self.result.take()
+        self.results.pop_front()
     }
 }
 #[cfg(test)]
@@ -603,5 +729,184 @@ mod tests {
         let sent = String::from_utf8(driver.sent[0].clone()).unwrap();
         assert!(sent.starts_with("GET / HTTP/1.1\r\n"));
         assert!(sent.contains("Host: example.com"));
+    }
+
+    // --- tranche 9a: keep-alive queues ------------------------------------
+
+    fn spec_at(path: &str) -> HttpRequestSpec {
+        HttpRequestSpec::build(
+            "GET",
+            &format!("http://example.com{path}"),
+            &[],
+            Bytes::new(),
+        )
+        .unwrap()
+    }
+
+    /// Drive a whole queue by hand: pump actions, feed `script`
+    /// chunks, fire deadlines until idle. Returns every outcome in
+    /// queue order.
+    fn queue_outcomes(specs: &[HttpRequestSpec], script: Vec<Vec<u8>>) -> Vec<HttpOutcome> {
+        let cfgs = vec![cfg(); specs.len()];
+        let mut s = HttpClientSession::with_requests(specs, &cfgs, t0()).unwrap();
+        let mut out = Vec::new();
+        let mut t = t0();
+        let mut script = script.into_iter().peekable();
+        loop {
+            while s.poll_action().is_some() {}
+            while let Some(o) = s.poll_result() {
+                out.push(o);
+            }
+            let Some(next) = s.next_timeout() else {
+                break;
+            };
+            if next > t {
+                t = next;
+            }
+            match script.next() {
+                Some(chunk) => {
+                    t += MS;
+                    s.on_frame(frame(chunk), t);
+                }
+                None => s.on_timeout(t),
+            }
+        }
+        while s.poll_action().is_some() {}
+        while let Some(o) = s.poll_result() {
+            out.push(o);
+        }
+        out
+    }
+
+    const R1: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+    const R2: &[u8] = b"HTTP/1.1 404 Not Found\r\nContent-Length: 3\r\n\r\nnoo";
+
+    #[test]
+    fn two_gets_ride_one_connection() {
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let out = queue_outcomes(&specs, vec![R1.to_vec(), R2.to_vec()]);
+        assert_eq!(out.len(), 2, "{out:?}");
+        assert!(
+            matches!(&out[0], HttpOutcome::Response(r) if r.status == 200 && &r.body[..] == b"ok")
+        );
+        assert!(
+            matches!(&out[1], HttpOutcome::Response(r) if r.status == 404 && &r.body[..] == b"noo")
+        );
+    }
+
+    #[test]
+    fn keepalive_request_headers() {
+        // Every request but the last announces keep-alive; the last
+        // announces close.
+        let specs = [spec_at("/a"), spec_at("/b"), spec_at("/c")];
+        let cfgs = vec![cfg(); 3];
+        let mut s = HttpClientSession::with_requests(&specs, &cfgs, t0()).unwrap();
+        // Serialize-time check: drain sends up to the first (the rest
+        // wait for responses), then inspect the queue tail directly.
+        let mut n = 0;
+        while let Some(SessionAction::Send(b)) = s.poll_action() {
+            let text = String::from_utf8(b.to_vec()).unwrap();
+            assert!(text.contains("Connection: keep-alive"), "{text}");
+            n += 1;
+            assert!(n == 1);
+        }
+        // The tail request (still queued) serialized with close.
+        let tail = String::from_utf8(s.requests.back().unwrap().0.to_vec()).unwrap();
+        assert!(tail.contains("Connection: close"), "{tail}");
+    }
+
+    #[test]
+    fn connection_close_ends_the_queue() {
+        // The server responds then closes: the second queued request
+        // resolves Closed (it never left).
+        let close = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let out = queue_outcomes(&specs, vec![close.to_vec(), vec![]]);
+        assert_eq!(out.len(), 2, "{out:?}");
+        assert!(matches!(out[0], HttpOutcome::Response(_)));
+        assert!(matches!(out[1], HttpOutcome::Closed), "{out:?}");
+    }
+
+    #[test]
+    fn until_close_ends_the_queue() {
+        // No framing declared: the body reads to EOF, which consumes
+        // the connection — the queued request resolves Closed.
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let out = queue_outcomes(
+            &specs,
+            vec![b"HTTP/1.1 200 OK\r\n\r\nbody".to_vec(), vec![]],
+        );
+        assert_eq!(out.len(), 2);
+        assert!(matches!(out[1], HttpOutcome::Closed), "{out:?}");
+    }
+
+    #[test]
+    fn eof_mid_queue_is_truncated() {
+        // The runtime always drains sends before reads, so an EOF after
+        // response 1 arrives while request 2 is in flight: Truncated.
+        // (`Closed` is for requests that never left the queue — a
+        // `Connection: close` response or a failed exchange.)
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let out = queue_outcomes(&specs, vec![R1.to_vec(), vec![]]);
+        assert_eq!(out.len(), 2);
+        assert!(matches!(out[0], HttpOutcome::Response(_)));
+        assert!(matches!(out[1], HttpOutcome::Truncated), "{out:?}");
+    }
+
+    #[test]
+    fn timeout_fails_the_exchange_and_closes_the_queue() {
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let out = queue_outcomes(&specs, vec![R1.to_vec()]);
+        // After R1 completes, request 2 is in flight; the script runs
+        // dry, so its deadline fires: Timeout, then nothing left.
+        assert_eq!(out.len(), 2);
+        assert!(matches!(out[0], HttpOutcome::Response(_)));
+        assert!(matches!(out[1], HttpOutcome::Timeout), "{out:?}");
+    }
+
+    #[test]
+    fn queue_boundary_sweep_every_split_position() {
+        // Both responses split at every boundary must produce the
+        // identical outcome pair.
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let whole = queue_outcomes(&specs, vec![R1.to_vec(), R2.to_vec()]);
+        for i in 1..R1.len() {
+            let got = queue_outcomes(
+                &specs,
+                vec![R1[..i].to_vec(), R1[i..].to_vec(), R2.to_vec()],
+            );
+            assert_eq!(got, whole, "split r1 at {i} diverged");
+        }
+        for i in 1..R2.len() {
+            let got = queue_outcomes(
+                &specs,
+                vec![R1.to_vec(), R2[..i].to_vec(), R2[i..].to_vec()],
+            );
+            assert_eq!(got, whole, "split r2 at {i} diverged");
+        }
+    }
+
+    #[test]
+    fn run_loop_drains_a_whole_queue() {
+        // The shared runtime loop over a keep-alive queue.
+        let reg_clock = Arc::new(FakeClock::new());
+        let t = reg_clock.now();
+        let specs = [spec_at("/a"), spec_at("/b")];
+        let cfgs = vec![cfg(); 2];
+        let mut session = HttpClientSession::with_requests(&specs, &cfgs, t).unwrap();
+        let mut driver = ScriptedDriver::new(reg_clock.clone(), vec![R1.to_vec(), R2.to_vec()]);
+        let out = wrex_session::run(&mut session, &mut driver, reg_clock.as_ref()).unwrap();
+        assert_eq!(out.len(), 2);
+        assert!(matches!(&out[0], HttpOutcome::Response(r) if r.status == 200));
+        assert!(matches!(&out[1], HttpOutcome::Response(r) if r.status == 404));
+        // both requests rode the same connection, keep-alive then close
+        let sent: Vec<String> = driver
+            .sent
+            .iter()
+            .map(|b| String::from_utf8(b.clone()).unwrap())
+            .collect();
+        assert_eq!(sent.len(), 2);
+        assert!(sent[0].contains("Connection: keep-alive"), "{:?}", sent[0]);
+        assert!(sent[1].contains("Connection: close"), "{:?}", sent[1]);
     }
 }

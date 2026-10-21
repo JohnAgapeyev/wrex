@@ -8,6 +8,21 @@ use std::str::FromStr;
 
 use bytes::{BufMut, Bytes, BytesMut};
 
+/// Request body wire framing (tranche 9a).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RequestFraming {
+    /// `Content-Length` framing (the default; the T4 shape).
+    #[default]
+    Length,
+    /// `Transfer-Encoding: chunked` with a **fixed** chunk size, so
+    /// serialization stays deterministic (recipe replay / mutation
+    /// substrates pin the exact wire bytes).
+    Chunked,
+}
+
+/// Default fixed chunk size for [`RequestFraming::Chunked`] bodies.
+pub const DEFAULT_CHUNK_SIZE: usize = 4096;
+
 /// One fully-resolved HTTP/1.1 request.
 #[derive(Clone, Debug)]
 pub struct HttpRequestSpec {
@@ -18,6 +33,10 @@ pub struct HttpRequestSpec {
     /// User-supplied headers, in order (serialization preserves it).
     pub headers: Vec<(http::HeaderName, http::HeaderValue)>,
     pub body: Bytes,
+    /// Body wire framing (length vs chunked; tranche 9a).
+    pub framing: RequestFraming,
+    /// Fixed chunk size for [`RequestFraming::Chunked`] (deterministic).
+    pub chunk_size: usize,
 }
 
 /// Default identity header values.
@@ -59,11 +78,27 @@ impl HttpRequestSpec {
             url,
             headers: parsed,
             body,
+            framing: RequestFraming::Length,
+            chunk_size: DEFAULT_CHUNK_SIZE,
         })
     }
 
-    /// Serialize to HTTP/1.1 wire bytes.
+    /// Set the body wire framing (recipe `body_framing`/`chunk_size`).
+    pub fn with_framing(mut self, framing: RequestFraming, chunk_size: usize) -> Self {
+        self.framing = framing;
+        self.chunk_size = chunk_size;
+        self
+    }
+
+    /// Serialize to HTTP/1.1 wire bytes (close-mode: `Connection: close`,
+    /// the T4 shape).
     pub fn serialize(&self) -> Result<Bytes, String> {
+        self.serialize_connection(false)
+    }
+
+    /// Serialize with the `Connection` header the caller picked
+    /// (keep-alive queues pass `true` for every request but the last).
+    pub fn serialize_connection(&self, keep_alive: bool) -> Result<Bytes, String> {
         // Scheme gate: http and https serialize identically (the https
         // transport lives verb-side in wrex-tls); everything else is a
         // pointed usage error.
@@ -84,12 +119,14 @@ impl HttpRequestSpec {
             .unwrap_or_else(|| "/".to_string());
 
         let has = |name: &str| self.headers.iter().any(|(n, _)| n.as_str() == name);
-        // Chunked requests are a documented deferral; reject loudly
-        // rather than silently mis-framing a body.
+        // An explicit Transfer-Encoding always conflicts: the framing
+        // knob owns the header (chunked) or rejects it (length).
         if has("transfer-encoding") {
-            return Err("Transfer-Encoding on requests is unsupported at tranche 4 \
-                 (send a Content-Length body)"
-                .to_string());
+            return Err(
+                "Transfer-Encoding on requests is owned by the body framing knob \
+                 (body_framing: chunked); remove the explicit header"
+                    .to_string(),
+            );
         }
 
         let mut buf = BytesMut::new();
@@ -116,15 +153,42 @@ impl HttpRequestSpec {
             put_header(&mut buf, "Accept", "*/*");
         }
         if !has("connection") {
-            put_header(&mut buf, "Connection", "close");
+            put_header(
+                &mut buf,
+                "Connection",
+                if keep_alive { "keep-alive" } else { "close" },
+            );
         }
-        if !self.body.is_empty() && !has("content-length") {
-            put_header(&mut buf, "Content-Length", &self.body.len().to_string());
+        match self.framing {
+            RequestFraming::Length => {
+                if !self.body.is_empty() && !has("content-length") {
+                    put_header(&mut buf, "Content-Length", &self.body.len().to_string());
+                }
+                buf.put_slice(b"\r\n");
+                buf.put_slice(&self.body);
+            }
+            // Fixed-size chunks (never size-adaptive) so the same spec
+            // replays byte-identically.
+            RequestFraming::Chunked => {
+                put_header(&mut buf, "Transfer-Encoding", "chunked");
+                buf.put_slice(b"\r\n");
+                put_chunked(&mut buf, &self.body, self.chunk_size);
+            }
         }
-        buf.put_slice(b"\r\n");
-        buf.put_slice(&self.body);
         Ok(buf.freeze())
     }
+}
+
+/// RFC 9112 §7.1 chunked encoding with a **fixed** chunk size.
+fn put_chunked(buf: &mut BytesMut, body: &[u8], chunk_size: usize) {
+    let size = chunk_size.max(1);
+    for piece in body.chunks(size) {
+        buf.put_slice(format!("{:x}", piece.len()).as_bytes());
+        buf.put_slice(b"\r\n");
+        buf.put_slice(piece);
+        buf.put_slice(b"\r\n");
+    }
+    buf.put_slice(b"0\r\n\r\n");
 }
 
 fn put_header(buf: &mut BytesMut, name: &str, value: &str) {
@@ -215,6 +279,46 @@ mod tests {
         )
         .unwrap();
         assert!(spec.serialize().unwrap_err().contains("Transfer-Encoding"));
+    }
+
+    #[test]
+    fn chunked_request_body_golden() {
+        // 10-byte body, chunk size 4 → chunks 4/4/2 then the last chunk.
+        let spec = HttpRequestSpec::build(
+            "POST",
+            "http://example.com/",
+            &[],
+            Bytes::from_static(b"0123456789"),
+        )
+        .unwrap()
+        .with_framing(RequestFraming::Chunked, 4);
+        let wire = String::from_utf8(spec.serialize().unwrap().to_vec()).unwrap();
+        assert!(
+            wire.contains("Transfer-Encoding: chunked\r\n"),
+            "framing header derives: {wire}"
+        );
+        assert!(!wire.contains("Content-Length"), "{wire}");
+        assert!(wire.ends_with("\r\n\r\n4\r\n0123\r\n4\r\n4567\r\n2\r\n89\r\n0\r\n\r\n"));
+        // An empty chunked body is just the last chunk.
+        let empty = HttpRequestSpec::build("POST", "http://example.com/", &[], Bytes::new())
+            .unwrap()
+            .with_framing(RequestFraming::Chunked, 4);
+        let wire = String::from_utf8(empty.serialize().unwrap().to_vec()).unwrap();
+        assert!(wire.ends_with("\r\n\r\n0\r\n\r\n"));
+    }
+
+    #[test]
+    fn keepalive_header_and_determinism() {
+        let spec = HttpRequestSpec::build("GET", "http://example.com/", &[], Bytes::new())
+            .unwrap()
+            .with_framing(RequestFraming::Chunked, 8);
+        let ka = String::from_utf8(spec.serialize_connection(true).unwrap().to_vec()).unwrap();
+        assert!(ka.contains("Connection: keep-alive\r\n"), "{ka}");
+        // same spec ⇒ byte-identical (recipe replay / mutation substrate)
+        assert_eq!(
+            spec.serialize_connection(true).unwrap(),
+            spec.serialize_connection(true).unwrap()
+        );
     }
 
     #[test]

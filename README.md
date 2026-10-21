@@ -204,6 +204,23 @@ per probe (post-mutation identity), one finding per probe with the
 exact probe bytes (replayable with `wrex send`/`replay`) for offline
 differential.
 
+**Tranche 9a** (delivered): HTTP keep-alive + chunked request
+bodies. `wrex http [METHOD] URL [URL...]` (or a recipe array /
+`{"requests": [...]}` file) rides ONE connection in order — the
+response's own `Connection` header (and HTTP/1.0, and read-to-close
+framing) decides whether the queue continues; recipe
+`body_framing: "chunked"` (+ fixed `chunk_size`, default 4096) sends
+deterministic fixed-size request chunks.
+
+**Tranche 9b** (delivered): application-layer fuzzing. `wrex fuzz
+--mode http|dns` — the probe unit is one whole request exchange over
+a fresh kernel `TcpDriver` connection (no raw sockets, no `-i`):
+mutated request bytes out, response bytes recorded until EOF (budget
+capped), one finding per probe, seeded and reproducible. The
+twice-deferred userspace TCP stack stays deferred — kernel transport
+covers application-layer mutation; only mutating TCP state *and*
+continuing the exchange would need it.
+
 Mutation and probing (tranche 6; `mut` needs no privileges, `fuzz`
 injects via a raw-IP socket — `CAP_NET_RAW`):
 

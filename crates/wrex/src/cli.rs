@@ -109,46 +109,59 @@ NOTES:
   stops at --count matching frames or after --timeout (exit 0);
   --promisc opts into promiscuous mode. Needs CAP_NET_RAW.";
 
-/// Epilog for http: the HTTP/1.1 ask verb (tranche 4; https at 8a).
+/// Epilog for http: the HTTP/1.1 ask verb (tranche 4; https at 8a;
+/// keep-alive queues + chunked request bodies at 9a).
 pub const HTTP_AFTER_HELP: &str = "\
 HTTP GRAMMAR:
-  wrex http [METHOD] URL [-H NAME:VALUE]... [--data TEXT|@FILE|hex:…]
+  wrex http [METHOD] URL [URL...] [-H NAME:VALUE]... [--data TEXT|@FILE|hex:…]
            [--timeout DUR] [--retries N] [--max-bytes N]
            [--source-port N] [--fail] [--recipe FILE]
            [--tls-insecure] [--tls-ca FILE]
            [--format text|json|raw]
 
-  One HTTP/1.1 exchange per connection (Connection: close): the
-  request is fully materialized first, so the same arguments (or the
-  same --recipe FILE) replay byte-identical wire bytes. Host,
+  One URL (or a lone --recipe object) is the tranche-4 close mode:
+  one exchange per connection (Connection: close). Multiple URLs
+  (or a recipe array / {\"requests\": [...]} file) ride ONE
+  keep-alive connection in order — every request but the last
+  carries Connection: keep-alive; a response that says close (or
+  HTTP/1.0, or read-to-close framing) ends the queue there.
+
+  Requests are fully materialized first, so the same arguments (or
+  the same --recipe FILE) replay byte-identical wire bytes. Host,
   User-Agent, Accept and Content-Length derive automatically with
-  explicit-wins semantics (user headers come first, in order).
+  explicit-wins semantics (user headers come first, in order);
+  -H/--data apply to every URL of a multi-URL run.
 
   Bodies: content-length and chunked (trailers merge into headers),
-  read-to-close when neither is declared; 1xx skipped; HEAD/204/304
-  carry no body. https:// rides TLS (the rustls engine behind the
-  wrex-tls driver adapter): SNI from the URL host, system roots plus
-  optional --tls-ca FILE additions (PEM or DER); --tls-insecure
-  accepts ANY certificate (dangerous: no name/chain/validity check —
-  for lab targets). Close mode unchanged: one exchange per TLS
-  connection.
+  read-to-close when neither is declared; recipe body_framing
+  \"chunked\" switches the REQUEST to fixed-size chunks (chunk_size,
+  default 4096 — deterministic). 1xx skipped; HEAD/204/304 carry no
+  body. https:// rides TLS (the rustls engine behind the wrex-tls
+  driver adapter): SNI from the URL host, system roots plus optional
+  --tls-ca FILE additions (PEM or DER); --tls-insecure accepts ANY
+  certificate (dangerous: no name/chain/validity check — for lab
+  targets).
 
-  Any completed exchange is exit 0 whatever the status says; --fail
-  turns 4xx/5xx into exit 1; connect/timeout/protocol failures are
-  exit 1; grammar and recipe errors are exit 2.
+  Any completed run is exit 0 whatever the statuses say; --fail
+  turns any 4xx/5xx into exit 1 (after printing); connect/timeout/
+  protocol failures are exit 1; grammar and recipe errors are exit 2.
 
 RECIPE (--recipe FILE, JSON):
   {\"method\": \"POST\", \"url\": \"https://host/api\",
    \"headers\": [[\"X-A\", \"1\"]], \"body_hex\": \"deadbeef\",
+   \"body_framing\": \"chunked\", \"chunk_size\": 4096,
    \"timeout_ms\": 1500, \"retries\": 1, \"max_bytes\": 67108864,
    \"tls_insecure\": false, \"tls_ca\": \"ca.pem\"}
-  Ordered header pairs keep wire bytes deterministic; body_hex and
-  body_text are mutually exclusive. tls_insecure/tls_ca are additive
-  (defaults: off/absent) and honored for https urls.
+  A queue is a top-level array of such objects or
+  {\"requests\": [obj, obj, …]} (one keep-alive connection, in
+  order). Ordered header pairs keep wire bytes deterministic;
+  body_hex and body_text are mutually exclusive. tls_insecure/tls_ca
+  are additive (defaults: off/absent) and honored for https urls.
 
 EXAMPLES:
   wrex http http://example.com/
   wrex http POST http://example.com/api -H X-Thing:42 --data '{\"a\":1}'
+  wrex http http://example.com/a http://example.com/b   # one connection
   wrex http --recipe req.json --format json
   wrex http https://example.com/ --tls-insecure
   wrex http https://example.com/ --tls-ca myca.pem
@@ -306,7 +319,7 @@ pub enum Cmd {
     /// Probe targets with mutated packets; record replies as findings.
     Fuzz(FuzzArgs),
 
-    /// One HTTP/1.1 exchange: send a request, dissect the response.
+    /// HTTP/1.1 exchanges: send request(s), dissect the responses.
     Http(HttpArgs),
 
     /// Ask a DNS server one question over raw UDP and dissect the reply.
@@ -674,10 +687,11 @@ EXAMPLES:
   wrex craft --format raw --layer eth --layer ipv4 --layer udp \\
     --ipv4-dst=10.0.0.5 --udp-dport=53 | wrex mut --count 4";
 
-/// Epilog for fuzz: the tranche-6b recording prober.
+/// Epilog for fuzz: the tranche-6b recording prober (+ 9b app modes).
 pub const FUZZ_AFTER_HELP: &str = "\
 GRAMMAR:
   wrex fuzz -i IFACE [--mode tcp|udp|icmp] [options] TARGET...
+  wrex fuzz [--mode http|dns] [--ports N] [options] TARGET...
 
   For every (target, port) slot: an optional unmutated baseline probe
   (--baseline), then --rounds mutated probes (wrex-mut strategies).
@@ -691,18 +705,23 @@ MODES (--mode, default udp):
   udp    empty datagrams; any datagram on the 4-tuple is a reply;
          ICMP 3/x unreachables attribute via the quoted datagram
   icmp   echo sweeps (no ports); type-0 replies with a matching id
+  http   APPLICATION-LAYER (tranche 9b): one GET per probe over a
+         fresh kernel TCP connection (no -i, no capabilities); the
+         mutated REQUEST bytes are recorded with the response
+  dns    application-layer DNS: one RFC 7766 length-prefixed query
+         per probe over a fresh TCP connection (response recorded)
 
   Reply keys derive from the POST-mutation dissection: a mutation
   that moved the identity still matches its own replies.
 
 PORTS (--ports): comma list with ranges. tcp defaults to the
   committed top-100 list (same as scan); udp REQUIRES --ports; icmp
-  takes none.
+  takes none; http defaults to 80; dns defaults to 53.
 
 TIMING (same vocabulary as scan): --rate N (default 100; 0 = burst),
   --interval DUR, --jitter DUR, --seed U64 (identities, mutation
   streams, jitter), --timeout DUR (default 1s), --retries N,
-  --concurrent N (default 256).
+  --concurrent N (default 256; raw modes only).
 
 FINDINGS: one line per probe — --format text (default), json (array)
   or jsonl; every finding carries the exact probe bytes (hex), so
@@ -712,7 +731,9 @@ FINDINGS: one line per probe — --format text (default), json (array)
 EXAMPLES:
   wrex fuzz -i lo --baseline --rounds 4 127.0.0.1
   wrex fuzz -i eth0 --mode udp --ports 53,161 --rounds 16 --seed 7 10.0.0.0/24
-  wrex fuzz -i eth0 --mode tcp --ports 22,443 --strategy field 10.0.0.5";
+  wrex fuzz -i eth0 --mode tcp --ports 22,443 --strategy field 10.0.0.5
+  wrex fuzz --mode http --baseline --rounds 4 127.0.0.1   # app layer
+  wrex fuzz --mode dns --ports 5353 --rounds 8 127.0.0.1";
 
 /// `wrex mut`: seeded, dissect-aware frame mutation.
 #[derive(Args, Debug)]
@@ -878,8 +899,10 @@ pub struct QueryArgs {
 pub struct HttpArgs {
     #[command(flatten)]
     pub common: Common,
-    /// Positional grammar: [METHOD] URL (URL alone ⇒ GET). Declared as
-    /// one vec so clap cannot mis-assign a URL to the method slot.
+    /// Positional grammar: [METHOD] URL [URL...] (a URL-looking first
+    /// token ⇒ GET + a URL list; more URLs ride one keep-alive
+    /// connection, tranche 9a). Declared as one vec so clap cannot
+    /// mis-assign a URL to the method slot.
     #[arg(value_name = "URL_OR_METHOD")]
     pub positional: Vec<String>,
     /// Request header, repeatable (NAME:VALUE).

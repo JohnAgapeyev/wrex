@@ -68,6 +68,7 @@ Targets: IPv4, CIDR or START\-END ranges (repeatable)
 .SH EXTRA
 GRAMMAR:
   wrex fuzz \-i IFACE [\-\-mode tcp|udp|icmp] [options] TARGET...
+  wrex fuzz [\-\-mode http|dns] [\-\-ports N] [options] TARGET...
 
   For every (target, port) slot: an optional unmutated baseline probe
   (\-\-baseline), then \-\-rounds mutated probes (wrex\-mut strategies).
@@ -81,18 +82,23 @@ MODES (\-\-mode, default udp):
   udp    empty datagrams; any datagram on the 4\-tuple is a reply;
          ICMP 3/x unreachables attribute via the quoted datagram
   icmp   echo sweeps (no ports); type\-0 replies with a matching id
+  http   APPLICATION\-LAYER (tranche 9b): one GET per probe over a
+         fresh kernel TCP connection (no \-i, no capabilities); the
+         mutated REQUEST bytes are recorded with the response
+  dns    application\-layer DNS: one RFC 7766 length\-prefixed query
+         per probe over a fresh TCP connection (response recorded)
 
   Reply keys derive from the POST\-mutation dissection: a mutation
   that moved the identity still matches its own replies.
 
 PORTS (\-\-ports): comma list with ranges. tcp defaults to the
   committed top\-100 list (same as scan); udp REQUIRES \-\-ports; icmp
-  takes none.
+  takes none; http defaults to 80; dns defaults to 53.
 
 TIMING (same vocabulary as scan): \-\-rate N (default 100; 0 = burst),
   \-\-interval DUR, \-\-jitter DUR, \-\-seed U64 (identities, mutation
   streams, jitter), \-\-timeout DUR (default 1s), \-\-retries N,
-  \-\-concurrent N (default 256).
+  \-\-concurrent N (default 256; raw modes only).
 
 FINDINGS: one line per probe — \-\-format text (default), json (array)
   or jsonl; every finding carries the exact probe bytes (hex), so
@@ -103,3 +109,5 @@ EXAMPLES:
   wrex fuzz \-i lo \-\-baseline \-\-rounds 4 127.0.0.1
   wrex fuzz \-i eth0 \-\-mode udp \-\-ports 53,161 \-\-rounds 16 \-\-seed 7 10.0.0.0/24
   wrex fuzz \-i eth0 \-\-mode tcp \-\-ports 22,443 \-\-strategy field 10.0.0.5
+  wrex fuzz \-\-mode http \-\-baseline \-\-rounds 4 127.0.0.1   # app layer
+  wrex fuzz \-\-mode dns \-\-ports 5353 \-\-rounds 8 127.0.0.1

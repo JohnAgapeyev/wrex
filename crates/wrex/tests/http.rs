@@ -71,10 +71,10 @@ fn grammar_errors_are_usage() {
     let (code, stderr) = http_err(&[]);
     assert_eq!(code, 2);
     assert!(stderr.contains("http needs a URL"), "{stderr}");
-    // three positionals
+    // "extra" is not a URL: the [METHOD] URL... grammar rejects it
     let (code, stderr) = http_err(&["GET", "http://x/", "extra"]);
     assert_eq!(code, 2);
-    assert!(stderr.contains("at most"), "{stderr}");
+    assert!(stderr.contains("scheme"), "{stderr}");
     // unsupported scheme
     let (code, stderr) = http_err(&["ftp://example.com/"]);
     assert_eq!(code, 2);
@@ -219,4 +219,193 @@ fn help_renders_the_http_grammar() {
     assert!(stdout.contains("--recipe"), "{stdout}");
     assert!(stdout.contains("--fail"), "{stdout}");
     assert!(stdout.contains("--max-bytes"), "{stdout}");
+}
+
+// --- tranche 9a: keep-alive queues + chunked request bodies ------------------
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// A keep-alive stub: per connection, read N requests (headers+body),
+/// answer each in order, then close. Counts connections.
+fn spawn_keepalive_stub(
+    responses: Vec<Vec<u8>>,
+    expect_requests: usize,
+) -> (u16, Arc<AtomicUsize>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let conns = Arc::new(AtomicUsize::new(0));
+    let conns2 = conns.clone();
+    std::thread::spawn(move || {
+        let mut served = 0usize;
+        for _ in 0..16 {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            conns2.fetch_add(1, Ordering::SeqCst);
+            let mut chunk = [0u8; 4096];
+            let mut buf = Vec::new();
+            let mut answered = 0usize;
+            while answered < expect_requests && served < 32 {
+                let n = match conn.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => n,
+                    Err(_) => return,
+                };
+                buf.extend_from_slice(&chunk[..n]);
+                // a request is complete at the blank line (GETs, no CL)
+                if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    buf.clear();
+                    if let Some(resp) = responses.get(answered) {
+                        let _ = conn.write_all(resp);
+                    }
+                    answered += 1;
+                    served += 1;
+                }
+            }
+            let _ = conn.shutdown(std::net::Shutdown::Write);
+        }
+    });
+    (port, conns)
+}
+
+#[test]
+fn multi_url_rides_one_keepalive_connection() {
+    let (port, conns) = spawn_keepalive_stub(
+        vec![
+            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok".to_vec(),
+            b"HTTP/1.1 404 Not Found\r\nContent-Length: 3\r\n\r\nnoo".to_vec(),
+        ],
+        2,
+    );
+    // Two URLs over one connection: both responses, in order.
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            &format!("http://127.0.0.1:{port}/a"),
+            &format!("http://127.0.0.1:{port}/b"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"oknoo");
+    assert_eq!(conns.load(Ordering::SeqCst), 1, "one connection expected");
+}
+
+#[test]
+fn recipe_array_is_a_keepalive_queue() {
+    let (port, conns) = spawn_keepalive_stub(
+        vec![
+            b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\n1".to_vec(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\n2".to_vec(),
+        ],
+        2,
+    );
+    let dir = std::env::temp_dir().join("wrex-http-cli-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let recipe = dir.join("queue.json");
+    std::fs::write(
+        &recipe,
+        format!(
+            r#"{{"requests": [
+                {{"method": "GET", "url": "http://127.0.0.1:{port}/a"}},
+                {{"method": "GET", "url": "http://127.0.0.1:{port}/b"}}
+            ]}}"#
+        ),
+    )
+    .unwrap();
+    let out = wrex()
+        .args([
+            "http",
+            "--recipe",
+            recipe.to_str().unwrap(),
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"12");
+    assert_eq!(conns.load(Ordering::SeqCst), 1);
+    // a top-level array parses the same
+    let recipe = dir.join("queue2.json");
+    std::fs::write(
+        &recipe,
+        format!(
+            r#"[
+                {{"method": "GET", "url": "http://127.0.0.1:{port}/a"}},
+                {{"method": "GET", "url": "http://127.0.0.1:{port}/b"}}
+            ]"#
+        ),
+    )
+    .unwrap();
+    let out = wrex()
+        .args([
+            "http",
+            "--recipe",
+            recipe.to_str().unwrap(),
+            "--format",
+            "raw",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"12");
+}
+
+#[test]
+fn chunked_request_body_on_the_wire() {
+    // A recording stub: assert the TX bytes carry chunked framing.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen2 = seen.clone();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut chunk = [0u8; 4096];
+        let mut buf = Vec::new();
+        while let Ok(n) = conn.read(&mut chunk) {
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if buf.windows(4).any(|w| w == b"\r\n\r\n") && buf.windows(5).any(|w| w == b"0\r\n\r\n")
+            {
+                break;
+            }
+        }
+        *seen2.lock().unwrap() = buf.clone();
+        let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    let dir = std::env::temp_dir().join("wrex-http-cli-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let recipe = dir.join("chunked.json");
+    std::fs::write(
+        &recipe,
+        format!(
+            r#"{{"method": "POST", "url": "http://127.0.0.1:{port}/c",
+                "body_text": "0123456789", "body_framing": "chunked",
+                "chunk_size": 4}}"#
+        ),
+    )
+    .unwrap();
+    wrex()
+        .args(["http", "--recipe", recipe.to_str().unwrap()])
+        .assert()
+        .success();
+    let wire = String::from_utf8(seen.lock().unwrap().clone()).unwrap();
+    assert!(wire.contains("Transfer-Encoding: chunked"), "{wire}");
+    assert!(
+        wire.ends_with("4\r\n0123\r\n4\r\n4567\r\n2\r\n89\r\n0\r\n\r\n"),
+        "{wire}"
+    );
 }

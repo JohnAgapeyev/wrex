@@ -34,7 +34,7 @@ mod chunked;
 
 pub use http;
 pub use recipe::Recipe;
-pub use request::HttpRequestSpec;
+pub use request::{DEFAULT_CHUNK_SIZE, HttpRequestSpec, RequestFraming};
 pub use response::HttpResponse;
 pub use session::{HttpClientSession, HttpConfig, HttpOutcome};
 

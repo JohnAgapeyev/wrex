@@ -1264,18 +1264,28 @@ fn mut_verb(
 }
 
 /// `wrex fuzz`: the stateful recording prober — baseline + mutated
-/// probes over a [`RawIpDriver`], one finding per probe.
+/// probes over a [`RawIpDriver`], one finding per probe. The tranche-9b
+/// app modes (`http`/`dns`) ride the kernel `TcpDriver` instead (no
+/// raw sockets, no `-i`): one fresh connection per probe.
 fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError> {
     use wrex_fuzz::{DEFAULT_ROUNDS, FuzzConfig, ProbeMode};
     use wrex_mut::Strategy;
 
     let common = &args.common;
-    let Some(iface) = common.iface.as_deref() else {
-        return Err(usage("fuzz requires -i/--iface"));
-    };
     let mode = ProbeMode::parse(args.mode.as_deref()).map_err(usage)?;
-    // Registry gating up front (usage → exit 2).
-    for kind in mode.needs() {
+    // Raw modes need the capture interface; the app modes ride the
+    // kernel stream driver instead (validated later, once ports are).
+    if !mode.is_app() && common.iface.is_none() {
+        return Err(usage("fuzz requires -i/--iface (unless --mode http|dns)"));
+    }
+    // Registry gating up front (usage → exit 2). The app modes need no
+    // codecs (the seed is verb-side; mutation is request-bytes level).
+    let family = wrex_scan::target::parse_targets(&args.targets)
+        .map_err(usage)?
+        .first()
+        .map(|t| t.family())
+        .unwrap_or(wrex_scan::Family::V4);
+    for kind in mode.needs_for(family) {
         if registry.get(kind).is_none() {
             return Err(usage(format!(
                 "{kind} layer not registered (registered: {})",
@@ -1332,6 +1342,18 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
         ));
     }
 
+    // Tranche 9b: the application-layer modes ride the kernel stream
+    // driver (plain sockets, no -i, no capabilities).
+    if mode.is_app() {
+        let findings = fuzz_app_probes(registry, &cfg)?;
+        write_stdout(render_findings(&findings, format)?.as_bytes())?;
+        return Ok(());
+    }
+
+    // Raw modes: the interface is required (validated above) and the
+    // capture driver needs it.
+    let iface = common.iface.as_deref().expect("checked above");
+
     // Interface + source address (kernel routes on the datagram dst).
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
@@ -1378,6 +1400,13 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
         }
     };
 
+    write_stdout(render_findings(&findings, format)?.as_bytes())?;
+    // Probe run completed → exit 0 regardless of what the findings say.
+    Ok(())
+}
+
+/// Findings as stdout text (the `--format text|json|jsonl` shapes).
+fn render_findings(findings: &[wrex_fuzz::Finding], format: Format) -> Result<String, CliError> {
     let mut out = String::new();
     match format {
         Format::Json => {
@@ -1387,13 +1416,13 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
             out.push('\n');
         }
         Format::Text => {
-            for f in &findings {
+            for f in findings {
                 out.push_str(&f.text_line());
                 out.push('\n');
             }
         }
         Format::Jsonl => {
-            for f in &findings {
+            for f in findings {
                 let json = serde_json::to_string(f)
                     .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
                 out.push_str(&json);
@@ -1402,9 +1431,176 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
         }
         Format::Raw | Format::Hex => unreachable!("rejected above"),
     }
-    write_stdout(out.as_bytes())?;
-    // Probe run completed → exit 0 regardless of what the findings say.
-    Ok(())
+    Ok(out)
+}
+
+/// Tranche 9b: run the app-mode probe table — per (target, port) slot,
+/// an optional baseline then `--rounds` mutated rounds, one finding
+/// each. Every probe is one fresh kernel-TCP connection (mirroring
+/// `query --tcp`); retransmissions repeat the exact mutated bytes on a
+/// new connection; a connect failure or empty run is silence.
+fn fuzz_app_probes(
+    registry: &Registry,
+    cfg: &wrex_fuzz::FuzzConfig,
+) -> Result<Vec<wrex_fuzz::Finding>, CliError> {
+    use std::net::{Ipv4Addr, SocketAddrV4};
+    use wrex_fuzz::{AppConfig, AppOutcome, AppSession, Outcome};
+    use wrex_scan::ScanAddr;
+
+    // The kernel TcpDriver speaks v4 (out of charter otherwise).
+    let targets: Vec<Ipv4Addr> = cfg
+        .targets
+        .iter()
+        .map(|t| match t {
+            ScanAddr::V4(a) => Ok(*a),
+            ScanAddr::V6(_) => Err(usage(
+                "fuzz: app modes need IPv4 targets (the kernel TCP driver is v4)",
+            )),
+        })
+        .collect::<Result<_, _>>()?;
+
+    let mut rng = wrex_io::Rng::new(cfg.seed);
+    let mut findings = Vec::new();
+
+    for &target in &targets {
+        for &port in &cfg.ports {
+            // The unmutated seed request (verb-side; transport framing
+            // is well-formed so mutations land on the request bytes).
+            let seed: bytes::Bytes = match cfg.mode {
+                wrex_fuzz::ProbeMode::Http => {
+                    let url = format!("http://{target}/");
+                    let spec =
+                        wrex_http::HttpRequestSpec::build("GET", &url, &[], bytes::Bytes::new())
+                            .map_err(|e| usage(format!("fuzz: http seed: {e}")))?;
+                    spec.serialize()
+                        .map_err(|e| usage(format!("fuzz: http seed: {e}")))?
+                }
+                wrex_fuzz::ProbeMode::Dns => {
+                    // One RFC 7766 length-prefixed A query.
+                    let qcfg = wrex_dns::QueryConfig {
+                        server: target,
+                        port,
+                        name: "example.com.".to_string(),
+                        qtype: "A".to_string(),
+                        qclass: "IN".to_string(),
+                        rd: true,
+                        retries: 0,
+                        timeout: cfg.timeout,
+                        seed: cfg.seed,
+                    };
+                    let sess = wrex_dns::DnsSession::new(
+                        registry,
+                        qcfg,
+                        target, // packet src (unused: only query_bytes is read)
+                        Instant::now(),
+                    )
+                    .map_err(|e| usage(format!("fuzz: dns seed: {e}")))?;
+                    let query = sess.query_bytes().clone();
+                    let mut framed = Vec::with_capacity(2 + query.len());
+                    framed.extend_from_slice(&(query.len() as u16).to_be_bytes());
+                    framed.extend_from_slice(&query);
+                    bytes::Bytes::from(framed)
+                }
+                // The raw modes never reach here (the verb routes them).
+                _ => unreachable!("app probe table is http|dns only"),
+            };
+
+            // Baseline first (when asked), then the mutated rounds.
+            let mut rounds: Vec<Option<u32>> = Vec::new();
+            if cfg.baseline {
+                rounds.push(None);
+            }
+            rounds.extend((1..=cfg.rounds).map(Some));
+            for round in rounds {
+                let (probe_bytes, strategy): (bytes::Bytes, &str) = match round {
+                    None => (seed.clone(), "baseline"),
+                    Some(r) => {
+                        // A per-probe deterministic mutation stream
+                        // (the same shape as ProberSession's rounds).
+                        let mut_seed = rng.next_u64() ^ (u64::from(r) << 32);
+                        let mut mutator = wrex_mut::Mutator::new(
+                            registry,
+                            vec![seed.to_vec()],
+                            cfg.strategy,
+                            mut_seed,
+                        )
+                        .map_err(usage)?;
+                        (
+                            bytes::Bytes::from(mutator.next_mutant()),
+                            cfg.strategy.as_str(),
+                        )
+                    }
+                };
+
+                // One fresh connection per attempt; a reply is whatever
+                // the peer sends before orderly EOF (budget capped).
+                let mut outcome = Outcome::Silence;
+                let mut reply_hex: Option<String> = None;
+                let mut rtt_ms: Option<u64> = None;
+                let mut attempts = 0u32;
+                for _ in 0..=cfg.retries {
+                    attempts += 1;
+                    let peer = SocketAddrV4::new(target, port);
+                    let Ok(mut driver) = wrex_io::TcpDriver::connect(
+                        std::net::SocketAddr::V4(peer),
+                        None,
+                        cfg.timeout,
+                    ) else {
+                        continue; // refused/unreachable: silence, attempt spent
+                    };
+                    let t_start = Instant::now();
+                    let mut session = AppSession::new(
+                        probe_bytes.clone(),
+                        AppConfig {
+                            timeout: cfg.timeout,
+                            max_bytes: wrex_fuzz::app::DEFAULT_MAX_BYTES,
+                        },
+                        t_start,
+                    );
+                    let Ok(outs) =
+                        wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                    else {
+                        continue; // io/reset: silence, attempt spent
+                    };
+                    if let Some(AppOutcome::Reply(reply)) = outs.into_iter().next() {
+                        outcome = Outcome::Reply;
+                        reply_hex = Some(hex::encode(&reply));
+                        rtt_ms = Some(t_start.elapsed().as_millis() as u64);
+                        break;
+                    }
+                }
+
+                findings.push(wrex_fuzz::Finding {
+                    target: ScanAddr::V4(target),
+                    port: Some(port),
+                    proto: cfg.mode.as_str(),
+                    round,
+                    strategy,
+                    outcome,
+                    attempts,
+                    rtt_ms,
+                    probe_hex: hex::encode(&probe_bytes),
+                    reply_hex,
+                });
+
+                // Pacing between probes (seeded jitter, the scan shape).
+                if !cfg.interval.is_zero() {
+                    let step = if cfg.jitter.is_zero() {
+                        cfg.interval
+                    } else {
+                        let off = rng.jitter_secs(cfg.jitter);
+                        if off > 0.0 {
+                            cfg.interval + Duration::from_secs_f64(off)
+                        } else {
+                            cfg.interval.saturating_sub(Duration::from_secs_f64(-off))
+                        }
+                    };
+                    std::thread::sleep(step.max(Duration::from_millis(1)));
+                }
+            }
+        }
+    }
+    Ok(findings)
 }
 
 // --- http ---------------------------------------------------------------------
@@ -1427,10 +1623,12 @@ fn http_body(raw: &str) -> Result<bytes::Bytes, CliError> {
     Ok(bytes::Bytes::from(raw.as_bytes().to_vec()))
 }
 
-/// `wrex http`: one HTTP/1.1 exchange over a kernel TCP connection.
-/// A completed exchange is exit 0 whatever the status says (--fail
-/// opts 4xx/5xx into exit 1); connect/timeout/protocol failures are
-/// exit 1; grammar/recipe errors exit 2 (all before any socket).
+/// `wrex http`: HTTP/1.1 exchanges over a kernel TCP connection —
+/// one request (close-mode) or an ordered keep-alive queue (multiple
+/// URLs / a recipe array, tranche 9a). A completed run is exit 0
+/// whatever the statuses say (--fail opts 4xx/5xx into exit 1);
+/// connect/timeout/protocol failures are exit 1; grammar/recipe
+/// errors exit 2 (all before any socket).
 fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     use wrex_http::{HttpClientSession, HttpConfig, HttpOutcome};
 
@@ -1442,90 +1640,131 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
         ));
     }
 
-    // Materialize the request up front: every usage error (recipe
-    // schema, grammar, bad headers) surfaces before connect.
-    let (spec, cfg) = build_http_request(args)?;
+    // Materialize every request up front: usage errors (recipe schema,
+    // grammar, bad headers) surface before connect.
+    let (specs, cfgs) = build_http_requests(args)?;
+    debug_assert_eq!(specs.len(), cfgs.len());
+
+    // One transport per queue: mixed http/https is a usage error.
+    let scheme = specs[0].url.scheme_str().unwrap_or("http");
+    if specs.iter().any(|s| s.url.scheme_str() != Some(scheme)) {
+        return Err(usage(
+            "http queue: one scheme per connection (split mixed http/https runs)",
+        ));
+    }
 
     // TLS transport (https://): the driver is the only thing that
     // differs — retry/render/--fail/budget handling stay identical.
     // SNI comes from the URL host (an IP literal matches the cert's
     // IP SAN); roots: system store plus the recipe/CLI --tls-ca adds.
-    let tls_cfg = match spec.url.scheme_str() {
-        Some("https") => {
-            let host = spec
-                .url
-                .authority()
-                .map(|a| a.host())
-                .ok_or_else(|| usage("https url has no host".to_string()))?
-                .to_string();
-            let ca_der = match &cfg.tls_ca {
-                Some(path) => {
-                    Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("http: {e}")))?)
-                }
-                None => None,
-            };
-            Some(wrex_tls::TlsConfig {
-                server_name: host,
-                insecure: cfg.tls_insecure,
-                ca_der,
-            })
-        }
-        _ => None,
+    // The knobs are per-connection: the first request's cfg wins.
+    let tls_cfg = if scheme == "https" {
+        let host = specs[0]
+            .url
+            .authority()
+            .map(|a| a.host())
+            .ok_or_else(|| usage("https url has no host".to_string()))?
+            .to_string();
+        let ca_der = match &cfgs[0].tls_ca {
+            Some(path) => {
+                Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("http: {e}")))?)
+            }
+            None => None,
+        };
+        Some(wrex_tls::TlsConfig {
+            server_name: host,
+            insecure: cfgs[0].tls_insecure,
+            ca_der,
+        })
+    } else {
+        None
     };
 
-    // Retry loop: fresh connection per attempt (close-mode).
-    let attempts = cfg.retries + 1;
+    // Retry loop: fresh connection per attempt, whole queue replayed
+    // (a keep-alive queue that breaks mid-flight restarts cleanly).
+    let attempts = cfgs[0].retries + 1;
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let peer = tcp_peer(&spec.url)?;
+        let peer = tcp_peer(&specs[0].url)?;
         let bind = tcp_bind(common, args.source_port)?;
-        let outcome = {
-            let mut session = HttpClientSession::new(
-                &spec,
-                HttpConfig {
-                    timeout: cfg.timeout,
-                    max_bytes: cfg.max_bytes as usize,
-                },
-                Instant::now(),
-            )
+        let queue_cfgs: Vec<HttpConfig> = cfgs
+            .iter()
+            .map(|c| HttpConfig {
+                timeout: c.timeout,
+                max_bytes: c.max_bytes as usize,
+            })
+            .collect();
+        let mut session = HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
             .map_err(|e| usage(format!("http: {e}")))?;
+        let outcomes = {
             match &tls_cfg {
                 Some(tcfg) => {
-                    let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfg.timeout, tcfg)
-                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                    let mut driver =
+                        wrex_tls::TlsDriver::connect(peer, bind, cfgs[0].timeout, tcfg)
+                            .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
                     wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 }
                 None => {
-                    let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfg.timeout)
+                    let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
                         .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
                     wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 }
             }
             .map_err(|e| CliError::Runtime(format!("http: {e}")))?
-            .into_iter()
-            .next()
         };
-        match outcome {
-            Some(HttpOutcome::Response(resp)) => {
-                return render_http_response(&resp, format, args.fail);
+
+        if outcomes.len() == specs.len()
+            && outcomes
+                .iter()
+                .all(|o| matches!(o, HttpOutcome::Response(_)))
+        {
+            let responses: Vec<wrex_http::HttpResponse> = outcomes
+                .into_iter()
+                .map(|o| match o {
+                    HttpOutcome::Response(r) => r,
+                    _ => unreachable!("checked above"),
+                })
+                .collect();
+            render_http_responses(&responses, format)?;
+            // --fail: completed exchanges stay data (printed above),
+            // the flag opts into a non-zero exit.
+            if args.fail && responses.iter().any(|r| r.status.as_u16() >= 400) {
+                let status = responses
+                    .iter()
+                    .map(|r| r.status.as_u16())
+                    .find(|&s| s >= 400)
+                    .unwrap_or(0);
+                return Err(CliError::Runtime(format!("http: status {status} (--fail)")));
             }
-            Some(HttpOutcome::Malformed(detail)) => {
-                last_err = Some(format!("malformed response: {detail}"));
-            }
-            Some(HttpOutcome::Truncated) => {
-                last_err = Some("connection closed mid-response".to_string());
-            }
+            return Ok(());
+        }
+
+        // Some exchange failed: map the first failure, then retry.
+        let first = outcomes
+            .iter()
+            .find(|o| !matches!(o, HttpOutcome::Response(_)));
+        last_err = Some(match first {
+            Some(HttpOutcome::Malformed(detail)) => format!("malformed response: {detail}"),
+            // Handled by the `all(Response)` check above; the wildcard
+            // keeps future outcome kinds from breaking the retry.
+            Some(HttpOutcome::Response(_)) => unreachable!("filtered above"),
+            Some(HttpOutcome::Truncated) => "connection closed mid-response".to_string(),
             Some(HttpOutcome::TooLarge) => {
                 return Err(CliError::Runtime(format!(
                     "http: response exceeded the {} byte budget",
-                    cfg.max_bytes
+                    cfgs[0].max_bytes
                 )));
             }
             Some(HttpOutcome::Timeout) => {
-                last_err = Some(format!("no response within {}", hum_duration(cfg.timeout)));
+                format!("no response within {}", hum_duration(cfgs[0].timeout))
             }
-            None => return Err(CliError::Runtime("http: no outcome".to_string())),
-        }
+            Some(HttpOutcome::Closed) => {
+                "connection closed before a queued request was sent".to_string()
+            }
+            // All responses but the run came up short: the connection
+            // died before the last exchange resolved.
+            None => "connection closed mid-queue".to_string(),
+        });
     }
     Err(CliError::Runtime(format!(
         "http: {}",
@@ -1534,6 +1773,7 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
 }
 
 /// Resolved request + the knobs a recipe may override.
+#[derive(Clone)]
 struct HttpVerbConfig {
     retries: u32,
     timeout: Duration,
@@ -1545,69 +1785,13 @@ struct HttpVerbConfig {
     tls_ca: Option<String>,
 }
 
-fn build_http_request(
+/// One per queued request: the CLI defaults + that request's recipe
+/// overrides (a recipe array may tune every request independently).
+fn http_verb_cfg(
     args: &crate::cli::HttpArgs,
-) -> Result<(wrex_http::HttpRequestSpec, HttpVerbConfig), CliError> {
-    use wrex_http::{HttpRequestSpec, Recipe};
-
-    let (spec, overrides) = if let Some(path) = args.recipe.as_deref() {
-        if !args.positional.is_empty() {
-            return Err(usage(
-                "--recipe is exclusive with METHOD/URL (the recipe carries them)",
-            ));
-        }
-        if args.data.is_some() {
-            return Err(usage("--recipe is exclusive with --data"));
-        }
-        let raw = std::fs::read_to_string(path)
-            .map_err(|e| usage(format!("cannot read recipe `{path}`: {e}")))?;
-        let recipe: Recipe =
-            serde_json::from_str(&raw).map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
-        let (spec, o) = recipe
-            .into_request()
-            .map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
-        (spec, o)
-    } else {
-        // Positional grammar: [METHOD] URL. A lone argument is the URL
-        // (GET implied); two arguments are method + URL; more is usage.
-        let (method, url) = match args.positional.as_slice() {
-            [url] => ("GET", url.as_str()),
-            [method, url] => (method.as_str(), url.as_str()),
-            [] => {
-                return Err(usage(
-                    "http needs a URL (or --recipe FILE): wrex http [METHOD] URL",
-                ));
-            }
-            _ => {
-                return Err(usage(
-                    "http takes at most [METHOD] URL (use -H/--data for the rest)",
-                ));
-            }
-        };
-        if method.eq_ignore_ascii_case("get") && method != "GET" {
-            return Err(usage(format!(
-                "bad method `{method}` (http verbs are uppercase tokens)"
-            )));
-        }
-        let mut headers: Vec<(&str, &str)> = Vec::with_capacity(args.header.len());
-        for h in &args.header {
-            let (name, value) = h
-                .split_once(':')
-                .ok_or_else(|| usage(format!("bad header `{h}` (expected NAME:VALUE)")))?;
-            headers.push((name.trim(), value.trim()));
-        }
-        let body = args
-            .data
-            .as_deref()
-            .map(http_body)
-            .transpose()?
-            .unwrap_or_default();
-        let spec = HttpRequestSpec::build(method, url, &headers, body)
-            .map_err(|e| usage(format!("http: {e}")))?;
-        (spec, wrex_http::recipe::RecipeOverrides::default())
-    };
-
-    let cfg = HttpVerbConfig {
+    overrides: wrex_http::recipe::RecipeOverrides,
+) -> HttpVerbConfig {
+    HttpVerbConfig {
         retries: overrides.retries.unwrap_or(args.retries.unwrap_or(0)),
         timeout: overrides
             .timeout_ms
@@ -1622,8 +1806,84 @@ fn build_http_request(
         // (same precedence direction as retries/timeout_ms/max_bytes).
         tls_insecure: overrides.tls_insecure.unwrap_or(args.tls_insecure),
         tls_ca: overrides.tls_ca.clone().or_else(|| args.tls_ca.clone()),
+    }
+}
+
+/// Materialize the whole request queue: `--recipe FILE` (a single
+/// object, a top-level array, or `{"requests": [...]}`) or the
+/// positional `[METHOD] URL...` grammar (a URL-looking first token ⇒
+/// GET + a URL list; otherwise the first token is the METHOD).
+fn build_http_requests(
+    args: &crate::cli::HttpArgs,
+) -> Result<(Vec<wrex_http::HttpRequestSpec>, Vec<HttpVerbConfig>), CliError> {
+    use wrex_http::{HttpRequestSpec, Recipe};
+
+    if let Some(path) = args.recipe.as_deref() {
+        if !args.positional.is_empty() {
+            return Err(usage(
+                "--recipe is exclusive with METHOD/URL (the recipe carries them)",
+            ));
+        }
+        if args.data.is_some() {
+            return Err(usage("--recipe is exclusive with --data"));
+        }
+        let raw = std::fs::read_to_string(path)
+            .map_err(|e| usage(format!("cannot read recipe `{path}`: {e}")))?;
+        let recipes =
+            Recipe::parse_recipes(&raw).map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
+        let mut specs = Vec::with_capacity(recipes.len());
+        let mut cfgs = Vec::with_capacity(recipes.len());
+        for recipe in recipes {
+            let (spec, overrides) = recipe
+                .into_request()
+                .map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
+            specs.push(spec);
+            cfgs.push(http_verb_cfg(args, overrides));
+        }
+        return Ok((specs, cfgs));
+    }
+
+    // Positional grammar: [METHOD] URL... — a URL-looking first token
+    // implies GET for every positional; otherwise the first is METHOD.
+    let (method, urls): (&str, Vec<&str>) = match args.positional.as_slice() {
+        [] => {
+            return Err(usage(
+                "http needs a URL (or --recipe FILE): wrex http [METHOD] URL...",
+            ));
+        }
+        [first, rest @ ..] if rest.is_empty() || first.starts_with("http://") => {
+            ("GET", args.positional.iter().map(|s| s.as_str()).collect())
+        }
+        [first, rest @ ..] => (first.as_str(), rest.iter().map(|s| s.as_str()).collect()),
     };
-    Ok((spec, cfg))
+    if method.eq_ignore_ascii_case("get") && method != "GET" {
+        return Err(usage(format!(
+            "bad method `{method}` (http verbs are uppercase tokens)"
+        )));
+    }
+    let mut headers: Vec<(&str, &str)> = Vec::with_capacity(args.header.len());
+    for h in &args.header {
+        let (name, value) = h
+            .split_once(':')
+            .ok_or_else(|| usage(format!("bad header `{h}` (expected NAME:VALUE)")))?;
+        headers.push((name.trim(), value.trim()));
+    }
+    let body = args
+        .data
+        .as_deref()
+        .map(http_body)
+        .transpose()?
+        .unwrap_or_default();
+    // -H/--data apply to every URL (a shared request recipe).
+    let mut specs = Vec::with_capacity(urls.len());
+    for url in &urls {
+        let spec = HttpRequestSpec::build(method, url, &headers, body.clone())
+            .map_err(|e| usage(format!("http: {e}")))?;
+        specs.push(spec);
+    }
+    let cfg = http_verb_cfg(args, wrex_http::recipe::RecipeOverrides::default());
+    let cfgs = vec![cfg; specs.len()];
+    Ok((specs, cfgs))
 }
 
 /// Resolve the URI's authority to a socket address for TcpDriver.
@@ -1685,66 +1945,78 @@ fn tcp_bind(
     )))
 }
 
-fn render_http_response(
-    resp: &wrex_http::HttpResponse,
-    format: Format,
-    fail: bool,
-) -> Result<(), CliError> {
-    let status = resp.status.as_u16();
-    // --fail: 4xx/5xx are still a completed exchange, but the flag opts
-    // the user into a non-zero exit (the pinned 1 = outcome table).
-    if fail && status >= 400 {
-        return Err(CliError::Runtime(format!("http: status {status} (--fail)")));
+/// Render one response as a JSON value (the `--format json` shape).
+fn http_response_json(resp: &wrex_http::HttpResponse) -> serde_json::Value {
+    let mut headers = serde_json::Map::new();
+    for (name, value) in resp.headers.iter() {
+        let key = name.as_str().to_string();
+        let val = String::from_utf8_lossy(value.as_bytes()).to_string();
+        match headers.get_mut(&key) {
+            Some(serde_json::Value::Array(items)) => items.push(serde_json::json!(val)),
+            Some(_) | None => {
+                headers.insert(key, serde_json::json!([val]));
+            }
+        }
     }
-    match format {
-        Format::Raw => write_stdout(&resp.body)?,
-        Format::Text => {
-            let mut out = format!(
-                "HTTP/1.{} {} {}\r\n",
-                if resp.version == wrex_http::http::Version::HTTP_10 {
-                    0
-                } else {
-                    1
-                },
-                status,
-                resp.reason
-            );
-            for (name, value) in resp.headers.iter() {
-                out.push_str(&format!(
-                    "{}: {}\r\n",
-                    name,
-                    String::from_utf8_lossy(value.as_bytes())
-                ));
-            }
-            out.push_str("\r\n");
-            write_stdout(out.as_bytes())?;
-            write_stdout(&resp.body)?;
-        }
-        Format::Json => {
-            let mut headers = serde_json::Map::new();
-            for (name, value) in resp.headers.iter() {
-                let key = name.as_str().to_string();
-                let val = String::from_utf8_lossy(value.as_bytes()).to_string();
-                match headers.get_mut(&key) {
-                    Some(serde_json::Value::Array(items)) => items.push(serde_json::json!(val)),
-                    Some(_) | None => {
-                        headers.insert(key, serde_json::json!([val]));
-                    }
+    serde_json::json!({
+        "status": resp.status.as_u16(),
+        "reason": resp.reason,
+        "version": if resp.version == wrex_http::http::Version::HTTP_10 { "HTTP/1.0" } else { "HTTP/1.1" },
+        "headers": headers,
+        "body_hex": hex::encode(&resp.body),
+    })
+}
+
+/// Render the completed exchanges, in queue order. A keep-alive queue
+/// prints every response (text/raw stream them; json wraps a queue in
+/// an array, a lone response stays the T4 object). `--fail` is handled
+/// by the caller (responses stay data: they print first).
+fn render_http_responses(
+    responses: &[wrex_http::HttpResponse],
+    format: Format,
+) -> Result<(), CliError> {
+    for resp in responses {
+        let status = resp.status.as_u16();
+        match format {
+            Format::Raw => write_stdout(&resp.body)?,
+            Format::Text => {
+                let mut out = format!(
+                    "HTTP/1.{} {} {}\r\n",
+                    if resp.version == wrex_http::http::Version::HTTP_10 {
+                        0
+                    } else {
+                        1
+                    },
+                    status,
+                    resp.reason
+                );
+                for (name, value) in resp.headers.iter() {
+                    out.push_str(&format!(
+                        "{}: {}\r\n",
+                        name,
+                        String::from_utf8_lossy(value.as_bytes())
+                    ));
                 }
+                out.push_str("\r\n");
+                write_stdout(out.as_bytes())?;
+                write_stdout(&resp.body)?;
             }
-            let json = serde_json::json!({
-                "status": status,
-                "reason": resp.reason,
-                "version": if resp.version == wrex_http::http::Version::HTTP_10 { "HTTP/1.0" } else { "HTTP/1.1" },
-                "headers": headers,
-                "body_hex": hex::encode(&resp.body),
-            });
-            let mut out = serde_json::to_string_pretty(&json)
-                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
-            out.push('\n');
-            write_stdout(out.as_bytes())?;
+            Format::Json => {
+                // One JSON document for the whole run: a lone response
+                // keeps the T4 object shape; a queue is an array.
+                let json = if responses.len() == 1 {
+                    http_response_json(resp)
+                } else {
+                    serde_json::Value::Array(responses.iter().map(http_response_json).collect())
+                };
+                let mut out = serde_json::to_string_pretty(&json)
+                    .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                out.push('\n');
+                write_stdout(out.as_bytes())?;
+                return Ok(());
+            }
+            Format::Jsonl | Format::Hex => unreachable!("rejected above"),
         }
-        Format::Jsonl | Format::Hex => unreachable!("rejected above"),
     }
     Ok(())
 }

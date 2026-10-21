@@ -60,6 +60,10 @@ impl ProbeKey {
                 sport,
             },
             ProbeMode::Icmp => ProbeKey::Echo { src: target, id },
+            // App modes never build raw probe keys (AppSession path).
+            ProbeMode::Http | ProbeMode::Dns => {
+                unreachable!("app modes do not use ProberSession")
+            }
         }
     }
 }
@@ -167,6 +171,11 @@ impl<'a> ProberSession<'a> {
                             };
                             wrex_scan::packet::icmp_echo(registry, src, target, typ, id, 1)
                         }
+                        // App modes never reach ProberSession (the verb
+                        // routes them to `AppSession`).
+                        ProbeMode::Http | ProbeMode::Dns => {
+                            unreachable!("app modes do not use ProberSession")
+                        }
                     }
                     .map_err(|e| format!("fuzz: probe build: {e}"))?;
 
@@ -262,6 +271,10 @@ impl<'a> ProberSession<'a> {
             ProbeMode::Icmp => self.cfg.family().echo_kind(),
             ProbeMode::Tcp => "tcp",
             ProbeMode::Udp => "udp",
+            // Unreachable: the verb routes app modes to `AppSession`.
+            ProbeMode::Http | ProbeMode::Dns => {
+                unreachable!("app modes do not use ProberSession")
+            }
         };
         self.findings.push_back(Finding {
             target,
@@ -465,6 +478,8 @@ fn probe_key(
                 id: id as u16,
             }
         }
+        // App modes never derive raw probe keys (AppSession path).
+        ProbeMode::Http | ProbeMode::Dns => unreachable!("app modes do not use ProberSession"),
     }
 }
 
@@ -503,6 +518,8 @@ fn reply_key(
             let id = f_int(icmp, "echo.id")?;
             Some(ProbeKey::Echo { src, id: id as u16 })
         }
+        // App modes never derive raw reply keys (AppSession path).
+        ProbeMode::Http | ProbeMode::Dns => unreachable!("app modes do not use ProberSession"),
     }
 }
 

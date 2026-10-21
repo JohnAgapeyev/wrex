@@ -47,9 +47,47 @@ pub struct Recipe {
     /// Extra CA bundle path, PEM or DER (https urls).
     #[serde(default)]
     pub tls_ca: Option<String>,
+    /// Body wire framing: `length` (default) or `chunked` (tranche 9a).
+    #[serde(default)]
+    pub body_framing: Option<String>,
+    /// Fixed chunk size for `body_framing: "chunked"` (default 4096).
+    #[serde(default)]
+    pub chunk_size: Option<u64>,
 }
 
 impl Recipe {
+    /// Parse a recipe **file**: a single recipe object (the T4 shape,
+    /// byte-identical), a top-level array, or `{"requests": [...]}` —
+    /// the tranche-9a keep-alive queue. The CLI owns nothing but this
+    /// entry point.
+    pub fn parse_recipes(raw: &str) -> Result<Vec<Recipe>, String> {
+        let value: serde_json::Value =
+            serde_json::from_str(raw).map_err(|e| format!("bad recipe: {e}"))?;
+        match value {
+            serde_json::Value::Array(_) => serde_json::from_str::<Vec<Recipe>>(raw)
+                .map_err(|e| format!("bad recipe array: {e}")),
+            serde_json::Value::Object(_) => {
+                if value.get("requests").is_some() {
+                    #[derive(serde::Deserialize)]
+                    struct File {
+                        requests: Vec<Recipe>,
+                    }
+                    let file: File =
+                        serde_json::from_str(raw).map_err(|e| format!("bad recipe file: {e}"))?;
+                    if file.requests.is_empty() {
+                        return Err("recipe file: `requests` is empty".to_string());
+                    }
+                    Ok(file.requests)
+                } else {
+                    Ok(vec![
+                        serde_json::from_str::<Recipe>(raw)
+                            .map_err(|e| format!("bad recipe: {e}"))?,
+                    ])
+                }
+            }
+            _ => Err("recipe: expected an object, an array, or {\"requests\": [...]}".to_string()),
+        }
+    }
     /// Validate and materialize into a request spec + overrides.
     /// All errors are usage-grade (exit 2 in the CLI).
     pub fn into_request(self) -> Result<(HttpRequestSpec, RecipeOverrides), String> {
@@ -72,6 +110,26 @@ impl Recipe {
         if self.method.trim().is_empty() {
             return Err("recipe: empty method".to_string());
         }
+        let spec = match self.body_framing.as_deref() {
+            None => spec,
+            Some("length") => spec,
+            Some("chunked") => {
+                let size = self
+                    .chunk_size
+                    .unwrap_or(crate::request::DEFAULT_CHUNK_SIZE as u64);
+                if size == 0 || size > u32::MAX as u64 {
+                    return Err(format!(
+                        "recipe: chunk_size {size} out of range (1..=u32::MAX)"
+                    ));
+                }
+                spec.with_framing(crate::request::RequestFraming::Chunked, size as usize)
+            }
+            Some(other) => {
+                return Err(format!(
+                    "recipe: unknown body_framing `{other}` (length|chunked)"
+                ));
+            }
+        };
         let overrides = RecipeOverrides {
             timeout_ms: self.timeout_ms,
             retries: self.retries,
@@ -198,5 +256,70 @@ mod tests {
                 "tls_insecure": true, "tls_ca": "/etc/ca.pem"}"#,
         );
         assert_eq!(r2.into_request().unwrap().0.serialize().unwrap(), wire);
+    }
+
+    // --- tranche 9a --------------------------------------------------------
+
+    #[test]
+    fn body_framing_knobs() {
+        let r = recipe(
+            r#"{"method": "POST", "url": "http://example.com/",
+                "body_text": "0123456789", "body_framing": "chunked",
+                "chunk_size": 4}"#,
+        );
+        let (spec, _) = r.into_request().unwrap();
+        assert_eq!(spec.framing, crate::request::RequestFraming::Chunked);
+        assert_eq!(spec.chunk_size, 4);
+        let wire = String::from_utf8(spec.serialize().unwrap().to_vec()).unwrap();
+        assert!(wire.ends_with("\r\n\r\n4\r\n0123\r\n4\r\n4567\r\n2\r\n89\r\n0\r\n\r\n"));
+        // default chunk size when only framing is set
+        let r = recipe(
+            r#"{"method": "POST", "url": "http://x/", "body_text": "abc",
+                "body_framing": "chunked"}"#,
+        );
+        let (spec, _) = r.into_request().unwrap();
+        assert_eq!(spec.chunk_size, crate::request::DEFAULT_CHUNK_SIZE);
+        // bad knob values are usage errors
+        let r = recipe(r#"{"method": "GET", "url": "http://x/", "body_framing": "bogus"}"#);
+        assert!(r.into_request().unwrap_err().contains("body_framing"));
+        let r = recipe(
+            r#"{"method": "GET", "url": "http://x/", "body_framing": "chunked", "chunk_size": 0}"#,
+        );
+        assert!(r.into_request().unwrap_err().contains("chunk_size"));
+    }
+
+    #[test]
+    fn parse_recipes_single_array_and_requests_key() {
+        // single object (the T4 shape, still accepted)
+        let one = Recipe::parse_recipes(r#"{"method": "GET", "url": "http://a/"}"#).unwrap();
+        assert_eq!(one.len(), 1);
+        // top-level array
+        let arr = Recipe::parse_recipes(
+            r#"[{"method": "GET", "url": "http://a/"},
+                {"method": "POST", "url": "http://b/", "body_text": "x"}]"#,
+        )
+        .unwrap();
+        assert_eq!(arr.len(), 2);
+        assert_eq!(arr[1].method, "POST");
+        // {"requests": [...]}
+        let file =
+            Recipe::parse_recipes(r#"{"requests": [{"method": "GET", "url": "http://a/"}]}"#)
+                .unwrap();
+        assert_eq!(file.len(), 1);
+        // empty queue / non-object are usage errors
+        assert!(
+            Recipe::parse_recipes(r#"{"requests": []}"#)
+                .unwrap_err()
+                .contains("empty")
+        );
+        assert!(
+            Recipe::parse_recipes("42")
+                .unwrap_err()
+                .contains("expected")
+        );
+        // every parsed recipe materializes
+        for r in arr {
+            r.into_request().unwrap();
+        }
     }
 }

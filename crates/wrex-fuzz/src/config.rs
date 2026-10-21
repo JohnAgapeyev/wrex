@@ -17,10 +17,22 @@ pub enum ProbeMode {
     Udp,
     /// ICMP echo: type-0 replies with a matching id are recorded.
     Icmp,
+    /// HTTP/1.1 over kernel TCP (tranche 9b): the probe unit is one
+    /// GET exchange — mutated *request* bytes (wrex-mut raw level),
+    /// response bytes recorded until EOF/timeout.
+    Http,
+    /// DNS over kernel TCP (tranche 9b): the probe unit is one RFC 7766
+    /// length-prefixed query — mutated seed bytes, response recorded.
+    Dns,
 }
 
 impl ProbeMode {
     pub const DEFAULT: Self = Self::Udp;
+
+    /// Is this an application-layer mode (kernel-stream transport)?
+    pub fn is_app(self) -> bool {
+        matches!(self, Self::Http | Self::Dns)
+    }
 
     pub fn parse(raw: Option<&str>) -> Result<Self, String> {
         match raw {
@@ -28,7 +40,11 @@ impl ProbeMode {
             Some("tcp") | Some("syn") => Ok(Self::Tcp),
             Some("udp") => Ok(Self::Udp),
             Some("icmp") => Ok(Self::Icmp),
-            Some(other) => Err(format!("unknown fuzz mode `{other}` (tcp|udp|icmp)")),
+            Some("http") => Ok(Self::Http),
+            Some("dns") => Ok(Self::Dns),
+            Some(other) => Err(format!(
+                "unknown fuzz mode `{other}` (tcp|udp|icmp|http|dns)"
+            )),
         }
     }
 
@@ -37,11 +53,15 @@ impl ProbeMode {
             Self::Tcp => "tcp",
             Self::Udp => "udp",
             Self::Icmp => "icmp",
+            Self::Http => "http",
+            Self::Dns => "dns",
         }
     }
 
     /// Registry kinds this mode needs registered over `family`
-    /// (tranche 7b: family-aware).
+    /// (tranche 7b: family-aware). The app modes (http/dns, tranche
+    /// 9b) need no codecs: their probes ride the kernel `TcpDriver`
+    /// and mutation falls through to the request-bytes level.
     pub fn needs_for(self, family: Family) -> &'static [&'static str] {
         match self {
             Self::Tcp => match family {
@@ -56,6 +76,9 @@ impl ProbeMode {
                 Family::V4 => &["ipv4", "icmp"],
                 Family::V6 => &["ipv6", "icmpv6"],
             },
+            // The seed request is built verb-side (wrex-http /
+            // wrex-dns); the raw-level mutation needs no registry.
+            Self::Http | Self::Dns => &[],
         }
     }
 
@@ -131,12 +154,16 @@ impl FuzzConfig {
                     "udp mode requires --ports (there is no meaningful default)".to_string()
                 );
             }
+            // Tranche 9b app modes: conventional default ports
+            // (an explicit --ports list still enumerates the slots).
+            (ProbeMode::Http, None) => vec![80],
+            (ProbeMode::Dns, None) => vec![53],
             // Icmp is a host sweep: ports stay empty; a `Some` was
             // rejected above and udp's `None` too, so `None` here is
             // only icmp (or tcp — which the next arm serves first).
             (_, Some(spec)) => parse_ports(spec)?,
             (ProbeMode::Tcp, None) => wrex_scan::DEFAULT_TCP_PORTS.to_vec(),
-            // Only icmp reaches here (udp None returned above).
+            // Only icmp reaches here (udp/http/dns None returned above).
             (ProbeMode::Icmp, None) => Vec::new(),
         };
 
@@ -214,7 +241,29 @@ mod tests {
         assert_eq!(ProbeMode::parse(None).unwrap(), ProbeMode::Udp);
         assert_eq!(ProbeMode::parse(Some("tcp")).unwrap(), ProbeMode::Tcp);
         assert_eq!(ProbeMode::parse(Some("syn")).unwrap(), ProbeMode::Tcp);
+        assert_eq!(ProbeMode::parse(Some("http")).unwrap(), ProbeMode::Http);
+        assert_eq!(ProbeMode::parse(Some("dns")).unwrap(), ProbeMode::Dns);
         assert!(ProbeMode::parse(Some("sctp")).is_err());
+        // tranche 9b: the app modes
+        assert!(ProbeMode::Http.is_app());
+        assert!(ProbeMode::Dns.is_app());
+        assert!(!ProbeMode::Tcp.is_app());
+        assert_eq!(ProbeMode::Http.as_str(), "http");
+        assert_eq!(ProbeMode::Dns.as_str(), "dns");
+        assert!(ProbeMode::Http.needs_for(Family::V4).is_empty());
+    }
+
+    #[test]
+    fn app_mode_port_defaults() {
+        // http defaults to 80, dns to 53 (explicit --ports overrides).
+        let cfg = build(ProbeMode::Http, None).unwrap();
+        assert_eq!(cfg.ports, vec![80]);
+        let cfg = build(ProbeMode::Dns, None).unwrap();
+        assert_eq!(cfg.ports, vec![53]);
+        let cfg = build(ProbeMode::Http, Some("8080")).unwrap();
+        assert_eq!(cfg.ports, vec![8080]);
+        // --ports 0 stays a usage error for every mode.
+        assert!(build(ProbeMode::Http, Some("0")).is_err());
     }
 
     #[test]

@@ -219,6 +219,7 @@ fn fuzz_stage(root: &Path) {
         "fuzz_pcapng_roundtrip",
         "fuzz_mut_strategies",
         "fuzz_prober_session",
+        "fuzz_app_session",
     ];
     let nightly = Command::new("cargo")
         .arg("+nightly")

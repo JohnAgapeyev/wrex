@@ -13,6 +13,9 @@ httparse = { workspace = true }
 http = { workspace = true }
 bytes = { workspace = true }
 serde = { workspace = true }
+# recipe file parsing (single object / array / {"requests": [...]}) —
+# the tranche-9a queue entry point lives in the library.
+serde_json = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

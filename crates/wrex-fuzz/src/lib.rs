@@ -3,7 +3,11 @@
 //! [`wrex_session::Session`] state machine that sends *mutated* probes
 //! (built with [`wrex_mut`]) at targets over a raw-IP driver, matches
 //! replies per probe, and emits a findings table (one
-//! [`Finding`] per probe) for offline differential analysis.
+//! [`Finding`] per probe) for offline differential analysis — plus,
+//! since tranche 9b, the **application-layer** modes (`--mode
+//! http|dns`): mutated request bytes over the *kernel* `TcpDriver`
+//! ([`AppSession`], one fresh connection per probe), closing the
+//! tranche-6 gap without any userspace TCP stack.
 //!
 //! The prober never talks to sockets or clocks: the CLI runs it under
 //! [`wrex_session::run`] with a [`wrex_io::RawIpDriver`] (kernel TCP is
@@ -25,10 +29,12 @@
 //!   exhaustion — every finding carries the exact probe bytes, so
 //!   anything interesting replays with `wrex send`/`wrex replay`.
 
+pub mod app;
 pub mod config;
 pub mod report;
 pub mod session;
 
+pub use app::{AppConfig, AppOutcome, AppSession};
 pub use config::{DEFAULT_ROUNDS, FuzzConfig, ProbeMode};
 pub use report::{Finding, Outcome};
 pub use session::ProberSession;
