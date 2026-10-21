@@ -1,12 +1,13 @@
 name: fuzz
 
-# The release fuzz gate: the full cargo-fuzz target list with a real
-# libFuzzer budget per target. Too expensive for per-commit CI (the
-# target list x the budget plus a fresh nightly build was the slowest
-# job in the matrix by an order of magnitude), so it runs on version
-# tags (the release process) and on demand. Per-commit CI keeps the
+# The extended-verification gate (release + on demand): the full
+# cargo-fuzz target list with a real libFuzzer budget per target, and
+# the Miri suite. Both are too expensive for per-commit CI — the fuzz
+# matrix by an order of magnitude, and Miri once the tranche-11b codec
+# population grew it past ~11 minutes — so they run on version tags
+# (the release process) and on demand. Per-commit CI keeps the
 # unit/proptest/reference-model suites; `cargo xtask verify --with-fuzz`
-# mirrors this locally at a 60s/target smoke budget.
+# and `--with-miri` mirror both locally.
 
 on:
   push:
@@ -38,3 +39,21 @@ jobs:
           for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_ipv6 fuzz_dissect_icmp fuzz_dissect_icmpv6 fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_dissect_dhcp fuzz_dissect_vlan fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session fuzz_app_session; do
             cargo +nightly fuzz run "$t" -- -max_total_time="$BUDGET" -rss_limit_mb=2560
           done
+
+  # Miri moved here from per-commit CI after the tranche-11b codec
+  # population grew the suite past ~11 minutes: the release/manual
+  # gate runs it; `cargo xtask verify --with-miri` is the local mirror.
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+      # Deterministic golden/unit tests run under Miri; the proptest-based
+      # suites carry #[cfg_attr(miri, ignore)].
+      - run: cargo +nightly miri setup
+      - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-ip6 -p wrex-proto-icmp -p wrex-proto-icmpv6 -p wrex-proto-udp -p wrex-proto-tcp -p wrex-proto-dns -p wrex-proto-dhcp -p wrex-proto-vlan -p wrex-session -p wrex-scan -p wrex-dns -p wrex-http -p wrex-pcap
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation

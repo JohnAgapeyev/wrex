@@ -320,6 +320,11 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
   300s/target; `cargo xtask verify --with-fuzz` is the local 60s/target
   smoke mirror). Per-commit CI carries the unit, proptest and
   reference-model suites over the same engines.
+- Miri: also not per commit — it grew past ~11 minutes once the
+  tranche-11b codec population landed, so it runs in the same release
+  gate as the fuzz matrix (`.github/workflows/fuzz.yml`, tags +
+  manual dispatch; `cargo xtask verify --with-miri` is the local
+  mirror over the deterministic golden/unit suites).
 - Differential: our dissection vs etherparse (in-process) and tshark
   (subprocess over a hand-written classic-pcap wrapper); DNS vs
   hickory-proto (in-process) and dig (subprocess against an in-test

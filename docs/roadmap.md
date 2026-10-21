@@ -706,3 +706,11 @@ T(n+1)".
     anything that would, gets its own planning pass first.
 - Every tranche lands with its verification story (oracles, corpora,
     fuzz surfaces) designed alongside the feature, not after it.
+- **Miri and the full fuzz matrix run in the extended-verification
+    gate, not per-commit CI** (moved at tranche 11b-β: the codec
+    population grew Miri past ~11 minutes). Release tags + manual
+    dispatch (`.github/workflows/fuzz.yml`); `cargo xtask verify
+    --with-miri` / `--with-fuzz` are the local mirrors. Per-commit CI
+    keeps fmt/clippy, the unit + proptest + reference-model suites,
+    the differentials, Kani, coverage, audit, and the env-gated
+    driver tests.
