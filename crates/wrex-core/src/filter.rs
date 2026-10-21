@@ -3,7 +3,7 @@
 //! Validated against the registry schema upfront (typo → `FilterError` at
 //! startup). Paths absent from a dissected packet evaluate false.
 
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use bytes::Bytes;
 
@@ -56,6 +56,11 @@ enum TermValue {
     /// IPv4 with optional CIDR prefix (membership on `=`/`!=`).
     Ipv4 {
         addr: Ipv4Addr,
+        prefix: Option<u8>,
+    },
+    /// IPv6 with optional CIDR prefix (membership on `=`/`!=`).
+    Ipv6 {
+        addr: Ipv6Addr,
         prefix: Option<u8>,
     },
     Mac([u8; 6]),
@@ -229,6 +234,14 @@ fn term_value_for(
                 return Err(bad("ipv4 fields support only = and != in filters".into()));
             }
         }
+        FieldKind::Ipv6 => {
+            if matches!(op, Op::Eq | Op::Ne) {
+                let (addr, prefix) = parse_ipv6_cidr(value_raw).map_err(bad)?;
+                TermValue::Ipv6 { addr, prefix }
+            } else {
+                return Err(bad("ipv6 fields support only = and != in filters".into()));
+            }
+        }
         FieldKind::Mac => {
             if matches!(op, Op::Eq | Op::Ne) {
                 TermValue::Mac(parse_mac(value_raw).map_err(bad)?)
@@ -264,6 +277,26 @@ fn parse_ipv4_cidr(raw: &str) -> Result<(Ipv4Addr, Option<u8>), String> {
         }
         None => {
             let addr: Ipv4Addr = raw.trim().parse().map_err(|_| "bad IPv4".to_string())?;
+            Ok((addr, None))
+        }
+    }
+}
+
+fn parse_ipv6_cidr(raw: &str) -> Result<(Ipv6Addr, Option<u8>), String> {
+    match raw.split_once('/') {
+        Some((addr, prefix)) => {
+            let addr: Ipv6Addr = addr.trim().parse().map_err(|_| "bad IPv6".to_string())?;
+            let prefix: u8 = prefix
+                .trim()
+                .parse()
+                .map_err(|_| "bad prefix".to_string())?;
+            if prefix > 128 {
+                return Err("prefix > 128".to_string());
+            }
+            Ok((addr, Some(prefix)))
+        }
+        None => {
+            let addr: Ipv6Addr = raw.trim().parse().map_err(|_| "bad IPv6".to_string())?;
             Ok((addr, None))
         }
     }
@@ -315,6 +348,26 @@ fn eval(value: &Value, t: &Term) -> bool {
                 Some(p) => {
                     let mask: u32 = if *p == 0 { 0 } else { u32::MAX << (32 - *p) };
                     (u32::from(*v) & mask) == (u32::from(*addr) & mask)
+                }
+                None => v == addr,
+            };
+            eq(hit)
+        }
+        (TermValue::Ipv6 { addr, prefix }, Value::Ipv6(v)) => {
+            if !matches!(t.op, Op::Eq | Op::Ne) {
+                return false;
+            }
+            let hit = match prefix {
+                Some(p) => {
+                    let bits = 128 - *p as u32;
+                    let mask: u128 = if *p == 0 {
+                        0
+                    } else {
+                        u128::MAX.checked_shl(bits).unwrap_or(0)
+                    };
+                    let vi = u128::from_be_bytes(v.octets());
+                    let ai = u128::from_be_bytes(addr.octets());
+                    (vi & mask) == (ai & mask)
                 }
                 None => v == addr,
             };

@@ -14,10 +14,17 @@ pub const STACKS: &[&str] = &[
     "eth-vlan-ipv4-udp",
     "eth-vlan-ipv4-tcp",
     "eth-vlan-ipv4-icmp",
+    "eth-vlan-ipv6-udp",
+    "eth-vlan-ipv6-tcp",
+    "eth-vlan-ipv6-icmpv6",
     "eth-ipv4-udp",
     "eth-ipv4-tcp",
     "eth-ipv4-icmp",
+    "eth-ipv6-udp",
+    "eth-ipv6-tcp",
+    "eth-ipv6-icmpv6",
     "ipv4",
+    "ipv6",
 ];
 
 pub fn stacks() -> &'static [&'static str] {
@@ -31,16 +38,30 @@ fn payload() -> BoxedStrategy<Value> {
         .boxed()
 }
 
-/// Eth spec with the explicit `type` dropped: the vlan stacks derive
-/// eth.type from the next layer (autofill), so the differential chain
-/// follows the spec exactly instead of diverging on a random ethertype
-/// (an explicit 0x0800 would chain straight into ipv4, reading the vlan
-/// tag as an ipv4 header — anomalies on our own layers).
-fn eth_for_vlan() -> BoxedStrategy<LayerSpec> {
+/// Eth spec with the explicit `type` dropped: the derived-`type` stacks
+/// (vlan chains since T7a, ipv6 chains since T7b) chain eth.type from
+/// the next layer via autofill, so the differential chain follows the
+/// spec exactly instead of diverging on a random ethertype (an explicit
+/// 0x0800 would chain straight into ipv4, reading the vlan tag as an
+/// ipv4 header; a random 0x0800 over an ipv6 stack would mis-parse the
+/// v6 header as ipv4 — anomalies on our own layers either way).
+fn eth_derived() -> BoxedStrategy<LayerSpec> {
     wrex_proto_eth::strategy::strategy()
         .prop_map(|mut eth| {
             eth.fields.remove("type");
             eth
+        })
+        .boxed()
+}
+
+/// Vlan spec with the explicit `type` dropped: the ipv6 vlan stacks
+/// (tranche 7b) derive vlan.type from the next layer, so a random
+/// ethertype cannot mis-parse the v6 chain (see `eth_derived`).
+fn vlan_derived() -> BoxedStrategy<LayerSpec> {
+    wrex_proto_vlan::strategy::strategy()
+        .prop_map(|mut vlan| {
+            vlan.fields.remove("type");
+            vlan
         })
         .boxed()
 }
@@ -63,7 +84,7 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             .prop_map(|(eth, arp)| PacketSpec::new(vec![eth, arp], None))
             .boxed(),
         "eth-vlan" => (
-            eth_for_vlan(),
+            eth_derived(),
             wrex_proto_vlan::strategy::strategy(),
             payload(),
         )
@@ -71,7 +92,7 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             .boxed(),
         // QinQ: 802.1ad double tag (eth -> outer vlan -> inner vlan).
         "eth-vlan-vlan" => (
-            eth_for_vlan(),
+            eth_derived(),
             wrex_proto_vlan::strategy::strategy(),
             wrex_proto_vlan::strategy::strategy(),
             payload(),
@@ -81,7 +102,7 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             })
             .boxed(),
         "eth-vlan-ipv4-udp" => (
-            eth_for_vlan(),
+            eth_derived(),
             wrex_proto_vlan::strategy::strategy(),
             wrex_proto_ip::strategy::strategy(),
             wrex_proto_udp::strategy::strategy(),
@@ -92,7 +113,7 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             })
             .boxed(),
         "eth-vlan-ipv4-tcp" => (
-            eth_for_vlan(),
+            eth_derived(),
             wrex_proto_vlan::strategy::strategy(),
             wrex_proto_ip::strategy::strategy(),
             wrex_proto_tcp::strategy::strategy(),
@@ -103,7 +124,7 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             })
             .boxed(),
         "eth-vlan-ipv4-icmp" => (
-            eth_for_vlan(),
+            eth_derived(),
             wrex_proto_vlan::strategy::strategy(),
             wrex_proto_ip::strategy::strategy(),
             wrex_proto_icmp::strategy::strategy(),
@@ -139,6 +160,66 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             payload(),
         )
             .prop_map(|(eth, ip, icmp, pay)| PacketSpec::new(vec![eth, ip, icmp], Some(pay)))
+            .boxed(),
+        "eth-vlan-ipv6-udp" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, udp, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, udp], Some(pay))
+            })
+            .boxed(),
+        "eth-vlan-ipv6-tcp" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, tcp, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, tcp], Some(pay))
+            })
+            .boxed(),
+        "eth-vlan-ipv6-icmpv6" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, icmp, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, icmp], Some(pay))
+            })
+            .boxed(),
+        "eth-ipv6-udp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, udp, pay)| PacketSpec::new(vec![eth, ip, udp], Some(pay)))
+            .boxed(),
+        "eth-ipv6-tcp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, tcp, pay)| PacketSpec::new(vec![eth, ip, tcp], Some(pay)))
+            .boxed(),
+        "eth-ipv6-icmpv6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, icmp, pay)| PacketSpec::new(vec![eth, ip, icmp], Some(pay)))
+            .boxed(),
+        "ipv6" => (wrex_proto_ip6::strategy::strategy(), payload())
+            .prop_map(|(ip, pay)| PacketSpec::new(vec![ip], Some(pay)))
             .boxed(),
         other => panic!("unknown stack `{other}` (valid: {})", STACKS.join(", ")),
     }

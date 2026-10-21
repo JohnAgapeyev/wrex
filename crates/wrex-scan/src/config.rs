@@ -1,10 +1,9 @@
 //! Scan configuration: modes, defaults and validation (grammar errors
 //! are `String`, mapped to exit-2 usage errors by the CLI).
 
-use std::net::Ipv4Addr;
 use std::time::Duration;
 
-use crate::target::{parse_ports, parse_targets};
+use crate::target::{Family, ScanAddr, parse_ports, parse_targets};
 
 /// Probe mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,7 +18,8 @@ pub enum ScanMode {
     /// port-unreachable → closed, other ICMP unreachables → filtered,
     /// exhaustion → open|filtered.
     Udp,
-    /// ICMP echo sweep (host discovery): ports are illegal.
+    /// ICMP echo sweep (host discovery): ports are illegal. Over v6
+    /// targets this is ICMPv6 echo (type 128/129).
     Icmp,
 }
 
@@ -40,22 +40,42 @@ impl ScanMode {
         }
     }
 
-    /// Wire protocol name (result rendering, registry gating).
-    pub fn proto(self) -> &'static str {
+    /// Wire protocol name for result rendering over `family` (the icmp
+    /// mode speaks icmpv6 over v6 targets).
+    pub fn proto_for(self, family: Family) -> &'static str {
         match self {
             Self::Syn | Self::Connect => "tcp",
             Self::Udp => "udp",
-            Self::Icmp => "icmp",
+            Self::Icmp => family.echo_kind(),
         }
     }
 
-    /// Registry kinds this mode needs registered.
-    pub fn needs(self) -> &'static [&'static str] {
+    /// Wire protocol name over IPv4 targets (source compatibility).
+    pub fn proto(self) -> &'static str {
+        self.proto_for(Family::V4)
+    }
+
+    /// Registry kinds this mode needs registered over `family`.
+    pub fn needs_for(self, family: Family) -> &'static [&'static str] {
         match self {
-            Self::Syn | Self::Connect => &["ipv4", "tcp"],
-            Self::Udp => &["ipv4", "udp"],
-            Self::Icmp => &["ipv4", "icmp"],
+            Self::Syn | Self::Connect => match family {
+                Family::V4 => &["ipv4", "tcp"],
+                Family::V6 => &["ipv6", "tcp"],
+            },
+            Self::Udp => match family {
+                Family::V4 => &["ipv4", "udp"],
+                Family::V6 => &["ipv6", "udp"],
+            },
+            Self::Icmp => match family {
+                Family::V4 => &["ipv4", "icmp"],
+                Family::V6 => &["ipv6", "icmpv6"],
+            },
         }
+    }
+
+    /// Registry kinds this mode needs over IPv4 targets (source compat).
+    pub fn needs(self) -> &'static [&'static str] {
+        self.needs_for(Family::V4)
     }
 
     pub fn as_str(self) -> &'static str {
@@ -102,8 +122,9 @@ pub const DEFAULT_TCP_PORTS: &[u16] = &[
 #[derive(Clone, Debug)]
 pub struct ScanConfig {
     pub mode: ScanMode,
-    /// Expanded, deduplicated, sorted target addresses.
-    pub targets: Vec<Ipv4Addr>,
+    /// Expanded, deduplicated, sorted target addresses (one family per
+    /// scan — enforced by the target grammar).
+    pub targets: Vec<ScanAddr>,
     /// Expanded, deduplicated, sorted ports (empty for icmp).
     pub ports: Vec<u16>,
     /// Pacing step between probe sends (`ZERO` = uncapped burst).
@@ -183,6 +204,14 @@ impl ScanConfig {
             timeout,
             concurrent,
         })
+    }
+
+    /// The shared target family (grammar-enforced single family).
+    pub fn family(&self) -> Family {
+        self.targets
+            .first()
+            .map(|t| t.family())
+            .unwrap_or(Family::V4)
     }
 
     /// Total number of probes this scan will run.

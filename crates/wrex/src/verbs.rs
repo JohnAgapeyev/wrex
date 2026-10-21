@@ -1055,7 +1055,8 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
         ));
     }
 
-    // Interface + source address (kernel routes on the datagram dst).
+    // Interface + source address + driver (family follows the targets:
+    // kernel-routed v4 via IP_HDRINCL, AF_PACKET frame injection for v6).
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
     let entry = table
@@ -1067,16 +1068,39 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
             ))
         })?
         .clone();
-    let src =
-        entry.ipv4s.first().copied().ok_or_else(|| {
-            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
-        })?;
+    let src = match cfg.family() {
+        wrex_scan::Family::V4 => entry
+            .ipv4s
+            .first()
+            .copied()
+            .map(wrex_scan::ScanAddr::V4)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+            })?,
+        wrex_scan::Family::V6 => entry
+            .ipv6s
+            .first()
+            .copied()
+            .map(wrex_scan::ScanAddr::V6)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv6 source address"))
+            })?,
+    };
 
-    let mut driver = RawIpDriver::open(iface, &table)?;
     let mut session =
         wrex_scan::ScanSession::new(registry, cfg, src, Instant::now()).map_err(usage)?;
-    let results = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
-        .map_err(|e| CliError::Runtime(format!("scan: {e}")))?;
+    let results = match src {
+        wrex_scan::ScanAddr::V4(_) => {
+            let mut driver = RawIpDriver::open(iface, &table)?;
+            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                .map_err(|e| CliError::Runtime(format!("scan: {e}")))?
+        }
+        wrex_scan::ScanAddr::V6(_) => {
+            let mut driver = wrex_io::RawIpv6Driver::open(iface, &table)?;
+            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                .map_err(|e| CliError::Runtime(format!("scan: {e}")))?
+        }
+    };
 
     let mut out = String::new();
     match format {
@@ -1282,16 +1306,39 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
             ))
         })?
         .clone();
-    let src =
-        entry.ipv4s.first().copied().ok_or_else(|| {
-            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
-        })?;
+    let src = match cfg.family() {
+        wrex_scan::Family::V4 => entry
+            .ipv4s
+            .first()
+            .copied()
+            .map(wrex_scan::ScanAddr::V4)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+            })?,
+        wrex_scan::Family::V6 => entry
+            .ipv6s
+            .first()
+            .copied()
+            .map(wrex_scan::ScanAddr::V6)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv6 source address"))
+            })?,
+    };
 
-    let mut driver = RawIpDriver::open(iface, &table)?;
     let mut session =
         wrex_fuzz::ProberSession::new(registry, cfg, src, Instant::now()).map_err(usage)?;
-    let findings = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
-        .map_err(|e| CliError::Runtime(format!("fuzz: {e}")))?;
+    let findings = match src {
+        wrex_scan::ScanAddr::V4(_) => {
+            let mut driver = RawIpDriver::open(iface, &table)?;
+            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                .map_err(|e| CliError::Runtime(format!("fuzz: {e}")))?
+        }
+        wrex_scan::ScanAddr::V6(_) => {
+            let mut driver = wrex_io::RawIpv6Driver::open(iface, &table)?;
+            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                .map_err(|e| CliError::Runtime(format!("fuzz: {e}")))?
+        }
+    };
 
     let mut out = String::new();
     match format {

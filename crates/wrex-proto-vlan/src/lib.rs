@@ -56,7 +56,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "vlan",
     rank: 15,
     parents: &["eth", "vlan"],
-    doc: "IEEE 802.1Q VLAN tag: 4-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect-only). type drives the chain like eth.type: 0x0800 -> ipv4, 0x0806 -> arp, 0x8100/0x88a8 -> vlan, else synthesized `unknown`.",
+    doc: "IEEE 802.1Q VLAN tag: 4-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect-only). type drives the chain like eth.type: 0x0800 -> ipv4, 0x0806 -> arp, 0x86dd -> ipv6, 0x8100/0x88a8 -> vlan, else synthesized `unknown`.",
     fields: FIELDS.as_slice(),
     records: &[],
 });
@@ -71,6 +71,7 @@ fn ethertype_to_kind(t: u16) -> &'static str {
     match t {
         0x0800 => "ipv4",
         0x0806 => "arp",
+        0x86dd => "ipv6",
         0x8100 | 0x88a8 => "vlan",
         _ => "unknown",
     }
@@ -81,6 +82,7 @@ fn kind_to_ethertype(kind: Option<&'static str>) -> u16 {
     match kind {
         Some("ipv4") => 0x0800,
         Some("arp") => 0x0806,
+        Some("ipv6") => 0x86dd,
         Some("vlan") => 0x8100,
         _ => 0x0000,
     }
@@ -149,16 +151,20 @@ pub mod strategy {
     use wrex_core::value::Value;
 
     /// Valid vlan specs: pcp 0-7, dei 0/1, vid 0-4095; type among known
-    /// + arbitrary values (self-chaining 8100/88a8 excluded: a random
-    /// inner tag would recurse past the spec's stack); derived type
-    /// stays unset (QinQ inner chains derive it via --layer autofill).
+    /// and arbitrary values (self-chaining 8100/88a8 excluded: a random
+    /// inner tag would recurse past the spec's stack; 86dd excluded
+    /// since tranche 7b — a random ipv6 ethertype on a v4 stack
+    /// mis-parses the chain, the dedicated ipv6 stacks cover it).
+    ///
+    /// Derived type stays unset (QinQ inner chains derive it via
+    /// --layer autofill).
     pub fn strategy() -> BoxedStrategy<LayerSpec> {
         (
             0u8..8,
             proptest::bool::ANY,
             0u16..4096,
             proptest::option::of(
-                proptest::sample::select(vec![0x0800u16, 0x0806, 0x86dd, 0x1234])
+                proptest::sample::select(vec![0x0800u16, 0x0806, 0x1234])
                     .prop_map(|v| Value::Int(v as u128)),
             ),
         )

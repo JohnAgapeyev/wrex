@@ -26,6 +26,7 @@ pub mod target;
 pub use config::{DEFAULT_RATE, DEFAULT_TCP_PORTS, ScanConfig, ScanMode};
 pub use report::ScanResult;
 pub use session::ScanSession;
+pub use target::{Family, ScanAddr};
 
 /// Seeded jitter source (moved to `wrex-io` at tranche 3; re-exported
 /// for source compatibility).

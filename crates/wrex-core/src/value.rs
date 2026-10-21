@@ -15,6 +15,7 @@ pub enum Value {
     Bytes(Bytes),
     Str(String),
     Ipv4(std::net::Ipv4Addr),
+    Ipv6(std::net::Ipv6Addr),
     Mac([u8; 6]),
     List(Vec<Value>),
 }
@@ -36,6 +37,7 @@ impl serde::Serialize for Value {
             Value::Bytes(b) => serializer.serialize_str(&hex::encode(b)),
             Value::Str(s) => serializer.serialize_str(s),
             Value::Ipv4(a) => serializer.serialize_str(&a.to_string()),
+            Value::Ipv6(a) => serializer.serialize_str(&a.to_string()),
             Value::Mac(m) => serializer.serialize_str(&mac_string(*m)),
             Value::List(items) => {
                 let mut seq = serializer.serialize_seq(Some(items.len()))?;
@@ -61,6 +63,7 @@ impl Value {
             FieldKind::Bytes | FieldKind::ByteList => Value::Bytes(Bytes::new()),
             FieldKind::Str => Value::Str(String::new()),
             FieldKind::Ipv4 => Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
+            FieldKind::Ipv6 => Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
             FieldKind::Mac => Value::Mac([0; 6]),
         }
     }
@@ -72,6 +75,7 @@ impl Value {
             Value::Bytes(_) => "bytes",
             Value::Str(_) => "str",
             Value::Ipv4(_) => "ipv4",
+            Value::Ipv6(_) => "ipv6",
             Value::Mac(_) => "mac",
             Value::List(_) => "list",
         }
@@ -144,6 +148,14 @@ pub fn parse_value(field: &FieldSchema, raw: &str) -> Result<Value, SpecError> {
                 reason: "expected dotted-quad IPv4 (a.b.c.d)".to_string(),
             })?;
             Ok(Value::Ipv4(a))
+        }
+        FieldKind::Ipv6 => {
+            let a: std::net::Ipv6Addr = raw.trim().parse().map_err(|_| SpecError::BadValue {
+                path: field.name.to_string(),
+                raw: raw.to_string(),
+                reason: "expected IPv6 (::1, 2001:db8::1, …)".to_string(),
+            })?;
+            Ok(Value::Ipv6(a))
         }
         FieldKind::Mac => {
             let sep = if raw.contains(':') { ':' } else { '-' };
@@ -334,6 +346,25 @@ mod tests {
         let e = parse_value(&f, "300").unwrap_err();
         assert!(matches!(e, SpecError::BadValue { .. }));
         assert!(e.to_string().contains("out of range"));
+    }
+
+    #[test]
+    fn ipv6_and_mac_grammar() {
+        let f6 = field("src6", FieldKind::Ipv6);
+        assert_eq!(
+            parse_value(&f6, "::1").unwrap(),
+            Value::Ipv6("::1".parse().unwrap())
+        );
+        assert_eq!(
+            parse_value(&f6, "2001:db8::1").unwrap(),
+            Value::Ipv6("2001:db8::1".parse().unwrap())
+        );
+        assert!(parse_value(&f6, "127.0.0.1").is_err());
+        assert!(parse_value(&f6, "2001:db8::zz").is_err());
+        assert_eq!(
+            Value::zero_for(FieldKind::Ipv6),
+            Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED)
+        );
     }
 
     #[test]

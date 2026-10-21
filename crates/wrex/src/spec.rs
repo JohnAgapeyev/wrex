@@ -12,10 +12,11 @@ use clap::ArgMatches;
 use wrex_core::value::parse_value;
 use wrex_core::{FieldSchema, PacketSpec, Registry, SpecError, Value};
 
-/// CLI-only kind alias table (pinned): `ip` → `ipv4`.
+/// CLI-only kind alias table (pinned): `ip` → `ipv4`, `ip6`/`v6` → `ipv6`.
 fn resolve_kind(registry: &Registry, wanted: &str) -> Result<&'static str, SpecError> {
     let canonical = match wanted {
         "ip" => "ipv4",
+        "ip6" | "v6" => "ipv6",
         other => other,
     };
     match registry.get(canonical) {
@@ -47,6 +48,7 @@ pub fn render_value_flat(v: &Value) -> String {
         Value::Bytes(b) => hex::encode(b),
         Value::Str(s) => s.clone(),
         Value::Ipv4(a) => a.to_string(),
+        Value::Ipv6(a) => a.to_string(),
         Value::Mac(m) => wrex_core::mac_string(*m),
         Value::List(items) => items
             .iter()

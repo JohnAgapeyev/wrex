@@ -12,7 +12,6 @@
 //! an ICMP-unreachable attribution, or silence.
 
 use std::collections::{BinaryHeap, HashMap, VecDeque};
-use std::net::Ipv4Addr;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -22,6 +21,8 @@ use wrex_core::value::Value;
 use wrex_io::{Frame, Rng};
 use wrex_mut::Mutator;
 use wrex_session::{Session, SessionAction};
+
+use wrex_scan::target::{Family, ScanAddr};
 
 use crate::config::{FuzzConfig, ProbeMode};
 use crate::report::{Finding, Outcome};
@@ -40,18 +41,18 @@ const SPORT_HI: u16 = 60999;
 enum ProbeKey {
     /// tcp/udp: a reply (src, sport, dport) == (probe dst, probe dport, probe sport).
     L4 {
-        src: Ipv4Addr,
+        src: ScanAddr,
         dport: u16,
         sport: u16,
     },
-    /// icmp echo: a reply (src, echo id) == (probe dst, probe echo id).
-    Echo { src: Ipv4Addr, id: u16 },
+    /// icmp/icmpv6 echo: a reply (src, echo id) == (probe dst, probe id).
+    Echo { src: ScanAddr, id: u16 },
 }
 
 impl ProbeKey {
     /// The pre-mutation identity (the fallback when a mutation broke
     /// dissection).
-    fn base(mode: ProbeMode, target: Ipv4Addr, port: u16, sport: u16, id: u16) -> ProbeKey {
+    fn base(mode: ProbeMode, target: ScanAddr, port: u16, sport: u16, id: u16) -> ProbeKey {
         match mode {
             ProbeMode::Tcp | ProbeMode::Udp => ProbeKey::L4 {
                 src: target,
@@ -73,7 +74,7 @@ enum Phase {
 #[derive(Clone, Debug)]
 struct Probe {
     key: ProbeKey,
-    target: Ipv4Addr,
+    target: ScanAddr,
     port: Option<u16>,
     round: Option<u32>,
     strategy: &'static str,
@@ -107,10 +108,11 @@ impl<'a> ProberSession<'a> {
     pub fn new(
         registry: &'a Registry,
         cfg: FuzzConfig,
-        src: Ipv4Addr,
+        src: ScanAddr,
         t0: Instant,
     ) -> Result<Self, String> {
-        for kind in cfg.mode.needs() {
+        let family = cfg.family();
+        for kind in cfg.mode.needs_for(family) {
             if registry.get(kind).is_none() {
                 return Err(format!(
                     "{kind} layer not registered (registered: {})",
@@ -157,7 +159,13 @@ impl<'a> ProberSession<'a> {
                             wrex_scan::packet::udp(registry, src, target, sport, port)
                         }
                         ProbeMode::Icmp => {
-                            wrex_scan::packet::icmp_echo(registry, src, target, 8, id, 1)
+                            // Echo protocol follows the family (8 over v4,
+                            // 128 over v6).
+                            let typ = match target {
+                                ScanAddr::V4(_) => 8,
+                                ScanAddr::V6(_) => wrex_scan::packet::ICMPV6_ECHO_REQ,
+                            };
+                            wrex_scan::packet::icmp_echo(registry, src, target, typ, id, 1)
                         }
                     }
                     .map_err(|e| format!("fuzz: probe build: {e}"))?;
@@ -188,6 +196,7 @@ impl<'a> ProberSession<'a> {
                         registry,
                         &bytes,
                         cfg.mode,
+                        family,
                         ProbeKey::base(cfg.mode, target, port, sport, id),
                     );
                     let probe = Probe {
@@ -247,7 +256,13 @@ impl<'a> ProberSession<'a> {
         };
         self.probes[idx].phase = Phase::Resolved;
         self.inflight.remove(&key);
-        let proto = self.cfg.mode.as_str();
+        // tcp/udp are family-invariant; the icmp mode speaks icmpv6
+        // over v6 targets.
+        let proto = match self.cfg.mode {
+            ProbeMode::Icmp => self.cfg.family().echo_kind(),
+            ProbeMode::Tcp => "tcp",
+            ProbeMode::Udp => "udp",
+        };
         self.findings.push_back(Finding {
             target,
             port,
@@ -263,46 +278,35 @@ impl<'a> ProberSession<'a> {
     }
 
     /// Handle one dissected incoming frame: a direct reply match
-    /// first, then ICMP-unreachable quote attribution (udp/tcp).
-    fn on_reply(
-        &mut self,
-        pkt: &wrex_core::dissect::DissectedPacket,
-        ip: &LayerView,
-        now: Instant,
-        reply: &[u8],
-    ) {
-        if let Some(key) = reply_key(self.cfg.mode, pkt, ip)
+    /// first, then ICMP/ICMPv6-unreachable quote attribution (udp/tcp).
+    fn on_reply(&mut self, pkt: &wrex_core::dissect::DissectedPacket, now: Instant, reply: &[u8]) {
+        let family = self.cfg.family();
+        if let Some(key) = reply_key(self.cfg.mode, pkt, family)
             && let Some(&idx) = self.inflight.get(&key)
         {
             let rtt = now - self.probes[idx].last_sent;
             self.resolve(idx, Outcome::Reply, Some(reply), Some(rtt));
             return;
         }
-        // ICMP-unreachable attribution (udp/tcp modes): the quote rides
-        // as the icmp payload (original IPv4 header + >= 8 bytes of
-        // the original L4 header).
+        // Unreachable attribution (udp/tcp modes, family-aware): the
+        // quote rides as the icmp/icmpv6 payload (original IP header +
+        // >= 8 bytes of the original L4 header).
         if self.cfg.mode == ProbeMode::Icmp {
             return;
         }
-        let Some(icmp) = pkt.layers.iter().find(|l| l.kind == "icmp") else {
+        let Some((unreach, code)) = unreachable_of(pkt, family) else {
             return;
         };
-        let Some(icmp_type) = f_int(icmp, "type") else {
+        let Some((q_dst, q_sport, q_dport)) = parse_icmp_quote(family, &pkt.payload) else {
             return;
         };
-        if icmp_type != 3 {
-            return;
-        }
-        let Some((q_dst, q_sport, q_dport)) = parse_icmp_quote(&pkt.payload) else {
-            return;
-        };
+        let _ = unreach;
         let key = ProbeKey::L4 {
             src: q_dst,
             dport: q_dport,
             sport: q_sport,
         };
         if let Some(&idx) = self.inflight.get(&key) {
-            let code = f_int(icmp, "code").unwrap_or(255) as u8;
             let rtt = now - self.probes[idx].last_sent;
             self.resolve(idx, Outcome::Unreachable(code), None, Some(rtt));
         }
@@ -314,15 +318,16 @@ impl<'a> Session for ProberSession<'a> {
 
     fn on_frame(&mut self, frame: Frame, now: Instant) {
         self.now = now;
-        // RawIpDriver yields IPv4-start datagrams (the same start the
-        // scan session assumes; the registry is validated at
-        // construction).
-        let pkt = dissect(self.registry, &frame.bytes, "ipv4");
-        let Some(ip) = pkt.layers.iter().find(|l| l.kind == "ipv4") else {
+        // Drivers yield network-layer-start datagrams; the start kind
+        // follows the (grammar-pinned) target family (RawIpDriver for
+        // v4, RawIpv6Driver for v6; scripted paths use the same start).
+        let start = self.cfg.family().ip_kind();
+        let pkt = dissect(self.registry, &frame.bytes, start);
+        if !pkt.layers.iter().any(|l| l.kind == start) {
             return; // cross-talk
-        };
+        }
         let reply = frame.bytes.to_vec();
-        self.on_reply(&pkt, ip, now, &reply);
+        self.on_reply(&pkt, now, &reply);
     }
 
     fn on_timeout(&mut self, now: Instant) {
@@ -417,21 +422,27 @@ fn next_due(rng: &mut Rng, prev: Instant, interval: Duration, jitter: Duration) 
 }
 
 /// The reply key a probe matches on, derived from the *sent* bytes
-/// (post-mutation) with a base fallback.
-fn probe_key(registry: &Registry, bytes: &[u8], mode: ProbeMode, base: ProbeKey) -> ProbeKey {
-    let pkt = dissect(registry, bytes, "ipv4");
-    let Some(ip) = pkt.layers.iter().find(|l| l.kind == "ipv4") else {
-        return base;
-    };
+/// (post-mutation) with a base fallback. The dissection start follows
+/// the configured family (a mutation that broke dissection — or moved
+/// the packet to the other family — falls back to the base identity).
+fn probe_key(
+    registry: &Registry,
+    bytes: &[u8],
+    mode: ProbeMode,
+    family: Family,
+    base: ProbeKey,
+) -> ProbeKey {
+    let pkt = dissect(registry, bytes, family.ip_kind());
     match mode {
         ProbeMode::Tcp | ProbeMode::Udp => {
             let kind = if mode == ProbeMode::Tcp { "tcp" } else { "udp" };
             let Some(l4) = pkt.layers.iter().find(|l| l.kind == kind) else {
                 return base;
             };
-            let (Some(dst), Some(sport), Some(dport)) =
-                (f_ipv4(ip, "dst"), f_int(l4, "sport"), f_int(l4, "dport"))
-            else {
+            let Some(dst) = f_addr(&pkt, family, "dst") else {
+                return base;
+            };
+            let (Some(sport), Some(dport)) = (f_int(l4, "sport"), f_int(l4, "dport")) else {
                 return base;
             };
             ProbeKey::L4 {
@@ -441,10 +452,12 @@ fn probe_key(registry: &Registry, bytes: &[u8], mode: ProbeMode, base: ProbeKey)
             }
         }
         ProbeMode::Icmp => {
-            let Some(icmp) = pkt.layers.iter().find(|l| l.kind == "icmp") else {
+            let echo = family.echo_kind();
+            let Some(icmp) = pkt.layers.iter().find(|l| l.kind == echo) else {
                 return base;
             };
-            let (Some(dst), Some(id)) = (f_ipv4(ip, "dst"), f_int(icmp, "echo.id")) else {
+            let (Some(dst), Some(id)) = (f_addr(&pkt, family, "dst"), f_int(icmp, "echo.id"))
+            else {
                 return base;
             };
             ProbeKey::Echo {
@@ -456,19 +469,18 @@ fn probe_key(registry: &Registry, bytes: &[u8], mode: ProbeMode, base: ProbeKey)
 }
 
 /// The reply-side key of a dissected incoming frame, when it is a
-/// plausible reply shape for the mode.
+/// plausible reply shape for the mode (family-aware).
 fn reply_key(
     mode: ProbeMode,
     pkt: &wrex_core::dissect::DissectedPacket,
-    ip: &LayerView,
+    family: Family,
 ) -> Option<ProbeKey> {
     match mode {
         ProbeMode::Tcp | ProbeMode::Udp => {
             let kind = if mode == ProbeMode::Tcp { "tcp" } else { "udp" };
             let l4 = pkt.layers.iter().find(|l| l.kind == kind)?;
-            let (Some(src), Some(sport), Some(dport)) =
-                (f_ipv4(ip, "src"), f_int(l4, "sport"), f_int(l4, "dport"))
-            else {
+            let src = f_addr(pkt, family, "src")?;
+            let (Some(sport), Some(dport)) = (f_int(l4, "sport"), f_int(l4, "dport")) else {
                 return None;
             };
             Some(ProbeKey::L4 {
@@ -478,15 +490,52 @@ fn reply_key(
             })
         }
         ProbeMode::Icmp => {
-            let icmp = pkt.layers.iter().find(|l| l.kind == "icmp")?;
-            if f_int(icmp, "type")? != 0 {
+            // Echo replies: icmp type 0 over v4, icmpv6 type 129 over v6.
+            let (echo, reply_type) = match family {
+                Family::V4 => ("icmp", 0u128),
+                Family::V6 => ("icmpv6", 129),
+            };
+            let icmp = pkt.layers.iter().find(|l| l.kind == echo)?;
+            if f_int(icmp, "type")? != reply_type {
                 return None; // echo replies only
             }
-            let (Some(src), Some(id)) = (f_ipv4(ip, "src"), f_int(icmp, "echo.id")) else {
-                return None;
-            };
+            let src = f_addr(pkt, family, "src")?;
+            let id = f_int(icmp, "echo.id")?;
             Some(ProbeKey::Echo { src, id: id as u16 })
         }
+    }
+}
+
+/// The `(layer kind, code)` of an ICMP/ICMPv6 destination-unreachable
+/// error in `pkt`, when one is present (family-aware).
+fn unreachable_of(
+    pkt: &wrex_core::dissect::DissectedPacket,
+    family: Family,
+) -> Option<(&'static str, u8)> {
+    let (kind, unreach_type) = match family {
+        Family::V4 => ("icmp", 3u128),
+        // RFC 4443 §3.1: type 1 = destination unreachable.
+        Family::V6 => ("icmpv6", 1),
+    };
+    let icmp = pkt.layers.iter().find(|l| l.kind == kind)?;
+    if f_int(icmp, "type")? != unreach_type {
+        return None;
+    }
+    Some((kind, f_int(icmp, "code").unwrap_or(255) as u8))
+}
+
+/// Source/destination address of a dissected network-layer header,
+/// family-checked (a v4 reply never matches a v6 probe).
+fn f_addr(
+    pkt: &wrex_core::dissect::DissectedPacket,
+    family: Family,
+    name: &str,
+) -> Option<ScanAddr> {
+    let ip = pkt.layers.iter().find(|l| l.kind == family.ip_kind())?;
+    match (family, ip.fields.get(name)) {
+        (Family::V4, Some(Value::Ipv4(a))) => Some(ScanAddr::V4(*a)),
+        (Family::V6, Some(Value::Ipv6(a))) => Some(ScanAddr::V6(*a)),
+        _ => None,
     }
 }
 
@@ -499,32 +548,47 @@ fn f_int(layer: &LayerView, name: &str) -> Option<u128> {
     }
 }
 
-fn f_ipv4(layer: &LayerView, name: &str) -> Option<Ipv4Addr> {
-    match layer.fields.get(name) {
-        Some(Value::Ipv4(a)) => Some(*a),
-        _ => None,
+/// ICMP/ICMPv6 unreachable quote: `(quoted dst, quoted sport, quoted
+/// dport)` from the embedded original datagram (mirrors the scan
+/// session's private helpers; v6 quotes carry a fixed 40-byte header).
+fn parse_icmp_quote(family: Family, payload: &[u8]) -> Option<(ScanAddr, u16, u16)> {
+    match family {
+        Family::V4 => {
+            if payload.len() < 28 {
+                return None; // 20-byte IPv4 header + 8-byte L4 header
+            }
+            let ihl = (payload[0] & 0x0f) as usize;
+            if ihl < 5 {
+                return None;
+            }
+            let hlen = ihl * 4;
+            if payload.len() < hlen + 8 {
+                return None;
+            }
+            let dst = ScanAddr::V4(std::net::Ipv4Addr::new(
+                payload[16],
+                payload[17],
+                payload[18],
+                payload[19],
+            ));
+            let sport = u16::from_be_bytes([payload[hlen], payload[hlen + 1]]);
+            let dport = u16::from_be_bytes([payload[hlen + 2], payload[hlen + 3]]);
+            Some((dst, sport, dport))
+        }
+        Family::V6 => {
+            // RFC 4443 §3.1: as much of the original datagram as fits,
+            // never less than the fixed 40-byte IPv6 header.
+            if payload.len() < 40 + 8 || payload[0] >> 4 != 6 {
+                return None;
+            }
+            let mut o = [0u8; 16];
+            o.copy_from_slice(&payload[24..40]);
+            let dst = ScanAddr::V6(std::net::Ipv6Addr::from(o));
+            let sport = u16::from_be_bytes([payload[40], payload[41]]);
+            let dport = u16::from_be_bytes([payload[42], payload[43]]);
+            Some((dst, sport, dport))
+        }
     }
-}
-
-/// ICMP unreachable quote: `(quoted dst, quoted sport, quoted dport)`
-/// from the embedded original IPv4 header + L4 header (mirrors the
-/// scan session's private helper).
-fn parse_icmp_quote(payload: &[u8]) -> Option<(Ipv4Addr, u16, u16)> {
-    if payload.len() < 28 {
-        return None; // 20-byte IPv4 header + 8-byte L4 header
-    }
-    let ihl = (payload[0] & 0x0f) as usize;
-    if ihl < 5 {
-        return None;
-    }
-    let hlen = ihl * 4;
-    if payload.len() < hlen + 8 {
-        return None;
-    }
-    let dst = Ipv4Addr::new(payload[16], payload[17], payload[18], payload[19]);
-    let sport = u16::from_be_bytes([payload[hlen], payload[hlen + 1]]);
-    let dport = u16::from_be_bytes([payload[hlen + 2], payload[hlen + 3]]);
-    Some((dst, sport, dport))
 }
 
 #[cfg(test)]
@@ -548,8 +612,8 @@ mod tests {
         r
     }
 
-    fn src() -> Ipv4Addr {
-        "127.0.0.1".parse().unwrap()
+    fn src() -> ScanAddr {
+        ScanAddr::V4("127.0.0.1".parse().unwrap())
     }
 
     fn t0() -> Instant {
@@ -837,13 +901,17 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect()
         };
+        let as4 = |a: ScanAddr| match a {
+            ScanAddr::V4(v) => v,
+            ScanAddr::V6(_) => unreachable!("v4 test helper"),
+        };
         let spec = wrex_core::spec::PacketSpec::new(
             vec![
                 wrex_core::spec::LayerSpec::with_fields(
                     "ipv4",
                     mk(&[
-                        ("src", Value::Ipv4(probe.target)),
-                        ("dst", Value::Ipv4(src())),
+                        ("src", Value::Ipv4(as4(probe.target))),
+                        ("dst", Value::Ipv4(as4(src()))),
                     ]),
                 ),
                 wrex_core::spec::LayerSpec::with_fields(

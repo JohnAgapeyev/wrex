@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ops::Range;
 
 use bytes::Bytes;
@@ -12,12 +12,31 @@ use crate::error::DecodeError;
 use crate::value::Value;
 
 /// Facts propagated along the dissection chain (recorded by network-layer
-/// codecs, consumed by L4 checksum verification).
-#[derive(Clone, Copy, Debug)]
-pub struct NetFacts {
-    pub src: Ipv4Addr,
-    pub dst: Ipv4Addr,
-    pub proto: u8,
+/// codecs, consumed by L4/ICMPv6 checksum verification). Generalized over
+/// the IP version at tranche 7b — additive: every pre-7b consumer matched
+/// the `V4` variant only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NetFacts {
+    V4 {
+        src: Ipv4Addr,
+        dst: Ipv4Addr,
+        proto: u8,
+    },
+    V6 {
+        src: Ipv6Addr,
+        dst: Ipv6Addr,
+        next_header: u8,
+    },
+}
+
+impl NetFacts {
+    /// The upper-layer protocol number (v4 `proto` / v6 `next_header`).
+    pub fn proto(&self) -> u8 {
+        match *self {
+            NetFacts::V4 { proto, .. } => proto,
+            NetFacts::V6 { next_header, .. } => next_header,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -92,14 +111,13 @@ impl<'a> DecodeCtx<'a> {
 }
 
 /// Auto-start heuristic for `dissect --start auto`:
-/// `bytes[0] >> 4 == 4` → ipv4; `== 6` → unknown (ipv6 unsupported this
-/// tranche); else len ≥ 14 → eth; else unknown.
+/// `bytes[0] >> 4 == 4` → ipv4; `== 6` → ipv6 (tranche 7b); else
+/// len ≥ 14 → eth; else unknown.
 pub fn auto_start(bytes: &[u8]) -> &'static str {
     match bytes.first() {
         None => "unknown",
         Some(&b) if b >> 4 == 4 => "ipv4",
-        // 6 is the IPv6 version nibble; unsupported in tranche 1.
-        Some(&b) if b >> 4 == 6 => "unknown",
+        Some(&b) if b >> 4 == 6 => "ipv6",
         Some(_) if bytes.len() >= 14 => "eth",
         _ => "unknown",
     }
@@ -218,7 +236,7 @@ mod tests {
     fn heuristic_table() {
         assert_eq!(auto_start(&[]), "unknown");
         assert_eq!(auto_start(&[0x45, 0x00]), "ipv4");
-        assert_eq!(auto_start(&[0x60, 0x00, 0x00, 0x00]), "unknown"); // ipv6
+        assert_eq!(auto_start(&[0x60, 0x00, 0x00, 0x00]), "ipv6"); // ipv6 (tranche 7b)
         assert_eq!(auto_start(&[0xff; 14]), "eth");
         assert_eq!(auto_start(&[0xff; 13]), "unknown");
         assert_eq!(auto_start(&[0x00, 0x11, 0x22]), "unknown");

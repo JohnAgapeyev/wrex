@@ -28,7 +28,6 @@
 //!   | icmp | exhausted | `dead` |
 
 use std::collections::{BinaryHeap, HashMap, VecDeque};
-use std::net::Ipv4Addr;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -43,6 +42,7 @@ use wrex_io::Rng;
 use crate::config::{ScanConfig, ScanMode};
 use crate::packet;
 use crate::report::ScanResult;
+use crate::target::ScanAddr;
 
 /// Minimum spacing between probe sends after jitter clamping.
 const MIN_STEP: Duration = Duration::from_millis(1);
@@ -58,12 +58,12 @@ const SPORT_HI: u16 = 60999;
 enum ProbeKey {
     /// tcp/udp: reply (src, sport, dport) == (target, probe dport, probe sport).
     L4 {
-        src: Ipv4Addr,
+        src: ScanAddr,
         dport: u16,
         sport: u16,
     },
-    /// icmp echo: reply (src, echo id) == (target, probe id).
-    Echo { src: Ipv4Addr, id: u16 },
+    /// icmp/icmpv6 echo: reply (src, echo id) == (target, probe id).
+    Echo { src: ScanAddr, id: u16 },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -80,7 +80,7 @@ enum Phase {
 struct Probe {
     /// Reply-matching key (mode-appropriate).
     key: ProbeKey,
-    target: Ipv4Addr,
+    target: ScanAddr,
     /// Probed port (tcp/udp).
     port: u16,
     /// Our source port (tcp/udp); echo id for icmp.
@@ -104,8 +104,9 @@ struct Probe {
 pub struct ScanSession<'a> {
     registry: &'a Registry,
     cfg: ScanConfig,
-    /// Our source IPv4 (the `-i` interface address).
-    src: Ipv4Addr,
+    /// Our source address (the `-i` interface address; family matches
+    /// the targets).
+    src: ScanAddr,
     /// Latest observed instant (events carry time; `poll_action` stays
     /// clock-less per the frozen trait shape).
     now: Instant,
@@ -126,16 +127,23 @@ impl<'a> ScanSession<'a> {
     pub fn new(
         registry: &'a Registry,
         cfg: ScanConfig,
-        src: Ipv4Addr,
+        src: ScanAddr,
         t0: Instant,
     ) -> Result<Self, String> {
-        for kind in cfg.mode.needs() {
+        let family = cfg.family();
+        for kind in cfg.mode.needs_for(family) {
             if registry.get(kind).is_none() {
                 return Err(format!(
                     "{kind} layer not registered (registered: {})",
                     registry.kinds().join(", ")
                 ));
             }
+        }
+        if src.family() != family {
+            return Err(format!(
+                "source address {src} does not match the target family ({})",
+                family.ip_kind()
+            ));
         }
         let mut rng = Rng::new(cfg.seed);
 
@@ -235,7 +243,20 @@ impl<'a> ScanSession<'a> {
             ),
             ScanMode::Udp => packet::udp(self.registry, self.src, p.target, p.sport, p.port),
             ScanMode::Icmp => {
-                packet::icmp_echo(self.registry, self.src, p.target, 8, p.sport, p.seq as u16)
+                // The echo protocol follows the family (8/0 over v4,
+                // 128/129 over v6).
+                let typ = match self.cfg.family() {
+                    crate::target::Family::V4 => 8,
+                    crate::target::Family::V6 => packet::ICMPV6_ECHO_REQ,
+                };
+                packet::icmp_echo(
+                    self.registry,
+                    self.src,
+                    p.target,
+                    typ,
+                    p.sport,
+                    p.seq as u16,
+                )
             }
         }
     }
@@ -262,7 +283,7 @@ impl<'a> ScanSession<'a> {
         };
         let target = probe.target;
         let key = probe.key;
-        let proto = self.cfg.mode.proto();
+        let proto = self.cfg.mode.proto_for(self.cfg.family());
         self.inflight.remove(&key);
         self.results.push_back(ScanResult {
             target,
@@ -301,16 +322,16 @@ impl<'a> ScanSession<'a> {
     }
 
     /// Handle a dissected TCP reply (syn/connect modes).
-    fn on_tcp_reply(&mut self, pkt: &DissectedPacket, ip: &LayerView, now: Instant) {
+    fn on_tcp_reply(&mut self, pkt: &DissectedPacket, _ip: &LayerView, now: Instant) {
         let Some(tcp) = pkt.layers.iter().find(|l| l.kind == "tcp") else {
             return;
         };
-        let (Some(src), Some(sport), Some(dport), Some(ack)) = (
-            f_ipv4(ip, "src"),
-            f_int(tcp, "sport"),
-            f_int(tcp, "dport"),
-            f_int(tcp, "ack"),
-        ) else {
+        let Some(src) = f_addr(pkt, self.cfg.family(), "src") else {
+            return;
+        };
+        let (Some(sport), Some(dport), Some(ack)) =
+            (f_int(tcp, "sport"), f_int(tcp, "dport"), f_int(tcp, "ack"))
+        else {
             return;
         };
         // Reply 4-tuple → probe key: their sport is our dport.
@@ -344,12 +365,13 @@ impl<'a> ScanSession<'a> {
         // Other flag combinations are not scan replies.
     }
 
-    /// Handle a dissected UDP-mode reply (UDP reply or ICMP error).
-    fn on_udp_reply(&mut self, pkt: &DissectedPacket, ip: &LayerView, now: Instant) {
+    /// Handle a dissected UDP-mode reply (UDP reply or ICMP/ICMPv6 error).
+    fn on_udp_reply(&mut self, pkt: &DissectedPacket, now: Instant) {
         if let Some(udp) = pkt.layers.iter().find(|l| l.kind == "udp") {
-            let (Some(src), Some(sport), Some(dport)) =
-                (f_ipv4(ip, "src"), f_int(udp, "sport"), f_int(udp, "dport"))
-            else {
+            let Some(src) = f_addr(pkt, self.cfg.family(), "src") else {
+                return;
+            };
+            let (Some(sport), Some(dport)) = (f_int(udp, "sport"), f_int(udp, "dport")) else {
                 return;
             };
             let key = ProbeKey::L4 {
@@ -364,20 +386,55 @@ impl<'a> ScanSession<'a> {
             }
             return;
         }
-        let Some(icmp) = pkt.layers.iter().find(|l| l.kind == "icmp") else {
-            return;
+        // ICMP-unreachable attribution (family-aware): the unreachable
+        // quotes the original datagram; parse the quote and match by
+        // (quoted dst, quoted sport→our dport, quoted dport→our sport).
+        let family = self.cfg.family();
+        let (layer_kind, quote) = match family {
+            crate::target::Family::V4 => {
+                let Some(icmp) = pkt.layers.iter().find(|l| l.kind == "icmp") else {
+                    return;
+                };
+                let Some(icmp_type) = f_int(icmp, "type") else {
+                    return;
+                };
+                if icmp_type != 3 {
+                    return; // only unreachables carry scan information
+                }
+                let state = match f_int(icmp, "code").unwrap_or(255) {
+                    3 => "closed", // port unreachable
+                    1 | 2 | 9 | 10 | 13 => "filtered",
+                    _ => return, // other codes carry no scan semantics
+                };
+                let Some(q) = parse_icmp_quote_v4(&pkt.payload) else {
+                    return;
+                };
+                ("icmp", (state, q))
+            }
+            crate::target::Family::V6 => {
+                let Some(icmp6) = pkt.layers.iter().find(|l| l.kind == "icmpv6") else {
+                    return;
+                };
+                let Some(icmp_type) = f_int(icmp6, "type") else {
+                    return;
+                };
+                // RFC 4443 §3.1: type 1 = destination unreachable.
+                if icmp_type != 1 {
+                    return;
+                }
+                let state = match f_int(icmp6, "code").unwrap_or(255) {
+                    3 => "closed", // port unreachable
+                    0 | 1 | 2 | 4 | 5 | 6 | 7 => "filtered",
+                    _ => return, // other codes carry no scan semantics
+                };
+                let Some(q) = parse_icmp_quote_v6(&pkt.payload) else {
+                    return;
+                };
+                ("icmpv6", (state, q))
+            }
         };
-        let Some(icmp_type) = f_int(icmp, "type") else {
-            return;
-        };
-        if icmp_type != 3 {
-            return; // only unreachables carry scan information
-        }
-        // The quoted original datagram is the icmp payload (terminal
-        // layer): IPv4 header + >= 8 bytes of the original UDP header.
-        let Some((q_dst, q_sport, q_dport)) = parse_icmp_quote(&pkt.payload) else {
-            return;
-        };
+        let _ = layer_kind;
+        let (state, (q_dst, q_sport, q_dport)) = quote;
         let key = ProbeKey::L4 {
             src: q_dst,
             dport: q_dport,
@@ -386,28 +443,28 @@ impl<'a> ScanSession<'a> {
         let Some(&idx) = self.inflight.get(&key) else {
             return;
         };
-        let state = match f_int(icmp, "code").unwrap_or(255) {
-            3 => "closed", // port unreachable
-            1 | 2 | 9 | 10 | 13 => "filtered",
-            _ => return, // other codes carry no scan semantics
-        };
         let rtt = now - self.probes[idx].last_sent;
         self.resolve(idx, state, Some(rtt));
     }
 
-    /// Handle a dissected ICMP-mode reply (echo reply → alive).
-    fn on_icmp_reply(&mut self, pkt: &DissectedPacket, ip: &LayerView, now: Instant) {
-        let Some(icmp) = pkt.layers.iter().find(|l| l.kind == "icmp") else {
+    /// Handle a dissected ICMP/ICMPv6-mode reply (echo reply → alive).
+    fn on_icmp_reply(&mut self, pkt: &DissectedPacket, now: Instant) {
+        let family = self.cfg.family();
+        let (layer_kind, echo_reply_type) = match family {
+            crate::target::Family::V4 => ("icmp", 0u128),
+            crate::target::Family::V6 => ("icmpv6", 129u128),
+        };
+        let Some(icmp) = pkt.layers.iter().find(|l| l.kind == layer_kind) else {
             return;
         };
         let (Some(src), Some(icmp_type), Some(id)) = (
-            f_ipv4(ip, "src"),
+            f_addr(pkt, family, "src"),
             f_int(icmp, "type"),
             f_int(icmp, "echo.id"),
         ) else {
             return;
         };
-        if icmp_type != 0 {
+        if icmp_type != echo_reply_type {
             return; // echo replies only
         }
         let key = ProbeKey::Echo { src, id: id as u16 };
@@ -423,16 +480,17 @@ impl<'a> Session for ScanSession<'a> {
 
     fn on_frame(&mut self, frame: Frame, now: Instant) {
         self.now = now;
-        // RawIpDriver yields IPv4-start datagrams; the scripted path
-        // uses the same start (registry validated at construction).
-        let pkt = dissect(self.registry, &frame.bytes, "ipv4");
-        let Some(ip) = pkt.layers.iter().find(|l| l.kind == "ipv4") else {
+        // Drivers yield datagrams starting at the network layer; the
+        // start kind follows the (grammar-pinned) target family.
+        let start = self.cfg.family().ip_kind();
+        let pkt = dissect(self.registry, &frame.bytes, start);
+        let Some(_ip) = pkt.layers.iter().find(|l| l.kind == start) else {
             return; // cross-talk
         };
         match self.cfg.mode {
-            ScanMode::Syn | ScanMode::Connect => self.on_tcp_reply(&pkt, ip, now),
-            ScanMode::Udp => self.on_udp_reply(&pkt, ip, now),
-            ScanMode::Icmp => self.on_icmp_reply(&pkt, ip, now),
+            ScanMode::Syn | ScanMode::Connect => self.on_tcp_reply(&pkt, _ip, now),
+            ScanMode::Udp => self.on_udp_reply(&pkt, now),
+            ScanMode::Icmp => self.on_icmp_reply(&pkt, now),
         }
     }
 
@@ -519,9 +577,9 @@ fn next_due(rng: &mut Rng, prev: Instant, interval: Duration, jitter: Duration) 
     prev + step
 }
 
-/// ICMP unreachable quote: `(quoted dst, quoted sport, quoted dport)`
-/// from the embedded original IPv4 header + UDP header.
-fn parse_icmp_quote(payload: &[u8]) -> Option<(Ipv4Addr, u16, u16)> {
+/// ICMP unreachable quote (v4): `(quoted dst, quoted sport, quoted
+/// dport)` from the embedded original IPv4 header + UDP header.
+fn parse_icmp_quote_v4(payload: &[u8]) -> Option<(ScanAddr, u16, u16)> {
     if payload.len() < 28 {
         return None; // 20-byte IPv4 header + 8-byte UDP header
     }
@@ -533,9 +591,32 @@ fn parse_icmp_quote(payload: &[u8]) -> Option<(Ipv4Addr, u16, u16)> {
     if payload.len() < hlen + 8 {
         return None;
     }
-    let dst = Ipv4Addr::new(payload[16], payload[17], payload[18], payload[19]);
+    let dst = ScanAddr::V4(std::net::Ipv4Addr::new(
+        payload[16],
+        payload[17],
+        payload[18],
+        payload[19],
+    ));
     let sport = u16::from_be_bytes([payload[hlen], payload[hlen + 1]]);
     let dport = u16::from_be_bytes([payload[hlen + 2], payload[hlen + 3]]);
+    Some((dst, sport, dport))
+}
+
+/// ICMPv6 unreachable quote (RFC 4443 §3.1): `(quoted dst, quoted
+/// sport, quoted dport)` from the original IPv6 datagram — a fixed
+/// 40-byte header (no options) + 8 bytes of the original UDP header.
+fn parse_icmp_quote_v6(payload: &[u8]) -> Option<(ScanAddr, u16, u16)> {
+    if payload.len() < 40 + 8 {
+        return None;
+    }
+    if payload[0] >> 4 != 6 {
+        return None; // not an IPv6 datagram
+    }
+    let mut o = [0u8; 16];
+    o.copy_from_slice(&payload[24..40]);
+    let dst = ScanAddr::V6(std::net::Ipv6Addr::from(o));
+    let sport = u16::from_be_bytes([payload[40], payload[41]]);
+    let dport = u16::from_be_bytes([payload[42], payload[43]]);
     Some((dst, sport, dport))
 }
 
@@ -548,9 +629,14 @@ fn f_int(layer: &LayerView, name: &str) -> Option<u128> {
     }
 }
 
-fn f_ipv4(layer: &LayerView, name: &str) -> Option<Ipv4Addr> {
-    match layer.fields.get(name) {
-        Some(Value::Ipv4(a)) => Some(*a),
+/// Source/destination address of the dissected network-layer header,
+/// family-checked (a v4 reply never matches a v6 probe).
+fn f_addr(pkt: &DissectedPacket, family: crate::target::Family, name: &str) -> Option<ScanAddr> {
+    let ip_kind = family.ip_kind();
+    let ip = pkt.layers.iter().find(|l| l.kind == ip_kind)?;
+    match (family, ip.fields.get(name)) {
+        (crate::target::Family::V4, Some(Value::Ipv4(a))) => Some(ScanAddr::V4(*a)),
+        (crate::target::Family::V6, Some(Value::Ipv6(a))) => Some(ScanAddr::V6(*a)),
         _ => None,
     }
 }
@@ -593,14 +679,20 @@ mod tests {
     fn registry() -> Registry {
         let mut r = Registry::empty();
         r.register(&wrex_proto_ip::CODEC);
+        r.register(&wrex_proto_ip6::CODEC);
         r.register(&wrex_proto_icmp::CODEC);
+        r.register(&wrex_proto_icmpv6::CODEC);
         r.register(&wrex_proto_udp::CODEC);
         r.register(&wrex_proto_tcp::CODEC);
         r
     }
 
-    fn src() -> Ipv4Addr {
-        "127.0.0.1".parse().unwrap()
+    fn src() -> ScanAddr {
+        ScanAddr::V4("127.0.0.1".parse().unwrap())
+    }
+
+    fn src6() -> ScanAddr {
+        ScanAddr::V6("::1".parse().unwrap())
     }
 
     fn t0() -> Instant {
@@ -627,10 +719,45 @@ mod tests {
         .unwrap()
     }
 
+    fn cfg6_of(mode: ScanMode, ports: &[u16], retries: u32) -> ScanConfig {
+        let spec = ports
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        ScanConfig::build(
+            mode,
+            &["::1".to_string()],
+            if spec.is_empty() { None } else { Some(&spec) },
+            Duration::ZERO, // burst
+            Duration::ZERO,
+            0xC0FFEE,
+            retries,
+            SEC,
+            256,
+        )
+        .unwrap()
+    }
+
     fn icmp_cfg(retries: u32) -> ScanConfig {
         ScanConfig::build(
             ScanMode::Icmp,
             &["127.0.0.1".to_string()],
+            None,
+            Duration::ZERO,
+            Duration::ZERO,
+            0xC0FFEE,
+            retries,
+            SEC,
+            256,
+        )
+        .unwrap()
+    }
+
+    fn icmp6_cfg(retries: u32) -> ScanConfig {
+        ScanConfig::build(
+            ScanMode::Icmp,
+            &["::1".to_string()],
             None,
             Duration::ZERO,
             Duration::ZERO,
@@ -844,8 +971,20 @@ mod tests {
         let p = &s.probes[idx];
         let quoted = packet::udp(&reg, s.src, p.target, p.sport, p.port).unwrap();
         let mut ip_fields = std::collections::BTreeMap::new();
-        ip_fields.insert("src".to_string(), Value::Ipv4(p.target));
-        ip_fields.insert("dst".to_string(), Value::Ipv4(s.src));
+        ip_fields.insert(
+            "src".to_string(),
+            Value::Ipv4(match p.target {
+                ScanAddr::V4(a) => a,
+                ScanAddr::V6(_) => unreachable!("v4 test helper"),
+            }),
+        );
+        ip_fields.insert(
+            "dst".to_string(),
+            Value::Ipv4(match s.src {
+                ScanAddr::V4(a) => a,
+                ScanAddr::V6(_) => unreachable!("v4 test helper"),
+            }),
+        );
         ip_fields.insert("ttl".to_string(), Value::Int(64));
         let mut icmp_fields = std::collections::BTreeMap::new();
         icmp_fields.insert("type".to_string(), Value::Int(3));
@@ -917,11 +1056,23 @@ mod tests {
         drain_sends(&mut s2);
         let p = s2.probes[0].clone();
         let reg2 = registry();
-        let other: Ipv4Addr = "127.0.0.99".parse().unwrap();
+        let other: ScanAddr = ScanAddr::V4("127.0.0.99".parse().unwrap());
         let quoted = packet::udp(&reg2, s2.src, other, p.sport, p.port).unwrap();
         let mut ip_fields = std::collections::BTreeMap::new();
-        ip_fields.insert("src".to_string(), Value::Ipv4(other));
-        ip_fields.insert("dst".to_string(), Value::Ipv4(s2.src));
+        ip_fields.insert(
+            "src".to_string(),
+            Value::Ipv4(match other {
+                ScanAddr::V4(a) => a,
+                _ => unreachable!(),
+            }),
+        );
+        ip_fields.insert(
+            "dst".to_string(),
+            Value::Ipv4(match s2.src {
+                ScanAddr::V4(a) => a,
+                _ => unreachable!(),
+            }),
+        );
         let mut icmp_fields = std::collections::BTreeMap::new();
         icmp_fields.insert("type".to_string(), Value::Int(3));
         icmp_fields.insert("code".to_string(), Value::Int(3));
@@ -950,6 +1101,218 @@ mod tests {
         );
     }
 
+    /// Build an ICMPv6 type/`code` unreachable quoting probe `idx`'s v6
+    /// datagram (RFC 4443 §3.1: the original datagram rides as the
+    /// icmpv6 payload, any error message ≥ 128 bytes convention aside —
+    /// our parser needs 40 + 8).
+    fn icmp6_unreach(s: &ScanSession<'_>, idx: usize, code: u8) -> Vec<u8> {
+        let reg = registry();
+        let p = &s.probes[idx];
+        let quoted = packet::udp(&reg, s.src, p.target, p.sport, p.port).unwrap();
+        let mut ip_fields = std::collections::BTreeMap::new();
+        ip_fields.insert(
+            "src".to_string(),
+            Value::Ipv6(match p.target {
+                ScanAddr::V6(a) => a,
+                ScanAddr::V4(_) => unreachable!("v6 test helper"),
+            }),
+        );
+        ip_fields.insert(
+            "dst".to_string(),
+            Value::Ipv6(match s.src {
+                ScanAddr::V6(a) => a,
+                ScanAddr::V4(_) => unreachable!("v6 test helper"),
+            }),
+        );
+        ip_fields.insert("hop_limit".to_string(), Value::Int(64));
+        let mut icmp_fields = std::collections::BTreeMap::new();
+        icmp_fields.insert("type".to_string(), Value::Int(1));
+        icmp_fields.insert("code".to_string(), Value::Int(code as u128));
+        let spec = PacketSpec::new(
+            vec![
+                LayerSpec::with_fields("ipv6", ip_fields),
+                LayerSpec::with_fields("icmpv6", icmp_fields),
+            ],
+            Some(Value::Bytes(quoted)),
+        );
+        wrex_core::encode::encode(
+            &reg,
+            &spec,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .bytes
+        .to_vec()
+    }
+
+    #[test]
+    fn v6_icmp_alive_dead() {
+        let reg = registry();
+        let mut s = ScanSession::new(&reg, icmp6_cfg(0), src6(), t0()).unwrap();
+        drain_sends(&mut s);
+        // probe dissects as icmpv6 echo request 128
+        let sent = drain_sends_identities(&s);
+        let _ = sent;
+        let p = s.probes[0].clone();
+        let reply = packet::icmp_echo(&reg, p.target, s.src, 129, p.sport, p.seq as u16)
+            .unwrap()
+            .to_vec();
+        s.on_frame(frame(reply), t0() + 3 * MS);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].state, "alive");
+        assert_eq!(out[0].proto, "icmpv6");
+        assert_eq!(out[0].target.to_string(), "::1");
+        // wrong type (128 request) → cross-talk; timeout → dead
+        let mut s2 = ScanSession::new(&reg, icmp6_cfg(0), src6(), t0()).unwrap();
+        drain_sends(&mut s2);
+        let p2 = s2.probes[0].clone();
+        let req_again = packet::icmp_echo(&reg, p2.target, s2.src, 128, p2.sport, p2.seq as u16)
+            .unwrap()
+            .to_vec();
+        s2.on_frame(frame(req_again), t0());
+        assert!(s2.poll_result().is_none());
+        s2.on_timeout(t0() + SEC);
+        assert_eq!(drain_results(&mut s2)[0].state, "dead");
+    }
+
+    #[test]
+    fn v6_udp_unreachable_attribution() {
+        let reg = registry();
+        let mut s =
+            ScanSession::new(&reg, cfg6_of(ScanMode::Udp, &[5353, 5354], 0), src6(), t0()).unwrap();
+        let sent = drain_sends(&mut s);
+        assert_eq!(sent.len(), 2);
+        // UDP reply → open
+        let reply = packet::udp(
+            &reg,
+            s.probes[0].target,
+            s.src,
+            s.probes[0].port,
+            s.probes[0].sport,
+        )
+        .unwrap()
+        .to_vec();
+        s.on_frame(frame(reply), t0() + MS);
+        // ICMPv6 1/3 (port unreachable) quoting probe 1 → closed
+        s.on_frame(frame(icmp6_unreach(&s, 1, 3)), t0() + 2 * MS);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].port, Some(5353));
+        assert_eq!(out[0].state, "open");
+        assert_eq!(out[1].port, Some(5354));
+        assert_eq!(out[1].state, "closed");
+
+        // ICMPv6 1/0 (no route) → filtered
+        let mut s2 =
+            ScanSession::new(&reg, cfg6_of(ScanMode::Udp, &[5355], 0), src6(), t0()).unwrap();
+        drain_sends(&mut s2);
+        s2.on_frame(frame(icmp6_unreach(&s2, 0, 0)), t0() + MS);
+        let out2 = drain_results(&mut s2);
+        assert_eq!(out2.len(), 1);
+        assert_eq!(out2[0].state, "filtered");
+
+        // cross-talk: a quote naming a different target must not resolve
+        let mut s3 =
+            ScanSession::new(&reg, cfg6_of(ScanMode::Udp, &[5356], 0), src6(), t0()).unwrap();
+        drain_sends(&mut s3);
+        let other = ScanAddr::V6("::99".parse().unwrap());
+        let reg3 = registry();
+        let quoted =
+            packet::udp(&reg3, s3.src, other, s3.probes[0].sport, s3.probes[0].port).unwrap();
+        let mut ip_fields = std::collections::BTreeMap::new();
+        ip_fields.insert(
+            "src".to_string(),
+            Value::Ipv6(match other {
+                ScanAddr::V6(a) => a,
+                ScanAddr::V4(_) => unreachable!(),
+            }),
+        );
+        ip_fields.insert(
+            "dst".to_string(),
+            Value::Ipv6(match s3.src {
+                ScanAddr::V6(a) => a,
+                ScanAddr::V4(_) => unreachable!(),
+            }),
+        );
+        let mut icmp_fields = std::collections::BTreeMap::new();
+        icmp_fields.insert("type".to_string(), Value::Int(1));
+        icmp_fields.insert("code".to_string(), Value::Int(3));
+        let spec = PacketSpec::new(
+            vec![
+                LayerSpec::with_fields("ipv6", ip_fields),
+                LayerSpec::with_fields("icmpv6", icmp_fields),
+            ],
+            Some(Value::Bytes(quoted)),
+        );
+        let unreach = wrex_core::encode::encode(
+            &reg3,
+            &spec,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .bytes
+        .to_vec();
+        s3.on_frame(frame(unreach), t0());
+        assert!(
+            s3.poll_result().is_none(),
+            "cross-talk quote must not resolve"
+        );
+    }
+
+    #[test]
+    fn v6_syn_scan_shapes() {
+        let reg = registry();
+        let mut s =
+            ScanSession::new(&reg, cfg6_of(ScanMode::Syn, &[443], 0), src6(), t0()).unwrap();
+        let sent = drain_sends(&mut s);
+        assert_eq!(sent.len(), 1);
+        let p = wrex_core::dissect::dissect(&reg, &sent[0], "ipv6");
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        assert_eq!(p.layers[0].kind, "ipv6");
+        assert_eq!(p.layers[1].kind, "tcp");
+        // SYN+ACK → open (+RST follow-up on our 4-tuple)
+        let probe = s.probes[0].clone();
+        let synack = packet::tcp(
+            &reg,
+            probe.target,
+            s.src,
+            probe.port,
+            probe.sport,
+            0x9955,
+            Some(probe.seq.wrapping_add(1)),
+            packet::FLAG_SYN | packet::FLAG_ACK,
+        )
+        .unwrap()
+        .to_vec();
+        s.on_frame(frame(synack), t0() + 3 * MS);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].state, "open");
+        assert_eq!(out[0].proto, "tcp");
+        let followups = drain_sends(&mut s);
+        assert_eq!(followups.len(), 1, "RST follow-up after open");
+        let d = wrex_core::dissect::dissect(&reg, &followups[0], "ipv6");
+        assert!(matches!(
+            d.layers[1].fields.get("flags"),
+            Some(Value::List(items)) if items.contains(&Value::Str("rst".into()))
+        ));
+    }
+
+    /// Identities of every probe (for assertions).
+    fn drain_sends_identities(s: &ScanSession<'_>) -> Vec<(ScanAddr, u16, u16, u32)> {
+        s.probes
+            .iter()
+            .map(|p| (p.target, p.port, p.sport, p.seq))
+            .collect()
+    }
+
     #[test]
     fn icmp_alive_dead() {
         let reg = registry();
@@ -971,7 +1334,7 @@ mod tests {
         // wrong id → cross-talk; then timeout → dead
         let mut s2 = ScanSession::new(&reg, icmp_cfg(0), src(), t0()).unwrap();
         drain_sends(&mut s2);
-        let wrong = packet::icmp_echo(&reg, "127.0.0.1".parse().unwrap(), s2.src, 0, 0xffff, 1)
+        let wrong = packet::icmp_echo(&reg, src(), s2.src, 0, 0xffff, 1)
             .unwrap()
             .to_vec();
         s2.on_frame(frame(wrong), t0());
@@ -1133,7 +1496,7 @@ mod tests {
 
             // Twin session (same seed) learns the probe identities.
             let twin = ScanSession::new(&reg, cfg.clone(), src(), t0()).unwrap();
-            let identities: Vec<(Ipv4Addr, u16, u16, u32)> = twin.probes.iter()
+            let identities: Vec<(ScanAddr, u16, u16, u32)> = twin.probes.iter()
                 .map(|p| (p.target, p.port, p.sport, p.seq))
                 .collect();
 
@@ -1199,12 +1562,12 @@ mod tests {
                 );
             }
 
-            let mut got: Vec<(Ipv4Addr, u16, &'static str)> = drain_results(&mut s)
+            let mut got: Vec<(ScanAddr, u16, &'static str)> = drain_results(&mut s)
                 .into_iter()
                 .map(|r| (r.target, r.port.unwrap_or(0), r.state))
                 .collect();
             prop_assert_eq!(got.len(), probe_count, "every probe resolves exactly once");
-            let expected: Vec<(Ipv4Addr, u16, &'static str)> = identities.iter().zip(&outcomes)
+            let expected: Vec<(ScanAddr, u16, &'static str)> = identities.iter().zip(&outcomes)
                 .map(|(&(target, port, _, _), &o)| {
                     (target, port, match o { 0 => "open", 1 => "closed", _ => "filtered" })
                 })

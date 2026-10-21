@@ -33,7 +33,7 @@ impl Outcome {
 #[derive(Clone, Debug, Serialize)]
 pub struct Finding {
     /// Probed target address (pre-mutation intent).
-    pub target: std::net::Ipv4Addr,
+    pub target: wrex_scan::ScanAddr,
     /// Probed port (`None` for icmp).
     pub port: Option<u16>,
     /// Wire protocol (`tcp`/`udp`/`icmp`).

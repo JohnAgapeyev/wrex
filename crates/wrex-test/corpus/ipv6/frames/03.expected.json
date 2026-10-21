@@ -1,0 +1,45 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "2001:db8::2",
+        "flow_label": 797797,
+        "hop_limit": 64,
+        "next_header": "tcp",
+        "payload_len": 22,
+        "src": "2001:db8::1",
+        "traffic_class": 144,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        0,
+        40
+      ]
+    },
+    {
+      "fields": {
+        "ack": 0,
+        "checksum": 47145,
+        "data_off": 5,
+        "dport": 443,
+        "flags": [
+          "syn"
+        ],
+        "options": "",
+        "seq": 287454020,
+        "sport": 40000,
+        "urgent": 0,
+        "window": 64240
+      },
+      "kind": "tcp",
+      "span": [
+        40,
+        60
+      ]
+    }
+  ],
+  "payload_hex": "beef",
+  "start": "ipv6"
+}

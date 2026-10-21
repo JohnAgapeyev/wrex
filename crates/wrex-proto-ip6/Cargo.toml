@@ -1,0 +1,21 @@
+[package]
+name = "wrex-proto-ip6"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex IPv6 codec"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

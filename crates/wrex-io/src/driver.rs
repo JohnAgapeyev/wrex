@@ -388,6 +388,146 @@ impl Drop for RawIpDriver {
     }
 }
 
+// ---------------------------------------------------------------------------
+// RawIpv6Driver
+// ---------------------------------------------------------------------------
+
+/// EtherType for IPv6 (Ethernet II).
+const ETHERTYPE_IPV6: u16 = 0x86dd;
+
+/// Linux raw-IPv6 driver (tranche 7b): `AF_PACKET` frame injection for
+/// send, `AF_PACKET` receive bound to `ETH_P_IPV6`.
+///
+/// Per the T7a-pass decision there is no `IPV6_HDRINCL` (the kernel
+/// rejects full v6 headers on `AF_INET6` raw sockets), so **send**
+/// synthesizes a full Ethernet frame (`dst` = interface MAC, `src` =
+/// interface MAC, ethertype `0x86dd`) and injects it through the same
+/// `AF_PACKET` socket — the local stack processes it like ingress. This
+/// is the `lo`/on-link contract; off-link next-hop (NDP) resolution is
+/// a deliberate deferral.
+///
+/// - **Receive** (`recv`): the same `AF_PACKET` socket bound to
+///   `ETH_P_IPV6`, yielding the IPv6 datagram (Ethernet header stripped,
+///   ethertype verified, outgoing copies skipped).
+///
+/// Non-Linux builds compile this type but `open` returns
+/// [`DriverError::UnsupportedPlatform`].
+pub struct RawIpv6Driver {
+    #[cfg(target_os = "linux")]
+    fd: i32,
+    #[cfg(target_os = "linux")]
+    iface: String,
+    #[cfg(target_os = "linux")]
+    mac: [u8; 6],
+    #[cfg(not(target_os = "linux"))]
+    _unsupported: (),
+}
+
+impl RawIpv6Driver {
+    #[cfg(target_os = "linux")]
+    pub fn open(iface: &str, iftable: &IfTable) -> Result<Self, DriverError> {
+        use std::ffi::CString;
+        let _iface_c = CString::new(iface).map_err(|e| DriverError::Io {
+            source: io::Error::other(e),
+        })?;
+
+        let entry = resolve_iface(iface, iftable)?;
+        let ifindex = entry.ifindex;
+
+        // One AF_PACKET socket: SOCK_RAW bound to ETH_P_IPV6 serves both
+        // directions (TX injects full frames; the protocol filter is the
+        // RX side).
+        // SAFETY: `open_packet_socket` owns its descriptor until Ok.
+        let fd = unsafe { crate::rx::open_packet_socket(ifindex, libc::htons(ETHERTYPE_IPV6)) }
+            .map_err(map_socket_err)?;
+
+        Ok(Self {
+            fd,
+            iface: iface.to_string(),
+            mac: entry.mac,
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn open(_iface: &str, _iftable: &IfTable) -> Result<Self, DriverError> {
+        Err(DriverError::UnsupportedPlatform)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Driver for RawIpv6Driver {
+    fn send(&mut self, datagram: &[u8]) -> io::Result<()> {
+        if datagram.len() < 40 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "raw-ipv6 send needs a full IPv6 datagram (>= 40 bytes)",
+            ));
+        }
+        // Synthesize the Ethernet header (version nibble already 6 in the
+        // datagram; ethertype 0x86dd). dst/src = the interface MAC: the
+        // injected frame is processed by the local stack like ingress on
+        // that interface (the lo/on-link contract; off-link NDP
+        // resolution is a deferral).
+        let mac = self.mac;
+        let mut frame = Vec::with_capacity(14 + datagram.len());
+        frame.extend_from_slice(&mac);
+        frame.extend_from_slice(&mac);
+        frame.extend_from_slice(&ETHERTYPE_IPV6.to_be_bytes());
+        frame.extend_from_slice(datagram);
+        // SAFETY: `sendto` reads only `frame`'s bytes; `self.fd` is a
+        // valid descriptor owned by `Self`.
+        let n = unsafe {
+            libc::sendto(
+                self.fd,
+                frame.as_ptr() as *const libc::c_void,
+                frame.len(),
+                0,
+                std::ptr::null(),
+                0,
+            )
+        };
+        if n < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    fn recv(&mut self, deadline: Instant) -> io::Result<Option<Frame>> {
+        loop {
+            // SAFETY: `fd` is a valid descriptor owned by `Self`.
+            let Some(rx) = crate::rx::recv_raw(self.fd, deadline)? else {
+                return Ok(None);
+            };
+            // Skip our own egress copies (kernel-injected sends on `lo`
+            // appear as outgoing before the stack processes them).
+            if rx.pkttype == libc::PACKET_OUTGOING {
+                continue;
+            }
+            let bytes = rx.bytes;
+            if bytes.len() < 14 {
+                continue; // runt
+            }
+            if u16::from_be_bytes([bytes[12], bytes[13]]) != ETHERTYPE_IPV6 {
+                continue;
+            }
+            return Ok(Some(Frame {
+                bytes: Bytes::from(bytes[14..].to_vec()),
+                iface: self.iface.clone(),
+                ts: std::time::SystemTime::now(),
+            }));
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for RawIpv6Driver {
+    fn drop(&mut self) {
+        // SAFETY: the descriptor is valid and uniquely owned by `Self`;
+        // closing it here releases the resource exactly once.
+        unsafe { libc::close(self.fd) };
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub fn poll_timeout_for(deadline: Instant) -> u32 {
     let remaining = deadline.saturating_duration_since(Instant::now());
@@ -428,6 +568,10 @@ mod tests {
             RawIpDriver::open("lo", &t),
             Err(DriverError::UnsupportedPlatform)
         ));
+        assert!(matches!(
+            RawIpv6Driver::open("lo", &t),
+            Err(DriverError::UnsupportedPlatform)
+        ));
     }
 
     // Real-socket behavior is exercised by env-gated integration tests
@@ -446,6 +590,13 @@ mod tests {
             Ok(_) => panic!("open should not succeed with an unknown iface"),
         }
         let r = RawIpDriver::open("definitely-not-here2", &t);
+        match r {
+            Err(DriverError::IfaceNotFound { .. }) => {}
+            Err(DriverError::PermissionDenied { .. }) => {}
+            Err(e) => panic!("expected iface-not-found or permission, got {e}"),
+            Ok(_) => panic!("open should not succeed with an unknown iface"),
+        }
+        let r = RawIpv6Driver::open("definitely-not-here3", &t);
         match r {
             Err(DriverError::IfaceNotFound { .. }) => {}
             Err(DriverError::PermissionDenied { .. }) => {}

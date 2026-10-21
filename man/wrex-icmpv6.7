@@ -1,0 +1,76 @@
+.TH WREX-ICMPV6 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-icmpv6 \- icmpv6 layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIicmpv6\fR \fB--icmpv6\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIicmpv6\fR
+
+.SH DESCRIPTION
+ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) expose echo.id and echo.seq. NDP craft: RS (133, header only), RA (134: ndp.cur_hop_limit, ndp.ra_flags [m,o], ndp.router_lifetime, ndp.reachable_time, ndp.retrans_timer), NS (135: ndp.target), NA (136: ndp.na_flags [r,s,o] + ndp.target). Other types render the 4\-byte rest as icmpv6.rest raw bytes. checksum always covers the RFC 8200 §8.1 v6 pseudo\-header (proto 58) plus the whole message. NDP options (SLLA/TLLA, …) dissect into the opt record section (opt.0.addr, …; dissect\-only — crafting them is a deferral). icmpv6 is terminal (the payload follows).
+.
+
+.SH ENCAPSULATION
+Rank 30; stacks on ipv6 (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --icmpv6-type).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-icmpv6\-type=\fIINT\fR\fR
+type (autofill: 128 echo request) Type u8. Default: 128.
+.TP
+\fB\-\-icmpv6\-code=\fIINT\fR\fR
+code (autofill: 0) Type u8. Default: 0.
+.TP
+\fB\-\-icmpv6\-checksum=\fIINT\fR\fR
+checksum over v6 pseudo\-header+message (autofill: computed) Type u16. Default: 0.
+.TP
+\fB\-\-icmpv6\-echo\-id=\fIINT\fR\fR
+echo identifier (types 128/129) Type u16. Default: 0.
+.TP
+\fB\-\-icmpv6\-echo\-seq=\fIINT\fR\fR
+echo sequence (types 128/129) Type u16. Default: 0.
+.TP
+\fB\-\-icmpv6\-rest\fR
+raw 4\-byte rest of header (non\-echo non\-NDP types) Type bytes. Default: .
+.TP
+\fB\-\-icmpv6\-ndp\-cur_hop_limit=\fIINT\fR\fR
+router advertisement: current hop limit Type u8. Default: 64.
+.TP
+\fB\-\-icmpv6\-ndp\-ra_flags\fR
+router advertisement flags [m,o]; subpaths ndp.ra_flags.m / ndp.ra_flags.o Type flagset. Default: 0.
+Bit names (MSB first): m, o. Aggregate \fB\-\-icmpv6\-ndp\-ra_flags\fR sets the whole unit; per-bit \-\-icmpv6\-ndp\-ra_flags\-m sets one bit.
+.TP
+\fB\-\-icmpv6\-ndp\-router_lifetime=\fIINT\fR\fR
+router advertisement: router lifetime (seconds) Type u16. Default: 0.
+.TP
+\fB\-\-icmpv6\-ndp\-reachable_time=\fIINT\fR\fR
+router advertisement: reachable time (ms) Type u32. Default: 0.
+.TP
+\fB\-\-icmpv6\-ndp\-retrans_timer=\fIINT\fR\fR
+router advertisement: retransmit timer (ms) Type u32. Default: 0.
+.TP
+\fB\-\-icmpv6\-ndp\-na_flags\fR
+neighbor advertisement flags [r,s,o]; subpaths ndp.na_flags.r / .s / .o Type flagset. Default: 0.
+Bit names (MSB first): r, s, o. Aggregate \fB\-\-icmpv6\-ndp\-na_flags\fR sets the whole unit; per-bit \-\-icmpv6\-ndp\-na_flags\-r sets one bit.
+.TP
+\fB\-\-icmpv6\-ndp\-target=\fIINT\fR\fR
+neighbor solicitation/advertisement: target address Type ipv6. Default: ::.
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (opt.0.field).
+
+.TP
+\fBopt\fR (dissect\-only)
+NDP option TLVs after the NDP body (dissect\-only; indexed paths opt.0.addr, …)
+  type (u8; default 0). option type (1 slla, 2 tlla)
+  addr (mac; default 00:00:00:00:00:00). link\-layer address (slla/tlla options)
+  data (bytes; default ). raw option data (other options)
+
+.SH EXAMPLES
+wrex fields icmpv6
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)

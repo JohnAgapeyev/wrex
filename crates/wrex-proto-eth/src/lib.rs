@@ -46,7 +46,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "eth",
     rank: 10,
     parents: &[],
-    doc: "Ethernet II (DIX) framing: 14-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 -> ipv4, 0x0806 -> arp, 0x8100/0x88a8 -> vlan, anything else -> synthesized `unknown` layer holding the remaining bytes.",
+    doc: "Ethernet II (DIX) framing: 14-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 -> ipv4, 0x0806 -> arp, 0x86dd -> ipv6, 0x8100/0x88a8 -> vlan, anything else -> synthesized `unknown` layer holding the remaining bytes.",
     fields: FIELDS.as_slice(),
     records: &[],
 });
@@ -61,9 +61,10 @@ fn ethertype_to_kind(t: u16) -> &'static str {
     match t {
         0x0800 => "ipv4",
         0x0806 => "arp",
+        0x86dd => "ipv6",
         0x8100 | 0x88a8 => "vlan",
-        // Everything else (incl. 0x86dd ipv6, unsupported this tranche):
-        // the engine synthesizes an `unknown` layer for the remainder.
+        // Everything else: the engine synthesizes an `unknown` layer for
+        // the remainder.
         _ => "unknown",
     }
 }
@@ -73,6 +74,7 @@ fn kind_to_ethertype(kind: Option<&'static str>) -> u16 {
     match kind {
         Some("ipv4") => 0x0800,
         Some("arp") => 0x0806,
+        Some("ipv6") => 0x86dd,
         Some("vlan") => 0x8100,
         _ => 0x0000,
     }
@@ -148,10 +150,12 @@ pub mod strategy {
     use wrex_core::value::Value;
 
     /// Valid eth specs: any MACs, ethertype among known + arbitrary values.
+    /// (0x86dd left to the dedicated ipv6 stacks since tranche 7b — a
+    /// random ipv6 ethertype on a v4 stack mis-parses the chain.)
     pub fn strategy() -> BoxedStrategy<LayerSpec> {
         let mac = proptest::array::uniform6(any::<u8>()).prop_map(Value::Mac);
         let ty = proptest::option::of(
-            proptest::sample::select(vec![0x0800u16, 0x0806, 0x86dd, 0x1234])
+            proptest::sample::select(vec![0x0800u16, 0x0806, 0x1234])
                 .prop_map(|v| Value::Int(v as u128)),
         );
         (mac.clone(), mac, ty)

@@ -15,7 +15,9 @@ serde = { workspace = true }
 
 [dev-dependencies]
 wrex-proto-ip = { workspace = true }
+wrex-proto-ip6 = { workspace = true }
 wrex-proto-icmp = { workspace = true }
+wrex-proto-icmpv6 = { workspace = true }
 wrex-proto-udp = { workspace = true }
 wrex-proto-tcp = { workspace = true }
 proptest = { workspace = true }

@@ -279,6 +279,13 @@ impl<'a> Mutator<'a> {
                 let bits = self.rng.next_u64() as u32;
                 Value::Ipv4(std::net::Ipv4Addr::from(bits))
             }
+            Value::Ipv6(_) => {
+                let mut o = [0u8; 16];
+                for b in o.iter_mut() {
+                    *b = self.rng.next_u64() as u8;
+                }
+                Value::Ipv6(std::net::Ipv6Addr::from(o))
+            }
             Value::Mac(_) => {
                 let mut mac = [0u8; 6];
                 for b in &mut mac {

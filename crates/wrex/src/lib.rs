@@ -22,8 +22,12 @@ pub fn standard() -> wrex_core::Registry {
     r.register(&wrex_proto_vlan::CODEC);
     #[cfg(feature = "proto-ip")]
     r.register(&wrex_proto_ip::CODEC);
+    #[cfg(feature = "proto-ip6")]
+    r.register(&wrex_proto_ip6::CODEC);
     #[cfg(feature = "proto-icmp")]
     r.register(&wrex_proto_icmp::CODEC);
+    #[cfg(feature = "proto-icmpv6")]
+    r.register(&wrex_proto_icmpv6::CODEC);
     #[cfg(feature = "proto-udp")]
     r.register(&wrex_proto_udp::CODEC);
     #[cfg(feature = "proto-tcp")]

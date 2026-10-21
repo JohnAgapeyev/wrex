@@ -54,7 +54,7 @@ jobs:
       # Deterministic golden/unit tests run under Miri; the proptest-based
       # suites carry #[cfg_attr(miri, ignore)].
       - run: cargo +nightly miri setup
-      - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-icmp -p wrex-proto-udp -p wrex-proto-tcp -p wrex-proto-dns -p wrex-session -p wrex-scan -p wrex-dns -p wrex-http -p wrex-pcap
+      - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-ip6 -p wrex-proto-icmp -p wrex-proto-icmpv6 -p wrex-proto-udp -p wrex-proto-tcp -p wrex-proto-dns -p wrex-proto-vlan -p wrex-session -p wrex-scan -p wrex-dns -p wrex-http -p wrex-pcap
         env:
           MIRIFLAGS: -Zmiri-disable-isolation
 

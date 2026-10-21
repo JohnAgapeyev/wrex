@@ -94,4 +94,4 @@ fuzz_target!(|drive: FuzzDrive| {
     assert!(session.next_timeout().is_none(), "session must go idle");
 });
 
-const SRC: std::net::Ipv4Addr = std::net::Ipv4Addr::new(127, 0, 0, 1);
+const SRC: wrex_scan::ScanAddr = wrex_scan::ScanAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));

@@ -174,6 +174,7 @@ fn values_equal(a: &Option<wrex_core::Value>, b: &wrex_core::Value) -> bool {
     match (a, b) {
         (Some(wrex_core::Value::Int(x)), wrex_core::Value::Int(y)) => x == y,
         (Some(wrex_core::Value::Ipv4(x)), wrex_core::Value::Ipv4(y)) => x == y,
+        (Some(wrex_core::Value::Ipv6(x)), wrex_core::Value::Ipv6(y)) => x == y,
         (Some(wrex_core::Value::Mac(x)), wrex_core::Value::Mac(y)) => x == y,
         (Some(wrex_core::Value::Str(x)), wrex_core::Value::Str(y)) => x == y,
         (Some(wrex_core::Value::Bool(x)), wrex_core::Value::Bool(y)) => x == y,

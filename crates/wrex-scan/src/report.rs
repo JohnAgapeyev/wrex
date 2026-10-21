@@ -2,8 +2,9 @@
 //! order. `serde`-serializable for `--format json/jsonl`; text lines
 //! render `127.0.0.1  443/tcp  open`.
 
-use std::net::Ipv4Addr;
 use std::time::Duration;
+
+use crate::target::ScanAddr;
 
 /// One resolved probe.
 ///
@@ -11,7 +12,7 @@ use std::time::Duration;
 /// `filtered` / `open|filtered` (udp), `alive` / `dead` (icmp).
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ScanResult {
-    pub target: Ipv4Addr,
+    pub target: ScanAddr,
     /// Probed port (`None` for icmp).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
@@ -54,7 +55,7 @@ mod tests {
     #[test]
     fn text_and_json() {
         let r = ScanResult {
-            target: "127.0.0.1".parse().unwrap(),
+            target: crate::target::ScanAddr::V4("127.0.0.1".parse().unwrap()),
             port: Some(443),
             proto: "tcp",
             state: "open",
@@ -64,10 +65,11 @@ mod tests {
         assert_eq!(r.text_line(), "127.0.0.1  443/tcp  open");
         let j = serde_json::to_value(&r).unwrap();
         assert_eq!(j["port"], 443);
+        assert_eq!(j["target"], "127.0.0.1");
         assert_eq!(j["rtt_ms"], 2);
         assert!(j.get("payload").is_none());
         let r2 = ScanResult {
-            target: "10.0.0.1".parse().unwrap(),
+            target: crate::target::ScanAddr::V4("10.0.0.1".parse().unwrap()),
             port: None,
             proto: "icmp",
             state: "alive",
@@ -78,5 +80,16 @@ mod tests {
         let j2 = serde_json::to_value(&r2).unwrap();
         assert!(j2.get("port").is_none());
         assert!(j2.get("rtt_ms").is_none());
+        let r3 = ScanResult {
+            target: crate::target::ScanAddr::V6("::1".parse().unwrap()),
+            port: Some(53),
+            proto: "udp",
+            state: "open",
+            attempts: 1,
+            rtt_ms: None,
+        };
+        assert_eq!(r3.text_line(), "::1  53/udp  open");
+        let j3 = serde_json::to_value(&r3).unwrap();
+        assert_eq!(j3["target"], "::1");
     }
 }

@@ -179,15 +179,61 @@ T(n+1)".
     land under `ieee8021ad`), a `vlan` golden corpus (single, QinQ,
     802.1ad, arp-in-vlan, terminal), `fuzz_dissect_vlan`, and CLI
     roundtrips in the integration suite.
-  - **T7b — ipv6 + icmpv6** — planned. Decisions recorded at the
-    T7a planning pass: kernel-routed v6 TX via AF_PACKET L3
+  - **T7b — ipv6 + icmpv6** — ✅ delivered. Decisions recorded at the
+    T7a planning pass held: kernel-routed v6 TX via AF_PACKET frame
     injection (there is no `IPV6_HDRINCL`; full v6 frames at
-    ethertype 0x86dd through the existing `RawEthDriver` machinery
-    rather than `AF_INET6` + `sendmsg` cmsgs), and full craft for
-    ICMPv6 echo *and* NDP (RS/RA/NS/NA, checksums over the v6
-    pseudo-header). Needs core type generalization (`NetFacts`,
-    `Patch::Checksum` pseudo-header, a `FieldKind::Ipv6`) — additive,
-    not breaking, per the standing rules.
+    ethertype 0x86dd through the existing AF_PACKET machinery rather
+    than `AF_INET6` + `sendmsg` cmsgs — the new `wrex-io`
+    `RawIpv6Driver` synthesizes the Ethernet header on send, bound
+    `0x86dd` on receive). Core type generalization landed additively:
+    `FieldKind::Ipv6` + `Value::Ipv6` (parse/render/filter/serde),
+    `NetFacts` generalized to a versioned enum (V4/V6),
+    `Patch::Checksum`'s pseudo-header generalized to a versioned
+    `PseudoHeader` (v6: RFC 8200 §8.1 — 32-bit upper-layer length +
+    zero-padded next-header), and `auto_start` maps `b>>4 == 6` to
+    `ipv6`. New codecs: `wrex-proto-ip6` (kind `ipv6`, rank 20,
+    parents `eth|vlan`; version/traffic-class/flow-label word,
+    `payload_len` backpatched over the post-header bytes,
+    next-header dispatch to icmpv6/tcp/udp) and `wrex-proto-icmpv6`
+    (kind `icmpv6`, rank 30, parent `ipv6`; echo 128/129 with id/seq,
+    full craft for NDP — RS (133), RA (134: cur-hop-limit, [m,o]
+    flags, router-lifetime, reachable/retrans timers), NS/NA
+    (135/136: [r,s,o] flags + target) — plus an dissect-only `opt`
+    record section for NDP option TLVs (SLLA/TLLA → `opt.0.addr`,
+    per the dns record-section pattern), checksum always over the v6
+    pseudo-header (proto 58)). `udp`/`tcp` stack on `ipv6` additively
+    (family-aware pseudo-header from the generalized facts);
+    `eth`/`vlan` dispatch `0x86dd ⇄ ipv6`; dns AAAA rdata is typed
+    ipv6 (closing the tranche-3 deferral). `wrex scan` and
+    `wrex fuzz` accept IPv6 targets (addresses, CIDR `/len` ≤ 128,
+    full-address START-END ranges; no v6 tail shorthand), one family
+    per scan (mixed lists are a usage error), the four mode names
+    unchanged (icmp over v6 targets speaks icmpv6), reply keys and
+    ICMPv6-unreachable attribution (type 1: code 3 → closed, other
+    codes → filtered) family-aware. `wrex query`/`http` over v6
+    remain out of the T7b charter (the `--server`/URL verbs pick v4
+    iface addresses only). The CLI flags enumerate automatically
+    (`--ipv6-*` with `ip6`/`v6` aliases, `--icmpv6-*`); filters gain
+    ipv6 `=`/`!=` with CIDR. Verification: codec units (goldens, NDP
+    shapes + option record sections, flow-word masking, checksums
+    over the v6 pseudo-header via an independent RFC 8200 folding),
+    scan session units (v6 syn open/closed + RST follow-up, v6 udp
+    unreachable attribution + cross-talk quotes, v6 icmpv6 echo
+    alive/dead), target-grammar units (v6 CIDR/ranges, mixed-family
+    rejection, serde), new differential stacks
+    `eth-ipv6-{udp,tcp,icmpv6}` + `eth-vlan-ipv6-*` vs etherparse
+    (Ipv6 slice) + tshark (`ipv6`/`icmpv6` layers), `ipv6` +
+    `icmpv6` handcrafted golden corpora, `fuzz_dissect_ipv6` +
+    `fuzz_dissect_icmpv6` in the fuzz gate, a scoped Kani proof (v6
+    pseudo-header folding under the 6 GB ceiling), env-gated ground
+    truth on `lo` (v6 syn open/closed against a bound TCP6 listener,
+    v6 udp closed via kernel ICMPv6 unreach, `::1` icmpv6 alive, seed
+    reproducibility), Miri coverage for both new crates, man pages +
+    completions regenerated. Deliberate deferrals: IPv6 extension
+    headers, MLD, off-link next-hop/NDP resolution for the v6 driver
+    (frames inject with the interface MAC; the `lo`/on-link contract
+    only), NDP option *crafting* (options are dissect-only records),
+    `query --server`/`http` URL v6 targets, v6 tail-shorthand ranges.
   - **T7c — dhcp** — planned. Port-67/68 dispatch in the udp codec
     (the tranche-3 port-dispatch pattern) plus dns-style record
     sections for the options space.

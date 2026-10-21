@@ -45,7 +45,7 @@ fn cfg(retries: u32, baseline: bool) -> FuzzConfig {
     .expect("static config")
 }
 
-const SRC: std::net::Ipv4Addr = std::net::Ipv4Addr::new(127, 0, 0, 1);
+const SRC: wrex_scan::ScanAddr = wrex_scan::ScanAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1));
 
 fuzz_target!(|drive: FuzzDrive| {
     let registry = standard();

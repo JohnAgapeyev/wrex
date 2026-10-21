@@ -1,11 +1,10 @@
 //! Prober configuration: modes, defaults and validation (grammar
 //! errors are [`String`], mapped to exit-2 usage errors by the CLI).
 
-use std::net::Ipv4Addr;
 use std::time::Duration;
 
 use wrex_mut::Strategy;
-use wrex_scan::target::{parse_ports, parse_targets};
+use wrex_scan::target::{Family, ScanAddr, parse_ports, parse_targets};
 
 /// Base probe packet shape (`wrex fuzz --mode`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,13 +40,28 @@ impl ProbeMode {
         }
     }
 
-    /// Registry kinds this mode needs registered.
-    pub fn needs(self) -> &'static [&'static str] {
+    /// Registry kinds this mode needs registered over `family`
+    /// (tranche 7b: family-aware).
+    pub fn needs_for(self, family: Family) -> &'static [&'static str] {
         match self {
-            Self::Tcp => &["ipv4", "tcp"],
-            Self::Udp => &["ipv4", "udp"],
-            Self::Icmp => &["ipv4", "icmp"],
+            Self::Tcp => match family {
+                Family::V4 => &["ipv4", "tcp"],
+                Family::V6 => &["ipv6", "tcp"],
+            },
+            Self::Udp => match family {
+                Family::V4 => &["ipv4", "udp"],
+                Family::V6 => &["ipv6", "udp"],
+            },
+            Self::Icmp => match family {
+                Family::V4 => &["ipv4", "icmp"],
+                Family::V6 => &["ipv6", "icmpv6"],
+            },
         }
+    }
+
+    /// Registry kinds this mode needs over IPv4 targets (source compat).
+    pub fn needs(self) -> &'static [&'static str] {
+        self.needs_for(Family::V4)
     }
 }
 
@@ -59,8 +73,9 @@ pub const DEFAULT_ROUNDS: u32 = 4;
 pub struct FuzzConfig {
     /// Probe base shape.
     pub mode: ProbeMode,
-    /// Expanded, deduplicated, sorted target addresses.
-    pub targets: Vec<Ipv4Addr>,
+    /// Expanded, deduplicated, sorted target addresses (one family
+    /// per run — enforced by the target grammar).
+    pub targets: Vec<ScanAddr>,
     /// Expanded, deduplicated, sorted ports (empty for icmp).
     pub ports: Vec<u16>,
     /// Mutated rounds per (target, port).
@@ -153,6 +168,14 @@ impl FuzzConfig {
             timeout,
             concurrent,
         })
+    }
+
+    /// The shared target family (grammar-enforced single family).
+    pub fn family(&self) -> Family {
+        self.targets
+            .first()
+            .map(|t| t.family())
+            .unwrap_or(Family::V4)
     }
 
     /// Total probe count (baseline + mutated rounds per slot).

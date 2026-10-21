@@ -18,14 +18,17 @@ FIELD FLAGS:
   Every settable field, type, default and bit name: wrex fields [KIND].
 
 LAYER KINDS:
-  eth, arp, vlan, ipv4 (CLI alias: ip), icmp, udp, tcp, dns.
-  Ranks: eth 10; vlan 15; arp/ipv4 20; icmp/udp/tcp 30 (stack on
-  ipv4); dns 40 (stacks on udp; port-53 datagrams dissect into it).
+  eth, arp, vlan, ipv4 (CLI alias: ip), ipv6 (CLI aliases: ip6, v6),
+  icmp, icmpv6, udp, tcp, dns.
+  Ranks: eth 10; vlan 15; arp/ipv4/ipv6 20; icmp/icmpv6/udp/tcp 30
+  (stack on ipv4|ipv6); dns 40 (stacks on udp; port-53 datagrams
+  dissect into it).
   Man pages: wrex(1), wrex-<kind>(7) in man/ of the source checkout.
 
 VALUE GRAMMAR:
   ints       63 | 0x3f | 0b111111 | 0o77 (range-checked per field)
-  ipv4       127.0.0.1            mac     aa:bb:cc:dd:ee:ff
+  ipv4       127.0.0.1            ipv6    ::1 | 2001:db8::1
+  mac        aa:bb:cc:dd:ee:ff
   bytes      hex:DEADBEEF | text:... | @FILE | @- (stdin) | repeat:8x00
   flagsets   syn,ack | syn+ack | 0x02    bool  true | false | 1 | 0
   durations  (--count/--interval/--timeout)  500ms | 2s | 1m (bare: seconds)
@@ -144,9 +147,11 @@ EXAMPLES:
 /// Epilog for scan: modes, grammar, pacing and the seeded RNG.
 pub const SCAN_AFTER_HELP: &str = "\
 TARGETS:
-  repeatable positional: IPv4, CIDR (10.0.0.0/24; network and
-  broadcast skipped below /31), or inclusive ranges
-  (10.0.0.1-10.0.0.9; tails allowed: 10.0.0.0-0.255).
+  repeatable positional: IPv4/IPv6 addresses, CIDR
+  (10.0.0.0/24; v4 network and broadcast skipped below /31,
+  2001:db8::/64), or inclusive ranges (10.0.0.1-10.0.0.9; tails
+  allowed on v4: 10.0.0.0-0.255). One family per scan (v6 targets
+  switch the probes to ipv6/icmpv6 framing; mixed lists error).
 
 MODES (--mode):
   syn      TCP SYN scan (default): SYN+ACK -> open (RST sent to kill
@@ -154,7 +159,10 @@ MODES (--mode):
   connect  full handshake: ACK then RST after SYN+ACK -> open
   udp      empty datagrams: UDP reply -> open, ICMP 3/3 -> closed,
            ICMP 3/{1,2,9,10,13} -> filtered, silence -> open|filtered
+           (v6 targets: ICMPv6 1/3 -> closed, 1/{0,1,2,4..7} ->
+           filtered)
   icmp     echo sweep (no ports): reply -> alive, silence -> dead
+           (v6 targets speak icmpv6 echo, type 128/129)
 
 PORTS (--ports):
   comma list with ranges (22,80,100-200). syn/connect default to a
@@ -173,9 +181,9 @@ TIMING:
   --concurrent N  max in-flight probes (default 256)
 
 PROBES:
-  IPv4 datagrams injected via a raw-IP socket (kernel routes and
-  fragments; needs CAP_NET_RAW); replies are captured on -i IFACE.
-  Results stream as they resolve (--format text|json|jsonl).
+  Datagrams injected kernel-routed (raw-IP socket for v4, AF_PACKET
+  0x86dd frames for v6; needs CAP_NET_RAW); replies are captured on
+  -i IFACE. Results stream as they resolve (--format text|json|jsonl).
 
 EXAMPLES:
   # default TCP scan of one host (top-100 ports)
@@ -329,9 +337,14 @@ pub fn field_args(registry: &Registry) -> Vec<clap::Arg> {
                 .help(field.doc)
                 .value_name(value_hint(field.kind))
                 .num_args(1);
-            // CLI-only kind aliases (pinned): `ip` → `ipv4`.
+            // CLI-only kind aliases (pinned): `ip` → `ipv4`,
+            // `ip6`/`v6` → `ipv6`.
             if kind == "ipv4" {
                 arg = arg.alias(format!("ip-{}", dashed(field.name)));
+            }
+            if kind == "ipv6" {
+                arg = arg.alias(format!("ip6-{}", dashed(field.name)));
+                arg = arg.alias(format!("v6-{}", dashed(field.name)));
             }
             args.push(arg);
             used_longs.insert(long.clone());
@@ -397,6 +410,7 @@ fn value_hint(kind: FieldKind) -> &'static str {
     match kind {
         FieldKind::U8 | FieldKind::U16 | FieldKind::U32 | FieldKind::U64 | FieldKind::U128 => "INT",
         FieldKind::Ipv4 => "IP",
+        FieldKind::Ipv6 => "IPV6",
         FieldKind::Mac => "MAC",
         FieldKind::Bytes | FieldKind::ByteList => "BYTES",
         FieldKind::FlagSet => "BITS",

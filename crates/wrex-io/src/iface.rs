@@ -13,6 +13,8 @@ pub struct IfEntry {
     pub mtu: u32,
     pub up: bool,
     pub ipv4s: Vec<std::net::Ipv4Addr>,
+    /// Live IPv6 addresses (tranche 7b: `--server`/scan v6 source pick).
+    pub ipv6s: Vec<std::net::Ipv6Addr>,
     /// `sysfs` ifindex (from `/sys/class/net/<name>/ifindex`).
     pub ifindex: i32,
 }
@@ -53,6 +55,7 @@ impl IfTable {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
             let ipv4s = crate::iface::system_ipv4s_for(&name);
+            let ipv6s = crate::iface::system_ipv6s_for(&name);
             entries.insert(
                 name.clone(),
                 IfEntry {
@@ -61,6 +64,7 @@ impl IfTable {
                     mtu,
                     up,
                     ipv4s,
+                    ipv6s,
                     ifindex,
                 },
             );
@@ -119,6 +123,30 @@ pub(crate) fn system_ipv4s_for(name: &str) -> Vec<std::net::Ipv4Addr> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// Live IPv6 addresses for one interface via `if_addrs` (tranche 7b).
+/// Link-local `fe80::/10` addresses are skipped: a scan/`query --tcp`
+/// source wants a routable address.
+pub(crate) fn system_ipv6s_for(name: &str) -> Vec<std::net::Ipv6Addr> {
+    if_addrs::get_if_addrs()
+        .map(|addrs| {
+            addrs
+                .iter()
+                .filter(|a| a.name == name)
+                .filter_map(|a| match a.addr.ip() {
+                    std::net::IpAddr::V6(v6) => Some(v6),
+                    std::net::IpAddr::V4(_) => None,
+                })
+                .filter(|v6| !is_link_local(*v6))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `fe80::/10` link-local check (per RFC 4291 §2.5.6).
+fn is_link_local(a: std::net::Ipv6Addr) -> bool {
+    a.segments()[0] & 0xffc0 == 0xfe80
 }
 
 #[cfg(test)]

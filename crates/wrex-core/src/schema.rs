@@ -9,6 +9,7 @@ pub enum FieldKind {
     U64,
     U128,
     Ipv4,
+    Ipv6,
     Mac,
     Bytes,
     FlagSet,
@@ -37,6 +38,7 @@ impl FieldKind {
             FieldKind::U64 => "u64",
             FieldKind::U128 => "u128",
             FieldKind::Ipv4 => "ipv4",
+            FieldKind::Ipv6 => "ipv6",
             FieldKind::Mac => "mac",
             FieldKind::Bytes => "bytes",
             FieldKind::FlagSet => "flagset",
@@ -211,6 +213,7 @@ mod tests {
         assert_eq!(FieldKind::U64.int_max(), Some(u64::MAX as u128));
         assert_eq!(FieldKind::U128.int_max(), Some(u128::MAX));
         assert_eq!(FieldKind::Ipv4.int_max(), None);
+        assert_eq!(FieldKind::Ipv6.int_max(), None);
         assert_eq!(FieldKind::FlagSet.int_max(), None);
     }
 

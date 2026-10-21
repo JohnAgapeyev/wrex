@@ -660,7 +660,9 @@ dependencies = [
  "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",
+ "wrex-proto-icmpv6",
  "wrex-proto-ip",
+ "wrex-proto-ip6",
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-proto-vlan",
@@ -796,11 +798,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-proto-icmpv6"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "hex",
+ "wrex-core",
+]
+
+[[package]]
 name = "wrex-proto-ip"
 version = "0.1.0"
 dependencies = [
  "bytes",
  "hex",
+ "wrex-core",
+]
+
+[[package]]
+name = "wrex-proto-ip6"
+version = "0.1.0"
+dependencies = [
+ "bytes",
  "wrex-core",
 ]
 

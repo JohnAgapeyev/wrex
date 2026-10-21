@@ -1,0 +1,22 @@
+[package]
+name = "wrex-proto-icmpv6"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex ICMPv6 + NDP codec"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+hex = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

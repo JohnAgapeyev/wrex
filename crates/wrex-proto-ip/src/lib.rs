@@ -223,7 +223,7 @@ impl Codec for IpCodec {
         // Record NetFacts before L4 writes (pseudo-header source).
         wrex_core::encode::record_net_facts(
             ctx,
-            NetFacts {
+            NetFacts::V4 {
                 src: ipv4_or_default(spec, &FIELDS[10], af),
                 dst: ipv4_or_default(spec, &FIELDS[11], af),
                 proto,
@@ -329,7 +329,7 @@ impl Codec for IpCodec {
             "options".into(),
             Value::Bytes(Bytes::copy_from_slice(&bytes[20..hlen])),
         );
-        ctx.facts.net = Some(NetFacts { src, dst, proto });
+        ctx.facts.net = Some(NetFacts::V4 { src, dst, proto });
         let view = LayerView {
             kind: "ipv4",
             span: ctx.offset..ctx.offset + hlen,

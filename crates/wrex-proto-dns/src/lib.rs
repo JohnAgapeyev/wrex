@@ -9,7 +9,7 @@
 //!
 //! Tranche-3 deferrals (documented in the schema): multi-question
 //! craft, settable answer records, typed multi-field rdata (MX/SOA/SRV
-//! stay raw `Bytes`; AAAA waits for a T7 ipv6 value kind), EDNS
+//! stay raw `Bytes`; AAAA rdata is typed ipv6 since tranche 7b), EDNS
 //! crafting (OPT records are dissected, not craftable), the z/ad/cd
 //! header bits.
 
@@ -29,7 +29,7 @@ use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
 use crate::name::{decode_name, encode_name, name_wire_len};
-use crate::types::{TYPE_A, parse_class, parse_type, render_class, render_type};
+use crate::types::{TYPE_A, TYPE_AAAA, parse_class, parse_type, render_class, render_type};
 
 static FLAGS: &[&str] = &["qr", "aa", "tc", "rd", "ra"];
 
@@ -168,7 +168,7 @@ static RR_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
             bit_names: &[],
             default: Value::Bytes(Bytes::new()),
             required: false,
-            doc: "record data: A -> typed ipv4 value, CNAME/NS/PTR -> resolved name string, TXT -> raw bytes, others -> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)",
+            doc: "record data: A -> typed ipv4 value, AAAA -> typed ipv6 value (tranche 7b), CNAME/NS/PTR -> resolved name string, TXT -> raw bytes, others -> raw bytes hex (typed MX/SOA/SRV wait for later tranches)",
         },
     ]
 });
@@ -210,7 +210,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "dns",
     rank: 40,
     parents: &["udp"],
-    doc: "DNS (RFC 1035) over UDP/53. Craft carries the 12-byte header plus one question (--dns-name anchors it; --dns-type/--dns-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect-only record sections with indexed paths (an.0.name, an.0.rdata, …). Multi-question craft, settable answer records, typed MX/SOA/SRV rdata, AAAA-as-ipv6 (waits for T7) and EDNS crafting are tranche-3 deferrals.",
+    doc: "DNS (RFC 1035) over UDP/53. Craft carries the 12-byte header plus one question (--dns-name anchors it; --dns-type/--dns-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect-only record sections with indexed paths (an.0.name, an.0.rdata, …). A rdata dissects typed ipv4, AAAA typed ipv6 (tranche 7b). Multi-question craft, settable answer records, typed MX/SOA/SRV rdata and EDNS crafting are tranche-3 deferrals.",
     fields: FIELDS.as_slice(),
     records: RECORDS.as_slice(),
 });
@@ -526,6 +526,20 @@ fn typed_rdata(
                 ctx.anomalies.push(Anomaly::new(
                     format!("{section}.{index}.rdata"),
                     format!("A rdata must be 4 bytes, got {}", rdata.len()),
+                ));
+                Value::Bytes(rdata.clone())
+            }
+        }
+        // Tranche 7b: AAAA rdata is typed ipv6 (FieldKind::Ipv6 landed).
+        TYPE_AAAA => {
+            if rdata.len() == 16 {
+                let mut o = [0u8; 16];
+                o.copy_from_slice(rdata);
+                Value::Ipv6(std::net::Ipv6Addr::from(o))
+            } else {
+                ctx.anomalies.push(Anomaly::new(
+                    format!("{section}.{index}.rdata"),
+                    format!("AAAA rdata must be 16 bytes, got {}", rdata.len()),
                 ));
                 Value::Bytes(rdata.clone())
             }

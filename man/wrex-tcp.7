@@ -7,11 +7,11 @@ wrex-tcp \- tcp layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fItcp\fR
 
 .SH DESCRIPTION
-TCP (RFC 9293): 20\-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under \-\-strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per\-bit subpaths \-\-tcp\-flags\-syn exist. checksum over the RFC 9293 pseudo\-header (proto 6) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.
+TCP (RFC 9293): 20\-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under \-\-strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per\-bit subpaths \-\-tcp\-flags\-syn exist. checksum over the pseudo\-header (v4 RFC 9293 / v6 RFC 8200 §8.1, family follows the network\-layer parent) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.
 .
 
 .SH ENCAPSULATION
-Rank 30; stacks on ipv4 (parents).
+Rank 30; stacks on ipv4, ipv6 (parents).
 
 .SH "FIELD FLAGS"
 Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --tcp-sport).
@@ -55,4 +55,4 @@ wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \-\-layer tcp \\\\
   \-\-tcp\-sport=1234 \-\-tcp\-dport=80 \-\-tcp\-flags=syn,ack
 
 .SH "SEE ALSO"
-\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-dns\fR(7)
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-dns\fR(7)

@@ -161,6 +161,45 @@ fn etherparse_map(
             &Value::Int(u16::from(ip.fragments_offset()) as u128),
         );
     }
+    if let (Some(etherparse::NetSlice::Ipv6(ip)), Some(ours)) = (&parsed.net, by_kind("ipv6")) {
+        let ip = ip.header();
+        field_eq(
+            report,
+            "ipv6.hop_limit",
+            ours,
+            &Value::Int(ip.hop_limit() as u128),
+        );
+        field_eq(
+            report,
+            "ipv6.next_header",
+            ours,
+            &Value::Int(u8::from(ip.next_header()) as u128),
+        );
+        field_eq(
+            report,
+            "ipv6.traffic_class",
+            ours,
+            &Value::Int(ip.traffic_class() as u128),
+        );
+        field_eq(
+            report,
+            "ipv6.flow_label",
+            ours,
+            &Value::Int(u32::from(ip.flow_label()) as u128),
+        );
+        field_eq(
+            report,
+            "ipv6.src",
+            ours,
+            &Value::Ipv6(std::net::Ipv6Addr::from(ip.source())),
+        );
+        field_eq(
+            report,
+            "ipv6.dst",
+            ours,
+            &Value::Ipv6(std::net::Ipv6Addr::from(ip.destination())),
+        );
+    }
     if let (Some(etherparse::TransportSlice::Udp(header)), Some(ours)) =
         (&parsed.transport, by_kind("udp"))
     {
@@ -394,6 +433,26 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_str(report, "ipv4.dst", ours, get("ip.dst"));
         cmp_int_str(report, "ipv4.id", ours, get("ip.id"));
     }
+    // ipv6 (tranche 7b)
+    if let Some(ip6_json) = layers.get("ipv6")
+        && let Some(ours) = by_kind("ipv6")
+    {
+        let get = |k: &str| ip6_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "ipv6.hop_limit", ours, get("ipv6.hlim"));
+        cmp_int_str(report, "ipv6.next_header", ours, get("ipv6.nxt"));
+        cmp_str(report, "ipv6.src", ours, get("ipv6.src"));
+        cmp_str(report, "ipv6.dst", ours, get("ipv6.dst"));
+        cmp_int_str(report, "ipv6.payload_len", ours, get("ipv6.plen"));
+    }
+    // icmpv6 (tranche 7b): type/code parity (echo/NDP bodies are ours
+    // alone — no etherparse surface for them).
+    if let Some(icmp6_json) = layers.get("icmpv6")
+        && let Some(ours) = by_kind("icmpv6")
+    {
+        let get = |k: &str| icmp6_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "icmpv6.type", ours, get("icmpv6.type"));
+        cmp_int_str(report, "icmpv6.code", ours, get("icmpv6.code"));
+    }
     // udp / tcp
     if let Some(udp_json) = layers.get("udp")
         && let Some(ours) = by_kind("udp")
@@ -490,6 +549,7 @@ fn cmp_str(
         let ours_norm = match layer.fields.get(name) {
             Some(Value::Mac(m)) => wrex_core::mac_string(*m),
             Some(Value::Ipv4(a)) => a.to_string(),
+            Some(Value::Ipv6(a)) => a.to_string(),
             Some(Value::Int(v)) => v.to_string(),
             other => format!("{other:?}"),
         };

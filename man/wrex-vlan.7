@@ -7,7 +7,7 @@ wrex-vlan \- vlan layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIvlan\fR
 
 .SH DESCRIPTION
-IEEE 802.1Q VLAN tag: 4\-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect\-only). type drives the chain like eth.type: 0x0800 \-> ipv4, 0x0806 \-> arp, 0x8100/0x88a8 \-> vlan, else synthesized `unknown`.
+IEEE 802.1Q VLAN tag: 4\-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect\-only). type drives the chain like eth.type: 0x0800 \-> ipv4, 0x0806 \-> arp, 0x86dd \-> ipv6, 0x8100/0x88a8 \-> vlan, else synthesized `unknown`.
 .
 
 .SH ENCAPSULATION
@@ -34,4 +34,4 @@ encapsulated ethertype (autofill: derived from next layer) Type u16. Default: 0.
 wrex fields vlan
 
 .SH "SEE ALSO"
-\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)

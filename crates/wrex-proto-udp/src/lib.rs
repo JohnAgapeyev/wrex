@@ -45,8 +45,8 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: "udp",
     rank: 30,
-    parents: &["ipv4"],
-    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the RFC 9293 pseudo-header (src, dst, proto 17, length) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec when registered (tranche-3 port dispatch); other ports are terminal (the payload follows).",
+    parents: &["ipv4", "ipv6"],
+    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network-layer parent) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec when registered (tranche-3 port dispatch); other ports are terminal (the payload follows).",
     fields: FIELDS.as_slice(),
     records: &[],
 });
@@ -84,8 +84,9 @@ impl Codec for UdpCodec {
         } else {
             ctx.buf.put_u16(0); // checksum placeholder
         }
-        // Pseudo-header from NetFacts recorded by ipv4 (proto 17).
-        let pseudo = ctx.facts.net.map(|n| (n.src, n.dst, 17u8));
+        // Pseudo-header from NetFacts recorded by the network-layer
+        // parent (family-aware; proto 17).
+        let pseudo = ctx.facts.net.map(|n| wrex_core::encode::l4_pseudo(n, 17));
         ctx.defer(Patch::Length {
             at: at_len,
             base: start,
@@ -132,13 +133,10 @@ impl Codec for UdpCodec {
             ));
         }
         // Checksum verify (non-fatal): pseudo-header (when NetFacts were
-        // recorded by an ipv4 parent) + segment, ck field zeroed.
+        // recorded by a network-layer parent) + segment, ck field zeroed.
         if let Some(net) = ctx.facts.net {
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            acc.add_ipv4(net.src);
-            acc.add_ipv4(net.dst);
-            acc.add_u16(u16::from_be_bytes([0, net.proto]));
-            acc.add_u16(bytes.len() as u16);
+            wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, bytes.len());
             acc.add_bytes(&bytes[..6]);
             acc.add_u16(0);
             acc.add_bytes(&bytes[8..]);
@@ -226,7 +224,7 @@ mod tests {
             autofill: true,
             strict: false,
             facts: Facts {
-                net: Some(NetFacts {
+                net: Some(NetFacts::V4 {
                     src: "127.0.0.1".parse().unwrap(),
                     dst: "127.0.0.1".parse().unwrap(),
                     proto: 17,

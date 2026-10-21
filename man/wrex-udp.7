@@ -7,11 +7,11 @@ wrex-udp \- udp layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIudp\fR
 
 .SH DESCRIPTION
-UDP (RFC 768): 8\-byte header. length autofilled from header+payload (explicit wins); checksum computed over the RFC 9293 pseudo\-header (src, dst, proto 17, length) plus the segment and payload. Explicit \-\-udp\-checksum=0 produces the scapy\-style unchecked zero. Port\-53 datagrams chain into the dns codec when registered (tranche\-3 port dispatch); other ports are terminal (the payload follows).
+UDP (RFC 768): 8\-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo\-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network\-layer parent) plus the segment and payload. Explicit \-\-udp\-checksum=0 produces the scapy\-style unchecked zero. Port\-53 datagrams chain into the dns codec when registered (tranche\-3 port dispatch); other ports are terminal (the payload follows).
 .
 
 .SH ENCAPSULATION
-Rank 30; stacks on ipv4 (parents).
+Rank 30; stacks on ipv4, ipv6 (parents).
 
 .SH "FIELD FLAGS"
 Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --udp-sport).
@@ -37,4 +37,4 @@ wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \-\-layer udp \\\\
   \-\-payload=hex:deadbeef
 
 .SH "SEE ALSO"
-\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)

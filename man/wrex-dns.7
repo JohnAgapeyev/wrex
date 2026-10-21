@@ -7,7 +7,7 @@ wrex-dns \- dns layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIdns\fR
 
 .SH DESCRIPTION
-DNS (RFC 1035) over UDP/53. Craft carries the 12\-byte header plus one question (\-\-dns\-name anchors it; \-\-dns\-type/\-\-dns\-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect\-only record sections with indexed paths (an.0.name, an.0.rdata, …). Multi\-question craft, settable answer records, typed MX/SOA/SRV rdata, AAAA\-as\-ipv6 (waits for T7) and EDNS crafting are tranche\-3 deferrals.
+DNS (RFC 1035) over UDP/53. Craft carries the 12\-byte header plus one question (\-\-dns\-name anchors it; \-\-dns\-type/\-\-dns\-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect\-only record sections with indexed paths (an.0.name, an.0.rdata, …). A rdata dissects typed ipv4, AAAA typed ipv6 (tranche 7b). Multi\-question craft, settable answer records, typed MX/SOA/SRV rdata and EDNS crafting are tranche\-3 deferrals.
 .
 
 .SH ENCAPSULATION
@@ -59,7 +59,7 @@ answer records (dissect\-only; indexed an.0.*, an.1.*, …)
   type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
   class (str; default ). record class (IN, …; CLASS<n> otherwise)
   ttl (u32; default 0). record TTL in seconds
-  rdata (bytes; default ). record data: A \-> typed ipv4 value, CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV wait for later tranches)
 .TP
 \fBns\fR (dissect\-only)
 authority records (dissect\-only; indexed ns.0.*, …)
@@ -67,7 +67,7 @@ authority records (dissect\-only; indexed ns.0.*, …)
   type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
   class (str; default ). record class (IN, …; CLASS<n> otherwise)
   ttl (u32; default 0). record TTL in seconds
-  rdata (bytes; default ). record data: A \-> typed ipv4 value, CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV wait for later tranches)
 .TP
 \fBar\fR (dissect\-only)
 additional records (dissect\-only; indexed ar.0.*, …; EDNS OPT lands here)
@@ -75,10 +75,10 @@ additional records (dissect\-only; indexed ar.0.*, …; EDNS OPT lands here)
   type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
   class (str; default ). record class (IN, …; CLASS<n> otherwise)
   ttl (u32; default 0). record TTL in seconds
-  rdata (bytes; default ). record data: A \-> typed ipv4 value, CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV and AAAA wait for later tranches)
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV wait for later tranches)
 
 .SH EXAMPLES
 wrex fields dns
 
 .SH "SEE ALSO"
-\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7)
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7)

@@ -13,7 +13,7 @@ pub mod tcp;
 
 pub(crate) mod rx;
 
-pub use driver::{Driver, DriverError, Frame, RawEthDriver, RawIpDriver};
+pub use driver::{Driver, DriverError, Frame, RawEthDriver, RawIpDriver, RawIpv6Driver};
 pub use iface::{IfEntry, IfTable};
 pub use replay::{FakeClock, ReplayDriver, ScriptedDriver};
 pub use rng::Rng;

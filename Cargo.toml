@@ -23,7 +23,9 @@ wrex-pcap = { path = "crates/wrex-pcap", version = "0.1.0" }
 wrex-proto-eth = { path = "crates/wrex-proto-eth", version = "0.1.0" }
 wrex-proto-arp = { path = "crates/wrex-proto-arp", version = "0.1.0" }
 wrex-proto-ip = { path = "crates/wrex-proto-ip", version = "0.1.0" }
+wrex-proto-ip6 = { path = "crates/wrex-proto-ip6", version = "0.1.0" }
 wrex-proto-icmp = { path = "crates/wrex-proto-icmp", version = "0.1.0" }
+wrex-proto-icmpv6 = { path = "crates/wrex-proto-icmpv6", version = "0.1.0" }
 wrex-proto-udp = { path = "crates/wrex-proto-udp", version = "0.1.0" }
 wrex-proto-tcp = { path = "crates/wrex-proto-tcp", version = "0.1.0" }
 wrex-proto-vlan = { path = "crates/wrex-proto-vlan", version = "0.1.0" }

@@ -5,11 +5,11 @@
 //! deferred [`Patch`] records (lengths, checksums) against the final buffer.
 //! L4 checksums thereby cover the payload without reordering writes.
 
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 use bytes::{Bytes, BytesMut};
 
-use crate::checksum::ChecksumAccumulator;
+use crate::checksum::{ChecksumAccumulator, PseudoHeader};
 use crate::codec::Registry;
 use crate::dissect::{Facts, NetFacts};
 use crate::error::EncodeError;
@@ -39,12 +39,12 @@ pub enum Patch {
         path: &'static str,
     },
     /// One's-complement checksum over `buf[start..end]`, optionally prefixed
-    /// by the IPv4 pseudo-header `(src, dst, proto)`.
+    /// by the IP pseudo-header ([`PseudoHeader`]; v4 or v6).
     Checksum {
         at: usize,
         start: usize,
         end: Option<usize>,
-        pseudo: Option<(Ipv4Addr, Ipv4Addr, u8)>,
+        pseudo: Option<PseudoHeader>,
         explicit: bool,
         path: &'static str,
     },
@@ -230,11 +230,8 @@ fn resolve_patches(buf: &mut BytesMut, patches: &[Patch], strict: bool) -> Vec<V
             } => {
                 let region_end = region_end.unwrap_or(end).min(end);
                 let mut acc = ChecksumAccumulator::new();
-                if let Some((src, dst, proto)) = pseudo {
-                    acc.add_ipv4(src);
-                    acc.add_ipv4(dst);
-                    acc.add_u16(u16::from_be_bytes([0, proto]));
-                    acc.add_u16((region_end - start) as u16);
+                if let Some(pseudo) = pseudo {
+                    pseudo.accumulate_into(&mut acc, region_end - start);
                 }
                 // The checksum field itself participates as zero (RFC 1071
                 // convention), whether the codec left a placeholder or an
@@ -372,7 +369,29 @@ pub fn bytes_or_empty(spec: &LayerSpec, name: &str) -> Bytes {
     }
 }
 
-/// Record [`NetFacts`] into `ctx.facts` (called by the ipv4 codec before L4).
+/// IPv6 field accessor: explicit value wins; else schema default when
+/// autofilling; else unspecified.
+pub fn ipv6_or_default(spec: &LayerSpec, field: &FieldSchema, autofill: bool) -> Ipv6Addr {
+    match spec.fields.get(field.name) {
+        Some(Value::Ipv6(a)) => *a,
+        _ => match &field.default {
+            Value::Ipv6(d) if autofill => *d,
+            _ => Ipv6Addr::UNSPECIFIED,
+        },
+    }
+}
+
+/// L4/ICMPv6 pseudo-header for the recorded [`NetFacts`] (family-aware;
+/// `proto` is the upper-layer protocol number — 17 udp, 6 tcp, 58 icmpv6).
+pub fn l4_pseudo(net: NetFacts, proto: u8) -> PseudoHeader {
+    match net {
+        NetFacts::V4 { src, dst, .. } => PseudoHeader::V4 { src, dst, proto },
+        NetFacts::V6 { src, dst, .. } => PseudoHeader::V6 { src, dst, proto },
+    }
+}
+
+/// Record [`NetFacts`] into `ctx.facts` (called by the network-layer
+/// codecs before L4).
 pub fn record_net_facts(ctx: &mut EncodeCtx<'_>, facts: NetFacts) {
     ctx.facts.net = Some(facts);
 }

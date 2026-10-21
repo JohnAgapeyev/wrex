@@ -5,7 +5,7 @@
 //! not-yet-appended terminal payload; [`internet_checksum`] is the stateless
 //! form.
 
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// Incremental RFC 1071 accumulator (one's complement, 16-bit fold).
 #[derive(Clone, Copy, Debug, Default)]
@@ -38,6 +38,11 @@ impl ChecksumAccumulator {
         self.add_bytes(&o);
     }
 
+    pub fn add_ipv6(&mut self, addr: Ipv6Addr) {
+        let o = addr.octets();
+        self.add_bytes(&o);
+    }
+
     /// Folded one's-complement checksum of everything added so far.
     pub fn value(&self) -> u16 {
         let mut sum = self.sum;
@@ -57,23 +62,47 @@ pub fn internet_checksum(words: impl Iterator<Item = u16>) -> u16 {
     acc.value()
 }
 
-/// The UDP/TCP pseudo-header (RFC 768 / RFC 9293) feeding a checksum.
-#[derive(Clone, Copy, Debug)]
-pub struct PseudoHeader {
-    pub src: Ipv4Addr,
-    pub dst: Ipv4Addr,
-    pub proto: u8,
-    /// Length of the covered segment (header + payload), for the pseudo-header
-    /// length field.
-    pub segment_len: usize,
+/// The pseudo-header feeding an L4/ICMPv6 checksum, generalized over
+/// the IP version (tranche 7b).
+///
+/// - [`PseudoHeader::V4`] (RFC 768 / RFC 9293): src, dst, protocol,
+///   segment length (all 16-bit words, protocol zero-padded).
+/// - [`PseudoHeader::V6`] (RFC 8200 §8.1): src, dst, 32-bit upper-layer
+///   packet length, 32-bit next-header (zero-padded).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PseudoHeader {
+    V4 {
+        src: Ipv4Addr,
+        dst: Ipv4Addr,
+        proto: u8,
+    },
+    V6 {
+        src: Ipv6Addr,
+        dst: Ipv6Addr,
+        proto: u8,
+    },
 }
 
 impl PseudoHeader {
-    pub fn accumulate_into(&self, acc: &mut ChecksumAccumulator) {
-        acc.add_ipv4(self.src);
-        acc.add_ipv4(self.dst);
-        acc.add_u16(u16::from_be_bytes([0, self.proto]));
-        acc.add_u16(self.segment_len as u16);
+    /// Accumulate this pseudo-header (the covered segment length
+    /// `segment_len` feeds the pseudo-header length field).
+    pub fn accumulate_into(&self, acc: &mut ChecksumAccumulator, segment_len: usize) {
+        match *self {
+            PseudoHeader::V4 { src, dst, proto } => {
+                acc.add_ipv4(src);
+                acc.add_ipv4(dst);
+                acc.add_u16(u16::from_be_bytes([0, proto]));
+                acc.add_u16(segment_len as u16);
+            }
+            PseudoHeader::V6 { src, dst, proto } => {
+                acc.add_ipv6(src);
+                acc.add_ipv6(dst);
+                // RFC 8200 §8.1: 32-bit upper-layer packet length and
+                // 32-bit zero-padded next-header, each as BE words.
+                acc.add_bytes(&(segment_len as u32).to_be_bytes());
+                acc.add_bytes(&[0, proto]);
+            }
+        }
     }
 }
 
@@ -96,6 +125,21 @@ mod verification {
         }
         let mut acc = ChecksumAccumulator::new();
         acc.add_bytes(&bytes);
+        let _ = acc.value();
+    }
+
+    /// Tranche-7b scoped proof: the V6 pseudo-header folds over fully
+    /// symbolic addresses + segment length without panicking (the 32-bit
+    /// length path and the zero-padded next-header path).
+    #[kani::proof]
+    #[kani::unwind(18)]
+    fn v6_pseudo_header_never_panic() {
+        let src = Ipv6Addr::from(kani::any::<[u8; 16]>());
+        let dst = Ipv6Addr::from(kani::any::<[u8; 16]>());
+        let proto = kani::any::<u8>();
+        let segment_len = kani::any::<u32>() as usize;
+        let mut acc = ChecksumAccumulator::new();
+        PseudoHeader::V6 { src, dst, proto }.accumulate_into(&mut acc, segment_len);
         let _ = acc.value();
     }
 }
@@ -142,13 +186,12 @@ mod tests {
     #[test]
     fn pseudo_header_words() {
         let mut acc = ChecksumAccumulator::new();
-        PseudoHeader {
+        PseudoHeader::V4 {
             src: "192.168.0.1".parse().unwrap(),
             dst: "192.168.0.2".parse().unwrap(),
             proto: 17,
-            segment_len: 12,
         }
-        .accumulate_into(&mut acc);
+        .accumulate_into(&mut acc, 12);
         // just assert it folds without panic and is deterministic
         let a = acc.value();
         let mut acc2 = ChecksumAccumulator::new();
@@ -156,6 +199,27 @@ mod tests {
         acc2.add_bytes(&[192, 168, 0, 2]);
         acc2.add_u16(u16::from_be_bytes([0, 17]));
         acc2.add_u16(12);
+        assert_eq!(acc2.value(), a);
+    }
+
+    #[test]
+    fn v6_pseudo_header_words() {
+        // RFC 8200 §8.1 layout: src(16) dst(16) len32 next32.
+        let src: Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let dst: Ipv6Addr = "2001:db8::2".parse().unwrap();
+        let mut acc = ChecksumAccumulator::new();
+        PseudoHeader::V6 {
+            src,
+            dst,
+            proto: 58,
+        }
+        .accumulate_into(&mut acc, 16);
+        let a = acc.value();
+        let mut acc2 = ChecksumAccumulator::new();
+        acc2.add_ipv6(src);
+        acc2.add_ipv6(dst);
+        acc2.add_bytes(&16u32.to_be_bytes());
+        acc2.add_bytes(&[0, 58]);
         assert_eq!(acc2.value(), a);
     }
 }

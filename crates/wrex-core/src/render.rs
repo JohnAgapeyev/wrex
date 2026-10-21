@@ -28,6 +28,16 @@ pub fn ip_proto_name(v: u8) -> Option<&'static str> {
     })
 }
 
+/// IPv6 next-header → name (for rendering `ipv6.next_header`).
+pub fn ip6_next_header_name(v: u8) -> Option<&'static str> {
+    Some(match v {
+        58 => "icmpv6",
+        6 => "tcp",
+        17 => "udp",
+        _ => return None,
+    })
+}
+
 fn field_json(layer_kind: &str, name: &str, value: &WValue) -> JsonValue {
     if layer_kind == "eth"
         && name == "type"
@@ -50,12 +60,20 @@ fn field_json(layer_kind: &str, name: &str, value: &WValue) -> JsonValue {
     {
         return json!(n);
     }
+    if layer_kind == "ipv6"
+        && name == "next_header"
+        && let WValue::Int(v) = value
+        && let Some(n) = ip6_next_header_name(*v as u8)
+    {
+        return json!(n);
+    }
     match value {
         WValue::Bool(b) => json!(b),
         WValue::Int(v) => json!(v),
         WValue::Bytes(b) => json!(hex::encode(b)),
         WValue::Str(s) => json!(s),
         WValue::Ipv4(a) => json!(a.to_string()),
+        WValue::Ipv6(a) => json!(a.to_string()),
         WValue::Mac(m) => json!(mac_string(*m)),
         WValue::List(items) => json!(
             items
@@ -119,12 +137,20 @@ fn field_text(kind: &str, name: &str, value: &WValue) -> String {
     {
         return n.to_string();
     }
+    if kind == "ipv6"
+        && name == "next_header"
+        && let WValue::Int(v) = value
+        && let Some(n) = ip6_next_header_name(*v as u8)
+    {
+        return n.to_string();
+    }
     match value {
         WValue::Bool(b) => b.to_string(),
         WValue::Int(v) => v.to_string(),
         WValue::Bytes(b) => hex::encode(b),
         WValue::Str(s) => s.clone(),
         WValue::Ipv4(a) => a.to_string(),
+        WValue::Ipv6(a) => a.to_string(),
         WValue::Mac(m) => mac_string(*m),
         WValue::List(items) => {
             let parts: Vec<String> = items
@@ -254,5 +280,8 @@ mod tests {
         assert_eq!(ip_proto_name(6), Some("tcp"));
         assert_eq!(ip_proto_name(17), Some("udp"));
         assert_eq!(ip_proto_name(253), None);
+        assert_eq!(ip6_next_header_name(58), Some("icmpv6"));
+        assert_eq!(ip6_next_header_name(6), Some("tcp"));
+        assert_eq!(ip6_next_header_name(0), None);
     }
 }

@@ -1,0 +1,49 @@
+.TH WREX-IPV6 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-ipv6 \- ipv6 layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIipv6\fR \fB--ipv6\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIipv6\fR
+
+.SH DESCRIPTION
+IPv6 (RFC 8200) fixed 40\-byte header. Also a valid stack start. ver=6, traffic_class/flow_label pack the first 32\-bit word (flow_label 20 bits, explicit over\-wide values masked), payload_len autofilled from the bytes after this header (explicit wins), hop_limit defaults 64. src/dst are FieldKind::Ipv6 (::1 autofill). next_header drives the chain: 58=icmpv6, 6=tcp, 17=udp, else synthesized `unknown`. Extension headers are a deliberate deferral. Stacks on eth or vlan (802.1Q tag). CLI alias: `ip6`/`v6` (\-\-ip6\-hop\-limit == \-\-ipv6\-hop\-limit). No header checksum (RFC 8200 §8.1): upper layers checksum over the v6 pseudo\-header.
+.
+
+.SH ENCAPSULATION
+Rank 20; stacks on eth, vlan (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --ipv6-ver).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-ipv6\-ver=\fIINT\fR\fR
+version (autofill: 6) Type u8. Default: 6.
+.TP
+\fB\-\-ipv6\-traffic_class=\fIINT\fR\fR
+traffic class (top byte of the flow word) Type u8. Default: 0.
+.TP
+\fB\-\-ipv6\-flow_label=\fIINT\fR\fR
+flow label (low 20 bits of the flow word) Type u32. Default: 0.
+.TP
+\fB\-\-ipv6\-payload_len=\fIINT\fR\fR
+payload length in bytes (autofill: computed) Type u16. Default: 0.
+.TP
+\fB\-\-ipv6\-next_header=\fIINT\fR\fR
+next header (autofill: derived from next layer) Type u8. Default: 0.
+.TP
+\fB\-\-ipv6\-hop_limit=\fIINT\fR\fR
+hop limit (autofill: 64) Type u8. Default: 64.
+.TP
+\fB\-\-ipv6\-src=\fIINT\fR\fR
+source address (autofill: ::1) Type ipv6. Default: ::1.
+.TP
+\fB\-\-ipv6\-dst=\fIINT\fR\fR
+destination address (autofill: ::1) Type ipv6. Default: ::1.
+
+.SH EXAMPLES
+wrex fields ipv6
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)
