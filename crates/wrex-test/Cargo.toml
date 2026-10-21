@@ -38,3 +38,8 @@ hickory-proto = { workspace = true }
 dhcproto = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
+# In-test TLS stub server (tranche 8a): rustls ServerConnection in a
+# std thread over a rcgen self-signed cert — the https/DoT oracle
+# counterpart of the raw-TcpListener stubs.
+rustls = { workspace = true }
+rcgen = { workspace = true }

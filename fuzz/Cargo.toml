@@ -130,6 +130,20 @@ doc = false
 bench = false
 
 [[bin]]
+name = "fuzz_pcapng_reader"
+path = "fuzz_targets/fuzz_pcapng_reader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_pcapng_roundtrip"
+path = "fuzz_targets/fuzz_pcapng_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "fuzz_mut_strategies"
 path = "fuzz_targets/fuzz_mut_strategies.rs"
 test = false

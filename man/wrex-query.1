@@ -4,7 +4,7 @@
 .SH NAME
 query \- Ask a DNS server one question over raw UDP and dissect the reply
 .SH SYNOPSIS
-\fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-tcp\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-tcp\fR] [\fB\-\-tls\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH DESCRIPTION
 Ask a DNS server one question over raw UDP and dissect the reply
 .SH OPTIONS
@@ -33,6 +33,15 @@ Server port (default 53)
 \fB\-\-tcp\fR
 Use DNS over TCP (RFC 7766; fresh connection per attempt)
 .TP
+\fB\-\-tls\fR
+Use DNS over TLS (RFC 7858; implies \-\-tcp, default port 853, fresh TLS connection per attempt)
+.TP
+\fB\-\-tls\-insecure\fR
+Accept any server certificate (\-\-tls; insecure)
+.TP
+\fB\-\-tls\-ca\fR \fI<FILE>\fR
+Extra CA bundle, PEM or DER (\-\-tls; complements system roots)
+.TP
 \fB\-\-type\fR \fI<QTYPE>\fR
 Question type (default A; names or numbers: A, AAAA, MX, …)
 .TP
@@ -55,7 +64,8 @@ Print help
 Question name (dotted form, e.g. example.com)
 .SH EXTRA
 QUERY GRAMMAR:
-  wrex query [\-i IFACE] \-\-server IP [\-\-port 53] [\-\-tcp] [options] NAME
+  wrex query [\-i IFACE] \-\-server IP [\-\-port 53] [\-\-tcp]
+             [\-\-tls] [\-\-tls\-insecure] [\-\-tls\-ca FILE] [options] NAME
 
   Sends one seeded DNS question and waits for the matching reply
   (id + 4\-tuple over UDP; with \-\-tcp: RFC 7766 length\-prefixed DNS
@@ -63,6 +73,12 @@ QUERY GRAMMAR:
   SAME query (same dns id) after \-\-timeout. A reply received is a
   success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
   data, printed in the dissected reply.
+
+  \-\-tls is DNS\-over\-TLS (RFC 7858): implies the TCP transport (a
+  fresh TLS connection per attempt, no \-i needed), default server
+  port 853, server name from \-\-server. \-\-tls\-insecure accepts any
+  server certificate and \-\-tls\-ca FILE adds extra roots, as with
+  `wrex http`.
 
 RECORD FIELDS (wrex dissect \-\-filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
@@ -74,3 +90,4 @@ EXAMPLES:
   wrex query \-i eth0 \-\-server 192.168.1.1 example.com
   wrex query \-i eth0 \-\-server 1.1.1.1 \-\-type MX \-\-seed 42 example.com
   wrex query \-\-tcp \-\-server 192.168.1.1 example.com
+  wrex query \-\-tls \-\-server 192.168.1.1 \-\-tls\-insecure example.com

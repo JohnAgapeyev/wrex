@@ -2,11 +2,11 @@
 .el .ds Aq '
 .TH capture 1  "capture " 
 .SH NAME
-capture \- Capture frames from an interface into a classic pcap file
+capture \- Capture frames from an interface into a pcap file (classic or, with `\-\-pcapng`, pcapng)
 .SH SYNOPSIS
-\fBcapture\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] <\fB\-w\fR|\fB\-\-write\fR> [\fB\-\-count\fR] [\fB\-\-timeout\fR] [\fB\-\-filter\fR] [\fB\-\-promisc\fR] [\fB\-\-snaplen\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBcapture\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] <\fB\-w\fR|\fB\-\-write\fR> [\fB\-\-count\fR] [\fB\-\-timeout\fR] [\fB\-\-filter\fR] [\fB\-\-promisc\fR] [\fB\-\-snaplen\fR] [\fB\-\-pcapng\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
-Capture frames from an interface into a classic pcap file
+Capture frames from an interface into a pcap file (classic or, with `\-\-pcapng`, pcapng)
 .SH OPTIONS
 .TP
 \fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
@@ -42,16 +42,21 @@ Promiscuous mode (opt\-in)
 \fB\-\-snaplen\fR \fI<SNAPLEN>\fR
 Max stored bytes per frame (default 65535; wire length kept)
 .TP
+\fB\-\-pcapng\fR
+Write pcapng instead of classic pcap (SHB+IDB+EPB, LE)
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH EXTRA
 GRAMMAR:
   wrex capture \-i IFACE \-w FILE.pcap [options]
 
-  AF_PACKET receive loop (like recv) into a classic pcap file:
-  little\-endian microsecond, link type EN10MB (in\-house writer, no
-  libpcap). Frames pass \-\-filter before they are written; \-\-snaplen
-  truncates the stored copy (orig_len keeps the wire length).
+  AF_PACKET receive loop (like recv) into a pcap file: classic pcap
+  (little\-endian microsecond, link type EN10MB) by default, or pcapng
+  with \-\-pcapng (little\-endian, one EN10MB interface, EPB records;
+  in\-house writers, no libpcap). Frames pass \-\-filter before they
+  are written; \-\-snaplen truncates the stored copy (orig_len keeps
+  the wire length).
 
 FORMATS (optional tee):
   without \-\-format: pcap file only (nothing on stdout)

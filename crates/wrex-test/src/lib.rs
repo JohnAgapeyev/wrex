@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! wrex test-support crate (dev-only): proptest strategies, oracles,
-//! corpus, CLI harness.
+//! corpus, CLI harness, TLS stub server.
 
 pub mod corpus;
 pub mod dhcp_oracle;
@@ -8,6 +8,7 @@ pub mod dns_oracle;
 pub mod harness;
 pub mod oracle;
 pub mod strategies;
+pub mod tls_stub;
 
 pub use harness::{craft_bytes, craft_hex, dissect, wrex_bin};
 pub use oracle::{Oracle, PcapWriter};

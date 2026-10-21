@@ -37,7 +37,7 @@ over the new kernel-TCP `TcpDriver` (unprivileged; `--source-port`),
 (byte-identical replay; T6's mutation substrate). Differentials:
 reqwest (in-process) + curl (subprocess, stub-server), plus Kani
 proofs as a gating CI stage (chunked decoder, dns name decoding,
-checksum folding). https:// is out of charter (no TLS this tranche).
+checksum folding). https:// closed its tranche-4 deferral at 8a.
 
 ## Install
 
@@ -156,9 +156,10 @@ wrex fields dns
 
 A reply is exit 0 whatever the rcode says (NXDOMAIN/SERVFAIL are
 data); silence after `--retries` attempts is exit 1. Under a pinned
-`--seed` the query bytes (source port + 16-bit id) are
-bit-reproducible. `--tcp` carries the same question over a fresh TCP
-connection per attempt (RFC 7766).
+`--seed` the query bytes (source port + 16-bit id) are bit-reproducible.
+`--tcp` carries the same question over a fresh TCP connection per
+attempt (RFC 7766); `--tls` wraps it in DNS-over-TLS (RFC 7858, default
+port 853, `--tls-insecure`/`--tls-ca` like http).
 
 HTTP (tranche 4; plain kernel TCP — no capabilities needed):
 
@@ -167,17 +168,32 @@ wrex http http://example.com/
 wrex http POST http://example.com/api -H X-Thing:42 --data '{"a":1}'
 wrex http --recipe req.json --format json     # deterministic replay
 wrex http http://example.com/ --fail          # 4xx/5xx -> exit 1
+wrex http https://example.com/ --tls-insecure   # lab targets: no cert check
+wrex http https://example.com/ --tls-ca myca.pem # extra roots next to system
 ```
 
 Any completed exchange is exit 0; the response dissects to
-text/json/raw (`raw` = body bytes only). https:// is out of charter
-(no TLS this tranche).
+text/json/raw (`raw` = body bytes only).
+
+**Tranche 8a** (delivered): TLS. https:// rides rustls (0.23, `ring`
+provider) behind a `wrex-tls` driver adapter that composes the kernel
+`TcpDriver` under the same stream conventions (orderly close =
+empty frame), so the retry/render/`--fail`/budget paths stay
+byte-identical to plain http. `--tls-ca` adds roots (PEM/DER) on top
+of the system store; `--tls-insecure` accepts any certificate;
+`query --tls` is DNS-over-TLS on port 853. Deferrals: mTLS, session
+resumption/0-RTT, ALPN/h2, keep-alive.
 
 **Tranche 5** (delivered): `wrex capture`/`wrex replay` — an in-house
 classic pcap reader/writer (`wrex-pcap`, no libpcap; all four magic
 variants read, streaming LE-µs write), the AF_PACKET capture tap
 (`-w FILE.pcap`, optional `--format` tee), and offline dissect /
 paced verbatim re-send of captured files.
+
+**Tranche 8b** (delivered): pcapng. `wrex capture --pcapng` writes
+pcapng (SHB + one EN10MB interface, EPB records); `wrex replay`,
+`wrex mut -r` and the corpus importer read both classic pcap (all four
+magic variants) and pcapng (LE/BE × µs/ns, unknown blocks skipped).
 
 **Tranche 6** (delivered): over-the-wire fuzzing. `wrex mut`
 (`wrex-mut`) — seeded, dissect-aware frame mutation (field/len/flip/
@@ -215,10 +231,11 @@ crates/wrex-session   sans-IO Session contract + the shared runtime loop
 crates/wrex-scan      scan orchestration: probe table, scheduler, seeded jitter
 crates/wrex-dns       query orchestration: DNS ask sessions (udp + tcp)
 crates/wrex-http      HTTP/1.1 client session (httparse + http types) + recipes
-crates/wrex-pcap      classic pcap reader + streaming writer (no libpcap)
+crates/wrex-tls       rustls-backed TLS Driver adapter composing the kernel TCP driver (tranche 8a)
+crates/wrex-pcap      classic pcap + pcapng readers/writers (no libpcap)
 crates/wrex-mut       seeded, dissect-aware mutation engine (tranche 6a)
 crates/wrex-fuzz      stateful recording prober session (tranche 6b)
-crates/wrex-test      test-support: strategies, oracles (+hickory/dig/reqwest), corpus, CLI harness
+crates/wrex-test      test-support: strategies, oracles (+hickory/dig/reqwest), corpus, CLI harness, TLS stub
 crates/wrex-proto-*   eth arp ip icmp udp tcp dns (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)
 xtask/                `cargo xtask` — verify (+kani) / coverage / man / corpus-import
@@ -251,9 +268,10 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
 - Differential: our dissection vs etherparse (in-process) and tshark
   (subprocess over a hand-written classic-pcap wrapper); DNS vs
   hickory-proto (in-process) and dig (subprocess against an in-test
-  stub server — no external network); HTTP vs reqwest (in-process)
-  and curl (subprocess, stub server). Missing tools skip with a
-  printed notice.
+  stub server — no external network); HTTP vs reqwest (in-process,
+  http:// and https:// over the same in-test TLS stub, reqwest with
+  `rustls-tls`) and curl (subprocess, stub server). Missing tools
+  skip with a printed notice.
 - Kani proofs (gating CI job, scoped for cost): chunked-body decoder
   panic-freedom and checksum folding — curated bounds under a 6GB
   memory ceiling (a dns decode_name proof was retired: every scoped

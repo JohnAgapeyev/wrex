@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "wrex classic pcap file reader/writer (in-house, no libpcap): all magic variants in, LE-microsecond Ethernet out"
+description = "wrex pcap file reader/writers (in-house, no libpcap): classic pcap (all magic variants) + pcapng in, LE-microsecond classic/pcapng out"
 
 [dependencies]
 thiserror = { workspace = true }

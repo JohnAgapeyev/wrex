@@ -238,3 +238,152 @@ fn replay_be_pcap_variant() {
     assert_eq!(out, vec![1, 2, 3, 4]);
     let _ = std::fs::remove_file(&path);
 }
+
+// --- pcapng (tranche 8b) ------------------------------------------------------
+
+/// Write a two-record pcapng (the golden frame + a non-matching runt):
+/// same seed shapes as `golden_pcap`, through the pcapng writer.
+fn golden_pcapng(path: &std::path::Path) {
+    let golden = hex::decode(GOLDEN_HEX).unwrap();
+    let runt = vec![0xde, 0xad, 0xbe, 0xef];
+    let file = std::fs::File::create(path).unwrap();
+    let mut w = wrex_pcap::PcapngWriter::new(std::io::BufWriter::new(file)).unwrap();
+    w.write_record(
+        UNIX_EPOCH + Duration::from_secs(1_700_000_000),
+        &golden,
+        65535,
+    )
+    .unwrap();
+    w.write_record(
+        UNIX_EPOCH + Duration::from_secs(1_700_000_002),
+        &runt,
+        65535,
+    )
+    .unwrap();
+    w.flush().unwrap();
+    drop(w);
+}
+
+/// The shared reader auto-detects pcapng: offline replay of a pcapng
+/// file prints the same jsonl as `wrex dissect` of the same bytes.
+#[test]
+fn replay_pcapng_default_jsonl() {
+    let pcap = std::env::temp_dir().join("wrex-t8b-offline-default.pcapng");
+    golden_pcapng(&pcap);
+    let out = wrex()
+        .args(["replay", pcap.to_str().unwrap()])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(out).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines.len(), 2, "two records -> two jsonl lines");
+    assert!(lines[0].contains("\"udp\""));
+    // Differential vs `wrex dissect --format jsonl` of the same bytes.
+    let golden = hex::decode(GOLDEN_HEX).unwrap();
+    let dissect = wrex()
+        .args(["dissect", "--format", "jsonl"])
+        .write_stdin(golden)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(
+        lines[0].trim(),
+        String::from_utf8(dissect).unwrap().trim(),
+        "replay jsonl must equal dissect jsonl of the same frame"
+    );
+    let _ = std::fs::remove_file(&pcap);
+}
+
+/// `--format raw` concatenates the pcapng record bytes
+/// byte-transparently; `--count` and `--filter` gate identically.
+#[test]
+fn replay_pcapng_raw_count_and_filter() {
+    let pcap = std::env::temp_dir().join("wrex-t8b-offline-raw.pcapng");
+    golden_pcapng(&pcap);
+    let golden = hex::decode(GOLDEN_HEX).unwrap();
+    let runt = vec![0xde, 0xad, 0xbe, 0xef];
+
+    let full = wrex()
+        .args(["replay", pcap.to_str().unwrap(), "--format", "raw"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut want = golden.clone();
+    want.extend_from_slice(&runt);
+    assert_eq!(full, want, "raw replay concatenates record bytes");
+
+    let one = wrex()
+        .args([
+            "replay",
+            pcap.to_str().unwrap(),
+            "--format",
+            "raw",
+            "--count",
+            "1",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(one, golden);
+
+    // udp.dport = 5555 matches only the golden frame.
+    let filtered = wrex()
+        .args([
+            "replay",
+            pcap.to_str().unwrap(),
+            "--format",
+            "raw",
+            "--filter",
+            "udp.dport=5555",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(filtered, golden);
+    let _ = std::fs::remove_file(&pcap);
+}
+
+/// `wrex mut -r` seeds from a pcapng file through the same shared
+/// reader (the corpus-import path delegates to it identically).
+#[test]
+fn mut_reads_pcapng_seeds() {
+    let pcap = std::env::temp_dir().join("wrex-t8b-mut-seeds.pcapng");
+    golden_pcapng(&pcap);
+    // One seed per record (the runt included: seeds are raw bytes).
+    let out = wrex()
+        .args([
+            "mut",
+            "-r",
+            pcap.to_str().unwrap(),
+            "--count",
+            "2",
+            "--seed",
+            "3",
+            "--format",
+            "jsonl",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(out).unwrap();
+    assert_eq!(stdout.lines().count(), 2, "one mutant per --count");
+    for line in stdout.lines() {
+        let v: serde_json::Value = serde_json::from_str(line)
+            .unwrap_or_else(|e| panic!("jsonl line must parse: {e}\n{line}"));
+        assert!(v.get("layers").is_some(), "mutant dissected: {line}");
+    }
+    let _ = std::fs::remove_file(&pcap);
+}

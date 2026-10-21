@@ -782,9 +782,38 @@ fn print_frame(
 /// Default stored bytes per capture record (`--snaplen` overrides).
 const CAPTURE_DEFAULT_SNAPLEN: usize = 65535;
 
-/// `wrex capture`: AF_PACKET recv loop into a classic pcap file, with an
-/// optional `--format` tee to stdout (the same per-frame shapes as
-/// recv). Stop conditions and exit codes mirror recv: count/timeout → 0.
+/// The capture sink: classic pcap (default) or pcapng (`--pcapng`) —
+/// both writers share the `write_record`/`flush` shape.
+enum CaptureWriter {
+    Classic(wrex_pcap::PcapWriter<std::io::BufWriter<std::fs::File>>),
+    Ng(wrex_pcap::PcapngWriter<std::io::BufWriter<std::fs::File>>),
+}
+
+impl CaptureWriter {
+    fn write_record(
+        &mut self,
+        ts: std::time::SystemTime,
+        frame: &[u8],
+        snaplen: usize,
+    ) -> std::io::Result<()> {
+        match self {
+            CaptureWriter::Classic(w) => w.write_record(ts, frame, snaplen),
+            CaptureWriter::Ng(w) => w.write_record(ts, frame, snaplen),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            CaptureWriter::Classic(w) => w.flush(),
+            CaptureWriter::Ng(w) => w.flush(),
+        }
+    }
+}
+
+/// `wrex capture`: AF_PACKET recv loop into a pcap file (classic by
+/// default, pcapng with `--pcapng`), with an optional `--format` tee to
+/// stdout (the same per-frame shapes as recv). Stop conditions and exit
+/// codes mirror recv: count/timeout → 0.
 fn capture(
     registry: &Registry,
     common: &Common,
@@ -807,8 +836,17 @@ fn capture(
     let mut driver = RawEthDriver::open(iface, args.promisc, &table)?;
     let file = std::fs::File::create(&args.write)
         .map_err(|e| CliError::Runtime(format!("capture: cannot create `{}`: {e}", args.write)))?;
-    let mut writer = wrex_pcap::PcapWriter::new(std::io::BufWriter::new(file))
-        .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+    let mut writer = if args.pcapng {
+        CaptureWriter::Ng(
+            wrex_pcap::PcapngWriter::new(std::io::BufWriter::new(file))
+                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?,
+        )
+    } else {
+        CaptureWriter::Classic(
+            wrex_pcap::PcapWriter::new(std::io::BufWriter::new(file))
+                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?,
+        )
+    };
 
     let mut seen: u64 = 0;
     let deadline = timeout.map(|d| Instant::now() + d);
@@ -1405,8 +1443,35 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     }
 
     // Materialize the request up front: every usage error (recipe
-    // schema, grammar, https, bad headers) surfaces before connect.
+    // schema, grammar, bad headers) surfaces before connect.
     let (spec, cfg) = build_http_request(args)?;
+
+    // TLS transport (https://): the driver is the only thing that
+    // differs — retry/render/--fail/budget handling stay identical.
+    // SNI comes from the URL host (an IP literal matches the cert's
+    // IP SAN); roots: system store plus the recipe/CLI --tls-ca adds.
+    let tls_cfg = match spec.url.scheme_str() {
+        Some("https") => {
+            let host = spec
+                .url
+                .authority()
+                .map(|a| a.host())
+                .ok_or_else(|| usage("https url has no host".to_string()))?
+                .to_string();
+            let ca_der = match &cfg.tls_ca {
+                Some(path) => {
+                    Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("http: {e}")))?)
+                }
+                None => None,
+            };
+            Some(wrex_tls::TlsConfig {
+                server_name: host,
+                insecure: cfg.tls_insecure,
+                ca_der,
+            })
+        }
+        _ => None,
+    };
 
     // Retry loop: fresh connection per attempt (close-mode).
     let attempts = cfg.retries + 1;
@@ -1414,22 +1479,33 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     for _ in 0..attempts {
         let peer = tcp_peer(&spec.url)?;
         let bind = tcp_bind(common, args.source_port)?;
-        let driver = match wrex_io::TcpDriver::connect(peer, bind, cfg.timeout) {
-            Ok(d) => d,
-            Err(e) => return Err(CliError::Runtime(format!("http: {e}"))),
+        let outcome = {
+            let mut session = HttpClientSession::new(
+                &spec,
+                HttpConfig {
+                    timeout: cfg.timeout,
+                    max_bytes: cfg.max_bytes as usize,
+                },
+                Instant::now(),
+            )
+            .map_err(|e| usage(format!("http: {e}")))?;
+            match &tls_cfg {
+                Some(tcfg) => {
+                    let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfg.timeout, tcfg)
+                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                }
+                None => {
+                    let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfg.timeout)
+                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                }
+            }
+            .map_err(|e| CliError::Runtime(format!("http: {e}")))?
+            .into_iter()
+            .next()
         };
-        let mut session = HttpClientSession::new(
-            &spec,
-            HttpConfig {
-                timeout: cfg.timeout,
-                max_bytes: cfg.max_bytes as usize,
-            },
-            Instant::now(),
-        )
-        .map_err(|e| usage(format!("http: {e}")))?;
-        let outcomes = wrex_session::run(&mut session, &mut { driver }, &wrex_io::SystemClock)
-            .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-        match outcomes.into_iter().next() {
+        match outcome {
             Some(HttpOutcome::Response(resp)) => {
                 return render_http_response(&resp, format, args.fail);
             }
@@ -1462,6 +1538,11 @@ struct HttpVerbConfig {
     retries: u32,
     timeout: Duration,
     max_bytes: u64,
+    /// Accept any TLS certificate (https urls; recipe wins, mirroring
+    /// retries/timeout_ms/max_bytes).
+    tls_insecure: bool,
+    /// Extra CA bundle path (https urls; recipe wins).
+    tls_ca: Option<String>,
 }
 
 fn build_http_request(
@@ -1537,6 +1618,10 @@ fn build_http_request(
             .max_bytes
             .or(args.max_bytes)
             .unwrap_or(HTTP_DEFAULT_MAX_BYTES),
+        // Recipe tls knobs are additive overrides of the CLI flags
+        // (same precedence direction as retries/timeout_ms/max_bytes).
+        tls_insecure: overrides.tls_insecure.unwrap_or(args.tls_insecure),
+        tls_ca: overrides.tls_ca.clone().or_else(|| args.tls_ca.clone()),
     };
     Ok((spec, cfg))
 }
@@ -1550,8 +1635,11 @@ fn tcp_peer(uri: &wrex_http::http::Uri) -> Result<std::net::SocketAddr, CliError
     let host = authority.host();
     let port = authority
         .port_u16()
-        .or_else(|| uri.scheme_str().map(|_| 80))
-        .unwrap_or(80);
+        .unwrap_or_else(|| match uri.scheme_str() {
+            // Scheme-defaulted ports (explicit ports win).
+            Some("https") => 443,
+            _ => 80,
+        });
     // Hosts are IP addresses for the driver; resolve names via std.
     let mut addrs = (host, port)
         .to_socket_addrs()
@@ -1701,7 +1789,8 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
     let seed = args.seed.unwrap_or_else(time_seed);
     let cfg = QueryConfig {
         server,
-        port: args.port.unwrap_or(53),
+        // --tls (DNS-over-TLS) defaults to the RFC 7858 port.
+        port: args.port.unwrap_or(if args.tls { 853 } else { 53 }),
         name: args.name.trim().trim_end_matches('.').to_string(),
         qtype: args.qtype.clone().unwrap_or_else(|| "A".to_string()),
         qclass: args.qclass.clone().unwrap_or_else(|| "IN".to_string()),
@@ -1712,14 +1801,15 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
     };
 
     // Session first: grammar/name errors surface as usage (exit 2)
-    // BEFORE any socket is opened. --tcp needs no interface (kernel
-    // TCP routes and picks the source); the raw UDP path needs -i.
-    if args.tcp {
+    // BEFORE any socket is opened. --tcp/--tls need no interface
+    // (kernel TCP routes and picks the source); the raw UDP path
+    // needs -i.
+    if args.tcp || args.tls {
         let src = std::net::Ipv4Addr::LOCALHOST;
         return query_tcp(registry, cfg, args, format, src);
     }
     let Some(iface) = iface else {
-        return Err(usage("query requires -i/--iface (unless --tcp)"));
+        return Err(usage("query requires -i/--iface (unless --tcp/--tls)"));
     };
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
@@ -1779,7 +1869,9 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
 
 /// `query --tcp`: RFC 7766 length-prefixed DNS over a fresh kernel TCP
 /// connection per attempt (the UDP session retries internally; TCP
-/// reconnects, per the frozen plan).
+/// reconnects, per the frozen plan). `--tls` wraps the same exchange
+/// in TLS (RFC 7858 DNS-over-TLS): same length-prefixed wire bytes,
+/// fresh TLS connection per attempt, server name = `--server`.
 #[allow(clippy::too_many_arguments)]
 fn query_tcp(
     registry: &Registry,
@@ -1809,12 +1901,39 @@ fn query_tcp(
     for attempt in 1..=attempts {
         let peer = std::net::SocketAddr::new(std::net::IpAddr::V4(server), cfg.port);
         let bind = None;
-        let mut driver = wrex_io::TcpDriver::connect(peer, bind, timeout)
-            .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?;
+        // --tls picks the TLS driver (same stream conventions); the
+        // session and wire bytes are identical either way.
+        let tls_cfg = if args.tls {
+            let ca_der = match &args.tls_ca {
+                Some(path) => {
+                    Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("query: {e}")))?)
+                }
+                None => None,
+            };
+            Some(wrex_tls::TlsConfig {
+                // Server name = the --server host (an IP literal here:
+                // matched against the cert's IP SAN).
+                server_name: server.to_string(),
+                insecure: args.tls_insecure,
+                ca_der,
+            })
+        } else {
+            None
+        };
+        let mut driver: Box<dyn wrex_io::Driver> = match &tls_cfg {
+            Some(tcfg) => Box::new(
+                wrex_tls::TlsDriver::connect(peer, bind, timeout, tcfg)
+                    .map_err(|e| CliError::Runtime(format!("query --tls: {e}")))?,
+            ),
+            None => Box::new(
+                wrex_io::TcpDriver::connect(peer, bind, timeout)
+                    .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?,
+            ),
+        };
         let mut session =
             DnsTcpSession::new(registry, cfg.clone(), query.clone(), id, Instant::now())
                 .map_err(|e| usage(format!("query: {e}")))?;
-        let outcomes = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+        let outcomes = wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
             .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?;
         match outcomes.into_iter().next() {
             Some(DnsTcpReply::Reply(pkt)) => {

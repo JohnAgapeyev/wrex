@@ -18,10 +18,12 @@
 //! - [`recipe`]: the committed JSON recipe schema (byte-identical
 //!   replay; list-shaped for T6 mutation).
 //!
-//! Deliberate T4 deferrals (documented in the verb help): TLS
-//! (`https://` is out of charter), keep-alive (one exchange per
-//! connection), chunked *request* bodies (Transfer-Encoding is
-//! rejected), multi-connection pipelining.
+//! Deliberate T4 deferrals (documented in the verb help): keep-alive
+//! (one exchange per connection), chunked *request* bodies
+//! (Transfer-Encoding is rejected), multi-connection pipelining.
+//! TLS closed its tranche-4 deferral at T8a: `https://` urls parse and
+//! serialize like `http://` (transport-agnostic), the rustls-backed
+//! driver living in the `wrex-tls` crate.
 
 pub mod recipe;
 pub mod request;

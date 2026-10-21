@@ -109,12 +109,13 @@ NOTES:
   stops at --count matching frames or after --timeout (exit 0);
   --promisc opts into promiscuous mode. Needs CAP_NET_RAW.";
 
-/// Epilog for http: the HTTP/1.1 ask verb (tranche 4).
+/// Epilog for http: the HTTP/1.1 ask verb (tranche 4; https at 8a).
 pub const HTTP_AFTER_HELP: &str = "\
 HTTP GRAMMAR:
   wrex http [METHOD] URL [-H NAME:VALUE]... [--data TEXT|@FILE|hex:…]
            [--timeout DUR] [--retries N] [--max-bytes N]
            [--source-port N] [--fail] [--recipe FILE]
+           [--tls-insecure] [--tls-ca FILE]
            [--format text|json|raw]
 
   One HTTP/1.1 exchange per connection (Connection: close): the
@@ -125,23 +126,32 @@ HTTP GRAMMAR:
 
   Bodies: content-length and chunked (trailers merge into headers),
   read-to-close when neither is declared; 1xx skipped; HEAD/204/304
-  carry no body. https:// is out of the tranche-4 charter (no TLS).
+  carry no body. https:// rides TLS (the rustls engine behind the
+  wrex-tls driver adapter): SNI from the URL host, system roots plus
+  optional --tls-ca FILE additions (PEM or DER); --tls-insecure
+  accepts ANY certificate (dangerous: no name/chain/validity check —
+  for lab targets). Close mode unchanged: one exchange per TLS
+  connection.
 
   Any completed exchange is exit 0 whatever the status says; --fail
   turns 4xx/5xx into exit 1; connect/timeout/protocol failures are
   exit 1; grammar and recipe errors are exit 2.
 
 RECIPE (--recipe FILE, JSON):
-  {\"method\": \"POST\", \"url\": \"http://host/api\",
+  {\"method\": \"POST\", \"url\": \"https://host/api\",
    \"headers\": [[\"X-A\", \"1\"]], \"body_hex\": \"deadbeef\",
-   \"timeout_ms\": 1500, \"retries\": 1, \"max_bytes\": 67108864}
+   \"timeout_ms\": 1500, \"retries\": 1, \"max_bytes\": 67108864,
+   \"tls_insecure\": false, \"tls_ca\": \"ca.pem\"}
   Ordered header pairs keep wire bytes deterministic; body_hex and
-  body_text are mutually exclusive.
+  body_text are mutually exclusive. tls_insecure/tls_ca are additive
+  (defaults: off/absent) and honored for https urls.
 
 EXAMPLES:
   wrex http http://example.com/
   wrex http POST http://example.com/api -H X-Thing:42 --data '{\"a\":1}'
   wrex http --recipe req.json --format json
+  wrex http https://example.com/ --tls-insecure
+  wrex http https://example.com/ --tls-ca myca.pem
   wrex http GET http://example.com/ --data @body.bin --source-port 42424";
 
 /// Epilog for scan: modes, grammar, pacing and the seeded RNG.
@@ -280,7 +290,8 @@ pub enum Cmd {
     /// Receive frames on an interface, filtered, until count/timeout/Ctrl-C.
     Recv(RecvArgs),
 
-    /// Capture frames from an interface into a classic pcap file.
+    /// Capture frames from an interface into a pcap file (classic or,
+    /// with `--pcapng`, pcapng).
     Capture(CaptureArgs),
 
     /// Read a pcap (dissect to stdout) or re-send it on an interface.
@@ -493,15 +504,17 @@ pub struct RecvArgs {
     pub promisc: bool,
 }
 
-/// Epilog for capture: the tranche-5 pcap tap.
+/// Epilog for capture: the tranche-5 pcap tap (tranche 8b: --pcapng).
 pub const CAPTURE_AFTER_HELP: &str = "\
 GRAMMAR:
   wrex capture -i IFACE -w FILE.pcap [options]
 
-  AF_PACKET receive loop (like recv) into a classic pcap file:
-  little-endian microsecond, link type EN10MB (in-house writer, no
-  libpcap). Frames pass --filter before they are written; --snaplen
-  truncates the stored copy (orig_len keeps the wire length).
+  AF_PACKET receive loop (like recv) into a pcap file: classic pcap
+  (little-endian microsecond, link type EN10MB) by default, or pcapng
+  with --pcapng (little-endian, one EN10MB interface, EPB records;
+  in-house writers, no libpcap). Frames pass --filter before they
+  are written; --snaplen truncates the stored copy (orig_len keeps
+  the wire length).
 
 FORMATS (optional tee):
   without --format: pcap file only (nothing on stdout)
@@ -534,10 +547,12 @@ SEND MODE (-i/--iface): re-send the captured frames verbatim on the
   settles on the time-derived seed.
 
 PCAP:
-  classic files only (all 4 magic variants read; pcapng is out of the
-  tranche-5 charter — write out with text2pcap/mergecap if needed).";
+  classic files (all 4 magic variants) or pcapng (LE/BE x µs/ns) —
+  the shared in-house reader auto-detects the format. Write out with
+  `wrex capture [--pcapng]`, text2pcap or mergecap if needed.";
 
-/// `wrex capture`: AF_PACKET recv loop into a classic pcap file.
+/// `wrex capture`: AF_PACKET recv loop into a pcap file (classic or,
+/// with `--pcapng`, pcapng).
 #[derive(Args, Debug)]
 #[command(after_help = CAPTURE_AFTER_HELP)]
 pub struct CaptureArgs {
@@ -561,15 +576,19 @@ pub struct CaptureArgs {
     /// Max stored bytes per frame (default 65535; wire length kept).
     #[arg(long)]
     pub snaplen: Option<usize>,
+    /// Write pcapng instead of classic pcap (SHB+IDB+EPB, LE).
+    #[arg(long)]
+    pub pcapng: bool,
 }
 
-/// `wrex replay`: offline dissection or re-send of a classic pcap.
+/// `wrex replay`: offline dissection or re-send of a pcap (classic or
+/// pcapng).
 #[derive(Args, Debug)]
 #[command(after_help = REPLAY_AFTER_HELP)]
 pub struct ReplayArgs {
     #[command(flatten)]
     pub common: Common,
-    /// Classic pcap file to read.
+    /// Pcap file to read (classic or pcapng; auto-detected).
     #[arg(value_name = "FILE")]
     pub pcap: String,
     /// Stop after N matching frames.
@@ -592,10 +611,11 @@ pub struct ReplayArgs {
     pub seed: Option<u64>,
 }
 
-/// Epilog for query: the DNS ask verb (tranche 3).
+/// Epilog for query: the DNS ask verb (tranche 3; DoT at 8a).
 pub const QUERY_AFTER_HELP: &str = "\
 QUERY GRAMMAR:
-  wrex query [-i IFACE] --server IP [--port 53] [--tcp] [options] NAME
+  wrex query [-i IFACE] --server IP [--port 53] [--tcp]
+             [--tls] [--tls-insecure] [--tls-ca FILE] [options] NAME
 
   Sends one seeded DNS question and waits for the matching reply
   (id + 4-tuple over UDP; with --tcp: RFC 7766 length-prefixed DNS
@@ -603,6 +623,12 @@ QUERY GRAMMAR:
   SAME query (same dns id) after --timeout. A reply received is a
   success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
   data, printed in the dissected reply.
+
+  --tls is DNS-over-TLS (RFC 7858): implies the TCP transport (a
+  fresh TLS connection per attempt, no -i needed), default server
+  port 853, server name from --server. --tls-insecure accepts any
+  server certificate and --tls-ca FILE adds extra roots, as with
+  `wrex http`.
 
 RECORD FIELDS (wrex dissect --filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
@@ -613,7 +639,8 @@ RECORD FIELDS (wrex dissect --filter also accepts these):
 EXAMPLES:
   wrex query -i eth0 --server 192.168.1.1 example.com
   wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
-  wrex query --tcp --server 192.168.1.1 example.com";
+  wrex query --tcp --server 192.168.1.1 example.com
+  wrex query --tls --server 192.168.1.1 --tls-insecure example.com";
 
 /// Epilog for mut: the tranche-6a mutation verb.
 pub const MUT_AFTER_HELP: &str = "\
@@ -621,12 +648,12 @@ GRAMMAR:
   wrex mut [FRAMES...] [-r FILE.pcap] [--strategy S] [--count N]
                  [--seed U64] [--format FMT] [-w FILE.pcap]
 
-  Seeds: positional hex frames, -r/--read classic pcap records
-  (all 4 magic variants), and/or raw stdin. Mutants print per
-  --format (default hex): hex/raw are the bytes; text/json/jsonl
-  dissect the mutant. -w writes the mutants as a classic pcap
-  (LE microsecond, EN10MB) — a mutated corpus `wrex replay` and
-  `wrex fuzz` consume.
+  Seeds: positional hex frames, -r/--read pcap records (classic,
+  all 4 magic variants, or pcapng — auto-detected), and/or raw
+  stdin. Mutants print per --format (default hex): hex/raw are the
+  bytes; text/json/jsonl dissect the mutant. -w writes the mutants
+  as a classic pcap (LE microsecond, EN10MB) — a mutated corpus
+  `wrex replay` and `wrex fuzz` consume.
 
 STRATEGIES (--strategy, default all):
   field   dissect the seed, mutate one typed field value, re-encode
@@ -815,6 +842,16 @@ pub struct QueryArgs {
     /// Use DNS over TCP (RFC 7766; fresh connection per attempt).
     #[arg(long)]
     pub tcp: bool,
+    /// Use DNS over TLS (RFC 7858; implies --tcp, default port 853,
+    /// fresh TLS connection per attempt).
+    #[arg(long)]
+    pub tls: bool,
+    /// Accept any server certificate (--tls; insecure).
+    #[arg(long)]
+    pub tls_insecure: bool,
+    /// Extra CA bundle, PEM or DER (--tls; complements system roots).
+    #[arg(long, value_name = "FILE")]
+    pub tls_ca: Option<String>,
     /// Question type (default A; names or numbers: A, AAAA, MX, …).
     #[arg(long = "type")]
     pub qtype: Option<String>,
@@ -866,6 +903,13 @@ pub struct HttpArgs {
     /// Bind this local source port (determinism on multihomed hosts).
     #[arg(long)]
     pub source_port: Option<u16>,
+    /// Accept any server certificate for https:// (dangerous; no
+    /// name/chain/validity check).
+    #[arg(long)]
+    pub tls_insecure: bool,
+    /// Extra CA bundle, PEM or DER (complements the system roots).
+    #[arg(long, value_name = "FILE")]
+    pub tls_ca: Option<String>,
     /// Exit 1 on 4xx/5xx statuses (completed exchanges stay data).
     #[arg(long)]
     pub fail: bool,

@@ -12,7 +12,8 @@ use bytes::{BufMut, Bytes, BytesMut};
 #[derive(Clone, Debug)]
 pub struct HttpRequestSpec {
     pub method: http::Method,
-    /// Absolute `http://` URI (`https` is out of charter).
+    /// Absolute `http(s)://` URI (transport-agnostic; the verb picks
+    /// `TcpDriver` vs `wrex_tls::TlsDriver` on the scheme).
     pub url: http::Uri,
     /// User-supplied headers, in order (serialization preserves it).
     pub headers: Vec<(http::HeaderName, http::HeaderValue)>,
@@ -37,18 +38,13 @@ impl HttpRequestSpec {
             http::Method::from_str(method).map_err(|e| format!("bad method `{method}`: {e}"))?;
         let url = http::Uri::from_str(url).map_err(|e| format!("bad url `{url}`: {e}"))?;
         // Fail fast on the scheme; serialize() re-checks (it is the
-        // enforcement point for actual sends).
+        // enforcement point for actual sends). http and https both
+        // pass: serialization stays transport-agnostic, the https
+        // transport (tranche 8a) is chosen by the verb on this gate.
         match url.scheme_str() {
-            Some("http") => {}
-            Some("https") => {
-                return Err(
-                    "https:// requires TLS, which is out of the tranche-4 charter \
-                     (wrex http speaks http:// only)"
-                        .to_string(),
-                );
-            }
+            Some("http") | Some("https") => {}
             Some(other) => return Err(format!("unsupported url scheme `{other}`")),
-            None => return Err("url needs an http:// scheme".to_string()),
+            None => return Err("url needs an http:// or https:// scheme".to_string()),
         }
         let mut parsed = Vec::with_capacity(headers.len());
         for (name, value) in headers {
@@ -68,18 +64,13 @@ impl HttpRequestSpec {
 
     /// Serialize to HTTP/1.1 wire bytes.
     pub fn serialize(&self) -> Result<Bytes, String> {
-        // Scheme gate: https is out of charter with a pointed message.
+        // Scheme gate: http and https serialize identically (the https
+        // transport lives verb-side in wrex-tls); everything else is a
+        // pointed usage error.
         match self.url.scheme_str() {
-            Some("http") => {}
-            Some("https") => {
-                return Err(
-                    "https:// requires TLS, which is out of the tranche-4 charter \
-                     (wrex http speaks http:// only)"
-                        .to_string(),
-                );
-            }
+            Some("http") | Some("https") => {}
             Some(other) => return Err(format!("unsupported url scheme `{other}`")),
-            None => return Err("url needs an http:// scheme".to_string()),
+            None => return Err("url needs an http:// or https:// scheme".to_string()),
         }
         let authority = self
             .url
@@ -194,10 +185,24 @@ mod tests {
     }
 
     #[test]
-    fn https_is_pointed_error() {
-        let err =
-            HttpRequestSpec::build("GET", "https://example.com/", &[], Bytes::new()).unwrap_err();
-        assert!(err.contains("out of the tranche-4 charter"), "{err}");
+    fn https_is_accepted_and_transport_agnostic() {
+        // Same wire bytes for http and https: serialization never sees
+        // the transport (the https driver is chosen verb-side).
+        let https =
+            HttpRequestSpec::build("GET", "https://example.com/", &[], Bytes::new()).unwrap();
+        let http = HttpRequestSpec::build("GET", "http://example.com/", &[], Bytes::new()).unwrap();
+        assert_eq!(https.serialize().unwrap(), http.serialize().unwrap());
+    }
+
+    #[test]
+    fn other_schemes_are_pointed_errors() {
+        for url in ["ftp://example.com/", "example.com"] {
+            let err = HttpRequestSpec::build("GET", url, &[], Bytes::new()).unwrap_err();
+            assert!(
+                err.contains("unsupported url scheme") || err.contains("needs an http"),
+                "{url}: {err}"
+            );
+        }
     }
 
     #[test]

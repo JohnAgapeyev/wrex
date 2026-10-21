@@ -4,7 +4,7 @@
 .SH NAME
 http \- One HTTP/1.1 exchange: send a request, dissect the response
 .SH SYNOPSIS
-\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
+\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
 .SH DESCRIPTION
 One HTTP/1.1 exchange: send a request, dissect the response
 .SH OPTIONS
@@ -45,6 +45,12 @@ Response byte budget, head included (default 64 MiB)
 \fB\-\-source\-port\fR \fI<SOURCE_PORT>\fR
 Bind this local source port (determinism on multihomed hosts)
 .TP
+\fB\-\-tls\-insecure\fR
+Accept any server certificate for https:// (dangerous; no name/chain/validity check)
+.TP
+\fB\-\-tls\-ca\fR \fI<FILE>\fR
+Extra CA bundle, PEM or DER (complements the system roots)
+.TP
 \fB\-\-fail\fR
 Exit 1 on 4xx/5xx statuses (completed exchanges stay data)
 .TP
@@ -58,6 +64,7 @@ HTTP GRAMMAR:
   wrex http [METHOD] URL [\-H NAME:VALUE]... [\-\-data TEXT|@FILE|hex:…]
            [\-\-timeout DUR] [\-\-retries N] [\-\-max\-bytes N]
            [\-\-source\-port N] [\-\-fail] [\-\-recipe FILE]
+           [\-\-tls\-insecure] [\-\-tls\-ca FILE]
            [\-\-format text|json|raw]
 
   One HTTP/1.1 exchange per connection (Connection: close): the
@@ -68,21 +75,30 @@ HTTP GRAMMAR:
 
   Bodies: content\-length and chunked (trailers merge into headers),
   read\-to\-close when neither is declared; 1xx skipped; HEAD/204/304
-  carry no body. https:// is out of the tranche\-4 charter (no TLS).
+  carry no body. https:// rides TLS (the rustls engine behind the
+  wrex\-tls driver adapter): SNI from the URL host, system roots plus
+  optional \-\-tls\-ca FILE additions (PEM or DER); \-\-tls\-insecure
+  accepts ANY certificate (dangerous: no name/chain/validity check —
+  for lab targets). Close mode unchanged: one exchange per TLS
+  connection.
 
   Any completed exchange is exit 0 whatever the status says; \-\-fail
   turns 4xx/5xx into exit 1; connect/timeout/protocol failures are
   exit 1; grammar and recipe errors are exit 2.
 
 RECIPE (\-\-recipe FILE, JSON):
-  {"method": "POST", "url": "http://host/api",
+  {"method": "POST", "url": "https://host/api",
    "headers": [["X\-A", "1"]], "body_hex": "deadbeef",
-   "timeout_ms": 1500, "retries": 1, "max_bytes": 67108864}
+   "timeout_ms": 1500, "retries": 1, "max_bytes": 67108864,
+   "tls_insecure": false, "tls_ca": "ca.pem"}
   Ordered header pairs keep wire bytes deterministic; body_hex and
-  body_text are mutually exclusive.
+  body_text are mutually exclusive. tls_insecure/tls_ca are additive
+  (defaults: off/absent) and honored for https urls.
 
 EXAMPLES:
   wrex http http://example.com/
   wrex http POST http://example.com/api \-H X\-Thing:42 \-\-data \*(Aq{"a":1}\*(Aq
   wrex http \-\-recipe req.json \-\-format json
+  wrex http https://example.com/ \-\-tls\-insecure
+  wrex http https://example.com/ \-\-tls\-ca myca.pem
   wrex http GET http://example.com/ \-\-data @body.bin \-\-source\-port 42424

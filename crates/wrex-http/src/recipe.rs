@@ -15,11 +15,15 @@ use bytes::Bytes;
 use crate::request::HttpRequestSpec;
 
 /// Runtime knobs a recipe may override.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RecipeOverrides {
     pub timeout_ms: Option<u64>,
     pub retries: Option<u32>,
     pub max_bytes: Option<u64>,
+    /// Accept any TLS certificate (https urls only; default false).
+    pub tls_insecure: Option<bool>,
+    /// Extra CA bundle path (https urls only; complements system roots).
+    pub tls_ca: Option<String>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -37,6 +41,12 @@ pub struct Recipe {
     pub retries: Option<u32>,
     #[serde(default)]
     pub max_bytes: Option<u64>,
+    /// Accept any TLS certificate (https urls; default false).
+    #[serde(default)]
+    pub tls_insecure: Option<bool>,
+    /// Extra CA bundle path, PEM or DER (https urls).
+    #[serde(default)]
+    pub tls_ca: Option<String>,
 }
 
 impl Recipe {
@@ -66,6 +76,8 @@ impl Recipe {
             timeout_ms: self.timeout_ms,
             retries: self.retries,
             max_bytes: self.max_bytes,
+            tls_insecure: self.tls_insecure,
+            tls_ca: self.tls_ca,
         };
         Ok((spec, overrides))
     }
@@ -152,9 +164,39 @@ mod tests {
         assert!(r.into_request().unwrap_err().contains("mutually exclusive"));
         let r = recipe(r#"{"method": "GET", "url": "http://x/", "body_hex": "abc"}"#);
         assert!(r.into_request().unwrap_err().contains("body_hex"));
-        let r = recipe(r#"{"method": "GET", "url": "https://x/"}"#);
-        assert!(r.into_request().unwrap_err().contains("charter"));
+        let r = recipe(r#"{"method": "GET", "url": "ftp://x/"}"#);
+        assert!(
+            r.into_request()
+                .unwrap_err()
+                .contains("unsupported url scheme")
+        );
         let r = recipe(r#"{"method": "BOGUS?", "url": "http://x/"}"#);
         assert!(r.into_request().unwrap_err().contains("method"));
+    }
+
+    #[test]
+    fn tls_fields_are_additive_defaults() {
+        // Old recipes (no tls fields) parse with the new defaults — the
+        // serde defaults keep the committed files byte-compatible.
+        let r = recipe(r#"{"method": "GET", "url": "https://example.com/"}"#);
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.tls_insecure, None);
+        assert_eq!(o.tls_ca, None);
+        // New fields: honored into the overrides.
+        let r = recipe(
+            r#"{"method": "GET", "url": "https://example.com/",
+                "tls_insecure": true, "tls_ca": "/etc/ca.pem"}"#,
+        );
+        let (spec, o) = r.into_request().unwrap();
+        assert_eq!(spec.url.scheme_str(), Some("https"));
+        assert_eq!(o.tls_insecure, Some(true));
+        assert_eq!(o.tls_ca.as_deref(), Some("/etc/ca.pem"));
+        // and an https recipe replays byte-identically now
+        let wire = spec.serialize().unwrap();
+        let r2 = recipe(
+            r#"{"method": "GET", "url": "https://example.com/",
+                "tls_insecure": true, "tls_ca": "/etc/ca.pem"}"#,
+        );
+        assert_eq!(r2.into_request().unwrap().0.serialize().unwrap(), wire);
     }
 }

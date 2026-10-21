@@ -309,13 +309,103 @@ T(n+1)".
     compile-time; no dynamic `.so` loading. "Dissect-only profiles"
     are dropped from the roadmap (no protocol needs the toggle;
     dns record sections already carry the dissect-only surface).
+- **T8 — TLS + pcapng** — ✅ delivered (chartered at the T8 planning
+  pass as two sub-tranches; T8a is TLS, T8b the pcapng reader/writer
+  — both additive):
+  - **T8a — TLS** — ✅ delivered. The rustls engine behind a new
+    `wrex-tls` driver adapter — a `TlsDriver` that **composes** the
+    kernel `TcpDriver` with a rustls `ClientConnection` under the frozen
+    `Driver` contract (the same stream conventions the T4/T8 sessions
+    already speak: whatever plaintext arrives before the deadline as
+    one chunk, orderly `close_notify` as an empty frame, io/TLS errors
+    — including certificate verification failures — surfaced as
+    runtime errors; handshake driven lazily inside the first
+    send/recv pump under the caller's deadline) — extending the
+    hickory/dhcproto/reqwest oracle lineage to crypto: the engine is
+    rustls 0.23 (`ring` provider, no aws-lc default — MSRV 1.71 holds
+    under the 1.88 floor, no bump), never a hand-rolled stack. Roots:
+    system store via `rustls-native-certs` plus `--tls-ca FILE`
+    additions (PEM: every CERTIFICATE block via `rustls-pemfile`, else
+    raw DER) that **complement** the system roots; `--tls-insecure`
+    swaps in a `rustls::client::danger` accept-any verifier (safe
+    code via the `dangerous()` builder, `#![forbid(unsafe_code)]`
+    intact in the crate; the danger is semantic, documented at every
+    surface). `wrex http https://…` (SNI from the URL host — an IP
+    literal matches the cert's IP SAN; default port 443) with the
+    retry/render/`--fail`/budget paths byte-identical to the plain
+    driver (only the driver differs); `wrex query --tls` is DNS-over-
+    TLS (RFC 7858): implies the TCP transport, fresh TLS connection
+    per attempt, default server port 853, server name from `--server`.
+    `wrex-http`'s `https` pointed-error gate is gone (the T4 deferral
+    closed): `build`/`serialize` accept `http`/`https` — serialization
+    stays transport-agnostic. The recipe JSON grows additive
+    `tls_insecure` (default false) / `tls_ca` (path) fields mirroring
+    `retries`/`timeout_ms`/`max_bytes` (old recipes parse
+    byte-identically, recipe wins over CLI flags). Close mode is
+    unchanged: one exchange per (TLS) connection, `Connection: close`
+    on the wire. ALPN: none — plain https/1.1, no h2. Verification:
+    in-crate loopback units over a rustls `ServerConnection` in a std
+    thread (self-signed rcgen cert; full GET exchange through
+    `TlsDriver` + `HttpClientSession` + the runtime loop; `close_notify`
+    → empty-frame EOF; insecure accepts the self-signed cert; `ca_der`
+    and PEM/DER `load_ca_file` trust it; verification failure surfaces
+    as a runtime error), the shared stub server promoted into
+    `wrex-test` (`tls_stub`, HTTP + RFC 7766 length-prefixed + canned
+    DNS-reply shapes), CLI lo integration (plain kernel sockets, no
+    capabilities: `http https://… --tls-insecure` end-to-end with
+    `--format json`, `--fail` on 404, `--tls-ca` PEM verification, the
+    recipe `tls_insecure` knob, `query --tls` against a TLS-wrapped
+    DNS stub) and the reqwest (`rustls-tls`, dev-only) in-process
+    differential over the same stub (status, framing-sensitive body,
+    headers of interest). Deliberate deferrals: mTLS/client
+    certificates, session resumption/0-RTT, ALPN/h2, keep-alive
+    (persists as the T4 deferral — one exchange per connection),
+    system-store override (`--tls-ca` complements, never replaces).
+    Man pages + completions regenerated (the verbs enumerate
+    automatically); wrex-tls stays OUT of the Miri job (rustls + TCP
+    sockets are not Miri-safe) and adds no fuzz targets (rustls
+    carries its own; the adapter is thin).
 
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a
-  new feature-gated crate plus one `register` line — no dynamic loading
-  ([ADR 1](adr/0001-compile-time-registry.md) resolved the T7 revisit).
+    new feature-gated crate plus one `register` line — no dynamic loading
+    ([ADR 1](adr/0001-compile-time-registry.md) resolved the T7 revisit).
 - Later tranches never break the frozen contracts of earlier ones;
-  anything that would, gets its own planning pass first.
+    anything that would, gets its own planning pass first.
 - Every tranche lands with its verification story (oracles, corpora,
-  fuzz surfaces) designed alongside the feature, not after it.
+    fuzz surfaces) designed alongside the feature, not after it.
+  - **T8b — pcapng** — ✅ delivered. `wrex-pcap` grows a pcapng reader
+  - **T8a — TLS** — ✅ delivered. The rustls engine behind a new
+    + a streaming `PcapngWriter` (the T5 `PcapWriter` shape: SHB +
+    one EN10MB IDB on open, snaplen 65535, no options — so the spec
+    default resolution applies and the EPB timestamps are absolute
+    epoch µs split into high/low words; snaplen truncation with
+    `orig_len` kept, 4-byte padding). Read auto-detects on the
+    byte-order-agnostic SHB type (0x0A0D0D0A both ways) with the
+    byte-order magic inside picking LE/BE; both tsresols read
+    (`if_tsresol` 9 → ns, 6 and any other value — decimal
+    resolutions included — → the never-fatal µs default; only
+    power-of-2 resolutions supported), unknown blocks skipped
+    honoring the spec's mandatory-skip semantics (the block-type LSB
+    picks "skip" vs "skip or abort"; a reader skips both — unknown
+    mandatory blocks never abort), the single-interface contract
+    tolerates nonzero interface ids with the LAST IDB winning, EPBs
+    before any IDB on the spec defaults, and truncated blocks → the
+    new `TruncatedBlock` (the `TruncatedRecord` spirit); same
+    `PcapFile` shape, additive `pcapng` flag, classic files
+    byte-identical. `wrex capture --pcapng` picks the new writer;
+    `wrex replay`, `wrex mut -r` and `xtask corpus-import` share the
+    reader and accept pcapng files automatically. Verification:
+    writer→reader roundtrip units + the 256-case proptest extended to
+    the pcapng writer, BE + ns + decimal-res + no-IDB + last-IDB
+    handcrafted vectors, an unknown-block-between-records vector, a
+    truncated-block suite (TooShort/BadMagic/`TruncatedBlock`),
+    `fuzz_pcapng_reader` + `fuzz_pcapng_roundtrip` in the fuzz gate,
+    a Kani EPB-fields roundtrip proof in the kani job, and CLI
+    offline tests (replay jsonl == dissect jsonl of the same frame,
+    `--format raw` concatenation, `--count`/`--filter` gating, `mut
+    -r` seeding). Man pages + completions regenerated. Deliberate
+    deferrals: writing multiple interfaces, IDB/EPB options
+    (`if_tsresol` on write, `epb_flags`), Simple Packet Blocks,
+    compression, multi-section files.

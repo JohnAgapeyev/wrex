@@ -36,7 +36,7 @@ enum Cmd {
         #[arg(long)]
         mcdc_probe: bool,
     },
-    /// import a classic pcap into wrex-test/corpus/<name>/ (dev-only, needs tshark)
+    /// import a pcap (classic or pcapng) into wrex-test/corpus/<name>/ (dev-only, needs tshark)
     CorpusImport { pcap: PathBuf, name: String },
     /// generate man pages into man/: wrex(1) + wrex-<kind>(7) per protocol
     Man {},
@@ -215,6 +215,8 @@ fn fuzz_stage(root: &Path) {
         "fuzz_http_session",
         "fuzz_pcap_reader",
         "fuzz_pcap_roundtrip",
+        "fuzz_pcapng_reader",
+        "fuzz_pcapng_roundtrip",
         "fuzz_mut_strategies",
         "fuzz_prober_session",
     ];

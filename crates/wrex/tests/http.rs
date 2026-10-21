@@ -75,10 +75,10 @@ fn grammar_errors_are_usage() {
     let (code, stderr) = http_err(&["GET", "http://x/", "extra"]);
     assert_eq!(code, 2);
     assert!(stderr.contains("at most"), "{stderr}");
-    // https
-    let (code, stderr) = http_err(&["https://example.com/"]);
+    // unsupported scheme
+    let (code, stderr) = http_err(&["ftp://example.com/"]);
     assert_eq!(code, 2);
-    assert!(stderr.contains("out of the tranche-4 charter"), "{stderr}");
+    assert!(stderr.contains("unsupported url scheme"), "{stderr}");
     // bad header
     let (code, stderr) = http_err(&["-H", "no-colon", "http://x/"]);
     assert_eq!(code, 2);

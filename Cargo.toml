@@ -19,6 +19,7 @@ wrex-scan = { path = "crates/wrex-scan", version = "0.1.0" }
 wrex-test = { path = "crates/wrex-test", version = "0.1.0" }
 wrex-dns = { path = "crates/wrex-dns", version = "0.1.0" }
 wrex-http = { path = "crates/wrex-http", version = "0.1.0" }
+wrex-tls = { path = "crates/wrex-tls", version = "0.1.0" }
 wrex-pcap = { path = "crates/wrex-pcap", version = "0.1.0" }
 wrex-proto-eth = { path = "crates/wrex-proto-eth", version = "0.1.0" }
 wrex-proto-arp = { path = "crates/wrex-proto-arp", version = "0.1.0" }
@@ -60,11 +61,23 @@ dhcproto = "0.15.0"
 # vocabulary the reqwest oracle also speaks).
 httparse = "1"
 http = "1"
-# HTTP differential oracle (in-process; blocking client, TLS-less —
-# only http:// is in charter).
-reqwest = { version = "0.12", default-features = false, features = ["blocking"] }
+# HTTP differential oracle (in-process; blocking client; rustls-tls so
+# the tranche-8a https differential shares an engine lineage — dev-only,
+# it never reaches a shipped binary).
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 assert_cmd = "2"
 predicates = "3"
+# TLS engine (tranche 8a): rustls with the ring provider (no aws-lc
+# default: keeps MSRV/build simple — rustls 0.23's floor is 1.71, well
+# under the workspace 1.88). logging/tls12/std mirror rustls's defaults
+# minus the aws-lc-rs provider.
+rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+# System root store for the default (verifying) client path.
+rustls-native-certs = "0.8"
+# PEM parsing for --tls-ca / recipe tls_ca files.
+rustls-pemfile = "2"
+# Self-signed test certificates (dev-only: the in-test TLS stub server).
+rcgen = "0.14"
 
 [profile.release]
 debug = 1

@@ -46,7 +46,7 @@ RNG seed (default: time\-derived; pins the jitter schedule)
 Print help
 .TP
 <\fIFILE\fR>
-Classic pcap file to read
+Pcap file to read (classic or pcapng; auto\-detected)
 .SH EXTRA
 GRAMMAR:
   wrex replay FILE.pcap [\-\-filter EXPR] [\-\-count N] [\-\-format FMT]
@@ -68,5 +68,6 @@ SEND MODE (\-i/\-\-iface): re\-send the captured frames verbatim on the
   settles on the time\-derived seed.
 
 PCAP:
-  classic files only (all 4 magic variants read; pcapng is out of the
-  tranche\-5 charter — write out with text2pcap/mergecap if needed).
+  classic files (all 4 magic variants) or pcapng (LE/BE x µs/ns) —
+  the shared in\-house reader auto\-detects the format. Write out with
+  `wrex capture [\-\-pcapng]`, text2pcap or mergecap if needed.

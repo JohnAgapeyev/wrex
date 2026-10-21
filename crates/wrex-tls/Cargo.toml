@@ -1,0 +1,24 @@
+[package]
+name = "wrex-tls"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex tls: rustls-backed TLS Driver adapter (tranche 8a) composing the kernel TCP driver"
+
+[dependencies]
+wrex-io = { workspace = true }
+rustls = { workspace = true }
+rustls-native-certs = { workspace = true }
+rustls-pemfile = { workspace = true }
+bytes = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+wrex-test = { workspace = true }
+wrex-http = { workspace = true }
+wrex-session = { workspace = true }
+
+[lints.rust]
+# Kani proofs live behind cfg(kani); normal builds never see them.
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(kani)'] }
