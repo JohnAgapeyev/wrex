@@ -41,6 +41,19 @@ fn skip(name: &str) {
     eprintln!("scan v6 driver tests: skipping {name} (WREX_DRIVER_TESTS != 1)");
 }
 
+/// Strip the wall-clock rtt suffix (`…  (2ms)`) from scan lines before
+/// a reproducibility compare: the seed pins identities and schedule,
+/// not the runner's timing (same normalization as scan_driver.rs).
+fn strip_rtt(out: &str) -> String {
+    out.lines()
+        .map(|l| match (l.ends_with("ms)"), l.rfind("  (")) {
+            (true, Some(at)) => &l[..at],
+            _ => l,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[test]
 fn v6_syn_scan_open_and_closed() {
     if !driver_tests_enabled() {
@@ -125,7 +138,13 @@ fn v6_scan_seed_reproducible() {
     let args = &["--mode", "icmp", "--seed", "424242", "::1"];
     let (_c1, out1) = scan_out("1s", args);
     let (_c2, out2) = scan_out("1s", args);
-    assert_eq!(out1, out2, "same seed must reproduce the scan output");
+    // The deterministic content must match; the rtt suffix is
+    // wall-clock (see strip_rtt).
+    assert_eq!(
+        strip_rtt(&out1),
+        strip_rtt(&out2),
+        "same seed must reproduce the scan output (modulo rtt)"
+    );
 }
 
 /// An unused TCP6 port (bind + drop).

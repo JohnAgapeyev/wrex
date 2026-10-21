@@ -42,6 +42,20 @@ fn skip(name: &str) {
     eprintln!("scan driver tests: skipping {name} (WREX_DRIVER_TESTS != 1)");
 }
 
+/// Strip the wall-clock rtt suffix (`…  (2ms)`) from scan lines before
+/// a reproducibility compare: the seed pins identities and schedule,
+/// not the runner's timing (the fuzz driver suite projects out the
+/// same fields — see its seed-reproducibility test).
+fn strip_rtt(out: &str) -> String {
+    out.lines()
+        .map(|l| match (l.ends_with("ms)"), l.rfind("  (")) {
+            (true, Some(at)) => &l[..at],
+            _ => l,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Bind a TCP listener on an ephemeral 127.0.0.1 port.
 fn tcp_listener() -> TcpListener {
     TcpListener::bind("127.0.0.1:0").expect("bind tcp")
@@ -176,7 +190,13 @@ fn seed_determinism_ground_truth() {
     };
     let a = run();
     let b = run();
-    assert_eq!(a, b, "same seed must be byte-reproducible\n{a}\n{b}");
+    // The deterministic content (target/port/proto/state/attempts)
+    // must match byte-for-byte; the rtt suffix is wall-clock.
+    assert_eq!(
+        strip_rtt(&a),
+        strip_rtt(&b),
+        "same seed must be byte-reproducible (modulo rtt)\n{a}\n{b}"
+    );
     assert!(a.contains("closed"), "closed port expected\n{a}");
 
     // pacing sanity: whole scan finishes well under a sane wall budget

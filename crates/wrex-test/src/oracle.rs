@@ -358,6 +358,14 @@ impl Oracle for TsharkOracle {
             .arg("-T")
             .arg("json")
             .arg("-x")
+            // Pin the dissection semantics regardless of the runner's
+            // tshark defaults: `tcp.relative_sequence_numbers` is TRUE
+            // in the compiled Wireshark defaults (a fresh runner without
+            // a prefs file), which reports tcp.seq/tcp.ack relative to
+            // the conversation ISN — a lone SYN always reads 0/0 while
+            // we compare absolute wire values.
+            .arg("-o")
+            .arg("tcp.relative_sequence_numbers:FALSE")
             .output()
             .map_err(|_| DiffReport::default())?;
         if !out.status.success() {
