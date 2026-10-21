@@ -159,8 +159,8 @@ MODES (--mode):
   connect  full handshake: ACK then RST after SYN+ACK -> open
   udp      empty datagrams: UDP reply -> open, ICMP 3/3 -> closed,
            ICMP 3/{1,2,9,10,13} -> filtered, silence -> open|filtered
-           (v6 targets: ICMPv6 1/3 -> closed, 1/{0,1,2,4..7} ->
-           filtered)
+           (v6 targets: ICMPv6 1/4 -> closed — the RFC 4443 §3.1 port-
+           unreachable code — and 1/{0,1,2,3,5,6,7} -> filtered)
   icmp     echo sweep (no ports): reply -> alive, silence -> dead
            (v6 targets speak icmpv6 echo, type 128/129)
 

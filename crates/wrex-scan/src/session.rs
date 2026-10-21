@@ -24,6 +24,8 @@
 //!   | udp | ICMP 3/3 (quoted datagram matches) | `closed` |
 //!   | udp | ICMP 3/{1,2,9,10,13} | `filtered` |
 //!   | udp | exhausted | `open\|filtered` |
+//!   | udp (v6) | ICMPv6 1/4 (RFC 4443 §3.1 port unreachable) | `closed` |
+//!   | udp (v6) | ICMPv6 1/{0,1,2,3,5,6,7} | `filtered` |
 //!   | icmp | echo reply (id match) | `alive` |
 //!   | icmp | exhausted | `dead` |
 
@@ -422,9 +424,12 @@ impl<'a> ScanSession<'a> {
                 if icmp_type != 1 {
                     return;
                 }
+                // RFC 4443 §3.1 codes (not the v4 type-3 numbering):
+                // 4 = port unreachable; the rest are route/policy
+                // failures → filtered.
                 let state = match f_int(icmp6, "code").unwrap_or(255) {
-                    3 => "closed", // port unreachable
-                    0 | 1 | 2 | 4 | 5 | 6 | 7 => "filtered",
+                    4 => "closed", // port unreachable
+                    0 | 1 | 2 | 3 | 5 | 6 | 7 => "filtered",
                     _ => return, // other codes carry no scan semantics
                 };
                 let Some(q) = parse_icmp_quote_v6(&pkt.payload) else {
@@ -1197,8 +1202,9 @@ mod tests {
         .unwrap()
         .to_vec();
         s.on_frame(frame(reply), t0() + MS);
-        // ICMPv6 1/3 (port unreachable) quoting probe 1 → closed
-        s.on_frame(frame(icmp6_unreach(&s, 1, 3)), t0() + 2 * MS);
+        // ICMPv6 1/4 (RFC 4443 §3.1 port unreachable) quoting probe 1
+        // → closed
+        s.on_frame(frame(icmp6_unreach(&s, 1, 4)), t0() + 2 * MS);
         let out = drain_results(&mut s);
         assert_eq!(out.len(), 2);
         assert_eq!(out[0].port, Some(5353));
@@ -1206,14 +1212,18 @@ mod tests {
         assert_eq!(out[1].port, Some(5354));
         assert_eq!(out[1].state, "closed");
 
-        // ICMPv6 1/0 (no route) → filtered
-        let mut s2 =
-            ScanSession::new(&reg, cfg6_of(ScanMode::Udp, &[5355], 0), src6(), t0()).unwrap();
-        drain_sends(&mut s2);
-        s2.on_frame(frame(icmp6_unreach(&s2, 0, 0)), t0() + MS);
-        let out2 = drain_results(&mut s2);
-        assert_eq!(out2.len(), 1);
-        assert_eq!(out2[0].state, "filtered");
+        // ICMPv6 1/0 (no route) → filtered; 1/3 (address unreachable)
+        // is also filtered in v6 — the port-unreachable code is 4, not
+        // the v4 type-3 numbering
+        for code in [0u8, 3] {
+            let mut s2 =
+                ScanSession::new(&reg, cfg6_of(ScanMode::Udp, &[5355], 0), src6(), t0()).unwrap();
+            drain_sends(&mut s2);
+            s2.on_frame(frame(icmp6_unreach(&s2, 0, code)), t0() + MS);
+            let out2 = drain_results(&mut s2);
+            assert_eq!(out2.len(), 1);
+            assert_eq!(out2[0].state, "filtered", "code {code}");
+        }
 
         // cross-talk: a quote naming a different target must not resolve
         let mut s3 =

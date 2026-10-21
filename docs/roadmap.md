@@ -209,8 +209,10 @@ T(n+1)".
     full-address START-END ranges; no v6 tail shorthand), one family
     per scan (mixed lists are a usage error), the four mode names
     unchanged (icmp over v6 targets speaks icmpv6), reply keys and
-    ICMPv6-unreachable attribution (type 1: code 3 → closed, other
-    codes → filtered) family-aware. `wrex query`/`http` over v6
+    ICMPv6-unreachable attribution family-aware — type 1 code 4 →
+    closed (the RFC 4443 §3.1 port-unreachable code; an initial
+    v4-style code-3 mapping was corrected post-charter when the env-
+    gated `lo` ground truth first ran on CI), other codes → filtered. `wrex query`/`http` over v6
     remain out of the T7b charter (the `--server`/URL verbs pick v4
     iface addresses only). The CLI flags enumerate automatically
     (`--ipv6-*` with `ip6`/`v6` aliases, `--icmpv6-*`); filters gain
