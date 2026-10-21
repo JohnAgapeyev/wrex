@@ -20,10 +20,10 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use bytes::{BufMut, Bytes};
-use wrex_core::dissect::LayerView;
+use wrex_core::dissect::{FieldSpan, LayerView};
 use wrex_core::encode::{EncodeCtx, flagset_or_default, int_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, RecordSchema};
+use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, Layout, RecordSchema};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -344,6 +344,25 @@ impl Codec for DnsCodec {
             );
         }
         let mut fields = BTreeMap::new();
+        // Tranche 11b: parse-time field spans (codec-side entries the
+        // engine merge honors over the static layouts table).
+        let mut spans: BTreeMap<String, FieldSpan> = BTreeMap::new();
+        // The flags aggregate is SCATTERED (qr=bit15, aa=10, tc=9,
+        // rd=8, ra=7 of one word): not one contiguous window, so the
+        // aggregate itself carries `None` (use the per-bit subpaths)
+        // and each subbit gets its real single-bit window.
+        let base = ctx.offset;
+        spans.insert("flags".to_string(), FieldSpan::None);
+        for (bit, shift) in [("qr", 0u8), ("aa", 5), ("tc", 6), ("rd", 7), ("ra", 8)] {
+            spans.insert(
+                format!("flags.{bit}"),
+                FieldSpan::Bits {
+                    container: base + 2..base + 4,
+                    shift,
+                    width: 1,
+                },
+            );
+        }
         let id = u16::from_be_bytes([bytes[0], bytes[1]]);
         let word = u16::from_be_bytes([bytes[2], bytes[3]]);
         let opcode = (word >> 11) & 0x0F;
@@ -384,15 +403,26 @@ impl Codec for DnsCodec {
         for i in 0..qdcount {
             match question_at(bytes, cursor) {
                 Ok((q, next)) => {
-                    fields.insert(format!("qd.{i}.name"), Value::Str(q.0));
-                    fields.insert(format!("qd.{i}.type"), Value::Str(render_type(q.1)));
-                    fields.insert(format!("qd.{i}.class"), Value::Str(render_class(q.2)));
+                    spans.insert(
+                        format!("qd.{i}.name"),
+                        if q.name_compressed {
+                            FieldSpan::None
+                        } else {
+                            FieldSpan::Bytes(base + cursor..base + cursor + q.name_used)
+                        },
+                    );
+                    let at = base + cursor + q.name_used;
+                    spans.insert(format!("qd.{i}.type"), FieldSpan::Bytes(at..at + 2));
+                    spans.insert(format!("qd.{i}.class"), FieldSpan::Bytes(at + 2..at + 4));
+                    fields.insert(format!("qd.{i}.name"), Value::Str(q.name));
+                    fields.insert(format!("qd.{i}.type"), Value::Str(render_type(q.qtype)));
+                    fields.insert(format!("qd.{i}.class"), Value::Str(render_class(q.qclass)));
                     cursor = next;
                 }
                 Err(e) => {
                     ctx.anomalies
                         .push(Anomaly::new(format!("dns.qd.{i}.name"), e));
-                    return partial(ctx, fields, cursor);
+                    return partial(ctx, fields, spans, cursor);
                 }
             }
         }
@@ -401,6 +431,28 @@ impl Codec for DnsCodec {
             for i in 0..count {
                 match record_at(bytes, cursor) {
                     Ok((r, next)) => {
+                        spans.insert(
+                            format!("{section}.{i}.name"),
+                            if r.name_compressed {
+                                FieldSpan::None
+                            } else {
+                                FieldSpan::Bytes(base + cursor..base + cursor + r.name_used)
+                            },
+                        );
+                        let at = base + cursor + r.name_used;
+                        spans.insert(format!("{section}.{i}.type"), FieldSpan::Bytes(at..at + 2));
+                        spans.insert(
+                            format!("{section}.{i}.class"),
+                            FieldSpan::Bytes(at + 2..at + 4),
+                        );
+                        spans.insert(
+                            format!("{section}.{i}.ttl"),
+                            FieldSpan::Bytes(at + 4..at + 8),
+                        );
+                        spans.insert(
+                            format!("{section}.{i}.rdata"),
+                            FieldSpan::Bytes(base + r.rdata_at..base + r.rdata_at + r.rdata.len()),
+                        );
                         fields.insert(format!("{section}.{i}.name"), Value::Str(r.name));
                         fields.insert(
                             format!("{section}.{i}.type"),
@@ -420,7 +472,7 @@ impl Codec for DnsCodec {
                     Err(e) => {
                         ctx.anomalies
                             .push(Anomaly::new(format!("dns.{section}.{i}.name"), e));
-                        return partial(ctx, fields, cursor);
+                        return partial(ctx, fields, spans, cursor);
                     }
                 }
             }
@@ -429,10 +481,42 @@ impl Codec for DnsCodec {
         let view = LayerView {
             kind: "dns",
             span: ctx.offset..ctx.offset + bytes.len(),
-            field_spans: Default::default(),
+            field_spans: spans,
             fields,
         };
         ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// Tranche 11b fixed layouts: the 12-byte header. The scattered
+    /// `flags` aggregate and all record-section fields are codec-side
+    /// (parse-time spans). The counts are deliberately **not**
+    /// `Derived` targets: section-count recomputation is ill-defined
+    /// under desync (the dissector trusts the count), and the
+    /// add-a-record workflow patches the count explicitly.
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("id", Layout::Bytes { at: 0, len: 2 }),
+            (
+                "opcode",
+                Layout::Bits {
+                    at: 2,
+                    shift: 1,
+                    width: 4,
+                },
+            ),
+            (
+                "rcode",
+                Layout::Bits {
+                    at: 2,
+                    shift: 12,
+                    width: 4,
+                },
+            ),
+            ("qdcount", Layout::Bytes { at: 4, len: 2 }),
+            ("ancount", Layout::Bytes { at: 6, len: 2 }),
+            ("nscount", Layout::Bytes { at: 8, len: 2 }),
+            ("arcount", Layout::Bytes { at: 10, len: 2 }),
+        ]
     }
 }
 
@@ -440,29 +524,50 @@ impl Codec for DnsCodec {
 fn partial(
     ctx: &mut DecodeCtx<'_>,
     fields: BTreeMap<String, Value>,
+    spans: BTreeMap<String, FieldSpan>,
     consumed: usize,
 ) -> ReadOutcome {
     ReadOutcome::Layer(
         LayerView {
             kind: "dns",
             span: ctx.offset..ctx.offset + consumed,
-            field_spans: Default::default(),
+            field_spans: spans,
             fields,
         },
         Some(Next::Payload),
     )
 }
 
-/// Parse the question at `offset`: (name, type, class) + next offset.
-fn question_at(bytes: &[u8], offset: usize) -> Result<((String, u16, u16), usize), String> {
-    let (name, used) = decode_name(bytes, offset)?;
+/// One parsed question, carrying the span bookkeeping (tranche 11b).
+struct Question {
+    name: String,
+    qtype: u16,
+    qclass: u16,
+    /// Name wire extent from the record start.
+    name_used: usize,
+    /// A compression pointer was followed (name unpatchable then).
+    name_compressed: bool,
+}
+
+/// Parse the question at `offset` + next offset.
+fn question_at(bytes: &[u8], offset: usize) -> Result<(Question, usize), String> {
+    let (name, used, compressed) = decode_name(bytes, offset)?;
     let at = offset + used;
     if at + 4 > bytes.len() {
         return Err("truncated question (need 4 bytes for type/class)".to_string());
     }
     let qtype = u16::from_be_bytes([bytes[at], bytes[at + 1]]);
     let qclass = u16::from_be_bytes([bytes[at + 2], bytes[at + 3]]);
-    Ok(((name, qtype, qclass), at + 4))
+    Ok((
+        Question {
+            name,
+            qtype,
+            qclass,
+            name_used: used,
+            name_compressed: compressed,
+        },
+        at + 4,
+    ))
 }
 
 struct Record {
@@ -474,11 +579,15 @@ struct Record {
     /// Absolute offset of `rdata` within the message (pointer targets
     /// are message-relative).
     rdata_at: usize,
+    /// Name wire extent from the record start (tranche 11b).
+    name_used: usize,
+    /// A compression pointer was followed (name unpatchable then).
+    name_compressed: bool,
 }
 
 /// Parse one RR at `offset`: owner, type, class, ttl, rdlength, rdata.
 fn record_at(bytes: &[u8], offset: usize) -> Result<(Record, usize), String> {
-    let (name, used) = decode_name(bytes, offset)?;
+    let (name, used, compressed) = decode_name(bytes, offset)?;
     let at = offset + used;
     if at + 10 > bytes.len() {
         return Err("truncated record (need type/class/ttl/rdlength)".to_string());
@@ -500,6 +609,8 @@ fn record_at(bytes: &[u8], offset: usize) -> Result<(Record, usize), String> {
             ttl,
             rdata,
             rdata_at,
+            name_used: used,
+            name_compressed: compressed,
         },
         rdata_at + rdlen,
     ))
@@ -549,7 +660,7 @@ fn typed_rdata(
         TYPE_CNAME | TYPE_NS | TYPE_PTR => {
             // A name, possibly compressed (pointers are message-relative).
             match decode_name(message, rdata_at) {
-                Ok((name, _)) => Value::Str(name),
+                Ok((name, _, _)) => Value::Str(name),
                 Err(e) => {
                     ctx.anomalies.push(Anomaly::new(
                         format!("{section}.{index}.rdata"),

@@ -318,39 +318,265 @@ fn edit_scope_conflict_and_pointed_errors() {
         "{:?}",
         fresh.anomalies
     );
-    // dns (dynamic layouts until its slice) → UnsupportedPath.
-    let corpora = Corpus::load_all();
-    let mut dns_done = false;
-    for corpus in &corpora {
+}
+
+/// A synthetic DNS reply, by construction: one question
+/// ("example.com" A IN) and one answer whose name is a **compression
+/// pointer** back to offset 12 — the tranche-11b pointer-resolved
+/// policy fixture.
+fn dns_reply() -> Bytes {
+    let mut m = Vec::new();
+    m.extend_from_slice(&0x1234u16.to_be_bytes()); // id
+    m.extend_from_slice(&0x8180u16.to_be_bytes()); // qr+rd+ra
+    m.extend_from_slice(&1u16.to_be_bytes()); // qdcount
+    m.extend_from_slice(&1u16.to_be_bytes()); // ancount
+    m.extend_from_slice(&0u16.to_be_bytes()); // nscount
+    m.extend_from_slice(&0u16.to_be_bytes()); // arcount
+    m.extend_from_slice(b"\x07example\x03com\x00"); // question name @12
+    m.extend_from_slice(&1u16.to_be_bytes()); // A
+    m.extend_from_slice(&1u16.to_be_bytes()); // IN
+    m.extend_from_slice(&[0xC0, 0x0C]); // answer name: pointer @12
+    m.extend_from_slice(&1u16.to_be_bytes()); // A
+    m.extend_from_slice(&1u16.to_be_bytes()); // IN
+    m.extend_from_slice(&300u32.to_be_bytes()); // ttl
+    m.extend_from_slice(&4u16.to_be_bytes()); // rdlength
+    m.extend_from_slice(&[1, 2, 3, 4]); // rdata
+    Bytes::from(m)
+}
+
+/// Tranche 11b-β: pointer-resolved names carry `FieldSpan::None` —
+/// a patch through the pointer is a pointed error, never a silent
+/// wrong-target write. The other record fields patch normally.
+#[test]
+fn dns_pointer_names_are_none_but_record_fields_patch() {
+    let reg = registry();
+    let frame = dns_reply();
+    let p = dissect(&reg, &frame, "dns");
+    assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+    let dns = p.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert!(
+        matches!(dns.field_spans["an.0.name"], wrex_core::FieldSpan::None),
+        "compressed name: {:?}",
+        dns.field_spans["an.0.name"]
+    );
+    assert!(matches!(
+        dns.field_spans["an.0.rdata"],
+        wrex_core::FieldSpan::Bytes(_)
+    ));
+    let err = patch(
+        &reg,
+        &p,
+        &[Edit::SetField {
+            path: "dns.an.0.name".to_string(),
+            bytes: Bytes::new(),
+        }],
+        &Scope::none(),
+    )
+    .unwrap_err();
+    assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
+    // The question name is UNCOMPRESSED: a real span, patchable.
+    let out = patch(
+        &reg,
+        &p,
+        &[Edit::SetField {
+            path: "dns.qd.0.type".to_string(),
+            bytes: Bytes::from_static(&[0x00, 0x0F]), // MX
+        }],
+        &Scope::none(),
+    )
+    .expect("patch");
+    let fresh = dissect(&reg, &out, "dns");
+    let dns = fresh.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert_eq!(dns.fields["qd.0.type"], Value::Str("MX".into()));
+    // the answer name still resolves through the pointer (untouched).
+    assert_eq!(dns.fields["an.0.name"], Value::Str("example.com".into()));
+}
+
+/// The dns flags word is scattered: the aggregate is `None`, every
+/// subbit is a real single-bit window — a masked write must not
+/// disturb opcode/rcode.
+#[test]
+fn dns_scattered_flags_subbits_mask() {
+    let reg = registry();
+    let frame = dns_reply();
+    let p = dissect(&reg, &frame, "dns");
+    let dns = p.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert!(
+        matches!(dns.field_spans["flags"], wrex_core::FieldSpan::None),
+        "scattered aggregate: {:?}",
+        dns.field_spans["flags"]
+    );
+    assert!(matches!(
+        dns.field_spans["flags.tc"],
+        wrex_core::FieldSpan::Bits { .. }
+    ));
+    let out = patch(
+        &reg,
+        &p,
+        &[Edit::SetField {
+            path: "dns.flags.tc".to_string(),
+            bytes: Bytes::from_static(&[1]),
+        }],
+        &Scope::none(),
+    )
+    .expect("patch");
+    // word: 0x8180 (qr+rd+ra) | tc (bit 9, 0x0200) = 0x8380;
+    // opcode/rcode untouched.
+    assert_eq!(&out[2..4], &[0x83, 0x80]);
+    let fresh = dissect(&reg, &out, "dns");
+    let dns = fresh.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert_eq!(dns.fields["opcode"], Value::Int(0));
+    assert_eq!(dns.fields["rcode"], Value::Int(0));
+    let flags = match &dns.fields["flags"] {
+        Value::List(names) => names.clone(),
+        other => panic!("flags: {other:?}"),
+    };
+    assert!(flags.contains(&Value::Str("qr".into())));
+    assert!(flags.contains(&Value::Str("tc".into())));
+}
+
+/// The tranche-11b golden workflow: add a record to a DNS reply with
+/// ONE edit set — no spec round-trip. Insert a hand-built A record at
+/// the answer-section end + patch `ancount` explicitly (counts are
+/// NOT derived targets: the caller decides, scope-all does not
+/// conflict), and the fresh dissection stays fully consistent.
+#[test]
+fn dns_add_a_record_workflow() {
+    let reg = registry();
+    let frame = dns_reply();
+    let p = dissect(&reg, &frame, "dns");
+    let dns = p.layers.iter().find(|l| l.kind == "dns").unwrap();
+    // Answer-section end = the answer rdata span end.
+    let rdata_span = dns
+        .field_spans
+        .get("an.0.rdata")
+        .cloned()
+        .expect("rdata span");
+    let rdata_end = match rdata_span {
+        wrex_core::FieldSpan::Bytes(r) => r.end,
+        other => panic!("an.0.rdata span: {other:?}"),
+    };
+    // A synthetic A record, no pointers: "a.example.com" A IN 300
+    // 127.0.0.1 (uncompressed name — self-contained after insert).
+    let mut rec = Vec::new();
+    rec.extend_from_slice(b"\x01a\x07example\x03com\x00");
+    rec.extend_from_slice(&1u16.to_be_bytes());
+    rec.extend_from_slice(&1u16.to_be_bytes());
+    rec.extend_from_slice(&300u32.to_be_bytes());
+    rec.extend_from_slice(&4u16.to_be_bytes());
+    rec.extend_from_slice(&[127, 0, 0, 1]);
+    let out = patch(
+        &reg,
+        &p,
+        &[
+            Edit::Insert {
+                at: rdata_end,
+                bytes: Bytes::from(rec),
+            },
+            Edit::SetField {
+                path: "dns.ancount".to_string(),
+                bytes: Bytes::from_static(&[0x00, 0x02]),
+            },
+        ],
+        &Scope::all(),
+    )
+    .expect("patch");
+    let fresh = dissect(&reg, &out, "dns");
+    assert!(fresh.anomalies.is_empty(), "{:?}", fresh.anomalies);
+    let dns = fresh.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert_eq!(dns.fields["ancount"], Value::Int(2));
+    assert_eq!(dns.fields["an.1.name"], Value::Str("a.example.com".into()));
+    assert_eq!(
+        dns.fields["an.1.rdata"],
+        Value::Ipv4("127.0.0.1".parse().unwrap())
+    );
+    // the original pointer-compressed answer still resolves.
+    assert_eq!(dns.fields["an.0.name"], Value::Str("example.com".into()));
+}
+
+/// Tranche 11b-β dhcp: options/hoisted/ReEncode policies on the
+/// corpus goldens (DISCOVER/OFFER/… frames).
+#[test]
+fn dhcp_option_and_hoisted_spans() {
+    let reg = registry();
+    let mut found = false;
+    'outer: for corpus in Corpus::load_all() {
         for frame in &corpus.frames {
-            let q = dissect(&reg, &frame.bytes, "auto");
-            if q.layers.iter().any(|l| l.kind == "dns")
-                && let Some(l) = q.layers.iter().find(|l| l.kind == "dns")
-                && let Some(key) = l.fields.keys().next()
+            let p = dissect(&reg, &frame.bytes, "auto");
+            let Some(l) = p.layers.iter().find(|l| l.kind == "dhcp") else {
+                continue;
+            };
+            if p.anomalies
+                .iter()
+                .any(|a| a.path.starts_with("dhcp.cookie"))
             {
-                let path = format!("dns.{key}");
-                let err = patch(
-                    &reg,
-                    &q,
-                    &[Edit::SetField {
-                        path: path.clone(),
-                        bytes: Bytes::new(),
-                    }],
-                    &Scope::none(),
-                )
-                .unwrap_err();
-                assert!(
-                    matches!(err, PatchError::UnsupportedPath(_)),
-                    "{path}: {err}"
-                );
-                dns_done = true;
+                continue; // BOOTP legacy frame: no options region
             }
+            // msg_type is the hoisted option-53 source: patching it
+            // writes the TLV value byte.
+            let mt_span = l
+                .field_spans
+                .get("msg_type")
+                .cloned()
+                .expect("msg_type span");
+            let wrex_core::FieldSpan::Bytes(mt) = mt_span else {
+                panic!("msg_type span: {mt_span:?}")
+            };
+            assert_eq!(mt.len(), 1, "option 53 carries one byte");
+            let out = patch(
+                &reg,
+                &p,
+                &[Edit::SetField {
+                    path: "dhcp.msg_type".to_string(),
+                    bytes: Bytes::from_static(&[8]), // INFORM
+                }],
+                &Scope::none(),
+            )
+            .expect("patch");
+            let fresh = dissect(&reg, &out, "auto");
+            let l2 = fresh.layers.iter().find(|l| l.kind == "dhcp").unwrap();
+            assert_eq!(l2.fields["msg_type"], Value::Str("inform".into()));
+            // sname/file are ReEncode: recorded, pointed-deferral.
+            let err = patch(
+                &reg,
+                &p,
+                &[Edit::SetField {
+                    path: "dhcp.sname".to_string(),
+                    bytes: Bytes::from_static(&[0x41; 64]),
+                }],
+                &Scope::none(),
+            )
+            .unwrap_err();
+            assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
+            assert!(matches!(
+                l.field_spans["sname"],
+                wrex_core::FieldSpan::ReEncode(_)
+            ));
+            // one same-width option value patch: byte-verified.
+            let value_span = l
+                .field_spans
+                .get("opt.0.value")
+                .cloned()
+                .expect("value span");
+            let wrex_core::FieldSpan::Bytes(v) = value_span else {
+                panic!("opt.0.value span: {value_span:?}")
+            };
+            let out2 = patch(
+                &reg,
+                &p,
+                &[Edit::SetField {
+                    path: "dhcp.opt.0.value".to_string(),
+                    bytes: Bytes::from(vec![0xA5; v.len()]),
+                }],
+                &Scope::none(),
+            )
+            .expect("patch");
+            assert_eq!(&out2[v.start..v.end], &vec![0xA5; v.len()][..]);
+            found = true;
+            break 'outer;
         }
     }
-    assert!(
-        dns_done,
-        "no dns corpus frame found for the UnsupportedPath gate"
-    );
+    assert!(found, "no dhcp corpus frame with options found");
 }
 
 #[test]

@@ -148,13 +148,20 @@ pub enum Layout {
     /// big-endian byte window starting at `at`. The container is
     /// `ceil((shift + width) / 8)` bytes.
     Bits { at: usize, shift: u8, width: u8 },
+    /// The value re-encodes at this range (trimmed/re-padded; the
+    /// schema-side mirror of [`crate::dissect::FieldSpan::ReEncode`]):
+    /// dhcp sname/file — value + NUL + zero-padding re-encoded at the
+    /// span. Recording the span is tranche 11b; *applying* such a
+    /// patch stays the codec-hook deferral (a pointed error until
+    /// then).
+    ReEncode { at: usize, len: usize },
 }
 
 impl Layout {
-    /// Container byte length of a [`Layout::Bits`] window.
+    /// Container byte length of the layout's byte window.
     pub fn container_len(&self) -> usize {
         match *self {
-            Layout::Bytes { len, .. } => len,
+            Layout::Bytes { len, .. } | Layout::ReEncode { len, .. } => len,
             Layout::Bits { shift, width, .. } => {
                 (shift as usize + width as usize).div_ceil(8).max(1)
             }

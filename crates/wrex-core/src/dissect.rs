@@ -328,15 +328,19 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
     }
 }
 
-/// Populate [`LayerView::field_spans`] from the codec's
-/// [`crate::codec::Codec::layouts`] table (tranche 11b).
+/// Populate [`LayerView::field_spans`] — a **merge** (tranche 11b):
 ///
-/// **Total presence**: every key of `fields` gets an entry — a layout
-/// match → absolute span (`base + at`), no match → `FieldSpan::None`
-/// (dynamic regions, record sections, codec-deferred paths). Sub-bit
-/// paths of `FieldKind::FlagSet` aggregates derive extra entries from
-/// the schema's `bit_names`, MSB-first within the aggregate's own
-/// window.
+/// 1. **Codec-provided entries win** (dynamic geometry recorded at
+///    parse time: record sections, hoisted sources, scattered flag
+///    bits). The codec's map is the seed.
+/// 2. The static [`crate::codec::Codec::layouts`] table fills every
+///    still-missing field key (fixed header geometry, `base + at`).
+/// 3. Sub-bit paths derive for `FieldKind::FlagSet` aggregates that
+///    got a **layout-derived** span (contiguous windows only —
+///    scattered aggregates like dns `flags` are codec-side) and whose
+///    subbits the codec did not already provide.
+/// 4. `None`-fallback for the remainder — **total presence**: every
+///    key of `fields` resolves; the variant carries the policy.
 fn populate_field_spans(
     view: &mut LayerView,
     schema: &crate::schema::LayerSchema,
@@ -345,39 +349,60 @@ fn populate_field_spans(
     use crate::schema::Layout;
     let base = view.span.start;
     let lookup = |name: &str| layouts.iter().find(|(n, _)| *n == name).map(|(_, l)| *l);
-    let mut spans: BTreeMap<String, FieldSpan> = BTreeMap::new();
+    let mut spans: BTreeMap<String, FieldSpan> = std::mem::take(&mut view.field_spans);
+    // Names the static table spanned (sub-bit derivation eligibility).
+    let mut layout_derived: Vec<String> = Vec::new();
     for name in view.fields.keys() {
-        spans.insert(
-            name.clone(),
-            match lookup(name) {
-                Some(Layout::Bytes { at, len }) => FieldSpan::Bytes(base + at..base + at + len),
-                Some(Layout::Bits { at, shift, width }) => FieldSpan::Bits {
-                    container: base + at
-                        ..base + at + Layout::container_len(&Layout::Bits { at, shift, width }),
-                    shift,
-                    width,
-                },
-                None => FieldSpan::None,
-            },
-        );
+        if spans.contains_key(name) {
+            continue;
+        }
+        match lookup(name) {
+            Some(Layout::Bytes { at, len }) => {
+                spans.insert(name.clone(), FieldSpan::Bytes(base + at..base + at + len));
+                layout_derived.push(name.clone());
+            }
+            Some(Layout::ReEncode { at, len }) => {
+                spans.insert(
+                    name.clone(),
+                    FieldSpan::ReEncode(base + at..base + at + len),
+                );
+                layout_derived.push(name.clone());
+            }
+            Some(Layout::Bits { at, shift, width }) => {
+                spans.insert(
+                    name.clone(),
+                    FieldSpan::Bits {
+                        container: base + at
+                            ..base + at + Layout::container_len(&Layout::Bits { at, shift, width }),
+                        shift,
+                        width,
+                    },
+                );
+                layout_derived.push(name.clone());
+            }
+            None => {
+                spans.insert(name.clone(), FieldSpan::None);
+            }
+        }
     }
-    // Sub-bit paths of FlagSet aggregates that carry layouts: extra
-    // keys, one bit each, MSB-first inside the aggregate's window.
+    // Sub-bit paths of layout-derived FlagSet aggregates: extra keys,
+    // one bit each, MSB-first inside the aggregate's own window.
     for f in schema.fields {
         if f.kind != crate::schema::FieldKind::FlagSet {
+            continue;
+        }
+        // Only aggregates the static table spanned into THIS view
+        // (conditional fields stay out; codec-side subbits win).
+        if !layout_derived.iter().any(|n| n == f.name) {
             continue;
         }
         let Some(l) = lookup(f.name) else {
             continue;
         };
-        // Only aggregates that were parsed into this view carry a span
-        // (conditional fields: icmpv6 ndp.* only on their NDP types).
-        if !spans.contains_key(f.name) {
-            continue;
-        }
         let (window_shift, window_width) = match l {
             Layout::Bytes { len, .. } => (0u8, (len * 8) as u8),
             Layout::Bits { shift, width, .. } => (shift, width),
+            Layout::ReEncode { .. } => continue,
         };
         for bit in f.bit_names {
             let Some(pos) = f.bit_pos(bit) else {

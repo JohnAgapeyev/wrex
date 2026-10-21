@@ -258,20 +258,23 @@ trailing bytes all survive). Gated by `tests/reassemble.rs`: every
 stack strategy, every corpus frame, and a deliberately wrong
 checksum that must stay wrong.
 
-**Tranche 11b-α** (delivered): the span-patch engine. Per-field
+**Tranche 11b-α+β** (delivered): the span-patch engine. Per-field
 wire geometry (`FieldSpan`: bytes, bit windows, re-encode, none)
-populated for the L2–L4 codecs (`field_spans`, total presence —
-every dissected field key resolves), and `wrex_core::patch`:
-an ordered edit list (`SetField`/`Insert`/`Delete`) with a
-representability + overlap pre-pass, splice application
-(bit-masked container writes), and the caller-selected
-**consistency scope** (`Scope::all` / `none` / selective with
-layer shorthand) driving derived-field recomputation
-(lengths, checksums over the pseudo-header from the dissected
-facts) — edits decide bytes, scope decides recomputation,
-stale fields outside scope stay verbatim, wrongness included.
-SDK-first; the dns/dhcp spans and `wrex mut` edit-set integration
-are the chartered follow-ups.
+populated for **all** codecs (L2–L4 via static layout tables;
+dns/dhcp via parse-time spans: record sections, the hoisted
+`msg_type` source, pointer-vs-uncompressed name policy,
+scattered dns flag bits), and `wrex_core::patch`: an ordered edit
+list (`SetField`/`Insert`/`Delete`) with a representability +
+overlap pre-pass, splice application (bit-masked container
+writes), and the caller-selected **consistency scope**
+(`Scope::all` / `none` / selective with layer shorthand) driving
+derived-field recomputation (lengths, checksums over the
+pseudo-header from the dissected facts) — edits decide bytes,
+scope decides recomputation, stale fields outside scope stay
+verbatim, wrongness included. The golden workflow: add a DNS
+record with one edit set (Insert + explicit `ancount` patch),
+no spec round-trip. `wrex mut` edit-set integration and
+`dissect --spans` are the chartered follow-up.
 
 ## Layout
 

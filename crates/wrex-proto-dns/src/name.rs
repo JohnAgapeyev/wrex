@@ -58,9 +58,12 @@ pub fn name_wire_len(name: &str) -> Result<usize, String> {
 /// Decode a name at `offset` within `message`.
 ///
 /// Returns the presentation form (no trailing dot; the root is the
-/// empty string) and the number of octets consumed **from `offset`**
-/// (pointer jumps do not advance the cursor past the 2-byte pointer).
-pub fn decode_name(message: &[u8], offset: usize) -> Result<(String, usize), String> {
+/// empty string), the number of octets consumed **from `offset`**
+/// (pointer jumps do not advance the cursor past the 2-byte pointer),
+/// and whether a **compression pointer** was followed (tranche 11b:
+/// pointer-resolved names carry `FieldSpan::None` — a patch through a
+/// pointer is a pointed error, never a silent wrong-target write).
+pub fn decode_name(message: &[u8], offset: usize) -> Result<(String, usize, bool), String> {
     let mut labels: Vec<String> = Vec::new();
     let mut cursor = offset;
     let mut jumps = 0usize;
@@ -126,7 +129,7 @@ pub fn decode_name(message: &[u8], offset: usize) -> Result<(String, usize), Str
         cursor = end;
         advance(cursor, 0);
     }
-    Ok((labels.join("."), consumed))
+    Ok((labels.join("."), consumed, jumps > 0))
 }
 
 #[cfg(test)]
@@ -167,12 +170,14 @@ mod tests {
     #[test]
     fn decode_plain() {
         let msg = b"\x07example\x03com\x00";
-        let (name, used) = decode_name(msg, 0).unwrap();
+        let (name, used, compressed) = decode_name(msg, 0).unwrap();
         assert_eq!(name, "example.com");
         assert_eq!(used, 13);
-        let (root, used) = decode_name(b"\x00", 0).unwrap();
+        assert!(!compressed);
+        let (root, used, compressed) = decode_name(b"\x00", 0).unwrap();
         assert_eq!(root, "");
         assert_eq!(used, 1);
+        assert!(!compressed);
     }
 
     #[test]
@@ -184,14 +189,16 @@ mod tests {
         let ptr_at = msg.len();
         msg.push(0xC0);
         msg.push(0x0C);
-        let (name, used) = decode_name(&msg, ptr_at).unwrap();
+        let (name, used, compressed) = decode_name(&msg, ptr_at).unwrap();
         assert_eq!(name, "example.com");
         assert_eq!(used, 2, "pointer consumes 2 octets");
+        assert!(compressed);
         // tail labels after the pointer jump
         msg.extend_from_slice(b"\x02ns\x00");
-        let (name, used) = decode_name(&msg, ptr_at + 2).unwrap();
+        let (name, used, compressed) = decode_name(&msg, ptr_at + 2).unwrap();
         assert_eq!(name, "ns");
         assert_eq!(used, 4);
+        assert!(!compressed);
     }
 
     #[test]
@@ -232,7 +239,7 @@ mod tests {
             // cap, not hang or panic — and the cursor-jumps-backward
             // underflow guard must hold. Terminators elsewhere decode
             // without over-claiming `consumed`.
-            if let Ok((_, consumed)) = decode_name(&msg, offset) {
+            if let Ok((_, consumed, _)) = decode_name(&msg, offset) {
                 assert!(consumed <= msg.len());
             }
         }

@@ -527,11 +527,12 @@ T(n+1)".
     retransmitted NS beyond the single bounded attempt.
 
 - **T11 — lossless dissection + span-patch engine (byte-fidelity
-  contract)** — 🌤 T11a ✅ delivered; T11b-α ✅ delivered (engine core +
-  L2–L4 population), β (dns/dhcp spans) and γ (mut/CLI integration)
-  chartered (settled at the T11 planning pass as sub-tranches; the
-  design unifies around the encode engine's existing deferred-`Patch`
-  derived-field resolution, walked in a second direction):
+  contract)** — 🌤 T11a ✅, T11b-α ✅ and T11b-β ✅ delivered
+  (frame retention + engine core + full codec population); γ
+  (mut/CLI integration) chartered (settled at the T11 planning pass
+  as sub-tranches; the design unifies around the encode engine's
+  existing deferred-`Patch` derived-field resolution, walked in a
+  second direction):
   - **T11a — frame retention + verbatim reassembly** — ✅ delivered.
     `DissectedPacket` retains the original input (`frame: Bytes`);
     every layer span and the payload tail resolve against it, and
@@ -609,13 +610,50 @@ T(n+1)".
       sections, `ReEncode` patch application (the variant exists;
       applying one is a pointed deferral error), the `wrex-mut`
       edit-set integration and `dissect --spans` (γ).
-    - **β — dns + dhcp population** — chartered. dns:
-      pointer-resolved names → `None` + pointed-error policy, record
-      sections (`an.N`/`ns.N`), count↔section pairs desyncable by
-      scope choice. dhcp: `msg_type` hoisted → its option-53 source
-      span, `opt.N` records, sname/file `ReEncode`. The formalized
-      per-codec population gate lands here (α's corpus-driven gate
-      already covers the nine populated codecs).
+    - **β — dns + dhcp population** — ✅ delivered. The four design
+      decisions settled at the planning pass: (1) dns `flags` is
+      **scattered** (qr=bit15, aa=10, tc=9, rd=8, ra=7 of one word)
+      — the aggregate carries `None` (not one contiguous window) and
+      each subbit gets its real single-bit window, codec-side; (2)
+      count fields are **not** `Derived` targets — section-count
+      recomputation is ill-defined under desync (the dissector
+      trusts the count) and the add-a-record workflow patches the
+      count explicitly, caller-decided; (3) names are
+      **span-if-uncompressed** — `decode_name` grew a
+      compressed-pointer return (the internal jump counter exposed),
+      pointer-resolved names carry `None` + the pointed-error
+      policy, uncompressed names get real spans (same-width
+      overwrites legal; length changes ride Insert/Delete); (4)
+      `ReEncode` spans are **recorded now, application stays the
+      codec-hook deferral** (a new `Layout::ReEncode` declares
+      dhcp sname/file). Engine: `populate_field_spans` became a
+      **merge** — codec-provided parse-time entries win, the static
+      layouts table fills the still-missing keys, sub-bit derivation
+      fires only for layout-derived aggregates (codec-side subbits
+      win), `None`-fallback preserves total presence. dns:
+      codec-side spans for `qd.N.*`/`an|ns|ar.N.*` (type/class/ttl/
+      rdata at the parse cursor; names per policy 3; `rdata`
+      spans its region) + static header layouts (id, counts,
+      opcode/rcode bit windows). dhcp: static layouts for the whole
+      240-byte header incl. `chaddr`/`cookie` and the `ReEncode`
+      sname/file; codec-side `opt.N.code/len/value` + typed
+      `ip/num/text` subregions; the hoisted `msg_type` spans its
+      **option-53 source** — patching it writes the right TLV.
+      Verification: the golden **add-a-record workflow** (one edit
+      set on a synthetic reply with a compression-pointer answer:
+      Insert a hand-built A record + SetField `ancount` explicitly
+      — no scope conflict, re-dissection fully consistent, the
+      pointer-compressed answer still resolving), the
+      pointer-name pointed error, the scattered-flags masked write
+      (opcode/rcode untouched), dhcp hoisted/msg_type patches and
+      the sname ReEncode deferral on the corpus goldens, the
+      population gate over every corpus frame (total presence,
+      record sections included), and the hickory/dhcproto
+      differentials + reassemble gates unchanged.
+      Deliberate deferrals: `Derived::Count` (revisit if a
+      scope-managed count workflow appears), ReEncode *application*
+      (the codec re-encode hook), rdata name patches through
+      compression pointers.
     - **γ — `wrex-mut` + CLI integration** — chartered. Strategies
       emit **edit sets** applied through the engine under `preserve`;
       the recorded one-time re-baseline (untouched invalidities stop

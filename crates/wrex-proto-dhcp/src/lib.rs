@@ -35,10 +35,10 @@ use std::net::Ipv4Addr;
 use std::sync::LazyLock;
 
 use bytes::{BufMut, Bytes};
-use wrex_core::dissect::LayerView;
+use wrex_core::dissect::{FieldSpan, LayerView};
 use wrex_core::encode::{EncodeCtx, flagset_or_default, int_or_default, ipv4_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, RecordSchema};
+use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, Layout, RecordSchema};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -362,6 +362,11 @@ impl Codec for DhcpCodec {
         }
 
         let mut fields = std::collections::BTreeMap::new();
+        // Tranche 11b: parse-time spans for the dynamic options region
+        // (the fixed header resolves through the static layouts table).
+        let mut spans: std::collections::BTreeMap<String, FieldSpan> =
+            std::collections::BTreeMap::new();
+        let base = ctx.offset;
         fields.insert("op".into(), Value::Int(bytes[0] as u128));
         fields.insert("htype".into(), Value::Int(bytes[1] as u128));
         fields.insert("hlen".into(), Value::Int(bytes[2] as u128));
@@ -411,7 +416,7 @@ impl Codec for DhcpCodec {
             let view = LayerView {
                 kind: "dhcp",
                 span: ctx.offset..ctx.offset + HEADER_LEN,
-                field_spans: Default::default(),
+                field_spans: spans,
                 fields,
             };
             return ReadOutcome::Layer(view, Some(Next::Payload));
@@ -451,6 +456,16 @@ impl Codec for DhcpCodec {
                 break;
             }
             let data = &bytes[cursor + 2..cursor + 2 + olen];
+            let dat = base + cursor + 2;
+            spans.insert(
+                format!("opt.{i}.code"),
+                FieldSpan::Bytes(base + cursor..base + cursor + 1),
+            );
+            spans.insert(
+                format!("opt.{i}.len"),
+                FieldSpan::Bytes(base + cursor + 1..base + cursor + 2),
+            );
+            spans.insert(format!("opt.{i}.value"), FieldSpan::Bytes(dat..dat + olen));
             fields.insert(format!("opt.{i}.code"), Value::Int(code as u128));
             fields.insert(format!("opt.{i}.len"), Value::Int(olen as u128));
             fields.insert(
@@ -460,13 +475,19 @@ impl Codec for DhcpCodec {
             // Typed subset per code (never fatal on bad lengths).
             match code {
                 OPT_MSG_TYPE if !data.is_empty() => {
+                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 1));
                     fields.insert(format!("opt.{i}.num"), Value::Int(data[0] as u128));
                     if !hoisted {
                         hoisted = true;
+                        // The hoisted msg_type spans its SOURCE (the
+                        // option-53 value byte): patching `msg_type`
+                        // writes the right TLV.
+                        spans.insert("msg_type".to_string(), FieldSpan::Bytes(dat..dat + olen));
                         fields.insert("msg_type".into(), Value::Str(render_msg_type(data[0])));
                     }
                 }
                 OPT_SUBNET_MASK | OPT_REQUESTED_IP | OPT_SERVER_ID if olen == 4 => {
+                    spans.insert(format!("opt.{i}.ip"), FieldSpan::Bytes(dat..dat + 4));
                     fields.insert(
                         format!("opt.{i}.ip"),
                         Value::Ipv4(Ipv4Addr::new(data[0], data[1], data[2], data[3])),
@@ -474,24 +495,29 @@ impl Codec for DhcpCodec {
                 }
                 // Multi-address options: `ip` is the first address.
                 OPT_ROUTER | OPT_DNS_SERVERS if olen >= 4 && olen.is_multiple_of(4) => {
+                    // `ip` is the first address of the region.
+                    spans.insert(format!("opt.{i}.ip"), FieldSpan::Bytes(dat..dat + 4));
                     fields.insert(
                         format!("opt.{i}.ip"),
                         Value::Ipv4(Ipv4Addr::new(data[0], data[1], data[2], data[3])),
                     );
                 }
                 OPT_ADDRESS_TIME | OPT_RENEWAL_TIME | OPT_REBINDING_TIME if olen == 4 => {
+                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 4));
                     fields.insert(
                         format!("opt.{i}.num"),
                         Value::Int(u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as u128),
                     );
                 }
                 OPT_MAX_MSG_SIZE if olen == 2 => {
+                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 2));
                     fields.insert(
                         format!("opt.{i}.num"),
                         Value::Int(u16::from_be_bytes([data[0], data[1]]) as u128),
                     );
                 }
                 OPT_HOST_NAME | OPT_DOMAIN_NAME => {
+                    spans.insert(format!("opt.{i}.text"), FieldSpan::Bytes(dat..dat + olen));
                     fields.insert(
                         format!("opt.{i}.text"),
                         Value::Str(String::from_utf8_lossy(data).into_owned()),
@@ -507,11 +533,44 @@ impl Codec for DhcpCodec {
         let view = LayerView {
             kind: "dhcp",
             span: ctx.offset..ctx.offset + consumed,
-            field_spans: Default::default(),
+            field_spans: spans,
             fields,
         };
         // Terminal: post-`end` bytes are padding/payload.
         ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// Tranche 11b fixed layouts: the 240-byte RFC 2131 header. The
+    /// options region (`opt.N.*`, the hoisted `msg_type`) is
+    /// codec-side (parse-time spans). `sname`/`file` are
+    /// [`Layout::ReEncode`] — NUL-trimmed values over padded regions;
+    /// recording the span is this tranche, applying such a patch is
+    /// the codec-hook deferral.
+    fn layouts(&self) -> &'static [(&'static str, Layout)] {
+        &[
+            ("op", Layout::Bytes { at: 0, len: 1 }),
+            ("htype", Layout::Bytes { at: 1, len: 1 }),
+            ("hlen", Layout::Bytes { at: 2, len: 1 }),
+            ("hops", Layout::Bytes { at: 3, len: 1 }),
+            ("xid", Layout::Bytes { at: 4, len: 4 }),
+            ("secs", Layout::Bytes { at: 8, len: 2 }),
+            (
+                "flags",
+                Layout::Bits {
+                    at: 10,
+                    shift: 0,
+                    width: 1,
+                },
+            ),
+            ("ciaddr", Layout::Bytes { at: 12, len: 4 }),
+            ("yiaddr", Layout::Bytes { at: 16, len: 4 }),
+            ("siaddr", Layout::Bytes { at: 20, len: 4 }),
+            ("giaddr", Layout::Bytes { at: 24, len: 4 }),
+            ("chaddr", Layout::Bytes { at: 28, len: 16 }),
+            ("sname", Layout::ReEncode { at: 44, len: 64 }),
+            ("file", Layout::ReEncode { at: 108, len: 128 }),
+            ("cookie", Layout::Bytes { at: 236, len: 4 }),
+        ]
     }
 }
 
