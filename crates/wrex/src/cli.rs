@@ -79,7 +79,8 @@ EXAMPLES:
 
   # no field flags + piped stdin: raw stdin bytes are sent as-is";
 
-/// Epilog for dissect: formats and the never-fatal contract.
+/// Epilog for dissect: formats, the span taxonomy and the never-fatal
+/// contract.
 pub const DISSECT_AFTER_HELP: &str = "\
 FORMATS:
   raw   input bytes echoed out (byte-transparent pipelines)
@@ -88,9 +89,18 @@ FORMATS:
         trailing payload hexdump (default)
   json / jsonl  {\"start\":..,\"layers\":[..],\"payload_hex\":..,\"anomalies\":[..]}
 
+SPANS (--spans, tranche 11b):
+  emits the field-span taxonomy alongside the fields: per layer a
+  `spans` map (path -> geometry: bytes / bits{shift,width} / reencode /
+  none — absolute frame offsets) and a `payload_span`; text adds a
+  `spans:` section per layer and a payload span line. Total presence:
+  every dissected field key resolves (the `none` variant carries the
+  unpatchable policy — pointer-resolved names, dynamic regions).
+
 EXAMPLES:
   wrex craft --format raw --layer eth ... | wrex dissect --format json
   wrex dissect --start eth < frame.bin
+  wrex dissect --spans --format json < frame.bin   # span taxonomy
   # --strict exits 1 when dissection finds anomalies (data failed checks)";
 
 /// Epilog for recv: formats, filters and stop conditions.
@@ -248,6 +258,7 @@ impl Cli {
             Cmd::Fuzz(a) => a.common.verbose,
             Cmd::Http(a) => a.common.verbose,
             Cmd::Query(a) => a.common.verbose,
+            Cmd::Diff(a) => a.common.verbose,
             Cmd::Iface(a) => a.common.verbose,
             Cmd::Fields(a) => a.common.verbose,
             Cmd::Completions(_) => 0,
@@ -324,6 +335,9 @@ pub enum Cmd {
 
     /// Ask a DNS server one question over raw UDP and dissect the reply.
     Query(QueryArgs),
+
+    /// Diff two findings JSONL files (offline, exit 0).
+    Diff(DiffArgs),
 
     /// Interface table: name, mac, ipv4s, mtu, up.
     Iface(IfaceArgs),
@@ -474,6 +488,10 @@ pub struct DissectArgs {
     /// Dissection start: auto|eth|ipv4|… (default auto).
     #[arg(long)]
     pub start: Option<String>,
+    /// Emit the field-span taxonomy (tranche 11b): per-layer `spans`
+    /// maps plus the payload span, json/jsonl and text.
+    #[arg(long)]
+    pub spans: bool,
 }
 
 #[derive(Args, Debug)]
@@ -674,9 +692,10 @@ GRAMMAR:
   `wrex replay` and `wrex fuzz` consume.
 
 STRATEGIES (--strategy, default all):
-  field   dissect the seed, mutate one typed field value, re-encode
-          with autofill (checksums re-derive)
-  len     perturb a length field explicitly (autofill keeps it)
+  field   dissect the seed, mutate one typed field value, apply it as
+          a span-patch edit under preserve semantics (nothing
+          re-derives: untouched invalidities ride along unhealed)
+  len     perturb a length field explicitly (preserve keeps it)
   flip    raw bit flip, biased toward header bytes
   splice  cross-over A[..k] + B[k..] of two seeds (needs >= 2)
   raw     byte surgery anywhere: flip/overwrite/insert/delete
@@ -816,6 +835,42 @@ pub struct FuzzArgs {
     /// Max in-flight probes (default 256).
     #[arg(long)]
     pub concurrent: Option<usize>,
+}
+
+/// Epilog for diff: the offline findings differential (tranche 12).
+pub const DIFF_AFTER_HELP: &str = "\
+GRAMMAR:
+  wrex diff BASELINE.jsonl MUTATED.jsonl [--format text|json|jsonl]
+
+  Diffs two `wrex fuzz --format jsonl` findings files offline: a
+  baseline run against a mutated run (or two targets probed with the
+  same corpus). Findings pair by probe identity — (target, port,
+  proto, round); `strategy` is carried, never matched on — and every
+  pair with a difference renders one entry:
+
+    outcome deltas   reply -> silence, silence -> unreachable:3, …
+    reply changes    reply added / removed / divergent bytes
+    one-sided probes  present in only one file (with the probe hex)
+
+  Equal pairs are silent; any completed diff is exit 0 (the report is
+  data). Malformed lines are exit 2 with the file and line number.
+
+EXAMPLES:
+  wrex fuzz -i lo --baseline --rounds 4 --seed 7 --format jsonl \\
+    127.0.0.1 > base.jsonl
+  wrex fuzz -i lo --baseline --rounds 4 --seed 8 --format jsonl \\
+    127.0.0.1 > mut.jsonl
+  wrex diff base.jsonl mut.jsonl";
+
+/// `wrex diff`: offline findings differential.
+#[derive(Args, Debug)]
+#[command(after_help = DIFF_AFTER_HELP)]
+pub struct DiffArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Two findings JSONL files (baseline vs mutated, or two runs).
+    #[arg(value_name = "FILE", num_args = 2, required = true)]
+    pub files: Vec<String>,
 }
 
 /// `wrex scan`: TCP SYN/connect + UDP + ICMP scan over a raw-IP driver.

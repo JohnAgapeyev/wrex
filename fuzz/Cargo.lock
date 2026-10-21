@@ -887,6 +887,7 @@ dependencies = [
  "bytes",
  "hex",
  "serde",
+ "serde_json",
  "wrex-core",
  "wrex-io",
  "wrex-mut",
@@ -902,6 +903,7 @@ dependencies = [
  "http",
  "httparse",
  "serde",
+ "serde_json",
  "wrex-io",
  "wrex-session",
 ]

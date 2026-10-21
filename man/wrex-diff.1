@@ -1,0 +1,54 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH diff 1  "diff " 
+.SH NAME
+diff \- Diff two findings JSONL files (offline, exit 0)
+.SH SYNOPSIS
+\fBdiff\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIFILE\fR> 
+.SH DESCRIPTION
+Diff two findings JSONL files (offline, exit 0)
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fIFILE\fR>
+Two findings JSONL files (baseline vs mutated, or two runs)
+.SH EXTRA
+GRAMMAR:
+  wrex diff BASELINE.jsonl MUTATED.jsonl [\-\-format text|json|jsonl]
+
+  Diffs two `wrex fuzz \-\-format jsonl` findings files offline: a
+  baseline run against a mutated run (or two targets probed with the
+  same corpus). Findings pair by probe identity — (target, port,
+  proto, round); `strategy` is carried, never matched on — and every
+  pair with a difference renders one entry:
+
+    outcome deltas   reply \-> silence, silence \-> unreachable:3, …
+    reply changes    reply added / removed / divergent bytes
+    one\-sided probes  present in only one file (with the probe hex)
+
+  Equal pairs are silent; any completed diff is exit 0 (the report is
+  data). Malformed lines are exit 2 with the file and line number.
+
+EXAMPLES:
+  wrex fuzz \-i lo \-\-baseline \-\-rounds 4 \-\-seed 7 \-\-format jsonl \\
+    127.0.0.1 > base.jsonl
+  wrex fuzz \-i lo \-\-baseline \-\-rounds 4 \-\-seed 8 \-\-format jsonl \\
+    127.0.0.1 > mut.jsonl
+  wrex diff base.jsonl mut.jsonl

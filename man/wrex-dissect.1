@@ -4,7 +4,7 @@
 .SH NAME
 dissect \- stdin → DissectedPacket → stdout (never fatal)
 .SH SYNOPSIS
-\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-\-spans\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 stdin → DissectedPacket → stdout (never fatal)
 .SH OPTIONS
@@ -27,6 +27,9 @@ Validate the crafted packet after encode (violations → exit 2)
 \fB\-\-start\fR \fI<START>\fR
 Dissection start: auto|eth|ipv4|… (default auto)
 .TP
+\fB\-\-spans\fR
+Emit the field\-span taxonomy (tranche 11b): per\-layer `spans` maps plus the payload span, json/jsonl and text
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH EXTRA
@@ -37,7 +40,16 @@ FORMATS:
         trailing payload hexdump (default)
   json / jsonl  {"start":..,"layers":[..],"payload_hex":..,"anomalies":[..]}
 
+SPANS (\-\-spans, tranche 11b):
+  emits the field\-span taxonomy alongside the fields: per layer a
+  `spans` map (path \-> geometry: bytes / bits{shift,width} / reencode /
+  none — absolute frame offsets) and a `payload_span`; text adds a
+  `spans:` section per layer and a payload span line. Total presence:
+  every dissected field key resolves (the `none` variant carries the
+  unpatchable policy — pointer\-resolved names, dynamic regions).
+
 EXAMPLES:
   wrex craft \-\-format raw \-\-layer eth ... | wrex dissect \-\-format json
   wrex dissect \-\-start eth < frame.bin
+  wrex dissect \-\-spans \-\-format json < frame.bin   # span taxonomy
   # \-\-strict exits 1 when dissection finds anomalies (data failed checks)

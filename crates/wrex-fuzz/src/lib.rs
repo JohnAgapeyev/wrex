@@ -31,10 +31,12 @@
 
 pub mod app;
 pub mod config;
+pub mod diff;
 pub mod report;
 pub mod session;
 
 pub use app::{AppConfig, AppOutcome, AppSession};
 pub use config::{DEFAULT_ROUNDS, FuzzConfig, ProbeMode};
+pub use diff::{Delta, DiffEntry, FindingRecord, Side, diff_findings, parse_findings};
 pub use report::{Finding, Outcome};
 pub use session::ProberSession;

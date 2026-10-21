@@ -57,9 +57,10 @@ GRAMMAR:
   `wrex replay` and `wrex fuzz` consume.
 
 STRATEGIES (\-\-strategy, default all):
-  field   dissect the seed, mutate one typed field value, re\-encode
-          with autofill (checksums re\-derive)
-  len     perturb a length field explicitly (autofill keeps it)
+  field   dissect the seed, mutate one typed field value, apply it as
+          a span\-patch edit under preserve semantics (nothing
+          re\-derives: untouched invalidities ride along unhealed)
+  len     perturb a length field explicitly (preserve keeps it)
   flip    raw bit flip, biased toward header bytes
   splice  cross\-over A[..k] + B[k..] of two seeds (needs >= 2)
   raw     byte surgery anywhere: flip/overwrite/insert/delete

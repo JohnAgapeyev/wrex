@@ -2409,6 +2409,7 @@ dependencies = [
  "bytes",
  "hex",
  "serde",
+ "serde_json",
  "wrex-core",
  "wrex-io",
  "wrex-mut",

@@ -1,10 +1,10 @@
 //! [`Finding`]: the recorded outcome of one prober round — everything
 //! an offline differential (or a `wrex send` replay) needs.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Probe outcome.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     /// A frame matching the probe's reply key arrived (reply bytes

@@ -3,7 +3,7 @@
 
 use serde_json::{Map, Value as JsonValue, json};
 
-use crate::dissect::{Anomaly, DissectedPacket, LayerView};
+use crate::dissect::{Anomaly, DissectedPacket, FieldSpan, LayerView};
 use crate::value::Value as WValue;
 use crate::value::mac_string;
 
@@ -92,18 +92,77 @@ fn fields_json(layer: &LayerView) -> Map<String, JsonValue> {
     out
 }
 
+/// One field span as JSON (tranche 11b-γ, `dissect --spans`): the closed
+/// `FieldSpan` taxonomy, geometry only (semantics stay in the schema).
+pub fn field_span_json(span: &FieldSpan) -> JsonValue {
+    match span {
+        FieldSpan::Bytes(r) => json!({
+            "type": "bytes",
+            "start": r.start,
+            "end": r.end,
+        }),
+        FieldSpan::Bits {
+            container,
+            shift,
+            width,
+        } => json!({
+            "type": "bits",
+            "start": container.start,
+            "end": container.end,
+            "shift": shift,
+            "width": width,
+        }),
+        FieldSpan::ReEncode(r) => json!({
+            "type": "reencode",
+            "start": r.start,
+            "end": r.end,
+        }),
+        FieldSpan::None => json!("none"),
+    }
+}
+
+fn spans_json(layer: &LayerView) -> Map<String, JsonValue> {
+    let mut out = Map::new();
+    for (name, span) in &layer.field_spans {
+        out.insert(name.clone(), field_span_json(span));
+    }
+    out
+}
+
 /// The pinned dissection JSON object.
 pub fn dissect_to_json(p: &DissectedPacket) -> JsonValue {
-    json!({
+    dissect_to_json_spans(p, false)
+}
+
+/// [`dissect_to_json`] with the span taxonomy opt-in
+/// (`dissect --spans`): per-layer `spans` objects plus the payload span.
+/// Without the flag the shape is byte-identical to [`dissect_to_json`].
+pub fn dissect_to_json_spans(p: &DissectedPacket, spans: bool) -> JsonValue {
+    let mut out = json!({
         "start": p.start,
-        "layers": p.layers.iter().map(|l| json!({
-            "kind": l.kind,
-            "span": [l.span.start, l.span.end],
-            "fields": fields_json(l),
-        })).collect::<Vec<_>>(),
+        "layers": p.layers.iter().map(|l| {
+            let mut obj = json!({
+                "kind": l.kind,
+                "span": [l.span.start, l.span.end],
+                "fields": fields_json(l),
+            });
+            if spans {
+                obj.as_object_mut()
+                    .expect("object literal")
+                    .insert("spans".into(), json!(spans_json(l)));
+            }
+            obj
+        }).collect::<Vec<_>>(),
         "payload_hex": hex::encode(&p.payload),
         "anomalies": p.anomalies.iter().map(anomaly_json).collect::<Vec<_>>(),
-    })
+    });
+    if spans {
+        let payload_at = p.frame.len() - p.payload.len();
+        out.as_object_mut()
+            .expect("object literal")
+            .insert("payload_span".into(), json!([payload_at, p.frame.len()]));
+    }
+    out
 }
 
 fn anomaly_json(a: &Anomaly) -> JsonValue {
@@ -113,6 +172,26 @@ fn anomaly_json(a: &Anomaly) -> JsonValue {
 /// `jsonl`: one line per packet.
 pub fn dissect_to_jsonl(p: &DissectedPacket) -> String {
     dissect_to_json(p).to_string()
+}
+
+/// [`dissect_to_jsonl`] with the span taxonomy opt-in (`dissect --spans`).
+pub fn dissect_to_jsonl_spans(p: &DissectedPacket, spans: bool) -> String {
+    dissect_to_json_spans(p, spans).to_string()
+}
+
+/// One field span as text (`bytes @0..6`, `bits @14..16 shift0 width2`,
+/// `reencode @240..304`, `none`).
+pub fn field_span_text(span: &FieldSpan) -> String {
+    match span {
+        FieldSpan::Bytes(r) => format!("bytes @{r:?}"),
+        FieldSpan::Bits {
+            container,
+            shift,
+            width,
+        } => format!("bits @{container:?} shift{shift} width{width}"),
+        FieldSpan::ReEncode(r) => format!("reencode @{r:?}"),
+        FieldSpan::None => "none".to_string(),
+    }
 }
 
 fn field_text(kind: &str, name: &str, value: &WValue) -> String {
@@ -178,6 +257,14 @@ pub fn hexdump(bytes: &[u8]) -> String {
 /// `text` format: indented field tree, `! path: message` anomaly lines,
 /// trailing payload hexdump.
 pub fn dissect_to_text(p: &DissectedPacket) -> String {
+    dissect_to_text_spans(p, false)
+}
+
+/// [`dissect_to_text`] with the span taxonomy opt-in
+/// (`dissect --spans`): a `spans:` section per layer plus a payload
+/// span line. Without the flag the text is byte-identical to
+/// [`dissect_to_text`].
+pub fn dissect_to_text_spans(p: &DissectedPacket, spans: bool) -> String {
     let mut out = String::new();
     for (i, layer) in p.layers.iter().enumerate() {
         let indent = "  ".repeat(i);
@@ -188,12 +275,22 @@ pub fn dissect_to_text(p: &DissectedPacket) -> String {
                 field_text(layer.kind, name, value)
             ));
         }
+        if spans {
+            out.push_str(&format!("{indent}  spans:\n"));
+            for (name, span) in &layer.field_spans {
+                out.push_str(&format!("{indent}    {name}: {}\n", field_span_text(span)));
+            }
+        }
     }
     if !p.payload.is_empty() {
         out.push_str(&format!("payload ({} bytes):\n", p.payload.len()));
         out.push_str(&hexdump(&p.payload));
     } else {
         out.push_str("payload (0 bytes)\n");
+    }
+    if spans {
+        let payload_at = p.frame.len() - p.payload.len();
+        out.push_str(&format!("payload span @{payload_at}..{}\n", p.frame.len()));
     }
     for a in &p.anomalies {
         out.push_str(&format!("{a}\n"));
@@ -287,5 +384,81 @@ mod tests {
         assert_eq!(ip6_next_header_name(58), Some("icmpv6"));
         assert_eq!(ip6_next_header_name(6), Some("tcp"));
         assert_eq!(ip6_next_header_name(0), None);
+    }
+
+    #[test]
+    fn spans_opt_in_shapes() {
+        let s = spans_sample();
+        // Off: byte-identical to the pinned shapes (no spans keys).
+        let plain = dissect_to_json(&s);
+        assert!(plain["layers"][0].get("spans").is_none());
+        assert!(plain.get("payload_span").is_none());
+        assert_eq!(plain, dissect_to_json_spans(&s, false));
+
+        // On: per-layer spans maps + the payload span.
+        let sp = dissect_to_json_spans(&s, true);
+        assert_eq!(
+            sp["layers"][0]["spans"]["dst"],
+            json!({"type": "bytes", "start": 0, "end": 6})
+        );
+        assert_eq!(
+            sp["layers"][0]["spans"]["type"],
+            json!({
+                "type": "bits",
+                "start": 12,
+                "end": 14,
+                "shift": 0,
+                "width": 16,
+            })
+        );
+        assert_eq!(sp["layers"][1]["spans"]["sport"], "none");
+        assert_eq!(
+            sp["layers"][1]["spans"]["flags.syn"],
+            json!({
+                "type": "bits", "start": 20, "end": 21, "shift": 0, "width": 1,
+            })
+        );
+        assert_eq!(sp["payload_span"], json!([22, 26]));
+
+        // Text: a spans section per layer + the payload span line,
+        // absent without the flag.
+        let text = dissect_to_text_spans(&s, true);
+        assert!(text.contains("spans:\n"), "{text}");
+        assert!(text.contains("dst: bytes @0..6\n"), "{text}");
+        assert!(text.contains("sport: none\n"), "{text}");
+        assert!(text.contains("payload span @22..26\n"), "{text}");
+        assert!(!dissect_to_text(&s).contains("spans:"), "{text}");
+    }
+
+    /// A sample carrying field spans (bytes, bits, sub-bit, none).
+    fn spans_sample() -> DissectedPacket {
+        let s = sample();
+        let mut eth_spans = BTreeMap::new();
+        eth_spans.insert("dst".to_string(), FieldSpan::Bytes(0..6));
+        eth_spans.insert("src".to_string(), FieldSpan::Bytes(6..12));
+        eth_spans.insert(
+            "type".to_string(),
+            FieldSpan::Bits {
+                container: 12..14,
+                shift: 0,
+                width: 16,
+            },
+        );
+        let mut udp_spans = BTreeMap::new();
+        udp_spans.insert("sport".to_string(), FieldSpan::None);
+        udp_spans.insert(
+            "flags.syn".to_string(),
+            FieldSpan::Bits {
+                container: 20..21,
+                shift: 0,
+                width: 1,
+            },
+        );
+        let mut p = s.clone();
+        p.layers[0].field_spans = eth_spans;
+        p.layers[1].field_spans = udp_spans;
+        // The coverage invariant: layers 0..14, 14..22, payload 22..26.
+        p.frame = B::from(vec![0u8; 26]);
+        p
     }
 }

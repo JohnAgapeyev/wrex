@@ -10,7 +10,10 @@ use crate::cli::{Cli, Cmd, Common};
 use crate::spec::packet_spec_from_matches;
 use wrex_core::dissect::dissect;
 use wrex_core::encode::EncodeOpts;
-use wrex_core::render::{dissect_to_json, dissect_to_jsonl, dissect_to_text};
+use wrex_core::render::{
+    dissect_to_json, dissect_to_json_spans, dissect_to_jsonl, dissect_to_jsonl_spans,
+    dissect_to_text, dissect_to_text_spans,
+};
 use wrex_core::value::Value;
 use wrex_core::{Filter, FilterError, PacketSpec, Registry, SpecError, encode};
 use wrex_io::driver::{Driver, DriverError, RawEthDriver, RawIpDriver};
@@ -114,6 +117,7 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
             &registry,
             &args.common,
             args.start.as_deref().unwrap_or("auto"),
+            args.spans,
         ),
         Cmd::Send(args) => send(
             &registry,
@@ -140,6 +144,7 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
         Cmd::Fuzz(args) => fuzz(&registry, args),
         Cmd::Http(args) => http(args),
         Cmd::Query(args) => query(&registry, args),
+        Cmd::Diff(args) => diff(&args.common, &args.files),
         Cmd::Iface(args) => iface(&args.common, args.name.as_deref()),
         Cmd::Fields(args) => fields_cmd(&registry, &args.common, args.kind.as_deref()),
         Cmd::Completions(args) => {
@@ -262,7 +267,12 @@ fn read_stdin_capped() -> Result<Vec<u8>, CliError> {
     Ok(buf)
 }
 
-fn dissect_cmd(registry: &Registry, common: &Common, start: &str) -> Result<(), CliError> {
+fn dissect_cmd(
+    registry: &Registry,
+    common: &Common,
+    start: &str,
+    spans: bool,
+) -> Result<(), CliError> {
     let format = Format::parse(common, Format::Text)?;
     // Validate the start kind upfront (auto passes through).
     if start != "auto" && registry.get(start).is_none() {
@@ -289,18 +299,18 @@ fn dissect_cmd(registry: &Registry, common: &Common, start: &str) -> Result<(), 
     let packet = dissect(registry, &input, start);
     match format {
         Format::Text => {
-            let mut out = dissect_to_text(&packet);
+            let mut out = dissect_to_text_spans(&packet, spans);
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
         Format::Json => {
-            let mut out = serde_json::to_string_pretty(&dissect_to_json(&packet))
+            let mut out = serde_json::to_string_pretty(&dissect_to_json_spans(&packet, spans))
                 .map_err(|e| usage(format!("json: {e}")))?;
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
         Format::Jsonl => {
-            let mut out = dissect_to_jsonl(&packet);
+            let mut out = dissect_to_jsonl_spans(&packet, spans);
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
@@ -1405,7 +1415,60 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
     Ok(())
 }
 
-/// Findings as stdout text (the `--format text|json|jsonl` shapes).
+/// `wrex diff` (tranche 12): offline findings differential — two
+/// findings JSONL files into a structured report (per-probe outcome
+/// deltas, reply-presence changes, divergent reply bytes, one-sided
+/// probes). Pure offline data plumbing: no codecs, no sockets, exit 0
+/// whatever the report says.
+fn diff(common: &Common, files: &[String]) -> Result<(), CliError> {
+    use wrex_fuzz::{DiffEntry, diff_findings, parse_findings};
+
+    if files.len() != 2 {
+        return Err(usage("diff takes exactly two findings JSONL files"));
+    }
+    let format = Format::parse(common, Format::Text)?;
+    if matches!(format, Format::Raw | Format::Hex) {
+        return Err(usage(
+            "diff --format supports text|json|jsonl (raw/hex carry no diff report)",
+        ));
+    }
+    let mut sides: [Vec<wrex_fuzz::FindingRecord>; 2] = [Vec::new(), Vec::new()];
+    for (i, path) in files.iter().enumerate() {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| CliError::Runtime(format!("diff: cannot read `{path}`: {e}")))?;
+        sides[i] =
+            parse_findings(path, &text).map_err(|e| CliError::Usage(vec![format!("diff: {e}")]))?;
+    }
+    let entries = diff_findings(&sides[0], &sides[1]);
+
+    let mut out = String::new();
+    match format {
+        Format::Json => {
+            let json = serde_json::to_string_pretty(&entries)
+                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+            out.push_str(&json);
+            out.push('\n');
+        }
+        Format::Text => {
+            for e in &entries {
+                out.push_str(&DiffEntry::text_line(e));
+                out.push('\n');
+            }
+        }
+        Format::Jsonl => {
+            for e in &entries {
+                let json = serde_json::to_string(e)
+                    .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                out.push_str(&json);
+                out.push('\n');
+            }
+        }
+        Format::Raw | Format::Hex => unreachable!("rejected above"),
+    }
+    write_stdout(out.as_bytes())?;
+    // The report is data: any completed diff is exit 0.
+    Ok(())
+}
 fn render_findings(findings: &[wrex_fuzz::Finding], format: Format) -> Result<String, CliError> {
     let mut out = String::new();
     match format {

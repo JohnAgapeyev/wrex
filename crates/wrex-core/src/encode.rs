@@ -269,6 +269,78 @@ fn resolve_patches(buf: &mut BytesMut, patches: &[Patch], strict: bool) -> Vec<V
 
 // --- spec-access helpers shared by protocol codecs --------------------------
 
+/// Serialize one field value to its **wire bytes** (tranche 11b-γ): the
+/// `SetField` payload producer for the span-patch engine. `bits` is the
+/// field's wire **bit** width — a `Bytes` span's length × 8, or a bit
+/// window's `width` — and the output is `ceil(bits/8)` big-endian bytes
+/// (the engine's `Bits` masked-write expects exactly that).
+///
+/// FlagSet aggregates ([`FieldKind::FlagSet`]) follow the schema's
+/// MSB-first `bit_names` unit convention (`bit_names[0]` ↔ the highest
+/// bit of the unit), LSB-aligned inside the window (the reserved bits
+/// above the unit — e.g. ipv4's — stay zero).
+///
+/// `None` = the value does not serialize at this width/kind (a type
+/// mismatch): the caller falls back (the mutation engine drops to the
+/// raw byte level).
+pub fn serialize_field_value(
+    kind: FieldKind,
+    bit_names: &[&'static str],
+    bits: usize,
+    v: &Value,
+) -> Option<Vec<u8>> {
+    if bits == 0 || bits > 16 * 8 {
+        return None;
+    }
+    /// `x` as `ceil(bits/8)` big-endian bytes, masked into the window.
+    fn num(x: u128, bits: usize) -> Option<Vec<u8>> {
+        let mask = if bits >= 128 {
+            u128::MAX
+        } else {
+            (1u128 << bits) - 1
+        };
+        let bytes = (x & mask).to_be_bytes(); // 16 bytes, BE
+        let want = bits.div_ceil(8);
+        Some(bytes[16 - want..].to_vec())
+    }
+    match (kind, v) {
+        (
+            FieldKind::U8
+            | FieldKind::U16
+            | FieldKind::U32
+            | FieldKind::U64
+            | FieldKind::U128
+            | FieldKind::FlagSet,
+            Value::Int(x),
+        ) => num(*x, bits),
+        (FieldKind::FlagSet, Value::List(items)) => {
+            // The unit convention: bit_names[i] ↔ unit bit (n-1-i),
+            // MSB-first — the same packing `flagset_or_default` uses.
+            let n = bit_names.len();
+            let mut x: u128 = 0;
+            for item in items {
+                let Value::Str(name) = item else {
+                    return None;
+                };
+                let index = bit_names.iter().position(|b| *b == name.as_str())?;
+                if index >= n || n > 8 * 16 {
+                    return None;
+                }
+                x |= 1u128 << (n - 1 - index);
+            }
+            num(x, bits)
+        }
+        (FieldKind::Ipv4, Value::Ipv4(a)) => Some(a.octets().to_vec()),
+        (FieldKind::Ipv6, Value::Ipv6(a)) => Some(a.octets().to_vec()),
+        (FieldKind::Mac, Value::Mac(m)) => Some(m.to_vec()),
+        (FieldKind::Bytes | FieldKind::ByteList, Value::Bytes(b)) => Some(b.to_vec()),
+        (FieldKind::Str, Value::Str(s)) => Some(s.as_bytes().to_vec()),
+        // Any other kind/value pairing (Bool is not a wire kind; Str
+        // values on numeric kinds, …) does not serialize — None.
+        _ => None,
+    }
+}
+
 /// Explicit field value if set.
 pub fn field_value<'v>(spec: &'v LayerSpec, name: &str) -> Option<&'v Value> {
     spec.fields.get(name)

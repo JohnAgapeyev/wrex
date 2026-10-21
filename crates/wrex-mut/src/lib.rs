@@ -11,13 +11,14 @@
 //! Strategies ([`Strategy`]):
 //!
 //! - **field** — dissect each seed, mutate one *typed* field value,
-//!   re-encode with autofill: checksums (and, unless mutated, length
-//!   fields) re-derive, so mutants stay dissectable where the mutation
-//!   itself permits it;
+//!   apply it as a span-patch `SetField` edit through the tranche-11b
+//!   engine under **preserve** semantics ([`wrex_core::patch::Scope::none`]):
+//!   nothing is re-derived, so untouched invalidities in the seed
+//!   (wrong checksums, stale lengths) survive verbatim — mutants stay
+//!   dissectable where the mutation itself permits it;
 //! - **len** — the field strategy restricted to length-bearing fields
-//!   (`total_len`, `length`, `len`): the perturbed length is set
-//!   *explicitly*, so autofill keeps the mutation instead of
-//!   re-deriving it;
+//!   (`total_len`, `length`, `len`): the perturbed length is written
+//!   explicitly (and nothing re-derives it);
 //! - **flip** — a raw bit flip, biased toward header bytes (the first
 //!   40) where protocol state lives;
 //! - **splice** — cross-over: `A[..k] + B[k..]` of two seed frames
@@ -27,17 +28,17 @@
 //! - **all** — a seeded weighted mix of the above.
 //!
 //! [`Mutator::next_mutant`] never fails: a strategy that cannot apply
-//! (no fields to mutate, a single seed for splice, an encode failure)
-//! falls through to the raw byte level, so a mutant stream is always
-//! producible and reproducible.
+//! (no fields to mutate, an unpatchable span, a single seed for splice,
+//! a width mismatch) falls through to the raw byte level, so a mutant
+//! stream is always producible and reproducible.
 
+use wrex_core::Registry;
+use wrex_core::dissect::{FieldSpan, dissect};
+use wrex_core::encode::serialize_field_value;
+use wrex_core::patch::{Edit, Scope, patch};
+use wrex_core::schema::ResolvedField;
 use wrex_core::spec::{LayerSpec, PacketSpec};
 use wrex_core::value::Value;
-use wrex_core::{
-    Registry,
-    dissect::dissect,
-    encode::{EncodeOpts, encode},
-};
 use wrex_io::Rng;
 
 /// Mutation strategy selection (`wrex mut --strategy`).
@@ -201,69 +202,77 @@ impl<'a> Mutator<'a> {
         }
     }
 
-    /// The field/len strategies: dissect → build a spec → mutate one
-    /// typed value → re-encode (autofill re-derives checksums and
-    /// lengths unless the mutation is the length itself). `None` when
-    /// there is no field to mutate or the encode fails.
+    /// The field/len strategies (tranche 11b-γ): dissect → pick one
+    /// field → mutate the typed value → serialize it to the field's
+    /// wire bytes → apply as one span-patch `SetField` edit under
+    /// **preserve** semantics ([`Scope::none`]: nothing re-derives;
+    /// untouched invalidities survive verbatim). `None` when there is
+    /// no patchable candidate (or the patch refuses): the caller falls
+    /// through to the raw byte level.
     fn mutate_spec(&mut self, frame: &[u8], len_only: bool) -> Option<Vec<u8>> {
-        let spec = spec_from_frame(self.registry, frame)?;
+        let pkt = dissect(self.registry, frame, "auto");
         // Candidate (layer, field) pairs. The len strategy targets
-        // length-bearing fields, which spec_from_frame drops (autofill
-        // re-derives them) — enumerate them from a fresh dissection.
+        // length-bearing fields; the field strategy every other
+        // field (derived fields stay out: the len split keeps the
+        // T6 strategy semantics).
         let mut candidates: Vec<(usize, String)> = Vec::new();
-        if len_only {
-            let pkt = dissect(self.registry, frame, "auto");
-            for (li, l) in pkt.layers.iter().enumerate() {
-                for name in l.fields.keys() {
-                    if LENGTH_FIELDS.contains(&name.as_str()) {
-                        candidates.push((li, name.clone()));
-                    }
-                }
-            }
-        } else {
-            for (li, layer) in spec.layers.iter().enumerate() {
-                for name in layer.fields.keys() {
+        for (li, l) in pkt.layers.iter().enumerate() {
+            for name in l.fields.keys() {
+                if len_only {
                     if !LENGTH_FIELDS.contains(&name.as_str()) {
-                        candidates.push((li, name.clone()));
+                        continue;
                     }
+                } else if DERIVED_FIELDS.contains(&name.as_str()) {
+                    continue;
                 }
+                // Only patchable geometry is a candidate: dynamic
+                // regions, pointer-resolved names and re-encode
+                // slices fall through to the raw level (the T6 rule).
+                match l.field_spans.get(name) {
+                    Some(FieldSpan::Bytes(_) | FieldSpan::Bits { .. }) => {}
+                    _ => continue,
+                }
+                candidates.push((li, name.clone()));
             }
         }
         if candidates.is_empty() {
             return None;
         }
         let (li, name) = candidates[(self.rng.next_u64() as usize) % candidates.len()].clone();
-        // The old value: from the spec (field strategy — lengths were
-        // dropped there), or from the fresh dissection (len strategy —
-        // the spec does not carry the field).
-        let old = if len_only {
-            let pkt = dissect(self.registry, frame, "auto");
-            pkt.layers.get(li)?.fields.get(&name)?.clone()
-        } else {
-            spec.layers[li].fields.get(&name)?.clone()
+        let layer = pkt.layers.get(li)?;
+        let old = layer.fields.get(&name)?.clone();
+        let bits = match layer.field_spans.get(&name)? {
+            FieldSpan::Bytes(r) => r.len() * 8,
+            FieldSpan::Bits { width, .. } => *width as usize,
+            FieldSpan::ReEncode(_) | FieldSpan::None => return None,
         };
         let mutated = if len_only {
-            // Perturb the length explicitly: autofill keeps it.
+            // Perturb the length explicitly: Scope::none keeps it.
             let delta = 1 + (self.rng.next_u64() % 16) as u128;
             match old {
-                Value::Int(v) => Value::Int((v.wrapping_add(delta)) & 0xffff),
-                _ => Value::Int(delta & 0xffff),
+                Value::Int(v) => Value::Int(v.wrapping_add(delta)),
+                _ => return None, // length fields are ints by construction
             }
         } else {
             self.mutate_value(&old)
         };
-        let mut spec = spec;
-        spec.layers[li].fields.insert(name, mutated);
-        encode(
-            self.registry,
-            &spec,
-            &EncodeOpts {
-                autofill: true,
-                ..Default::default()
-            },
-        )
-        .ok()
-        .map(|e| e.bytes.to_vec())
+        let schema = self.registry.schema(layer.kind)?;
+        let (kind, bit_names) = match schema.resolve(&name)? {
+            ResolvedField::Field(f) => (f.kind, f.bit_names),
+            ResolvedField::RecordField { field, .. } => (field.kind, field.bit_names),
+            // A top-level fields key never resolves as a flag sub-bit.
+            ResolvedField::FlagBit { .. } => return None,
+        };
+        let bytes = serialize_field_value(kind, bit_names, bits, &mutated)?;
+        let edit = Edit::SetField {
+            path: format!("{}.{}", layer.kind, name),
+            bytes: bytes::Bytes::from(bytes),
+        };
+        // Preserve semantics: Scope::none — the engine splices the edit,
+        // nothing is recomputed, untouched wrongness rides along.
+        patch(self.registry, &pkt, &[edit], &Scope::none())
+            .ok()
+            .map(|b| b.to_vec())
     }
 
     /// Mutate one typed value per its kind (stays type-valid; range
@@ -395,7 +404,7 @@ pub fn spec_from_frame(registry: &Registry, frame: &[u8]) -> Option<PacketSpec> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wrex_core::encode::EncodeOpts;
+    use wrex_core::encode::{EncodeOpts, encode};
 
     fn registry() -> Registry {
         let mut r = Registry::empty();
@@ -502,13 +511,54 @@ mod tests {
         for _ in 0..64 {
             let mutant = m.next_mutant();
             // Whatever the mutation, dissection must not panic (it
-            // may legitimately report anomalies).
-            let pkt = dissect(&reg, &mutant, "auto");
+            // may legitimately report anomalies). Dissect from the
+            // seed's own root: `auto` would misread a mutated eth.dst
+            // (first byte 0x4X/0x6X) as a raw ipv4/ipv6 datagram.
+            let pkt = dissect(&reg, &mutant, "eth");
             if pkt.anomalies.is_empty() {
-                // A clean mutant must still identify as eth.
+                // A clean mutant must still dissect as an eth stack.
                 assert_eq!(pkt.layers[0].kind, "eth");
             }
         }
+    }
+
+    #[test]
+    fn field_strategy_never_reshapes() {
+        let reg = registry();
+        let mut m = Mutator::new(&reg, vec![golden_udp()], Strategy::Field, 99).unwrap();
+        let mut n = Mutator::new(&reg, vec![golden_udp()], Strategy::Len, 7).unwrap();
+        for _ in 0..64 {
+            assert_eq!(m.next_mutant().len(), 46, "field keeps the shape");
+            assert_eq!(n.next_mutant().len(), 46, "len writes bytes, not shape");
+        }
+    }
+
+    /// Preserve semantics (tranche 11b-γ): the field/len strategies
+    /// ride the span-patch engine under `Scope::none`, so a seed's
+    /// untouched invalidities are carried **unhealed** — the old
+    /// spec-re-encode path healed them via autofill.
+    #[test]
+    fn field_strategy_carries_invalidity_unhealed() {
+        let reg = registry();
+        let mut seed = golden_udp();
+        // Deliberately wrong checksums (ipv4 at 14+10, udp at 34+6).
+        seed[24] = 0xde;
+        seed[25] = 0xad;
+        seed[40] = 0xbe;
+        seed[41] = 0xef;
+        let mut m = Mutator::new(&reg, vec![seed.clone()], Strategy::Field, 99).unwrap();
+        let carried = (0..128).any(|_| {
+            let mutant = m.next_mutant();
+            mutant != seed
+                && mutant[24] == 0xde
+                && mutant[25] == 0xad
+                && mutant[40] == 0xbe
+                && mutant[41] == 0xef
+        });
+        assert!(
+            carried,
+            "some field mutant must carry the seed's wrong checksums unhealed"
+        );
     }
 
     #[test]

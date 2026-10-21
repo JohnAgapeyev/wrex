@@ -527,12 +527,11 @@ T(n+1)".
     retransmitted NS beyond the single bounded attempt.
 
 - **T11 — lossless dissection + span-patch engine (byte-fidelity
-  contract)** — 🌤 T11a ✅, T11b-α ✅ and T11b-β ✅ delivered
-  (frame retention + engine core + full codec population); γ
-  (mut/CLI integration) chartered (settled at the T11 planning pass
-  as sub-tranches; the design unifies around the encode engine's
-  existing deferred-`Patch` derived-field resolution, walked in a
-  second direction):
+  contract)** — ✅ delivered (T11a, T11b-α, T11b-β and T11b-γ: frame
+  retention + engine core + full codec population + mut/CLI
+  integration; settled at the T11 planning pass as sub-tranches; the
+  design unifies around the encode engine's existing deferred-`Patch`
+  derived-field resolution, walked in a second direction):
   - **T11a — frame retention + verbatim reassembly** — ✅ delivered.
     `DissectedPacket` retains the original input (`frame: Bytes`);
     every layer span and the payload tail resolve against it, and
@@ -552,10 +551,9 @@ T(n+1)".
     `preserve`-semantics contract test). Deliberate deferrals:
     `frame` in the dissect JSON output (`--spans` rides T11b),
     span-carrying pcapng options.
-  - **T11b — the span-patch engine** — 🌤 α delivered (the engine
-    core + L2–L4 population); β (dns/dhcp spans) and γ (mut/CLI
-    integration) chartered. Buffer + edits + caller-selected
-    consistency, on the retained frame:
+  - **T11b — the span-patch engine** — ✅ delivered (α engine core +
+    L2–L4 population, β dns/dhcp spans, γ mut/CLI integration). Buffer
+    + edits + caller-selected consistency, on the retained frame:
     - **α — engine core + L2–L4 population** — ✅ delivered. The
       span taxonomy landed as designed: `FieldSpan` is a **closed
       geometry enum** (`Bytes` / `Bits{container, shift, width}` /
@@ -654,19 +652,53 @@ T(n+1)".
       scope-managed count workflow appears), ReEncode *application*
       (the codec re-encode hook), rdata name patches through
       compression pointers.
-    - **γ — `wrex-mut` + CLI integration** — chartered. Strategies
-      emit **edit sets** applied through the engine under `preserve`;
-      the recorded one-time re-baseline (untouched invalidities stop
-      being healed) lands here; strategies that cannot represent an
-      edit fall through per the T6 rule. `dissect --spans` emits the
-      taxonomy; man pages + completions regenerate.
-- **T12 — offline findings differential** — chartered. The natural
-  completion of the T6/T9 recording-prober design: a small offline verb
-  diffing two findings JSONL files (baseline vs mutated run, or two
-  targets against the same probe corpus) into a structured report
-  (per-probe outcome deltas, reply-presence changes, divergent bytes).
-  No new codecs, no new drivers, rides existing formats — cheap, and
-  ranked ahead of the BGP/SMB protocol tranches for that reason.
+    - **γ — `wrex-mut` + CLI integration** — ✅ delivered. The
+      field/len strategies emit **edit sets**: dissect → pick one
+      patchable field (span-`Bytes`/`Bits` candidates only; dynamic
+      regions, pointer-resolved names and `ReEncode` slices fall
+      through per the T6 rule) → mutate the typed value (the
+      unchanged `mutate_value`) → serialize it to the field's wire
+      bytes (`wrex_core::encode::serialize_field_value`, a new
+      schema-driven single-value serializer — `Bytes` spans want their
+      exact length, `Bits` windows `ceil(width/8)` BE bytes, FlagSet
+      aggregates pack through the `bit_names` MSB-first unit
+      convention) → `Edit::SetField` through the engine under
+      **preserve** (`Scope::none`: nothing recomputes — the T11a
+      contract now on the mutation path). flip/splice/raw keep direct
+      byte surgery (byte-level by definition; a `Scope::none` engine
+      pass would be a byte-identical passthrough). The recorded
+      **one-time re-baseline** landed: per-seed mutant streams change
+      (rng consumption order; same-seed determinism holds), and the
+      T6-era expectations that assumed autofill healing were swept —
+      the field strategy now *carries* seed invalidities (wrong
+      checksums ride along unhealed; new preserve-semantics units).
+      `dissect --spans` emits the taxonomy (opt-in, additive: per-layer
+      `spans` maps + `payload_span` in json/jsonl, a `spans:` text
+      section; default output byte-identical), with a CLI
+      total-presence assertion over the golden frame. Man pages +
+      completions regenerated (`wrex-diff(1)` included).
+- **T12 — offline findings differential** — ✅ delivered. The natural
+  completion of the T6/T9 recording-prober design: `wrex diff
+  BASELINE.jsonl MUTATED.jsonl`, a small offline verb diffing two
+  findings JSONL files (baseline vs mutated run, or two targets
+  against the same probe corpus) into a structured report. Findings
+  pair by probe identity — `(target, port, proto, round)`, `strategy`
+  carried never matched — index-wise in file order (duplicates never
+  cross); equal pairs are silent; entries carry outcome deltas,
+  reply-presence changes (`added`/`removed`), divergent reply bytes and
+  attempt-count changes (`rtt` is wall-clock noise, ignored; a
+  recorded decision). One-sided probes render with their probe hex.
+  Pure offline: `wrex-fuzz::diff` (an owned-string `FindingRecord`
+  deserialization mirror of `Finding`, gated by a field-for-field
+  parity unit; `Outcome` grew `Deserialize`), no codecs/drivers/
+  sockets; any completed diff exits 0 (the report is data — the scan
+  precedent), malformed lines exit 2 pointing at file:line. Formats:
+  text (default) / json (array) / jsonl. No new codecs, no new
+  drivers, rides existing formats. Verification: diff units (drift
+  gate, blank-line skipping, pointed malformed-line errors, pairing
+  under duplicate keys, one-sided ordering, equal-pair silence) and a
+  CLI suite (text/json/jsonl shapes, raw/hex usage rejection,
+  unreadable-file exit 1). Man pages + completions regenerated.
 
 ## Standing rules (carried from the tranche-1 plan)
 
