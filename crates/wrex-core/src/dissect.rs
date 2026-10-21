@@ -80,12 +80,56 @@ impl std::fmt::Display for Anomaly {
 
 /// A fully dissected packet. Never fatal: structural failures become
 /// [`Anomaly`]s plus a synthetic `unknown` layer holding the remaining bytes.
+///
+/// Tranche 11a (the byte-fidelity contract): the original input is
+/// **retained** in `frame`; every layer's `span` (and the payload tail)
+/// resolves against it, and [`DissectedPacket::reassemble`] stitches those
+/// spans back verbatim — zero edits ⇒ byte-identical by construction,
+/// malformed included (nothing is re-derived).
 #[derive(Clone, Debug)]
 pub struct DissectedPacket {
     pub start: &'static str,
     pub layers: Vec<LayerView>,
     pub payload: Bytes,
     pub anomalies: Vec<Anomaly>,
+    /// The original dissected input, retained verbatim (tranche 11a).
+    pub frame: Bytes,
+}
+
+impl DissectedPacket {
+    /// Verbatim reassembly (tranche 11a): splice each layer's span bytes
+    /// out of the retained `frame`, then the payload.
+    ///
+    /// With no edits applied this is byte-identical to `frame` **by
+    /// construction** for any input dissection accepts — wrong checksums,
+    /// compressed names, trailing bytes all survive, because no field is
+    /// ever re-derived. The future span-patch engine composes on this same
+    /// stitch: edits at spans, then a caller-selected derived-field
+    /// recompute pass (the deferred tranche-11b scope).
+    ///
+    /// Coverage invariant (holds for every packet produced by
+    /// [`dissect`], and debug-asserted here): layer spans are ordered,
+    /// non-overlapping, inside the frame, and together with the payload
+    /// exhaust it.
+    pub fn reassemble(&self) -> Bytes {
+        let len = self.frame.len();
+        let mut out = bytes::BytesMut::with_capacity(len);
+        let mut cursor = 0usize;
+        for l in &self.layers {
+            debug_assert!(
+                l.span.start >= cursor && l.span.end <= len && l.span.start <= l.span.end,
+                "layer {} span {:?} breaks coverage invariant (cursor {cursor}, frame {len})",
+                l.kind,
+                l.span
+            );
+            let s = l.span.start.min(len);
+            let e = l.span.end.max(s).min(len);
+            out.extend_from_slice(&self.frame[s..e]);
+            cursor = e;
+        }
+        out.extend_from_slice(&self.payload);
+        out.freeze()
+    }
 }
 
 /// Per-chain-walk decode context handed to [`crate::codec::Codec::read`].
@@ -215,6 +259,7 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
         layers,
         payload: Bytes::copy_from_slice(&bytes[payload_at..]),
         anomalies,
+        frame: Bytes::copy_from_slice(bytes),
     }
 }
 
@@ -264,6 +309,23 @@ mod tests {
         match p.layers[0].fields.get("hex") {
             Some(Value::Bytes(b)) => assert_eq!(&b[..], &[0xaa, 0xbb]),
             other => panic!("no hex field: {other:?}"),
+        }
+    }
+
+    /// Tranche 11a: the frame is retained and reassembles verbatim —
+    /// including on the never-fatal structural-failure paths.
+    #[test]
+    fn reassemble_is_verbatim_by_construction() {
+        let r = Registry::empty();
+        for (bytes, start) in [
+            (&[][..], "auto"),
+            (&[0xaa, 0xbb][..], "eth"),
+            (&[0xff; 14][..], "auto"),
+            (&[0xff; 13][..], "auto"),
+        ] {
+            let p = dissect(&r, bytes, start);
+            assert_eq!(&p.frame[..], bytes, "frame retained verbatim");
+            assert_eq!(&p.reassemble()[..], bytes, "reassemble == frame ({start})");
         }
     }
 }

@@ -365,6 +365,39 @@ T(n+1)".
     automatically); wrex-tls stays OUT of the Miri job (rustls + TCP
     sockets are not Miri-safe) and adds no fuzz targets (rustls
     carries its own; the adapter is thin).
+  - **T8b — pcapng** — ✅ delivered. `wrex-pcap` grows a pcapng reader
+    + a streaming `PcapngWriter` (the T5 `PcapWriter` shape: SHB +
+    one EN10MB IDB on open, snaplen 65535, no options — so the spec
+    default resolution applies and the EPB timestamps are absolute
+    epoch µs split into high/low words; snaplen truncation with
+    `orig_len` kept, 4-byte padding). Read auto-detects on the
+    byte-order-agnostic SHB type (0x0A0D0D0A both ways) with the
+    byte-order magic inside picking LE/BE; both tsresols read
+    (`if_tsresol` 9 → ns, 6 and any other value — decimal
+    resolutions included — → the never-fatal µs default; only
+    power-of-2 resolutions supported), unknown blocks skipped
+    honoring the spec's mandatory-skip semantics (the block-type LSB
+    picks "skip" vs "skip or abort"; a reader skips both — unknown
+    mandatory blocks never abort), the single-interface contract
+    tolerates nonzero interface ids with the LAST IDB winning, EPBs
+    before any IDB on the spec defaults, and truncated blocks → the
+    new `TruncatedBlock` (the `TruncatedRecord` spirit); same
+    `PcapFile` shape, additive `pcapng` flag, classic files
+    byte-identical. `wrex capture --pcapng` picks the new writer;
+    `wrex replay`, `wrex mut -r` and `xtask corpus-import` share the
+    reader and accept pcapng files automatically. Verification:
+    writer→reader roundtrip units + the 256-case proptest extended to
+    the pcapng writer, BE + ns + decimal-res + no-IDB + last-IDB
+    handcrafted vectors, an unknown-block-between-records vector, a
+    truncated-block suite (TooShort/BadMagic/`TruncatedBlock`),
+    `fuzz_pcapng_reader` + `fuzz_pcapng_roundtrip` in the fuzz gate,
+    a Kani EPB-fields roundtrip proof in the kani job, and CLI
+    offline tests (replay jsonl == dissect jsonl of the same frame,
+    `--format raw` concatenation, `--count`/`--filter` gating, `mut
+    -r` seeding). Man pages + completions regenerated. Deliberate
+    deferrals: writing multiple interfaces, IDB/EPB options
+    (`if_tsresol` on write, `epb_flags`), Simple Packet Blocks,
+    compression, multi-section files.
 - **T9 — HTTP completeness + application-layer fuzzing** — ✅
   delivered (chartered at the T9 planning pass as two sub-tranches,
   both additive; T9a lands first because T9b's transport comes from
@@ -493,46 +526,131 @@ T(n+1)".
     infrastructure), route re-reads on drift (read once at open),
     retransmitted NS beyond the single bounded attempt.
 
+- **T11 — lossless dissection + span-patch engine (byte-fidelity
+  contract)** — ✅ T11a delivered; T11b chartered (settled at the T11
+  planning pass as two sub-tranches; the design unifies around the
+  encode engine's existing deferred-`Patch` derived-field resolution,
+  walked in a second direction):
+  - **T11a — frame retention + verbatim reassembly** — ✅ delivered.
+    `DissectedPacket` retains the original input (`frame: Bytes`);
+    every layer span and the payload tail resolve against it, and
+    `DissectedPacket::reassemble` splices them back — **zero edits ⇒
+    byte-identical by construction**, for any input dissection accepts,
+    malformed included: no field is ever re-derived on the path (wrong
+    checksums, compressed names, trailing bytes all survive verbatim).
+    The coverage invariant (layer spans ordered, non-overlapping,
+    payload tail) is debug-asserted in `reassemble`; the craft/spec
+    encode path stays **semantic** (re-derived checksums, decompressed
+    names) — that is the correct behavior for crafting and it does not
+    change. No CLI change. Verification: `tests/reassemble.rs` — every
+    stack strategy (encode → dissect → reassemble == encoded, 256
+    cases), every corpus frame (golden + captured traffic,
+    dissect(auto) → reassemble == frame), and a deliberately wrong
+    explicit checksum (anomaly carried, bytes preserved — the
+    `preserve`-semantics contract test). Deliberate deferrals:
+    `frame` in the dissect JSON output (`--spans` rides T11b),
+    span-carrying pcapng options.
+  - **T11b — the span-patch engine** — chartered. Buffer + edits +
+    caller-selected consistency, on the retained frame:
+    - **Span taxonomy**: per-field spans as an enum, not a bare
+      range — `Bytes(Range)` (scalars, hoisted sources, derived
+      wire-homes), `Bits{container, shift, width}` (bit-sliced
+      subfields *and* aggregates: `flags` is the container),
+      `ReEncode(Range)` (trimmed/re-padded: dhcp sname/file — value
+      + NUL + pad re-encoded at the span), `None`
+      (pointer-resolved dns names — a pointed error under
+      span-patching, never a silent wrong-target write). Eight
+      classes enumerated: scalar, bit-sliced/aggregate, hoisted
+      (dhcp `msg_type` → its option-53 source), derived (the `Patch`
+      targets), pointer-resolved, trimmed, record-section entries
+      (`opt.N`/`an.N`), count↔section pairs. Per-codec
+      **population gate**: every registered schema field span-recorded
+      on a golden frame or on an explicit reasoned allowlist.
+    - **Ordered edit list** against the frame: `Overwrite` /
+      `Insert` / `Delete`, applied by splice (`Bytes` slicing,
+      zero-copy outside edited regions). Representability is a pure
+      per-edit function checked as a **pre-pass over the whole set**:
+      all edits apply, or the set falls back, or a pointed error
+      (overlap, unrepresentable, edit-inside-scope conflict) — never
+      partially applied, never last-write-wins.
+    - **Derived-field DAG, walked wire→wire**: the existing
+      `Patch::{Length{at,base}, Checksum{start,end,pseudo}, MinByte}`
+      resolution pass from encode, driven by edit invalidation
+      instead of autofill. One engine, two front-ends.
+    - **Caller-selected consistency scope** — the core design
+      decision: the DAG says what *could* be stale; the **caller**
+      explicitly selects what gets recomputed, per derived field
+      with **layer-wise shorthand** (`dns:*`), default = all layers
+      consistent. The archetypes are scope selections, not engine
+      modes: all (eBPF-style translation/NAT), outer-only (fuzzing
+      broken app payloads over healthy transport), inner-only
+      (fuzzing transport handling), none (craft-invalidity). Edits
+      decide bytes; scope decides recomputation; editing a field
+      also scoped for recompute is a pointed error.
+    - **`normalize`** is a verb-intent flag (canonical spec
+      re-encode), not a patch-engine policy; `preserve` rides by
+      default. Per-verb defaults keep today's bytes: `replay` and
+      the `fuzz` retransmit are degenerate empty-edit cases; `mut`
+      strategies emit **edit sets** applied through the engine —
+      untouched invalidities stop being healed (a recorded
+      one-time re-baseline decision: only outputs that encoded
+      healed-checksum mutations change).
+    - `wrex dissect --spans` emits the taxonomy; SDK-first (the
+      engine is the deliverable, CLI flags are thin). Man pages +
+      completions regenerate.
+    - Verification: population gate per codec; edit-set units
+      (overwrite/bit-mask/insert/delete, a dns record-insert +
+      count walk-through golden); determinism properties (same
+      edits, same bytes; conflicts → pointed errors); the T11a
+      gates still hold for empty edit sets; the wrong-checksum
+      pair — preserved under `preserve`, healed under `normalize`.
+    - Deliberate deferrals: incremental RFC 1071 checksum updates
+      under the recompute walk (compute-from-scratch first; the DAG
+      makes the optimization swappable later), pointer-chain
+      patching, filter-language span selectors.
+- **T12 — offline findings differential** — chartered. The natural
+  completion of the T6/T9 recording-prober design: a small offline verb
+  diffing two findings JSONL files (baseline vs mutated run, or two
+  targets against the same probe corpus) into a structured report
+  (per-probe outcome deltas, reply-presence changes, divergent bytes).
+  No new codecs, no new drivers, rides existing formats — cheap, and
+  ranked ahead of the BGP/SMB protocol tranches for that reason.
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a
     new feature-gated crate plus one `register` line — no dynamic loading
     ([ADR 1](adr/0001-compile-time-registry.md) resolved the T7 revisit).
+- **Codec selection follows [ADR 2](adr/0002-protocol-selection.md)**:
+    own the wire only where byte control over that protocol is central
+    and adapting a library costs as much as the subset; otherwise reuse
+    *behind the registry contract*, with a different-implementation
+    oracle (the inversion rule — never diff against the thing wrapped).
+    Dispositions recorded at each tranche's planning pass (BGP, SMB2/3,
+    HTTP/2, HTTP/3 carry advisory dispositions there already).
+- **Stability is a 1.0 event, not a now-tax.** wrex is SDK-bound — the
+    crate APIs (core dissect model, `Session`, `Driver`, codec
+    surfaces) are assumed-public-in-waiting, but pre-1.0 nothing is
+    frozen: breaking changes are free while nobody depends on them.
+    Each tranche designs public shapes with "would we freeze this?" as
+    a tie-breaker, not a constraint; API review, deprecation policy,
+    docs.rs and changelogs arrive with the 1.0 tranche (triggered by
+    first crates.io publish or first external embedder, whichever
+    comes first).
+- The **userspace TCP stack** stays deferred until a tranche needs to
+    mutate TCP state itself *and* continue the exchange (kernel
+    transport covers application-layer mutation; the T9b rationale).
+    When chartered it is a `wrex-io` driver under the frozen `Driver`
+    contract, **reuse-first** (smoltcp is the candidate — ADR 2's rule
+    with an obvious answer), and the transport-capability honesty
+    stays: kernel `TcpDriver` (byte-stream control) and a userspace
+    stack (segment control) are distinct, never equivalent capabilities.
+- **TLS-protocol fuzzing** (malformed-but-authenticated records; needs
+    session keys) is a separate specialized capability — never a
+    prerequisite for HTTPS crafting, never scope-crept into the
+    T8a rustls delegation ([ADR 2](adr/0002-protocol-selection.md)
+    carries the note).
 - Later tranches never break the frozen contracts of earlier ones;
     anything that would, gets its own planning pass first.
 - Every tranche lands with its verification story (oracles, corpora,
     fuzz surfaces) designed alongside the feature, not after it.
-  - **T8b — pcapng** — ✅ delivered. `wrex-pcap` grows a pcapng reader
-  - **T8a — TLS** — ✅ delivered. The rustls engine behind a new
-    + a streaming `PcapngWriter` (the T5 `PcapWriter` shape: SHB +
-    one EN10MB IDB on open, snaplen 65535, no options — so the spec
-    default resolution applies and the EPB timestamps are absolute
-    epoch µs split into high/low words; snaplen truncation with
-    `orig_len` kept, 4-byte padding). Read auto-detects on the
-    byte-order-agnostic SHB type (0x0A0D0D0A both ways) with the
-    byte-order magic inside picking LE/BE; both tsresols read
-    (`if_tsresol` 9 → ns, 6 and any other value — decimal
-    resolutions included — → the never-fatal µs default; only
-    power-of-2 resolutions supported), unknown blocks skipped
-    honoring the spec's mandatory-skip semantics (the block-type LSB
-    picks "skip" vs "skip or abort"; a reader skips both — unknown
-    mandatory blocks never abort), the single-interface contract
-    tolerates nonzero interface ids with the LAST IDB winning, EPBs
-    before any IDB on the spec defaults, and truncated blocks → the
-    new `TruncatedBlock` (the `TruncatedRecord` spirit); same
-    `PcapFile` shape, additive `pcapng` flag, classic files
-    byte-identical. `wrex capture --pcapng` picks the new writer;
-    `wrex replay`, `wrex mut -r` and `xtask corpus-import` share the
-    reader and accept pcapng files automatically. Verification:
-    writer→reader roundtrip units + the 256-case proptest extended to
-    the pcapng writer, BE + ns + decimal-res + no-IDB + last-IDB
-    handcrafted vectors, an unknown-block-between-records vector, a
-    truncated-block suite (TooShort/BadMagic/`TruncatedBlock`),
-    `fuzz_pcapng_reader` + `fuzz_pcapng_roundtrip` in the fuzz gate,
-    a Kani EPB-fields roundtrip proof in the kani job, and CLI
-    offline tests (replay jsonl == dissect jsonl of the same frame,
-    `--format raw` concatenation, `--count`/`--filter` gating, `mut
-    -r` seeding). Man pages + completions regenerated. Deliberate
-    deferrals: writing multiple interfaces, IDB/EPB options
-    (`if_tsresol` on write, `epb_flags`), Simple Packet Blocks,
-    compression, multi-section files.

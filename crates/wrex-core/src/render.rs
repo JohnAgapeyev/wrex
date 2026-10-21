@@ -234,6 +234,7 @@ mod tests {
                 "ipv4.checksum",
                 "mismatch (computed 0x7ccb, found 0x1234)",
             )],
+            frame: B::new(),
         }
     }
 

@@ -249,6 +249,17 @@ Deliberately invalid packets are a feature: explicit values always win
 and are kept unvalidated; `--strict` validates and reports violations
 (`wrex: <layer>.<field>: <message>`, exit 2).
 
+**Tranche 11a** (delivered): the byte-fidelity contract. Dissection
+retains the original frame (`DissectedPacket::frame`) and
+`reassemble()` splices the layer spans + payload back verbatim —
+zero edits ⇒ byte-identical by construction, malformed input
+included (nothing is re-derived: wrong checksums, compressed names,
+trailing bytes all survive). Gated by `tests/reassemble.rs`: every
+stack strategy, every corpus frame, and a deliberately wrong
+checksum that must stay wrong. The span-patch engine (edits at
+spans + caller-selected derived-field recomputation) is the
+chartered 11b follow-up.
+
 ## Layout
 
 ```

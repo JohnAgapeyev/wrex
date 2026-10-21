@@ -593,6 +593,7 @@ mod tests {
                 .collect(),
             payload: Bytes::new(),
             anomalies: vec![Anomaly::new("x", "y")],
+            frame: Bytes::new(),
         }
     }
 
