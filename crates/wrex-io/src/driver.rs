@@ -400,11 +400,16 @@ const ETHERTYPE_IPV6: u16 = 0x86dd;
 ///
 /// Per the T7a-pass decision there is no `IPV6_HDRINCL` (the kernel
 /// rejects full v6 headers on `AF_INET6` raw sockets), so **send**
-/// synthesizes a full Ethernet frame (`dst` = interface MAC, `src` =
-/// interface MAC, ethertype `0x86dd`) and injects it through the same
-/// `AF_PACKET` socket — the local stack processes it like ingress. This
-/// is the `lo`/on-link contract; off-link next-hop (NDP) resolution is
-/// a deliberate deferral.
+/// synthesizes a full Ethernet frame (ethertype `0x86dd`) and injects
+/// it through the same `AF_PACKET` socket — the local stack processes
+/// it like ingress.
+///
+/// Tranche 10b closed the T7b on-link-only contract: the frame's
+/// **destination MAC** now resolves per send — local/multicast
+/// destinations (the `lo` path) keep the interface MAC, an on-link or
+/// gateway neighbor resolves through the NDP cache
+/// ([`crate::ndp`], with `/proc/net/ipv6_route` next-hop lookup), and
+/// a failed resolution falls back to the interface MAC (never fatal).
 ///
 /// - **Receive** (`recv`): the same `AF_PACKET` socket bound to
 ///   `ETH_P_IPV6`, yielding the IPv6 datagram (Ethernet header stripped,
@@ -419,6 +424,17 @@ pub struct RawIpv6Driver {
     iface: String,
     #[cfg(target_os = "linux")]
     mac: [u8; 6],
+    /// Kernel routes for this iface (read once at open; a re-read on
+    /// drift is a deferral).
+    #[cfg(target_os = "linux")]
+    routes: Vec<crate::ndp::Route>,
+    /// NDP resolution state (tranche 10b).
+    #[cfg(target_os = "linux")]
+    ndp: crate::ndp::NdpCache,
+    /// Source address the NS carries (link-local preferred; `::` in
+    /// DAD form when the iface has none).
+    #[cfg(target_os = "linux")]
+    ns_source: std::net::Ipv6Addr,
     #[cfg(not(target_os = "linux"))]
     _unsupported: (),
 }
@@ -441,10 +457,25 @@ impl RawIpv6Driver {
         let fd = unsafe { crate::rx::open_packet_socket(ifindex, libc::htons(ETHERTYPE_IPV6)) }
             .map_err(map_socket_err)?;
 
+        // Tranche 10b: kernel routes (for next-hop lookup) and the NDP
+        // cache. A missing/unparsable route table is never fatal —
+        // sends keep the T7b iface-MAC fallback.
+        let routes = std::fs::read_to_string("/proc/net/ipv6_route")
+            .map(|dump| crate::ndp::parse_routes(&dump, iface))
+            .unwrap_or_default();
+        // NS source: link-local preferred (RFC 4861 §7.3.3 wants a
+        // local address; DAD form :: is the last resort).
+        let ns_source = crate::iface::system_ipv6_ll_for(iface)
+            .or_else(|| entry.ipv6s.first().copied())
+            .unwrap_or(std::net::Ipv6Addr::UNSPECIFIED);
+
         Ok(Self {
             fd,
             iface: iface.to_string(),
             mac: entry.mac,
+            routes,
+            ndp: crate::ndp::NdpCache::new(),
+            ns_source,
         })
     }
 
@@ -463,14 +494,53 @@ impl Driver for RawIpv6Driver {
                 "raw-ipv6 send needs a full IPv6 datagram (>= 40 bytes)",
             ));
         }
-        // Synthesize the Ethernet header (version nibble already 6 in the
-        // datagram; ethertype 0x86dd). dst/src = the interface MAC: the
-        // injected frame is processed by the local stack like ingress on
-        // that interface (the lo/on-link contract; off-link NDP
-        // resolution is a deferral).
+        // Tranche 10b: resolve the Ethernet next-hop before injecting.
+        // Local/multicast/no-route destinations (the `lo`/on-link T7b
+        // contract — every CI path) keep the iface-MAC behavior; an
+        // on-link or gateway neighbor resolves through the NDP cache.
+        // Failures resolve to the iface MAC (never fatal).
+        let dst_oct: [u8; 16] = datagram[24..40].try_into().expect("24..40 is 16 bytes");
+        let dst = std::net::Ipv6Addr::from(dst_oct);
+        let (fd, mac, ns_source) = (self.fd, self.mac, self.ns_source);
+        let next_hop = self
+            .ndp
+            .next_hop_mac(
+                &self.routes,
+                dst,
+                mac,
+                ns_source,
+                &mut |frame| {
+                    // SAFETY: `sendto` reads only `frame`'s bytes; `fd`
+                    // is a valid descriptor owned by `Self`.
+                    let n = unsafe {
+                        libc::sendto(
+                            fd,
+                            frame.as_ptr() as *const libc::c_void,
+                            frame.len(),
+                            0,
+                            std::ptr::null(),
+                            0,
+                        )
+                    };
+                    if n < 0 {
+                        return Err(io::Error::last_os_error());
+                    }
+                    Ok(())
+                },
+                // The kernel's own NA reply comes back as an OUTGOING
+                // copy on the egress iface — the resolution loop must
+                // accept every pkttype (the session recv skips them).
+                &mut |deadline| {
+                    crate::rx::recv_raw(fd, deadline).map(|o| o.map(|rx| (rx.bytes, rx.pkttype)))
+                },
+            )
+            .unwrap_or(None);
+        let dst_mac = next_hop.unwrap_or(mac);
+        // Synthesize the Ethernet header (version nibble already 6 in
+        // the datagram; ethertype 0x86dd) with the resolved next hop.
         let mac = self.mac;
         let mut frame = Vec::with_capacity(14 + datagram.len());
-        frame.extend_from_slice(&mac);
+        frame.extend_from_slice(&dst_mac);
         frame.extend_from_slice(&mac);
         frame.extend_from_slice(&ETHERTYPE_IPV6.to_be_bytes());
         frame.extend_from_slice(datagram);

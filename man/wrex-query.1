@@ -25,7 +25,7 @@ Disable every autofill/derivation (unspecified numeric fields → 0)
 Validate the crafted packet after encode (violations → exit 2)
 .TP
 \fB\-\-server\fR \fI<SERVER>\fR
-DNS server to ask
+DNS server to ask (IPv4 or IPv6; tranche 10a)
 .TP
 \fB\-\-port\fR \fI<PORT>\fR
 Server port (default 53)
@@ -74,6 +74,10 @@ QUERY GRAMMAR:
   success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
   data, printed in the dissected reply.
 
+  \-\-server accepts IPv4 or IPv6 (tranche 10a): a v6 server roots the
+  raw\-UDP query at ipv6 (the \-i iface picks its v6 source address),
+  and \-\-tcp/\-\-tls ride the dual\-family kernel driver.
+
   \-\-tls is DNS\-over\-TLS (RFC 7858): implies the TCP transport (a
   fresh TLS connection per attempt, no \-i needed), default server
   port 853, server name from \-\-server. \-\-tls\-insecure accepts any
@@ -91,3 +95,4 @@ EXAMPLES:
   wrex query \-i eth0 \-\-server 1.1.1.1 \-\-type MX \-\-seed 42 example.com
   wrex query \-\-tcp \-\-server 192.168.1.1 example.com
   wrex query \-\-tls \-\-server 192.168.1.1 \-\-tls\-insecure example.com
+  wrex query \-i lo \-\-server ::1 example.com

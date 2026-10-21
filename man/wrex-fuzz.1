@@ -88,6 +88,10 @@ MODES (\-\-mode, default udp):
   dns    application\-layer DNS: one RFC 7766 length\-prefixed query
          per probe over a fresh TCP connection (response recorded)
 
+  Targets speak either family (tranche 10a): v6 targets ride the
+  dual\-family kernel driver for the app modes; the raw modes keep
+  the scan\*(Aqs AF_PACKET/raw\-IP inject paths.
+
   Reply keys derive from the POST\-mutation dissection: a mutation
   that moved the identity still matches its own replies.
 

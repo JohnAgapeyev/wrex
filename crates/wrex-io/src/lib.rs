@@ -7,6 +7,7 @@
 
 pub mod driver;
 pub mod iface;
+pub mod ndp;
 pub mod replay;
 pub mod rng;
 pub mod tcp;

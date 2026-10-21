@@ -221,6 +221,17 @@ twice-deferred userspace TCP stack stays deferred — kernel transport
 covers application-layer mutation; only mutating TCP state *and*
 continuing the exchange would need it.
 
+**Tranche 10** (delivered): IPv6 parity closure. **10a**: the kernel
+`TcpDriver` speaks both families (EOF/bind/`--source-port` conventions
+unchanged), so `wrex query --server ::1` (raw UDP, `--tcp`, `--tls`
+DoT), `wrex http http://[::1]/`, and `wrex fuzz --mode http|dns` v6
+targets all ride v6; the DNS session builds `ipv6`-rooted queries with
+family-aware reply matching. **10b**: the raw v6 driver resolves
+off-link next hops — `/proc/net/ipv6_route` lookup plus an NDP
+cache (hand-rolled NS/NA in `wrex-io::ndp`, no codec deps); local and
+multicast destinations keep the `lo`/on-link iface-MAC behavior, and
+a failed resolution falls back to it (never fatal).
+
 Mutation and probing (tranche 6; `mut` needs no privileges, `fuzz`
 injects via a raw-IP socket — `CAP_NET_RAW`):
 
@@ -243,7 +254,7 @@ and are kept unvalidated; `--strict` validates and reports violations
 ```
 crates/wrex           CLI + library facade + registry composition
 crates/wrex-core      field/value model, schema (+record sections), codecs, encode/dissect engines
-crates/wrex-io        Clock, Rng, Driver, AF_PACKET/raw-IP/kernel-TCP drivers (only unsafe crate), ifaces
+crates/wrex-io        Clock, Rng, Driver, AF_PACKET/raw-IP/kernel-TCP drivers (only unsafe crate), ifaces, NDP next-hop resolution (T10b)
 crates/wrex-session   sans-IO Session contract + the shared runtime loop
 crates/wrex-scan      scan orchestration: probe table, scheduler, seeded jitter
 crates/wrex-dns       query orchestration: DNS ask sessions (udp + tcp)

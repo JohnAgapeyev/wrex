@@ -121,6 +121,51 @@ fn query_ground_truth_reply() {
     ));
 }
 
+/// Tranche 10a: the raw-UDP query over a v6 server (`::1` stub on lo).
+/// The datagram roots at ipv6; the reply dissects ipv6→udp→dns.
+#[test]
+fn query_ground_truth_reply_v6() {
+    if !driver_tests_enabled() {
+        skip("query_ground_truth_reply_v6");
+        return;
+    }
+    let sock = UdpSocket::bind("[::1]:0").expect("bind v6 stub");
+    let port = sock.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        let _ = sock.set_read_timeout(Some(Duration::from_secs(20)));
+        let Ok((n, from)) = sock.recv_from(&mut buf) else {
+            return;
+        };
+        let query = buf[..n].to_vec();
+        let reply = build_reply(&query, 0, true);
+        let _ = sock.send_to(&reply, from);
+    });
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "query",
+            "-i",
+            "lo",
+            "--server",
+            "::1",
+            "--port",
+            &port.to_string(),
+            "--timeout",
+            "800ms",
+            "example.com",
+        ])
+        .output()
+        .expect("spawn wrex query");
+    let code = out.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    assert_eq!(code, 0, "v6 reply is success\n{stderr}\n{stdout}");
+    assert!(
+        stdout.contains("an.0.rdata: 93.184.216.34"),
+        "typed A rdata must surface in the v6 text output\n{stdout}"
+    );
+}
+
 #[test]
 fn query_ground_truth_nxdomain_is_data() {
     if !driver_tests_enabled() {

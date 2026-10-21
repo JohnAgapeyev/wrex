@@ -434,6 +434,65 @@ T(n+1)".
     level covers), TLS-wrapped app probes (the T8a adapter composes
     the same stream contract; wiring is future work), v6 app targets.
 
+- **T10 — IPv6 parity closure** — ✅ delivered (chartered at the T10
+  planning pass as two sub-tranches, both additive; T10a landed first
+  because T10b's resolution rides the same driver plumbing):
+  - **T10a — v6 application transport** — ✅ delivered. The T7b
+    application-verb deferral closed: the kernel `TcpDriver` speaks
+    both families (`AF_INET`/`AF_INET6` via one `sockaddr_storage`
+    filler — the same stream conventions: EOF as an empty frame, `-i`
+    source bind and `--source-port` carried per family, a cross-family
+    bind a pointed error), so `wrex query --server <v6>` (raw UDP via
+    the `RawIpv6Driver`, `--tcp`, and `--tls` DoT — rustls is
+    family-agnostic, only the socket differs), `wrex http
+    http://[2001:db8::1]/` (bracketed literals per RFC 3986; SNI from
+    the URL host with brackets stripped — an IP literal matches the
+    cert's IP SAN, the T8a rule), and `wrex fuzz --mode http|dns` v6
+    targets all speak v6. The `DnsSession`/`QueryConfig` generalized
+    family-additively (`server`/`src` became `IpAddr`; the query
+    builds `[ipv6,udp,dns]` and reply matching keys `ipv6.dst`; the
+    DNS-over-TCP registry gate is family-aware; v4 wire stayed
+    byte-identical). `-i` picks the iface address of the target's
+    family (one family per raw-UDP run, the scan precedent). The
+    https recipe/CLI `Host` keeps brackets (RFC 9110). Verification:
+    driver units on `::1` (echo/EOF, refused→io-error, v4-mapped
+    `sockaddr` layout, family-mismatch gate), `DnsSession` v6 units
+    (query shape, v6-rooted reply resolution, v4↔v6 cross-talk),
+    CLI suites (`http http://[::1]/` against a `::1` stub asserting a
+    v6 peer, `query --server ::1` grammar + `--tcp` runtime-vs-usage
+    gates, `fuzz --mode http ::1` now a findings success), env-gated
+    ground truth on `lo` (`query -i lo --server ::1` end-to-end against
+    a bound `::1` UDP stub), and the man pages regenerated
+    (wrex-query(1), wrex-fuzz(1)). Deliberate deferrals: IPv6
+    extension headers/MLD (codec tranche), DHCPv6, userspace TCP
+    (fourth deferral, same rationale), ALPN/h2, mTLS, v6 zone-ids in
+    URL targets.
+  - **T10b — NDP / off-link next-hop resolution for the raw v6
+    drivers** — ✅ delivered. The T7b `RawIpv6Driver` on-link contract
+    closed: kernel route lookup (`/proc/net/ipv6_route` longest-prefix
+    match per egress iface, read once at driver open) picks the next
+    hop; an on-link or gateway neighbor resolves through a small NDP
+    cache (one multicast NS — solicited-node address, SLLA carried —
+    then a bounded 1s NA wait), then the frame injects with the
+    resolved Ethernet next-hop MAC. The NS/NA wire bytes are
+    hand-rolled in `wrex-io::ndp` (the io crate keeps no codec
+    dependencies; the checksum is an independent RFC 8200 §8.1 fold).
+    Local (`RTF_LOCAL`) and multicast destinations keep the T7b
+    iface-MAC behavior — `lo` never resolves NDP, so every CI path is
+    unchanged — an unresolved neighbor falls back to the iface MAC
+    (never fatal), and the kernel's own NA reply is accepted as an
+    `PACKET_OUTGOING` copy during resolution. `wrex scan`/`wrex fuzz`
+    v6 raw modes gain off-link reachability through the driver, no
+    session changes. Verification: `ndp` units (route parsing, LPM,
+    hex/mask parsing, solicited-node + multicast MACs, NS goldens
+    with independently folded checksums, NA round-trips, cache
+    hit/miss/fallback/gateway-resolution state walkthroughs).
+    Deliberate deferrals: NDP option *crafting* in the icmpv6 codec
+    (`opt` stays a dissect-only record — the driver hand-rolls its
+    SLLA), NDP probe fuzzing (the cache is best-effort
+    infrastructure), route re-reads on drift (read once at open),
+    retransmitted NS beyond the single bounded attempt.
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a

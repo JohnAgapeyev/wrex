@@ -2,6 +2,10 @@
 //! behind the [`Driver`] trait, with optional source-address binding,
 //! deadline-bounded reads and a stream-close convention.
 //!
+//! Tranche 10a: both address families speak. `connect` accepts any
+//! `SocketAddr` — `AF_INET` for v4, `AF_INET6` for v6 — with the same
+//! stream conventions, source bind and deadline handling either way.
+//!
 //! ## Stream framing on a datagram trait
 //!
 //! [`Driver`] was shaped by packet drivers; a stream needs two
@@ -200,26 +204,76 @@ impl Driver for TcpDriver {
     }
 }
 
+/// Fill a `sockaddr_storage` with `addr` (either family), returning the
+/// sockaddr length for the family (`bind`/`connect` check it against
+/// the family field).
+///
+/// # Safety
+///
+/// `dst` must point to a live, fully-sized `sockaddr_storage`; each arm
+/// writes only that family's sockaddr layout, which is `<=` the
+/// storage's size.
+unsafe fn fill_sockaddr(dst: &mut libc::sockaddr_storage, addr: SocketAddr) -> libc::socklen_t {
+    unsafe {
+        match addr {
+            SocketAddr::V4(a) => {
+                let sa = (dst as *mut libc::sockaddr_storage).cast::<libc::sockaddr_in>();
+                (*sa).sin_family = libc::AF_INET as u16;
+                (*sa).sin_port = a.port().to_be();
+                (*sa).sin_addr = libc::in_addr {
+                    s_addr: u32::from(*a.ip()).to_be(),
+                };
+                (*sa).sin_zero = [0; 8];
+                std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t
+            }
+            SocketAddr::V6(a) => {
+                let sa = (dst as *mut libc::sockaddr_storage).cast::<libc::sockaddr_in6>();
+                (*sa).sin6_family = libc::AF_INET6 as u16;
+                (*sa).sin6_port = a.port().to_be();
+                (*sa).sin6_flowinfo = 0;
+                (*sa).sin6_addr = libc::in6_addr {
+                    s6_addr: a.ip().octets(),
+                };
+                (*sa).sin6_scope_id = a.scope_id();
+                std::mem::size_of::<libc::sockaddr_in6>() as libc::socklen_t
+            }
+        }
+    }
+}
+
 /// Connect with a local bind and a bounded, nonblocking connect.
 ///
 /// Uses the raw path (rather than `TcpStream::connect_timeout`) because
 /// std offers no way to choose the local address for a client socket —
 /// `--source-port` determinism needs `bind(2)`.
+///
+/// Tranche 10a: both families. The bind address must share the peer's
+/// family (a v4 bind under a v6 connect is a pointed error).
 fn tcp_connect(
     peer: SocketAddr,
     bind: Option<SocketAddr>,
     timeout: Duration,
 ) -> Result<TcpStream, DriverError> {
-    let addr = match peer {
-        SocketAddr::V4(a) => a,
-        SocketAddr::V6(_) => {
-            return Err(DriverError::UnsupportedPlatform);
-        }
+    if let Some(bind) = bind.as_ref().filter(|b| b.is_ipv4() != peer.is_ipv4()) {
+        return Err(DriverError::Io {
+            source: io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "bind address family mismatch: cannot bind {bind} for a {} peer",
+                    if peer.is_ipv4() { "ipv4" } else { "ipv6" }
+                ),
+            ),
+        });
+    }
+    let af: i32 = if peer.is_ipv4() {
+        libc::AF_INET
+    } else {
+        libc::AF_INET6
     };
     // SAFETY: `socket` is a simple libc syscall with integer args.
     let fd = unsafe {
         libc::socket(
-            libc::AF_INET,
+            af,
             libc::SOCK_STREAM | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC,
             0,
         )
@@ -236,7 +290,7 @@ fn tcp_connect(
         DriverError::Io { source: err }
     };
 
-    if let Some(SocketAddr::V4(local)) = bind {
+    if let Some(local) = bind {
         // Deterministic --source-port reuse: TIME_WAIT sockets must not
         // break redials.
         let one: libc::c_int = 1;
@@ -253,20 +307,15 @@ fn tcp_connect(
         if ret < 0 {
             return Err(bail(fd, io::Error::last_os_error()));
         }
-        let sockaddr = libc::sockaddr_in {
-            sin_family: libc::AF_INET as u16,
-            sin_port: local.port().to_be(),
-            sin_addr: libc::in_addr {
-                s_addr: u32::from(*local.ip()).to_be(),
-            },
-            sin_zero: [0; 8],
-        };
-        // SAFETY: `bind` reads `sockaddr`; `fd` is valid and owned here.
+        let mut sockaddr: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        let len = unsafe { fill_sockaddr(&mut sockaddr, local) };
+        // SAFETY: `bind` reads `sockaddr` (filled for `local`'s family,
+        // matching the socket's); `fd` is valid and owned here.
         let ret = unsafe {
             libc::bind(
                 fd,
-                &sockaddr as *const libc::sockaddr_in as *const libc::sockaddr,
-                std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+                &sockaddr as *const libc::sockaddr_storage as *const libc::sockaddr,
+                len,
             )
         };
         if ret < 0 {
@@ -274,20 +323,15 @@ fn tcp_connect(
         }
     }
 
-    let sockaddr = libc::sockaddr_in {
-        sin_family: libc::AF_INET as u16,
-        sin_port: addr.port().to_be(),
-        sin_addr: libc::in_addr {
-            s_addr: u32::from(*addr.ip()).to_be(),
-        },
-        sin_zero: [0; 8],
-    };
-    // SAFETY: `connect` reads `sockaddr`; `fd` is valid and owned here.
+    let mut sockaddr: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+    let len = unsafe { fill_sockaddr(&mut sockaddr, peer) };
+    // SAFETY: `connect` reads `sockaddr` (filled for `peer`'s family);
+    // `fd` is valid and owned here.
     let ret = unsafe {
         libc::connect(
             fd,
-            &sockaddr as *const libc::sockaddr_in as *const libc::sockaddr,
-            std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+            &sockaddr as *const libc::sockaddr_storage as *const libc::sockaddr,
+            len,
         )
     };
     if ret < 0 {
@@ -431,5 +475,93 @@ mod tests {
             "--source-port must hold"
         );
         server.join().unwrap();
+    }
+
+    /// Tranche 10a: the same stream conventions over v6 (`::1`).
+    #[test]
+    #[cfg_attr(miri, ignore = "TCP sockets; not Miri-safe")]
+    fn echo_roundtrip_and_eof_v6() {
+        let listener = std::net::TcpListener::bind("[::1]:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        assert!(addr.is_ipv6());
+        let server = std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 1024];
+            let n = conn.read(&mut buf).unwrap();
+            conn.write_all(&buf[..n]).unwrap();
+            conn.shutdown(std::net::Shutdown::Write).unwrap();
+        });
+
+        let mut driver = TcpDriver::connect(addr, None, Duration::from_secs(5)).expect("connect");
+        driver.send(b"ping6").unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let frame = driver.recv(deadline).unwrap().expect("chunk");
+        assert_eq!(&frame.bytes[..], b"ping6");
+        let frame = driver.recv(deadline).unwrap().expect("eof frame");
+        assert!(frame.bytes.is_empty(), "EOF must be an empty frame");
+        server.join().unwrap();
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "TCP sockets; not Miri-safe")]
+    fn refused_maps_to_io_error_v6() {
+        let listener = std::net::TcpListener::bind("[::1]:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let err = match TcpDriver::connect(addr, None, Duration::from_secs(2)) {
+            Ok(_) => panic!("connect must fail on a dead v6 port"),
+            Err(e) => e,
+        };
+        assert!(matches!(err, DriverError::Io { .. }), "{err}");
+    }
+
+    /// A v4 bind under a v6 peer (and vice versa) is a pointed error,
+    /// not a kernel EINVAL.
+    #[test]
+    fn bind_family_mismatch_is_rejected_up_front() {
+        let v4_peer: SocketAddr = "127.0.0.1:80".parse().unwrap();
+        let v6_bind: SocketAddr = "[::1]:12345".parse().unwrap();
+        let err = match TcpDriver::connect(v4_peer, Some(v6_bind), Duration::from_secs(1)) {
+            Ok(_) => panic!("family mismatch must be rejected"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().contains("family mismatch"), "{err}");
+    }
+
+    /// `fill_sockaddr` writes the right layout per family (unit-level;
+    /// no sockets).
+    #[test]
+    fn sockaddr_fill_per_family() {
+        let mut sa: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        let len = unsafe { fill_sockaddr(&mut sa, "127.0.0.1:443".parse::<SocketAddr>().unwrap()) };
+        assert_eq!(len as usize, std::mem::size_of::<libc::sockaddr_in>());
+        unsafe {
+            let p = (&sa as *const libc::sockaddr_storage).cast::<libc::sockaddr_in>();
+            assert_eq!((*p).sin_family, libc::AF_INET as u16);
+            let v4 = &*p;
+            assert_eq!(v4.sin_port, 443u16.to_be());
+            assert_eq!(
+                v4.sin_addr.s_addr,
+                u32::from(std::net::Ipv4Addr::LOCALHOST).to_be()
+            );
+        }
+
+        let mut sa: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        let len =
+            unsafe { fill_sockaddr(&mut sa, "[2001:db8::1]:853".parse::<SocketAddr>().unwrap()) };
+        assert_eq!(len as usize, std::mem::size_of::<libc::sockaddr_in6>());
+        unsafe {
+            let p = (&sa as *const libc::sockaddr_storage).cast::<libc::sockaddr_in6>();
+            assert_eq!((*p).sin6_family, libc::AF_INET6 as u16);
+            let v6 = &*p;
+            assert_eq!(v6.sin6_port, 853u16.to_be());
+            assert_eq!(
+                v6.sin6_addr.s6_addr,
+                "2001:db8::1"
+                    .parse::<std::net::Ipv6Addr>()
+                    .unwrap()
+                    .octets()
+            );
+        }
     }
 }

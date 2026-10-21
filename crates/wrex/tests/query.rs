@@ -131,3 +131,46 @@ fn help_renders_the_query_grammar() {
     assert!(stdout.contains("--seed"), "{stdout}");
     assert!(stdout.contains("NXDOMAIN"), "{stdout}");
 }
+
+/// Tranche 10a: `--server` accepts either family. The v6 raw-UDP path
+/// still demands -i (usage, exit 2); `--tcp --server ::1` past grammar
+/// is a runtime failure (exit 1) against a dead port, not a usage
+/// error — proving the family gate went in.
+#[test]
+fn v6_server_is_in_charter() {
+    let (code, stderr) = query_err(&["--server", "::1", "example.com"]);
+    assert_eq!(code, 2, "{stderr}");
+    assert!(stderr.contains("query requires -i"), "{stderr}");
+
+    // A v6 literal is NOT a bad-server usage error anymore.
+    let (code, stderr) = query_err(&["-i", "lo", "--server", "::1", "a..b"]);
+    assert_eq!(code, 2);
+    assert!(
+        stderr.contains("label") && !stderr.contains("bad server"),
+        "{stderr}"
+    );
+
+    // --tcp over a dead ::1 port: connect refusal is a runtime error
+    // (exit 1) — proving the v6 family went past the usage gates into
+    // the (now dual-family) kernel driver.
+    let out = wrex()
+        .args([
+            "query",
+            "--tcp",
+            "--server",
+            "::1",
+            "--port",
+            "1",
+            "--timeout",
+            "200ms",
+            "example.com",
+        ])
+        .output()
+        .expect("spawn");
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("query --tcp") || stderr.contains("no reply"),
+        "{stderr}"
+    );
+}

@@ -67,7 +67,7 @@ impl<'a> DnsTcpSession<'a> {
         id: u16,
         t0: Instant,
     ) -> Result<Self, String> {
-        for kind in ["ipv4", "udp", "dns"] {
+        for kind in crate::session::kinds_for_family(&cfg.server) {
             if registry.get(kind).is_none() {
                 return Err(format!(
                     "{kind} layer not registered (registered: {})",

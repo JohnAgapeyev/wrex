@@ -2,7 +2,7 @@
 //! same dns id while attempts remain.
 
 use std::collections::BTreeMap;
-use std::net::Ipv4Addr;
+use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
@@ -18,8 +18,9 @@ use wrex_session::{Session, SessionAction};
 /// One validated question.
 #[derive(Clone, Debug)]
 pub struct QueryConfig {
-    /// DNS server address (datagram destination).
-    pub server: Ipv4Addr,
+    /// DNS server address (datagram destination; either family —
+    /// tranche 10a: v6 targets build `ipv6`-rooted queries).
+    pub server: IpAddr,
     /// Server port (53 by convention; `--port`).
     pub port: u16,
     /// Question name, dotted presentation form.
@@ -57,6 +58,15 @@ impl QueryConfig {
     }
 }
 
+/// Network-layer registry kinds the query chain needs for `server`'s
+/// family (tranche 10a: family-aware gating).
+pub(crate) fn kinds_for_family(server: &IpAddr) -> [&'static str; 3] {
+    match server {
+        IpAddr::V4(_) => ["ipv4", "udp", "dns"],
+        IpAddr::V6(_) => ["ipv6", "udp", "dns"],
+    }
+}
+
 /// The query outcome: the dissected reply (exit-0 data, whatever the
 /// rcode says), or silence after every attempt.
 #[derive(Clone, Debug)]
@@ -74,8 +84,8 @@ pub enum DnsReply {
 pub struct DnsSession<'a> {
     registry: &'a Registry,
     cfg: QueryConfig,
-    /// Our source IPv4 (the `-i` interface address).
-    src: Ipv4Addr,
+    /// Our source address (the `-i` interface address; either family).
+    src: IpAddr,
     now: Instant,
     /// Seeded query identity.
     sport: u16,
@@ -105,10 +115,10 @@ impl<'a> DnsSession<'a> {
     pub fn new(
         registry: &'a Registry,
         cfg: QueryConfig,
-        src: Ipv4Addr,
+        src: IpAddr,
         t0: Instant,
     ) -> Result<Self, String> {
-        for kind in ["ipv4", "udp", "dns"] {
+        for kind in kinds_for_family(&cfg.server) {
             if registry.get(kind).is_none() {
                 return Err(format!(
                     "{kind} layer not registered (registered: {})",
@@ -151,14 +161,24 @@ impl<'a> DnsSession<'a> {
         self.id
     }
 
-    /// Does a dissected frame match our 4-tuple?
+    /// Does a dissected frame match our 4-tuple? Family-aware (10a): the
+    /// network layer is `ipv4`/`ipv6` per the source family and the
+    /// destination field carries the matching `Value` kind.
     fn matches_udp(&self, pkt: &DissectedPacket) -> bool {
-        let Some(ip) = pkt.layers.iter().find(|l| l.kind == "ipv4") else {
+        let ip_kind = match self.src {
+            IpAddr::V4(_) => "ipv4",
+            IpAddr::V6(_) => "ipv6",
+        };
+        let Some(ip) = pkt.layers.iter().find(|l| l.kind == ip_kind) else {
             return false;
         };
-        match ip.fields.get("dst") {
-            Some(Value::Ipv4(dst)) if *dst == self.src => {}
-            _ => return false,
+        let dst_ok = match (&self.src, ip.fields.get("dst")) {
+            (IpAddr::V4(src), Some(Value::Ipv4(dst))) => dst == src,
+            (IpAddr::V6(src), Some(Value::Ipv6(dst))) => dst == src,
+            _ => false,
+        };
+        if !dst_ok {
+            return false;
         }
         let Some(udp) = pkt.layers.iter().find(|l| l.kind == "udp") else {
             return false;
@@ -204,7 +224,11 @@ impl<'a> Session for DnsSession<'a> {
         if self.phase != Phase::InFlight {
             return; // late reply after resolution or exhaustion
         }
-        let mut pkt = dissect(self.registry, &frame.bytes, "ipv4");
+        let start = match self.src {
+            IpAddr::V4(_) => "ipv4",
+            IpAddr::V6(_) => "ipv6",
+        };
+        let mut pkt = dissect(self.registry, &frame.bytes, start);
         if !self.matches_udp(&pkt) {
             return; // cross-talk
         }
@@ -290,19 +314,34 @@ pub fn build_tcp_query(
     Ok(encoded.bytes)
 }
 
-/// Build the `[ipv4, udp, dns]` query datagram through the encode
-/// engine (autofilled lengths/checksums; the kernel routes it).
+/// Build the network-rooted query datagram through the encode engine
+/// (autofilled lengths/checksums; the kernel routes it). Family-aware
+/// (tranche 10a): `ipv4` (ttl 64) or `ipv6` (hop limit 64) — v4 wire
+/// stays byte-identical to the tranche-3 shape.
 fn build_query(
     registry: &Registry,
     cfg: &QueryConfig,
-    src: Ipv4Addr,
+    src: IpAddr,
     sport: u16,
     id: u16,
 ) -> Result<Bytes, String> {
     let mut ip_fields = BTreeMap::new();
-    ip_fields.insert("src".to_string(), Value::Ipv4(src));
-    ip_fields.insert("dst".to_string(), Value::Ipv4(cfg.server));
-    ip_fields.insert("ttl".to_string(), Value::Int(64));
+    match (&cfg.server, &src) {
+        (IpAddr::V4(dst), IpAddr::V4(src)) => {
+            ip_fields.insert("src".to_string(), Value::Ipv4(*src));
+            ip_fields.insert("dst".to_string(), Value::Ipv4(*dst));
+            ip_fields.insert("ttl".to_string(), Value::Int(64));
+        }
+        (IpAddr::V6(dst), IpAddr::V6(src)) => {
+            ip_fields.insert("src".to_string(), Value::Ipv6(*src));
+            ip_fields.insert("dst".to_string(), Value::Ipv6(*dst));
+            ip_fields.insert("hop_limit".to_string(), Value::Int(64));
+        }
+        // One family per run: the caller picks `src` from the same
+        // family as `server` (the CLI enforces it; mismatched configs
+        // cannot build a coherent datagram).
+        _ => return Err("query source/server address family mismatch".to_string()),
+    }
 
     let mut udp_fields = BTreeMap::new();
     udp_fields.insert("sport".to_string(), Value::Int(sport as u128));
@@ -319,7 +358,13 @@ fn build_query(
 
     let spec = PacketSpec::new(
         vec![
-            LayerSpec::with_fields("ipv4", ip_fields),
+            LayerSpec::with_fields(
+                match src {
+                    IpAddr::V4(_) => "ipv4",
+                    IpAddr::V6(_) => "ipv6",
+                },
+                ip_fields,
+            ),
             LayerSpec::with_fields("udp", udp_fields),
             LayerSpec::with_fields("dns", dns_fields),
         ],
@@ -348,8 +393,10 @@ pub(crate) mod tests_support {
     pub(crate) fn registry() -> Registry {
         let mut r = Registry::empty();
         r.register(&wrex_proto_ip::CODEC);
+        r.register(&wrex_proto_ip6::CODEC);
         r.register(&wrex_proto_udp::CODEC);
         r.register(&wrex_proto_icmp::CODEC);
+        r.register(&wrex_proto_icmpv6::CODEC);
         r.register(&wrex_proto_tcp::CODEC);
         r.register(&wrex_proto_dns::CODEC);
         r
@@ -369,8 +416,21 @@ pub(crate) mod tests_support {
         }
     }
 
-    pub(crate) fn src() -> Ipv4Addr {
+    /// A v6 cfg (tranche 10a): same grammar, `::1` server.
+    pub(crate) fn cfg6() -> QueryConfig {
+        QueryConfig {
+            server: "::1".parse().unwrap(),
+            ..cfg()
+        }
+    }
+
+    pub(crate) fn src() -> IpAddr {
         "127.0.0.1".parse().unwrap()
+    }
+
+    /// A v6 source for the v6 cfg (same family).
+    pub(crate) fn src6() -> IpAddr {
+        "::1".parse().unwrap()
     }
 
     pub(crate) fn t0() -> Instant {
@@ -380,7 +440,7 @@ pub(crate) mod tests_support {
 
 #[cfg(test)]
 mod tests {
-    use super::tests_support::{cfg, registry, src, t0};
+    use super::tests_support::{cfg, cfg6, registry, src, src6, t0};
     use super::*;
 
     fn frame(bytes: Vec<u8>) -> Frame {
@@ -392,13 +452,27 @@ mod tests {
     }
 
     /// Craft the reply a real resolver would send: our 4-tuple, our id,
-    /// qr+rd+ra, one A answer.
+    /// qr+rd+ra, one A answer. Family-aware (10a): the reply roots at
+    /// ipv4 or ipv6 to mirror the session's source family.
     fn reply(reg: &Registry, s: &DnsSession<'_>, rcode: u8, answer: bool) -> Vec<u8> {
         let query = s.query_bytes().to_vec();
         // Echo the query's question verbatim, rewrite header + counts.
         let mut ip_fields = BTreeMap::new();
-        ip_fields.insert("src".to_string(), Value::Ipv4("127.0.0.1".parse().unwrap()));
-        ip_fields.insert("dst".to_string(), Value::Ipv4(src()));
+        match (s.cfg.server, s.src) {
+            (std::net::IpAddr::V4(server), std::net::IpAddr::V4(src)) => {
+                ip_fields.insert("src".to_string(), Value::Ipv4(server));
+                ip_fields.insert("dst".to_string(), Value::Ipv4(src));
+            }
+            (std::net::IpAddr::V6(server), std::net::IpAddr::V6(src)) => {
+                ip_fields.insert("src".to_string(), Value::Ipv6(server));
+                ip_fields.insert("dst".to_string(), Value::Ipv6(src));
+            }
+            _ => panic!("family mismatch in test reply"),
+        }
+        let ip_kind = match s.src {
+            std::net::IpAddr::V4(_) => "ipv4",
+            std::net::IpAddr::V6(_) => "ipv6",
+        };
         let mut udp_fields = BTreeMap::new();
         udp_fields.insert("sport".to_string(), Value::Int(53));
         udp_fields.insert("dport".to_string(), Value::Int(s.sport as u128));
@@ -422,7 +496,7 @@ mod tests {
         let dns = LayerSpec::with_fields("dns", dns_fields);
         let mut spec = PacketSpec::new(
             vec![
-                LayerSpec::with_fields("ipv4", ip_fields),
+                LayerSpec::with_fields(ip_kind, ip_fields),
                 LayerSpec::with_fields("udp", udp_fields),
                 dns,
             ],
@@ -456,7 +530,6 @@ mod tests {
         let reg = registry();
         let s = DnsSession::new(&reg, cfg(), src(), t0()).unwrap();
         let bytes = s.query_bytes();
-        // dissects as ipv4 → udp → dns with the seeded identity
         let pkt = dissect(&reg, bytes, "ipv4");
         assert!(pkt.anomalies.is_empty(), "{:?}", pkt.anomalies);
         assert_eq!(
@@ -475,6 +548,57 @@ mod tests {
             dns.fields.get("flags"),
             Some(Value::List(items)) if items.contains(&Value::Str("rd".into()))
         ));
+    }
+
+    /// Tranche 10a: a v6 cfg builds an `ipv6 → udp → dns` query, and a
+    /// v6-rooted reply with our 4-tuple + id resolves.
+    #[test]
+    fn query_shape_and_reply_v6() {
+        let reg = registry();
+        let s = DnsSession::new(&reg, cfg6(), src6(), t0()).unwrap();
+        let bytes = s.query_bytes();
+        let pkt = dissect(&reg, bytes, "ipv6");
+        assert!(pkt.anomalies.is_empty(), "{:?}", pkt.anomalies);
+        assert_eq!(
+            pkt.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec!["ipv6", "udp", "dns"]
+        );
+        let ip = &pkt.layers[0];
+        assert_eq!(
+            ip.fields.get("dst"),
+            Some(&Value::Ipv6("::1".parse::<std::net::Ipv6Addr>().unwrap()))
+        );
+        assert_eq!(ip.fields.get("hop_limit"), Some(&Value::Int(64)));
+
+        // drive: send, then a v6-rooted reply resolves.
+        let mut s = DnsSession::new(&reg, cfg6(), src6(), t0()).unwrap();
+        while s.poll_action().is_some() {}
+        let bytes = reply(&reg, &s, 0, true);
+        s.on_frame(frame(bytes), t0() + Duration::from_millis(5));
+        assert!(
+            matches!(s.poll_result(), Some(DnsReply::Reply(_))),
+            "v6 reply must resolve"
+        );
+        assert!(s.next_timeout().is_none(), "session must go idle");
+    }
+
+    /// A v4-rooted reply does not match a v6 session (family cross-talk).
+    #[test]
+    fn family_cross_talk_ignored() {
+        let reg = registry();
+        let mut s4 = DnsSession::new(&reg, cfg(), src(), t0()).unwrap();
+        while s4.poll_action().is_some() {}
+        let mut s6 = DnsSession::new(&reg, cfg6(), src6(), t0()).unwrap();
+        while s6.poll_action().is_some() {}
+        // The v4 session's reply carries the same id/port shapes but a
+        // v4 network layer: the v6 session must not resolve on it.
+        let bytes = reply(&reg, &s4, 0, false);
+        s6.on_frame(frame(bytes), t0());
+        assert!(s6.poll_result().is_none(), "family mismatch is cross-talk");
+        // and the v6 session's own reply still resolves.
+        let bytes = reply(&reg, &s6, 0, false);
+        s6.on_frame(frame(bytes), t0());
+        assert!(matches!(s6.poll_result(), Some(DnsReply::Reply(_))));
     }
 
     #[test]

@@ -624,7 +624,7 @@ pub struct ReplayArgs {
     pub seed: Option<u64>,
 }
 
-/// Epilog for query: the DNS ask verb (tranche 3; DoT at 8a).
+/// Epilog for query: the DNS ask verb (tranche 3; DoT at 8a; v6 at 10a).
 pub const QUERY_AFTER_HELP: &str = "\
 QUERY GRAMMAR:
   wrex query [-i IFACE] --server IP [--port 53] [--tcp]
@@ -636,6 +636,10 @@ QUERY GRAMMAR:
   SAME query (same dns id) after --timeout. A reply received is a
   success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
   data, printed in the dissected reply.
+
+  --server accepts IPv4 or IPv6 (tranche 10a): a v6 server roots the
+  raw-UDP query at ipv6 (the -i iface picks its v6 source address),
+  and --tcp/--tls ride the dual-family kernel driver.
 
   --tls is DNS-over-TLS (RFC 7858): implies the TCP transport (a
   fresh TLS connection per attempt, no -i needed), default server
@@ -653,7 +657,8 @@ EXAMPLES:
   wrex query -i eth0 --server 192.168.1.1 example.com
   wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
   wrex query --tcp --server 192.168.1.1 example.com
-  wrex query --tls --server 192.168.1.1 --tls-insecure example.com";
+  wrex query --tls --server 192.168.1.1 --tls-insecure example.com
+  wrex query -i lo --server ::1 example.com";
 
 /// Epilog for mut: the tranche-6a mutation verb.
 pub const MUT_AFTER_HELP: &str = "\
@@ -710,6 +715,10 @@ MODES (--mode, default udp):
          mutated REQUEST bytes are recorded with the response
   dns    application-layer DNS: one RFC 7766 length-prefixed query
          per probe over a fresh TCP connection (response recorded)
+
+  Targets speak either family (tranche 10a): v6 targets ride the
+  dual-family kernel driver for the app modes; the raw modes keep
+  the scan's AF_PACKET/raw-IP inject paths.
 
   Reply keys derive from the POST-mutation dissection: a mutation
   that moved the identity still matches its own replies.
@@ -854,7 +863,7 @@ pub struct ScanArgs {
 pub struct QueryArgs {
     #[command(flatten)]
     pub common: Common,
-    /// DNS server to ask.
+    /// DNS server to ask (IPv4 or IPv6; tranche 10a).
     #[arg(long)]
     pub server: Option<String>,
     /// Server port (default 53).

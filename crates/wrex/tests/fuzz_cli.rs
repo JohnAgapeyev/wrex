@@ -245,10 +245,27 @@ fn dns_mode_silence_on_dead_port_is_a_finding() {
 
 #[test]
 fn app_mode_grammar_errors_are_usage() {
-    // v6 targets are out of charter for the kernel v4 TCP driver.
-    let (code, stderr) = fuzz_err(&["--mode", "http", "::1"]);
-    assert_eq!(code, 2);
-    assert!(stderr.contains("IPv4"), "{stderr}");
+    // Tranche 10a: v6 app targets are IN charter now (dual-family
+    // kernel driver) — a dead `::1` port resolves as silence findings,
+    // exit 0. The format guard still applies.
+    let out = wrex()
+        .args([
+            "fuzz",
+            "--mode",
+            "http",
+            "--rounds",
+            "1",
+            "--timeout",
+            "100ms",
+            "::1",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(stdout.contains("::1"), "{stdout}");
+    assert!(stdout.contains("silence"), "{stdout}");
     // raw/hex carry no findings (app modes too)
     let (code, stderr) = fuzz_err(&["--mode", "http", "--format", "raw", "127.0.0.1"]);
     assert_eq!(code, 2);

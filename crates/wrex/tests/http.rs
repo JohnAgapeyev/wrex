@@ -163,6 +163,46 @@ fn fail_flag_and_formats_against_stub() {
     assert_eq!(json["body_hex"], "6869");
 }
 
+/// Tranche 10a: `http://[::1]:PORT/` — a bracketed v6 literal rides the
+/// dual-family kernel driver end-to-end (plain sockets, unprivileged).
+#[test]
+fn v6_bracketed_literal_against_stub() {
+    let listener = TcpListener::bind("[::1]:0").expect("bind v6 stub");
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let Ok((mut conn, peer)) = listener.accept() else {
+            return;
+        };
+        // The peer must be v6 (a dual-family driver, not a v4 fallback).
+        assert!(peer.is_ipv6(), "{peer}");
+        let mut buf = [0u8; 4096];
+        // Read the request head (until the blank line); the client
+        // holds the connection open awaiting the response, so a
+        // read-to-EOF here would deadlock.
+        let mut head = Vec::new();
+        loop {
+            let n = conn.read(&mut buf).unwrap_or(0);
+            if n == 0 {
+                break;
+            }
+            head.extend_from_slice(&buf[..n]);
+            if head.windows(4).any(|w| w == b"\r\n\r\n") {
+                break;
+            }
+        }
+        let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nv6!");
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    let out = wrex()
+        .args(["http", "--format", "raw", &format!("http://[::1]:{port}/")])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"v6!");
+}
+
 #[test]
 fn connect_failure_is_runtime_error() {
     // dead port: refused → exit 1 (not usage)

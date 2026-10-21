@@ -1443,32 +1443,34 @@ fn fuzz_app_probes(
     registry: &Registry,
     cfg: &wrex_fuzz::FuzzConfig,
 ) -> Result<Vec<wrex_fuzz::Finding>, CliError> {
-    use std::net::{Ipv4Addr, SocketAddrV4};
+    use std::net::IpAddr;
     use wrex_fuzz::{AppConfig, AppOutcome, AppSession, Outcome};
     use wrex_scan::ScanAddr;
 
-    // The kernel TcpDriver speaks v4 (out of charter otherwise).
-    let targets: Vec<Ipv4Addr> = cfg
-        .targets
-        .iter()
-        .map(|t| match t {
-            ScanAddr::V4(a) => Ok(*a),
-            ScanAddr::V6(_) => Err(usage(
-                "fuzz: app modes need IPv4 targets (the kernel TCP driver is v4)",
-            )),
-        })
-        .collect::<Result<_, _>>()?;
+    // Tranche 10a: both families. The kernel TcpDriver is dual-family;
+    // the probe table keeps the scan's family-homogeneous target list.
+    let targets: Vec<ScanAddr> = cfg.targets.clone();
 
     let mut rng = wrex_io::Rng::new(cfg.seed);
     let mut findings = Vec::new();
 
     for &target in &targets {
+        // The scan target grammar guarantees a family; the app probes
+        // speak either one through the kernel driver.
+        let target_ip: IpAddr = match target {
+            ScanAddr::V4(a) => IpAddr::V4(a),
+            ScanAddr::V6(a) => IpAddr::V6(a),
+        };
         for &port in &cfg.ports {
             // The unmutated seed request (verb-side; transport framing
             // is well-formed so mutations land on the request bytes).
             let seed: bytes::Bytes = match cfg.mode {
                 wrex_fuzz::ProbeMode::Http => {
-                    let url = format!("http://{target}/");
+                    // v6 literals need brackets in a URL (RFC 3986).
+                    let url = match target {
+                        ScanAddr::V4(_) => format!("http://{target}/"),
+                        ScanAddr::V6(_) => format!("http://[{target}]/"),
+                    };
                     let spec =
                         wrex_http::HttpRequestSpec::build("GET", &url, &[], bytes::Bytes::new())
                             .map_err(|e| usage(format!("fuzz: http seed: {e}")))?;
@@ -1478,7 +1480,7 @@ fn fuzz_app_probes(
                 wrex_fuzz::ProbeMode::Dns => {
                     // One RFC 7766 length-prefixed A query.
                     let qcfg = wrex_dns::QueryConfig {
-                        server: target,
+                        server: target_ip,
                         port,
                         name: "example.com.".to_string(),
                         qtype: "A".to_string(),
@@ -1491,7 +1493,7 @@ fn fuzz_app_probes(
                     let sess = wrex_dns::DnsSession::new(
                         registry,
                         qcfg,
-                        target, // packet src (unused: only query_bytes is read)
+                        target_ip, // packet src (same family as the server)
                         Instant::now(),
                     )
                     .map_err(|e| usage(format!("fuzz: dns seed: {e}")))?;
@@ -1540,12 +1542,9 @@ fn fuzz_app_probes(
                 let mut attempts = 0u32;
                 for _ in 0..=cfg.retries {
                     attempts += 1;
-                    let peer = SocketAddrV4::new(target, port);
-                    let Ok(mut driver) = wrex_io::TcpDriver::connect(
-                        std::net::SocketAddr::V4(peer),
-                        None,
-                        cfg.timeout,
-                    ) else {
+                    let peer = std::net::SocketAddr::new(target_ip, port);
+                    let Ok(mut driver) = wrex_io::TcpDriver::connect(peer, None, cfg.timeout)
+                    else {
                         continue; // refused/unreachable: silence, attempt spent
                     };
                     let t_start = Instant::now();
@@ -1571,7 +1570,7 @@ fn fuzz_app_probes(
                 }
 
                 findings.push(wrex_fuzz::Finding {
-                    target: ScanAddr::V4(target),
+                    target,
                     port: Some(port),
                     proto: cfg.mode.as_str(),
                     round,
@@ -1659,12 +1658,19 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     // IP SAN); roots: system store plus the recipe/CLI --tls-ca adds.
     // The knobs are per-connection: the first request's cfg wins.
     let tls_cfg = if scheme == "https" {
-        let host = specs[0]
+        // SNI from the URL host; brackets on v6 literals strip (rustls
+        // parses the bare IP for the IP-SAN match, the T8a rule).
+        let host_raw = specs[0]
             .url
             .authority()
             .map(|a| a.host())
-            .ok_or_else(|| usage("https url has no host".to_string()))?
-            .to_string();
+            .ok_or_else(|| usage("https url has no host".to_string()))?;
+        let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+            &host_raw[1..host_raw.len() - 1]
+        } else {
+            host_raw
+        }
+        .to_string();
         let ca_der = match &cfgs[0].tls_ca {
             Some(path) => {
                 Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("http: {e}")))?)
@@ -1686,7 +1692,8 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
         let peer = tcp_peer(&specs[0].url)?;
-        let bind = tcp_bind(common, args.source_port)?;
+        // The bind picks the iface address of the peer's family (10a).
+        let bind = tcp_bind(common, args.source_port, peer.ip())?;
         let queue_cfgs: Vec<HttpConfig> = cfgs
             .iter()
             .map(|c| HttpConfig {
@@ -1887,12 +1894,22 @@ fn build_http_requests(
 }
 
 /// Resolve the URI's authority to a socket address for TcpDriver.
+/// Tranche 10a: family-aware — bracketed v6 literals (RFC 3986) and
+/// v6-resolving names pick `AF_INET6` peers.
 fn tcp_peer(uri: &wrex_http::http::Uri) -> Result<std::net::SocketAddr, CliError> {
     use std::net::ToSocketAddrs;
     let authority = uri
         .authority()
         .ok_or_else(|| usage("url has no host".to_string()))?;
-    let host = authority.host();
+    let host_raw = authority.host();
+    // The http crate keeps IPv6 literal brackets in `host()`; strip
+    // them for the resolver (std's tuple parser takes the bare form).
+    let is_v6_literal = host_raw.starts_with('[') && host_raw.ends_with(']');
+    let host = if is_v6_literal {
+        &host_raw[1..host_raw.len() - 1]
+    } else {
+        host_raw
+    };
     let port = authority
         .port_u16()
         .unwrap_or_else(|| match uri.scheme_str() {
@@ -1904,22 +1921,28 @@ fn tcp_peer(uri: &wrex_http::http::Uri) -> Result<std::net::SocketAddr, CliError
     let mut addrs = (host, port)
         .to_socket_addrs()
         .map_err(|e| CliError::Runtime(format!("cannot resolve `{host}`: {e}")))?;
-    let addr = addrs
-        .next()
-        .ok_or_else(|| CliError::Runtime(format!("no address for `{host}`")))?;
-    if !addr.is_ipv4() {
-        return Err(CliError::Runtime(format!(
-            "`{host}` resolved to a non-IPv4 address (out of charter)"
-        )));
-    }
+    let addr = if let Ok(literal) = host.parse::<std::net::IpAddr>() {
+        // An IP literal picks its own family out of the resolver list
+        // (names may resolve to both).
+        addrs
+            .find(|a| a.ip() == literal)
+            .ok_or_else(|| CliError::Runtime(format!("no address for `{host}`")))?
+    } else {
+        addrs
+            .next()
+            .ok_or_else(|| CliError::Runtime(format!("no address for `{host}`")))?
+    };
     Ok(addr)
 }
 
 /// Local bind for the TCP connection: -i's address when given (multi-
-/// homed determinism), with --source-port honored.
+/// homed determinism), with --source-port honored. Tranche 10a: the
+/// bind picks the iface address of `family` (the peer's family — a
+/// cross-family bind is a kernel EINVAL).
 fn tcp_bind(
     common: &Common,
     source_port: Option<u16>,
+    family: std::net::IpAddr,
 ) -> Result<Option<std::net::SocketAddr>, CliError> {
     let Some(iface) = common.iface.as_deref() else {
         return Ok(None);
@@ -1935,12 +1958,26 @@ fn tcp_bind(
             ))
         })?
         .clone();
-    let ip =
-        entry.ipv4s.first().copied().ok_or_else(|| {
-            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
-        })?;
+    let ip = match family {
+        std::net::IpAddr::V4(_) => entry
+            .ipv4s
+            .first()
+            .copied()
+            .map(std::net::IpAddr::V4)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+            })?,
+        std::net::IpAddr::V6(_) => entry
+            .ipv6s
+            .first()
+            .copied()
+            .map(std::net::IpAddr::V6)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv6 source address"))
+            })?,
+    };
     Ok(Some(std::net::SocketAddr::new(
-        std::net::IpAddr::V4(ip),
+        ip,
         source_port.unwrap_or(0),
     )))
 }
@@ -2053,9 +2090,14 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
     let Some(server_raw) = args.server.as_deref() else {
         return Err(usage("query requires --server (e.g. --server 1.1.1.1)"));
     };
-    let server: std::net::Ipv4Addr = server_raw
-        .parse()
-        .map_err(|_| usage(format!("bad server `{server_raw}` (expected IPv4)")))?;
+    // Tranche 10a: either family. The raw UDP path roots the query at
+    // ipv4/ipv6 per the server family; --tcp/--tls ride the (now)
+    // dual-family kernel driver.
+    let server: std::net::IpAddr = server_raw.parse().map_err(|_| {
+        usage(format!(
+            "bad server `{server_raw}` (expected an IP address)"
+        ))
+    })?;
     let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
     let retries = args.retries.unwrap_or(1);
     let seed = args.seed.unwrap_or_else(time_seed);
@@ -2077,7 +2119,7 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
     // (kernel TCP routes and picks the source); the raw UDP path
     // needs -i.
     if args.tcp || args.tls {
-        let src = std::net::Ipv4Addr::LOCALHOST;
+        let src = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
         return query_tcp(registry, cfg, args, format, src);
     }
     let Some(iface) = iface else {
@@ -2094,14 +2136,40 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
             ))
         })?
         .clone();
-    let src =
-        entry.ipv4s.first().copied().ok_or_else(|| {
-            CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
-        })?;
+    // Tranche 10a: the source address family must match the server's
+    // (one family per run).
+    let (src, driver_open) = match server {
+        std::net::IpAddr::V4(_) => (
+            entry
+                .ipv4s
+                .first()
+                .copied()
+                .map(std::net::IpAddr::V4)
+                .ok_or_else(|| {
+                    CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+                })?,
+            false,
+        ),
+        std::net::IpAddr::V6(_) => (
+            entry
+                .ipv6s
+                .first()
+                .copied()
+                .map(std::net::IpAddr::V6)
+                .ok_or_else(|| {
+                    CliError::Runtime(format!("iface `{iface}` has no IPv6 source address"))
+                })?,
+            true,
+        ),
+    };
     let mut session = DnsSession::new(registry, cfg, src, Instant::now())
         .map_err(|e| usage(format!("query: {e}")))?;
-    let mut driver = RawIpDriver::open(iface, &table)?;
-    let outcomes = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+    let mut driver: Box<dyn wrex_io::Driver> = if driver_open {
+        Box::new(wrex_io::RawIpv6Driver::open(iface, &table)?)
+    } else {
+        Box::new(RawIpDriver::open(iface, &table)?)
+    };
+    let outcomes = wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
         .map_err(|e| CliError::Runtime(format!("query: {e}")))?;
 
     match outcomes.into_iter().next() {
@@ -2150,7 +2218,7 @@ fn query_tcp(
     cfg: wrex_dns::QueryConfig,
     args: &crate::cli::QueryArgs,
     format: Format,
-    src: std::net::Ipv4Addr,
+    src: std::net::IpAddr,
 ) -> Result<(), CliError> {
     use wrex_dns::{DnsTcpReply, DnsTcpSession};
 
@@ -2171,7 +2239,9 @@ fn query_tcp(
     // builder and stay identical on either transport).
     let _ = src;
     for attempt in 1..=attempts {
-        let peer = std::net::SocketAddr::new(std::net::IpAddr::V4(server), cfg.port);
+        // Tranche 10a: the peer speaks either family (the driver is
+        // dual-family; rustls's socket is the only difference for --tls).
+        let peer = std::net::SocketAddr::new(server, cfg.port);
         let bind = None;
         // --tls picks the TLS driver (same stream conventions); the
         // session and wire bytes are identical either way.
