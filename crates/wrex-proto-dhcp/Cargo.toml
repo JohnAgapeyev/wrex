@@ -1,0 +1,22 @@
+[package]
+name = "wrex-proto-dhcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex DHCP (RFC 2131/2132) codec"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+hex = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

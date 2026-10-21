@@ -274,6 +274,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
+name = "dhcproto"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c278d2f17dbcb7332f3b31788be67f76017096c5eedc293e1259f2d48b0f891f"
+dependencies = [
+ "dhcproto-macros",
+ "hickory-proto",
+ "ipnet",
+ "rand 0.10.3",
+ "thiserror",
+]
+
+[[package]]
+name = "dhcproto-macros"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3944d18b1889ce23702b0ea0230e87033cf5b4659e233419b5c00da3983a387b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "difflib"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1859,6 +1883,7 @@ dependencies = [
  "bytes",
  "clap",
  "clap_complete",
+ "dhcproto",
  "hex",
  "hickory-proto",
  "predicates",
@@ -1877,6 +1902,7 @@ dependencies = [
  "wrex-mut",
  "wrex-pcap",
  "wrex-proto-arp",
+ "wrex-proto-dhcp",
  "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",
@@ -1988,6 +2014,16 @@ name = "wrex-proto-arp"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "proptest",
+ "wrex-core",
+]
+
+[[package]]
+name = "wrex-proto-dhcp"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "hex",
  "proptest",
  "wrex-core",
 ]
@@ -2113,6 +2149,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "bytes",
+ "dhcproto",
  "etherparse",
  "hex",
  "hickory-proto",
@@ -2126,6 +2163,7 @@ dependencies = [
  "wrex-io",
  "wrex-pcap",
  "wrex-proto-arp",
+ "wrex-proto-dhcp",
  "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",

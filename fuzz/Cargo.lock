@@ -657,6 +657,7 @@ dependencies = [
  "wrex-mut",
  "wrex-pcap",
  "wrex-proto-arp",
+ "wrex-proto-dhcp",
  "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",
@@ -768,6 +769,15 @@ name = "wrex-proto-arp"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "wrex-core",
+]
+
+[[package]]
+name = "wrex-proto-dhcp"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "hex",
  "wrex-core",
 ]
 

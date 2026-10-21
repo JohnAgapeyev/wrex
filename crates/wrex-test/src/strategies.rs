@@ -14,12 +14,14 @@ pub const STACKS: &[&str] = &[
     "eth-vlan-ipv4-udp",
     "eth-vlan-ipv4-tcp",
     "eth-vlan-ipv4-icmp",
+    "eth-vlan-ipv4-udp-dhcp",
     "eth-vlan-ipv6-udp",
     "eth-vlan-ipv6-tcp",
     "eth-vlan-ipv6-icmpv6",
     "eth-ipv4-udp",
     "eth-ipv4-tcp",
     "eth-ipv4-icmp",
+    "eth-ipv4-udp-dhcp",
     "eth-ipv6-udp",
     "eth-ipv6-tcp",
     "eth-ipv6-icmpv6",
@@ -54,6 +56,19 @@ fn eth_derived() -> BoxedStrategy<LayerSpec> {
         .boxed()
 }
 
+/// Udp spec with client ports pinned (68→67): the dhcp stacks need the
+/// port dispatch to chain into the codec (the first fixed-port stack —
+/// dns has none; random ports would stay terminal).
+fn udp_for_dhcp() -> BoxedStrategy<LayerSpec> {
+    wrex_proto_udp::strategy::strategy()
+        .prop_map(|mut udp| {
+            udp.fields.insert("sport".to_string(), Value::Int(68));
+            udp.fields.insert("dport".to_string(), Value::Int(67));
+            udp
+        })
+        .boxed()
+}
+
 /// Vlan spec with the explicit `type` dropped: the ipv6 vlan stacks
 /// (tranche 7b) derive vlan.type from the next layer, so a random
 /// ethertype cannot mis-parse the v6 chain (see `eth_derived`).
@@ -69,6 +84,8 @@ fn vlan_derived() -> BoxedStrategy<LayerSpec> {
 /// Build a packet strategy for a named stack.
 ///
 /// Stacks: `"eth"`, `"eth-arp"`, `"eth-vlan"`, `"eth-vlan-vlan"` (QinQ),
+/// `"eth-ipv4-udp-dhcp"`, `"eth-vlan-ipv4-udp-dhcp"` (ports pinned
+/// 68→67 for the udp dispatch),
 /// `"eth-vlan-ipv4-udp"`, `"eth-vlan-ipv4-tcp"`, `"eth-vlan-ipv4-icmp"`,
 /// `"eth-ipv4-udp"`, `"eth-ipv4-tcp"`, `"eth-ipv4-icmp"`, `"ipv4"` (raw
 /// L3 start).
@@ -132,6 +149,31 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
         )
             .prop_map(|(eth, vlan, ip, icmp, pay)| {
                 PacketSpec::new(vec![eth, vlan, ip, icmp], Some(pay))
+            })
+            .boxed(),
+        // DHCP stacks (tranche 7c): the udp ports are pinned so the
+        // port dispatch chains into the dhcp codec.
+        "eth-ipv4-udp-dhcp" => (
+            wrex_proto_eth::strategy::strategy(),
+            wrex_proto_ip::strategy::strategy(),
+            udp_for_dhcp(),
+            wrex_proto_dhcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, udp, dhcp, pay)| {
+                PacketSpec::new(vec![eth, ip, udp, dhcp], Some(pay))
+            })
+            .boxed(),
+        "eth-vlan-ipv4-udp-dhcp" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip::strategy::strategy(),
+            udp_for_dhcp(),
+            wrex_proto_dhcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, udp, dhcp, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, udp, dhcp], Some(pay))
             })
             .boxed(),
         "ipv4" => (wrex_proto_ip::strategy::strategy(), payload())

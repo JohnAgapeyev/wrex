@@ -1,0 +1,89 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:11:22:33:44:55",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 31180,
+        "dst": "255.255.255.255",
+        "flags": [],
+        "frag_off": 0,
+        "id": 0,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "0.0.0.0",
+        "tos": 0,
+        "total_len": 290,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 15476,
+        "dport": 67,
+        "length": 270,
+        "sport": 68
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    },
+    {
+      "fields": {
+        "chaddr": "00112233445500000000000000000000",
+        "ciaddr": "0.0.0.0",
+        "cookie": 1669485411,
+        "file": "",
+        "flags": [],
+        "giaddr": "0.0.0.0",
+        "hlen": 6,
+        "hops": 0,
+        "htype": 1,
+        "msg_type": "discover",
+        "op": 1,
+        "opt.0.code": 53,
+        "opt.0.len": 1,
+        "opt.0.num": 1,
+        "opt.0.value": "01",
+        "opt.1.code": 55,
+        "opt.1.len": 7,
+        "opt.1.value": "0103060c0f3336",
+        "opt.2.code": 61,
+        "opt.2.len": 7,
+        "opt.2.value": "01001122334455",
+        "secs": 0,
+        "siaddr": "0.0.0.0",
+        "sname": "",
+        "xid": 287454020,
+        "yiaddr": "0.0.0.0"
+      },
+      "kind": "dhcp",
+      "span": [
+        42,
+        304
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

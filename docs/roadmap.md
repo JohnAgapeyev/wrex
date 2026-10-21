@@ -234,9 +234,74 @@ T(n+1)".
     (frames inject with the interface MAC; the `lo`/on-link contract
     only), NDP option *crafting* (options are dissect-only records),
     `query --server`/`http` URL v6 targets, v6 tail-shorthand ranges.
-  - **T7c — dhcp** — planned. Port-67/68 dispatch in the udp codec
-    (the tranche-3 port-dispatch pattern) plus dns-style record
-    sections for the options space.
+  - **T7c — dhcp** — ✅ delivered. `wrex-proto-dhcp` (kind `dhcp`,
+    rank 40, parent udp): the full RFC 2131 fixed header is craftable
+    (op/htype/hlen/hops, xid, secs, flags [broadcast] → 0x8000,
+    ciaddr/yiaddr/siaddr/giaddr, chaddr (16-byte zero-padded), sname/
+    file (NUL-padded to 64/128, dissection trims at the first NUL),
+    cookie — autofill `0x63825363`). `msg_type` is the hoisted
+    option 53 (the dns opcode/rcode precedent): craft accepts
+    `discover|…|inform` or 1–8 and writes the TLV, dissection hoists
+    it back so filters work regardless of option order (`msg_type` +
+    `type:` in the options grammar is a mutual-exclusion usage error).
+    The options region is craftable through the `options` list
+    grammar — declared `FieldKind::Str` so the grammar is CLI-reachable
+    via `--dhcp-options` (fixing the tranche-1 ip/tcp gotcha where a
+    Bytes kind blocks the grammar at the value parser): `type:`,
+    `mask:`, `routers:IP…`, `dns:IP…`, `host:`, `domain:`,
+    `req_ip:`, `lease:`, `renew:`, `rebind:`, `server:`,
+    `param_req:N…`, `max_msg:`, `client_id:HEX`, `pad`, and the raw
+    `hex:CODE:HEX` escape, on the ipv4/tcp pending-continuation
+    architecture (bare addresses/codes continue the previous option);
+    craft always appends the `end` (255) marker and raw `Value::Bytes`
+    regions are accepted too. Dissection renders every option as an
+    indexed record of the dissect-only `opt` section (the dns an/ns/ar
+    pattern) — `opt.N.code`, `opt.N.len`, `opt.N.value` (raw hex, the
+    wire truth) plus a typed subset per code: `ip` (Ipv4: subnet
+    mask/requested ip/server id; first address of routers/dns), `num`
+    (Int: message type/lease/renewal/rebinding/max message size),
+    `text` (Str: host/domain) — filters speak the typed paths (no
+    dns-rdata filter asymmetry). Pad (0) options are skipped, `end`
+    stops the walk (post-end bytes stay payload), an overrunning
+    option stops with a never-fatal anomaly. A wrong magic cookie is a
+    never-fatal `dhcp.cookie` anomaly and stops the layer at the fixed
+    header (BOOTP legacy — vend fields stay payload). `udp` dispatches
+    ports 67/68 into `dhcp` (the tranche-3 port-53 pattern; the
+    unregistered kind degrades to the engine's synthetic `unknown`
+    layer, never fatal). The CLI flags enumerate automatically
+    (`--dhcp-*`; `msg_type` keeps its underscore like `--tcp-data_off`).
+    Verification: codec units (golden header, sname/file padding +
+    NUL trimming, msg-type hoist + conflict guard, grammar records
+    order/typing, post-end payload, bad-cookie BOOTP, overrun anomaly,
+    truncation), options-grammar units (singles, comma continuations,
+    errors, `scan_msg_type` TLV walk), udp dispatch units (both ports,
+    both sides, unregistered degradation — in-crate stubs keep proto
+    isolation), the in-process `dhcproto 0.15` oracle in `wrex-test`
+    (`dhcp_oracle`, the hickory pattern; MSRV 1.87 fits the 1.88
+    floor, no bump; both-sides-parse; dhcproto's sname/file keep the
+    NUL terminator — normalized), a dedicated both-direction
+    differential (`tests/dhcp_differential.rs`, 256 cases: wrex craft
+    → dhcproto parse, dhcproto encode → wrex dissect; craft parity is
+    semantic, not byte-identical — dhcproto's BTreeMap encodes options
+    sorted by code, the wrex grammar preserves order), new differential
+    stacks `eth-ipv4-udp-dhcp` + `eth-vlan-ipv4-udp-dhcp` (the first
+    fixed-port stacks — a `udp_for_dhcp()` wrapper pins 68→67; the
+    generic differential's name-based `options` skip applies as-is)
+    against etherparse + tshark, a handcrafted `dhcp` golden corpus
+    (DISCOVER/OFFER/REQUEST/ACK/NAK/RELEASE + a bad-cookie BOOTP
+    frame), the tshark map's `dhcp` block (fixed header; sname/file
+    needed the missing `Value::Str` arm in `cmp_str` — dhcp is its
+    first Str field; options stay with dhcproto: tshark's repeated
+    `dhcp.option.type` JSON keys collapse, the vlan-tag problem),
+    `fuzz_dissect_dhcp` in the fuzz gate (release workflow + xtask
+    smoke), wrex-proto-dhcp in the Miri job, a CLI roundtrip test
+    (craft → dissect json → opt records, `wrex fields`, filters on the
+    hoist and typed records, the BOOTP-legacy path), and man pages +
+    completions regenerated. Deliberate deferrals: DHCPv6 (546/547 —
+    a different protocol; the tranche-7c charter is v4-only),
+    CLI-settable indexed option records (`opt` stays dissect-only),
+    deeper option typing beyond the committed grammar surface (raw
+    `hex:CODE:HEX` covers the rest), relay/sname-overload semantics.
   - **T7d — plugin ABI revisit** — ✅ resolved by decision
     ([ADR 1](adr/0001-compile-time-registry.md)): the registry stays
     compile-time; no dynamic `.so` loading. "Dissect-only profiles"

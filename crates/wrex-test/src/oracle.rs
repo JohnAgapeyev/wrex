@@ -453,6 +453,43 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_int_str(report, "icmpv6.type", ours, get("icmpv6.type"));
         cmp_int_str(report, "icmpv6.code", ours, get("icmpv6.code"));
     }
+    // dhcp (tranche 7c): fixed-header parity. The options space is the
+    // in-process dhcproto oracle's job — tshark's repeated
+    // `dhcp.option.type` JSON keys collapse (the vlan-tag problem), so
+    // per-option comparison there is value-ambiguous.
+    if let Some(dhcp_json) = layers.get("dhcp")
+        && let Some(ours) = by_kind("dhcp")
+    {
+        let get = |k: &str| dhcp_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "dhcp.op", ours, get("dhcp.type"));
+        cmp_int_str(report, "dhcp.hlen", ours, get("dhcp.hw.len"));
+        cmp_int_str(report, "dhcp.hops", ours, get("dhcp.hops"));
+        cmp_int_str(report, "dhcp.xid", ours, get("dhcp.id"));
+        cmp_int_str(report, "dhcp.secs", ours, get("dhcp.secs"));
+        cmp_str(report, "dhcp.ciaddr", ours, get("dhcp.ip.client"));
+        cmp_str(report, "dhcp.yiaddr", ours, get("dhcp.ip.your"));
+        cmp_str(report, "dhcp.siaddr", ours, get("dhcp.ip.server"));
+        cmp_str(report, "dhcp.giaddr", ours, get("dhcp.ip.relay"));
+        cmp_str(report, "dhcp.sname", ours, get("dhcp.server"));
+        cmp_str(report, "dhcp.file", ours, get("dhcp.file"));
+        // chaddr: tshark renders the first `hlen` bytes as a MAC.
+        if let Some(theirs) = get("dhcp.hw.mac_addr")
+            && let Some(Value::Bytes(ch)) = ours.fields.get("chaddr")
+            && let Some(Value::Int(hlen)) = ours.fields.get("hlen")
+            && let hlen = usize::try_from(*hlen).unwrap_or(0)
+            && hlen <= 6
+        {
+            let mut mac = [0u8; 6];
+            for (i, b) in ch.iter().take(hlen).enumerate() {
+                mac[i] = *b;
+            }
+            let ours_s = wrex_core::mac_string(mac);
+            let theirs_norm = theirs.trim().to_ascii_lowercase();
+            if ours_s != theirs_norm {
+                report.push("dhcp.chaddr", ours_s, theirs_norm);
+            }
+        }
+    }
     // udp / tcp
     if let Some(udp_json) = layers.get("udp")
         && let Some(ours) = by_kind("udp")
@@ -551,6 +588,9 @@ fn cmp_str(
             Some(Value::Ipv4(a)) => a.to_string(),
             Some(Value::Ipv6(a)) => a.to_string(),
             Some(Value::Int(v)) => v.to_string(),
+            // dhcp sname/file (tranche 7c) are Str fields; dns/an
+            // strings never reach the tshark map.
+            Some(Value::Str(s)) => s.clone(),
             other => format!("{other:?}"),
         };
         let theirs_norm = theirs.trim().to_ascii_lowercase();

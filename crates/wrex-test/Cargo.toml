@@ -21,6 +21,7 @@ wrex-proto-udp = { workspace = true, features = ["test-util"] }
 wrex-proto-vlan = { workspace = true, features = ["test-util"] }
 wrex-proto-tcp = { workspace = true, features = ["test-util"] }
 wrex-proto-dns = { workspace = true, features = ["test-util"] }
+wrex-proto-dhcp = { workspace = true, features = ["test-util"] }
 bytes = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
@@ -32,5 +33,8 @@ etherparse = { workspace = true }
 # RUSTSEC-2026-0119 (name-compression DoS); 0.25.x would trip the CI
 # audit job. 0.26 uses public fields (message.metadata, record.name…).
 hickory-proto = { workspace = true }
+# DHCP differential oracle (in-process, tranche 7c; MSRV 1.87 fits the
+# workspace floor — see the workspace pin note).
+dhcproto = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }

@@ -1,0 +1,90 @@
+.TH WREX-DHCP 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-dhcp \- dhcp layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIdhcp\fR \fB--dhcp\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIdhcp\fR
+
+.SH DESCRIPTION
+DHCP (RFC 2131) over UDP 67/68: the 240\-byte fixed header (op/htype/hlen/hops, xid, secs, flags [broadcast], ciaddr/yiaddr/siaddr/giaddr, chaddr, sname, file, cookie) plus RFC 2132 option TLVs. Craft: \-\-dhcp\-msg_type writes option 53 (discover|…|inform or 1\-8; underscore flags follow the codebase convention like \-\-tcp\-data_off), \-\-dhcp\-options takes the list grammar (type:, mask:, routers:IP…, dns:IP…, host:, domain:, req_ip:, lease:, renew:, rebind:, server:, param_req:N…, max_msg:, client_id:HEX, pad, hex:CODE:HEX) and the end marker is appended automatically. Dissect: every option lands in the dissect\-only opt record section (opt.0.code/len/value raw + typed ip/num/text subset); a wrong magic cookie is a never\-fatal anomaly and stops the layer at the fixed header (BOOTP legacy — vend fields stay payload). udp dispatches ports 67/68 into this codec. DHCPv6 and CLI\-settable option records are tranche\-7c deferrals.
+.
+
+.SH ENCAPSULATION
+Rank 40; stacks on udp (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --dhcp-op).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-dhcp\-op=\fIINT\fR\fR
+message op: 1 BOOTREQUEST (client), 2 BOOTREPLY (server) (autofill: 1) Type u8. Default: 1.
+.TP
+\fB\-\-dhcp\-htype=\fIINT\fR\fR
+hardware address type (autofill: 1 ethernet) Type u8. Default: 1.
+.TP
+\fB\-\-dhcp\-hlen=\fIINT\fR\fR
+hardware address length (autofill: 6) Type u8. Default: 6.
+.TP
+\fB\-\-dhcp\-hops=\fIINT\fR\fR
+relay hop count (autofill: 0) Type u8. Default: 0.
+.TP
+\fB\-\-dhcp\-xid=\fIINT\fR\fR
+transaction id (autofill: 0, deterministic) Type u32. Default: 0.
+.TP
+\fB\-\-dhcp\-secs=\fIINT\fR\fR
+seconds since client boot Type u16. Default: 0.
+.TP
+\fB\-\-dhcp\-flags\fR
+flag aggregate [broadcast] (0x8000); subpath flags.broadcast Type flagset. Default: 0.
+Bit names (MSB first): broadcast. Aggregate \fB\-\-dhcp\-flags\fR sets the whole unit; per-bit \-\-dhcp\-flags\-broadcast sets one bit.
+.TP
+\fB\-\-dhcp\-ciaddr=\fIIP\fR\fR
+client IP address Type ipv4. Default: 0.0.0.0.
+.TP
+\fB\-\-dhcp\-yiaddr=\fIIP\fR\fR
+your (client) IP address Type ipv4. Default: 0.0.0.0.
+.TP
+\fB\-\-dhcp\-siaddr=\fIIP\fR\fR
+server IP address Type ipv4. Default: 0.0.0.0.
+.TP
+\fB\-\-dhcp\-giaddr=\fIIP\fR\fR
+gateway/relay IP address Type ipv4. Default: 0.0.0.0.
+.TP
+\fB\-\-dhcp\-chaddr\fR
+client hardware address (up to 16 bytes, zero\-padded) Type bytes. Default: .
+.TP
+\fB\-\-dhcp\-sname=\fIINT\fR\fR
+server host name (NUL\-padded to 64; dissection trims at the first NUL) Type str. Default: .
+.TP
+\fB\-\-dhcp\-file=\fIINT\fR\fR
+boot file name (NUL\-padded to 128; dissection trims at the first NUL) Type str. Default: .
+.TP
+\fB\-\-dhcp\-cookie=\fIINT\fR\fR
+magic cookie (autofill: 0x63825363) Type u32. Default: 1669485411.
+.TP
+\fB\-\-dhcp\-msg_type=\fIINT\fR\fR
+DHCP message type, the hoisted option 53: discover|offer|request|decline|ack|nak|release|inform or 1\-8 (mutually exclusive with type: in \-\-dhcp\-options) Type str. Default: .
+.TP
+\fB\-\-dhcp\-options=\fIINT\fR\fR
+options list grammar: type:N, mask:IP, routers:IP…, dns:IP…, host:NAME, domain:NAME, req_ip:IP, lease:SECS, renew:SECS, rebind:SECS, server:IP, param_req:N…, max_msg:N, client_id:HEX, pad, hex:CODE:HEX (end marker appended automatically) Type str. Default: .
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (opt.0.field).
+
+.TP
+\fBopt\fR (dissect\-only)
+DHCP option TLVs after the magic cookie (dissect\-only; indexed paths opt.0.code, opt.0.value, …)
+  code (u8; default 0). option code (RFC 2132; 53 = message type)
+  len (u8; default 0). option data length in bytes
+  value (bytes; default ). raw option data hex (the wire truth)
+  ip (ipv4; default 0.0.0.0). typed address: subnet mask (1), requested ip (50), server id (54); first address of routers (3) / dns servers (6)
+  num (u32; default 0). typed number: message type (53), lease (51), renewal (58), rebinding (59), max message size (57)
+  text (str; default ). typed string: host name (12), domain name (15)
+
+.SH EXAMPLES
+wrex fields dhcp
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7)

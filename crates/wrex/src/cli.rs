@@ -19,10 +19,10 @@ FIELD FLAGS:
 
 LAYER KINDS:
   eth, arp, vlan, ipv4 (CLI alias: ip), ipv6 (CLI aliases: ip6, v6),
-  icmp, icmpv6, udp, tcp, dns.
+  icmp, icmpv6, udp, tcp, dns, dhcp.
   Ranks: eth 10; vlan 15; arp/ipv4/ipv6 20; icmp/icmpv6/udp/tcp 30
-  (stack on ipv4|ipv6); dns 40 (stacks on udp; port-53 datagrams
-  dissect into it).
+  (stack on ipv4|ipv6); dns 40 (port-53 datagrams dissect into it);
+  dhcp 40 (port-67/68 datagrams dissect into it).
   Man pages: wrex(1), wrex-<kind>(7) in man/ of the source checkout.
 
 VALUE GRAMMAR:

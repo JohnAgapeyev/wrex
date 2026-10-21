@@ -34,5 +34,7 @@ pub fn standard() -> wrex_core::Registry {
     r.register(&wrex_proto_tcp::CODEC);
     #[cfg(feature = "proto-dns")]
     r.register(&wrex_proto_dns::CODEC);
+    #[cfg(feature = "proto-dhcp")]
+    r.register(&wrex_proto_dhcp::CODEC);
     r
 }

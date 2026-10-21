@@ -43,9 +43,10 @@ wrex-proto-udp = { workspace = true, optional = true }
 wrex-proto-tcp = { workspace = true, optional = true }
 wrex-proto-dns = { workspace = true, optional = true }
 wrex-proto-vlan = { workspace = true, optional = true }
+wrex-proto-dhcp = { workspace = true, optional = true }
 
 [features]
-default = ["proto-eth", "proto-arp", "proto-ip", "proto-ip6", "proto-icmp", "proto-icmpv6", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan"]
+default = ["proto-eth", "proto-arp", "proto-ip", "proto-ip6", "proto-icmp", "proto-icmpv6", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan", "proto-dhcp"]
 proto-eth = ["dep:wrex-proto-eth"]
 proto-arp = ["dep:wrex-proto-arp"]
 proto-ip = ["dep:wrex-proto-ip"]
@@ -56,6 +57,7 @@ proto-udp = ["dep:wrex-proto-udp"]
 proto-tcp = ["dep:wrex-proto-tcp"]
 proto-dns = ["dep:wrex-proto-dns"]
 proto-vlan = ["dep:wrex-proto-vlan"]
+proto-dhcp = ["dep:wrex-proto-dhcp"]
 
 [dev-dependencies]
 wrex-test = { workspace = true }
@@ -69,6 +71,10 @@ serde_json = { workspace = true }
 # the workspace pin note).
 hickory-proto = { workspace = true }
 wrex-proto-dns = { workspace = true, features = ["test-util"] }
+# DHCP both-direction differential in tests/dhcp_differential.rs
+# (tranche 7c; see the workspace pin note).
+dhcproto = { workspace = true }
+wrex-proto-dhcp = { workspace = true, features = ["test-util"] }
 # HTTP differential oracle (in-process, blocking; http:// only).
 reqwest = { workspace = true }
 wrex-http = { workspace = true }

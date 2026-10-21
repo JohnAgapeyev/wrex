@@ -394,6 +394,129 @@ fn vlan_craft_dissect_roundtrip() {
     assert!(Filter::parse(&reg, "vlan.nope=1").is_err()); // unknown path
 }
 
+/// Tranche 7c: the dhcp codec flows through the registry end to end —
+/// port-67 dispatch, craft (msg_type + options grammar), dissect
+/// records, fields, filters.
+#[test]
+fn dhcp_craft_dissect_roundtrip() {
+    // full DISCOVER: eth -> ipv4 -> udp(68→67) -> dhcp
+    let bytes = wrex()
+        .args([
+            "craft",
+            "--format",
+            "raw",
+            "--layer",
+            "eth",
+            "--layer",
+            "ipv4",
+            "--layer",
+            "udp",
+            "--layer",
+            "dhcp",
+            "--eth-dst=ff:ff:ff:ff:ff:ff",
+            "--ipv4-src=0.0.0.0",
+            "--ipv4-dst=255.255.255.255",
+            "--udp-sport=68",
+            "--udp-dport=67",
+            "--dhcp-xid=0x11223344",
+            "--dhcp-chaddr=hex:001122334455",
+            "--dhcp-msg_type=discover",
+            "--dhcp-options=param_req:1,3,6,client_id:hex:01001122334455",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(
+        &wrex()
+            .args(["dissect", "--format", "json"])
+            .write_stdin(bytes.clone())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    // the udp port-67 dispatch chained into dhcp
+    let kinds: Vec<&str> = json["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, vec!["eth", "ipv4", "udp", "dhcp"]);
+    assert_eq!(json["anomalies"].as_array().unwrap().len(), 0);
+    let dhcp = &json["layers"][3]["fields"];
+    assert_eq!(dhcp["msg_type"], "discover");
+    assert_eq!(dhcp["xid"], 0x11223344);
+    // hoisted option 53 first, then the grammar options in order
+    assert_eq!(dhcp["opt.0.code"], 53);
+    assert_eq!(dhcp["opt.0.num"], 1);
+    assert_eq!(dhcp["opt.1.code"], 55);
+    assert_eq!(dhcp["opt.1.value"], "010306");
+    assert_eq!(dhcp["opt.2.code"], 61);
+    assert_eq!(dhcp["opt.2.value"], "01001122334455");
+
+    // fields enumerates the schema + the opt record section
+    let fields = String::from_utf8(
+        wrex()
+            .args(["fields", "dhcp"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(fields.contains("msg_type"), "{fields}");
+    assert!(fields.contains("record opt (dissect-only)"), "{fields}");
+    assert!(fields.contains("opt.0"), "{fields}");
+
+    // filters speak the flat hoist and the typed record fields
+    use wrex_core::filter::Filter;
+    let reg = wrex::standard();
+    let p = wrex_core::dissect::dissect(&reg, &bytes, "eth");
+    assert!(
+        Filter::parse(&reg, "dhcp.msg_type=discover")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(
+        !Filter::parse(&reg, "dhcp.msg_type=offer")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(Filter::parse(&reg, "dhcp.opt.0.num=1").unwrap().matches(&p));
+    // a record path the schema knows parses; opt.1 (code 55) has no
+    // num value, so it just does not match
+    assert!(!Filter::parse(&reg, "dhcp.opt.1.num=1").unwrap().matches(&p));
+    assert!(Filter::parse(&reg, "dhcp.opt.1.nope=1").is_err()); // unknown record field
+
+    // the bootp-legacy path: a wrong cookie is a never-fatal anomaly
+    // and the vend region stays payload
+    let legacy = wrex()
+        .args([
+            "craft",
+            "--format",
+            "raw",
+            "--layer",
+            "dhcp",
+            "--dhcp-cookie=0xdeadbeef",
+            "--dhcp-msg_type=discover",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let p = wrex_core::dissect::dissect(&reg, &legacy, "dhcp");
+    assert!(p.anomalies.iter().any(|a| a.path == "dhcp.cookie"));
+    assert!(!p.payload.is_empty());
+    assert!(!p.layers[0].fields.contains_key("msg_type"));
+}
+
 #[test]
 fn iface_verb() {
     let out = wrex()
