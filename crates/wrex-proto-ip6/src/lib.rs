@@ -17,7 +17,7 @@ use bytes::BufMut;
 use wrex_core::dissect::{LayerView, NetFacts};
 use wrex_core::encode::{EncodeCtx, Patch, int_or_default, ipv6_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{Derived, FieldKind, FieldSchema, LayerSchema, Layout};
+use wrex_core::schema::{Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -272,12 +272,14 @@ impl Codec for Ip6Codec {
         ]
     }
 
-    /// `payload_len` = frame end − layer start (no header checksum,
-    /// RFC 8200 §8.1).
+    /// `payload_len` = frame end − header end (RFC 8200: payload only,
+    /// the 40-byte header excluded; no header checksum, §8.1). The
+    /// tranche-14 sweep caught the old start-based formula here.
     fn derived(&self) -> &'static [Derived] {
         &[Derived::Length {
             field: "payload_len",
             at: 4,
+            base: LengthBase::LayerEnd,
         }]
     }
 }

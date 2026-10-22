@@ -175,9 +175,17 @@ impl Layout {
 /// [`crate::patch::Scope`] instead of autofill.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Derived {
-    /// `u16 at` = (frame end − layer start): `ipv4.total_len`,
-    /// `ipv6.payload_len`, `udp.length` style fields.
-    Length { field: &'static str, at: usize },
+    /// `u16 at` = frame end − [`LengthBase`]: `ipv4.total_len` and
+    /// `udp.length` count from the layer START (the field includes the
+    /// header it lives in); `ipv6.payload_len` counts from the header
+    /// END (payload only). The tranche-14 corpus sweep caught the
+    /// start-only formula writing 52 for a 12-byte v6 payload — the
+    /// encode side was always correct (`Patch::Length { base }`).
+    Length {
+        field: &'static str,
+        at: usize,
+        base: LengthBase,
+    },
     /// Internet checksum at `u16 at`, accumulated over the covered
     /// range plus the pseudo-header when `pseudo` selects one.
     Checksum {
@@ -210,6 +218,17 @@ pub enum ChecksumEnd {
     Frame,
     /// To the end of this layer's span (ipv4 header incl. options).
     Layer,
+}
+
+/// Where a [`Derived::Length`] counts from (tranche-14 fix: the v6
+/// payload length excludes the 40-byte header).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LengthBase {
+    /// frame end − layer start: the field counts the header it lives
+    /// in (`ipv4.total_len`, `udp.length`).
+    LayerStart,
+    /// frame end − layer end: payload only (`ipv6.payload_len`).
+    LayerEnd,
 }
 
 /// Pseudo-header provenance of a [`Derived::Checksum`].

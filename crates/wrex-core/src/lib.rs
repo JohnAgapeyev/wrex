@@ -25,8 +25,8 @@ pub use error::{DecodeError, EncodeError, FilterError, SpecError};
 pub use filter::{Filter, Op as FilterOp};
 pub use patch::{Edit, PatchError, Scope, patch};
 pub use schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource, RecordSchema,
-    ResolvedField,
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, PseudoSource,
+    RecordSchema, ResolvedField,
 };
 pub use spec::{LayerSpec, PacketSpec};
 pub use time::parse_duration;

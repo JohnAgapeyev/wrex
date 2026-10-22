@@ -1,0 +1,140 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH patch 1  "patch " 
+.SH NAME
+patch \- Deterministic surgical edits of real frames (span\-patch engine) → stdout / pcap
+.SH SYNOPSIS
+\fBpatch\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-r\fR|\fB\-\-read\fR] [\fB\-\-set\fR] [\fB\-\-insert\fR] [\fB\-\-delete\fR] [\fB\-\-scope\fR] [\fB\-\-no\-recompute\fR] [\fB\-\-index\fR] [\fB\-\-filter\fR] [\fB\-w\fR|\fB\-\-write\fR] [\fB\-\-pcapng\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFRAME\fR] 
+.SH DESCRIPTION
+Deterministic surgical edits of real frames (span\-patch engine) → stdout / pcap
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-r\fR, \fB\-\-read\fR \fI<FILE>\fR
+Pcap (classic or pcapng) to read frames from (repeatable)
+.TP
+\fB\-\-set\fR \fI<PATH=VALUE>\fR
+Set one field: path=value, typed per the field\*(Aqs schema (repeatable; `wire:HEX` hands codec\-owned regions raw bytes)
+.TP
+\fB\-\-insert\fR \fI<AT:HEX>\fR
+Insert HEX bytes at absolute frame offset AT (repeatable)
+.TP
+\fB\-\-delete\fR \fI<AT:LEN>\fR
+Delete LEN bytes at absolute frame offset AT (repeatable)
+.TP
+\fB\-\-scope\fR \fI<SEL[,…]>\fR
+Recompute only these derived fields after the edits: KIND.* (whole layer) or kind.field, comma list (default: all)
+.TP
+\fB\-\-no\-recompute\fR
+Nothing re\-derives: stale checksums ride along (preserve)
+.TP
+\fB\-\-index\fR \fI<N[\-M][,…]>\fR
+Patch only these frames (1\-based ordinals, N\-M ranges, comma list)
+.TP
+\fB\-\-filter\fR \fI<FILTER>\fR
+Patch only frames matching this filter expression (the recv grammar; unlike replay nothing is dropped — it selects)
+.TP
+\fB\-w\fR, \fB\-\-write\fR \fI<FILE>\fR
+Write the edited stream as a pcap file (patched + passthrough, original timestamps kept)
+.TP
+\fB\-\-pcapng\fR
+Write pcapng instead of classic pcap (with \-w)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+[\fIFRAME\fR]
+Seed frames as hex (repeatable); \-r/\-\-read and stdin also feed
+.SH EXTRA
+GRAMMAR:
+  wrex patch [FRAMES...] [\-r FILE.pcap] \-\-set path=value ...
+                 [\-\-insert AT:HEX] [\-\-delete AT:LEN]
+                 [\-\-scope SEL[,…]|\-\-no\-recompute]
+                 [\-\-index N[\-M][,…]] [\-\-filter EXPR]
+                 [\-\-format FMT] [\-w FILE.pcap] [\-\-pcapng]
+
+  The CLI door into the span\-patch engine (tranche 11b/13a): dissect,
+  apply typed edits, run the wire\->wire consistency walk. Deterministic
+  surgical edits of REAL frames — the mut field strategy\*(Aqs fixed\-value
+  counterpart. Seeds: positional hex, \-r pcap records (classic, all 4
+  magic variants, or pcapng — auto\-detected), and/or raw stdin; the
+  stream is the frame list in that order.
+
+EDITS:
+  \-\-set path=value   typed per the field\*(Aqs schema (the value grammar:
+                     ints/0x…, IPv4/IPv6, mac, hex:… bytes, flagset
+                     bit names or raw masks; flag subpaths take
+                     true|false: \-\-set tcp.flags.syn=1). Every
+                     dissected field key is addressable (see
+                     `wrex fields`); ReEncode regions route through
+                     the codec hook (dhcp sname/file take their text).
+                     Over\-wide bit\-window values mask (the craft
+                     rule). String\-typed fields over raw spans refuse
+                     typed values — their presentation is not their
+                     wire encoding (dns names are label\-encoded,
+                     dns type/class are u16s behind names).
+  \-\-set path=wire:HEX  raw region bytes, the escape for everything
+                     the typed grammar cannot speak: codec\-owned
+                     encodings (dhcp msg_type\*(Aqs 1\-byte TLV: wire:08),
+                     dns names (wire labels), dns type/class u16s.
+  \-\-insert AT:HEX    insert bytes at an absolute pre\-edit offset
+  \-\-delete AT:LEN    delete LEN bytes at absolute offset AT
+  All offsets are INPUT\-frame coordinates; the whole set validates
+  before anything applies (never partial, never last\-write\-wins).
+
+SCOPE (what re\-derives after the edits):
+  default            every derived field (lengths, checksums): minimal
+                     edits, whole frame consistent — re\-dissecting the
+                     output shows zero anomalies
+  \-\-no\-recompute     preserve semantics: nothing re\-derives, stale
+                     checksums ride along (the mut field rule)
+  \-\-scope udp.*      selective: whole layers (KIND.*) and single
+                     fields (udp.checksum), comma list
+  An edit on a scope\-selected derived field is a pointed usage error.
+  NO edits + default scope = normalize (recompute every derived field
+  in place); no edits + \-\-no\-recompute = pure passthrough.
+
+SELECTION (\-\-index 1\-based ordinals, N\-M ranges; \-\-filter \*(Aqpath OP
+  value\*(Aq, the recv filter grammar): pick WHICH frames of the stream
+  get patched (both given = intersection). Untouched frames pass
+  through byte\-identical with their timestamps and orig_len kept —
+  nothing is dropped (replay\*(Aqs \-\-filter drops; this one selects).
+  A path missing from a selected frame is a pointed runtime error
+  naming the frame (exit 1).
+
+OUTPUT: stdout carries the whole stream (patched + passthrough) per
+  \-\-format (default hex; raw bytes; text/json/jsonl dissections of the
+  output frames); \-w writes the same stream as a pcap (classic by
+  default, \-\-pcapng the T8b writer). Purely offline: patch writes,
+  `wrex replay \-i` sends, `wrex diff` compares findings.
+
+EXAMPLES:
+  # two fields, everything re\-derived (checksums stay valid)
+  wrex patch \-\-set ipv4.ttl=7 \-\-set ipv4.dst=10.0.0.5 FRAME.hex
+
+  # re\-write every captured web flow onto a new port, whole corpus out
+  wrex patch \-r cap.pcap \-\-filter \*(Aqtcp.dport=80\*(Aq \\
+    \-\-set tcp.dport=8080 \-w edited.pcap
+
+  # frame 3 only, stale checksums kept deliberately
+  wrex patch \-r cap.pcap \-\-index 3 \-\-set tcp.window=512 \-\-no\-recompute
+
+  # payload surgery: insert 4 bytes, lengths/checksums recompute
+  wrex craft \-\-format raw ... | wrex patch \-\-insert 42:deadbeef
+
+  # a codec\-owned TLV through its wire encoding
+  wrex patch \-\-set dhcp.msg_type=wire:08 \-r dhcp.pcap

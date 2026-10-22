@@ -259,6 +259,24 @@ default ports 443/853, retries repeat the exact mutated bytes on
 fresh connections. The userspace TCP stack keeps its deferral (the
 6th; the trigger is still unmet).
 
+**Tranche 14** (delivered): `wrex patch` — the span-patch engine's CLI
+door. Deterministic surgical edits of real frames: `--set path=value`
+(typed per the field schema, flag subpaths like `tcp.flags.syn=1`,
+`wire:HEX` for codec-owned encodings), `--insert AT:HEX` /
+`--delete AT:LEN` (absolute pre-edit offsets), and the caller-selected
+consistency scope (default: every derived field recomputes —
+checksums stay valid; `--no-recompute` keeps stale ones deliberately;
+`--scope udp.*` narrows). Seeds are positional hex, pcaps (classic or
+pcapng) or stdin; `--index`/`--filter` pick which frames of a stream
+get patched while everything else passes through byte-identical with
+its timestamps — `patch -w → replay -i → diff` composes the
+capture → edit → replay → compare story. Zero edits + default scope
+is the normalize verb. The corpus sweep also caught a latent engine
+bug: `ipv6.payload_len` recomputed start-based (52 for a 12-byte
+payload) — `Derived::Length` gained a `LengthBase` discriminator, the
+encode side was always right. Plus `dissect --frame` (the T11a
+deferral): the retained input frame as hex, opt-in.
+
 **Tranche 10** (delivered): IPv6 parity closure. **10a**: the kernel
 `TcpDriver` speaks both families (EOF/bind/`--source-port` conventions
 unchanged), so `wrex query --server ::1` (raw UDP, `--tcp`, `--tls`
@@ -281,6 +299,21 @@ wrex mut -r capture.pcap --strategy field -w mut.pcap
 # prober: one baseline + 4 mutated rounds per slot, findings as jsonl
 wrex fuzz -i lo --baseline --rounds 4 --format jsonl 127.0.0.1
 wrex fuzz -i eth0 --mode udp --ports 53,161 --seed 7 10.0.0.0/24
+```
+
+Deterministic edits of real frames (tranche 14; purely offline):
+
+```sh
+# two fields, checksums/lengths re-derived — the output dissects clean
+wrex patch --set ipv4.ttl=7 --set ipv4.dst=10.0.0.5 <frame.hex>
+
+# re-write a captured stream onto a new port; untouched frames pass
+# through byte-identical with their timestamps
+wrex patch -r cap.pcap --filter 'tcp.dport=80' --set tcp.dport=8080 -w edited.pcap
+
+# frame 3 only, stale checksums kept deliberately; then send + compare
+wrex patch -r cap.pcap --index 3 --set tcp.window=512 --no-recompute -w f3.pcap
+wrex replay -i eth0 f3.pcap
 ```
 
 Deliberately invalid packets are a feature: explicit values always win

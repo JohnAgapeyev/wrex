@@ -13,7 +13,7 @@ use wrex_core::dissect::{LayerView, NetFacts};
 use wrex_core::encode::{EncodeCtx, Patch, flagset_or_default, int_or_default, ipv4_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -395,6 +395,7 @@ impl Codec for IpCodec {
             Derived::Length {
                 field: "total_len",
                 at: 2,
+                base: LengthBase::LayerStart,
             },
             Derived::Checksum {
                 field: "checksum",

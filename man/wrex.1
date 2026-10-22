@@ -43,6 +43,9 @@ Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
 wrex\-mut(1)
 Mutate seed frames (dissect\-aware, seeded) → stdout / pcap
 .TP
+wrex\-patch(1)
+Deterministic surgical edits of real frames (span\-patch engine) → stdout / pcap
+.TP
 wrex\-fuzz(1)
 Probe targets with mutated packets; record replies as findings
 .TP
@@ -87,7 +90,7 @@ VALUE GRAMMAR:
   flagsets   syn,ack | syn+ack | 0x02    bool  true | false | 1 | 0
   durations  (\-\-count/\-\-interval/\-\-timeout)  500ms | 2s | 1m (bare: seconds)
 
-FILTERS (recv \-\-filter, send \-\-wait\-reply):
+FILTERS (recv \-\-filter, send \-\-wait\-reply, patch \-\-filter):
   space\-separated AND\-terms: path OP value, OP in = != < <= > >=
   ipv4 = accepts CIDR (10.0.0.0/8); flagset = accepts bit names;
   bytes = is a hex\-prefix match; a path absent from a frame is false

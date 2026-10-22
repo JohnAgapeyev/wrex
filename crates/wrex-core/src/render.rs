@@ -131,13 +131,15 @@ fn spans_json(layer: &LayerView) -> Map<String, JsonValue> {
 
 /// The pinned dissection JSON object.
 pub fn dissect_to_json(p: &DissectedPacket) -> JsonValue {
-    dissect_to_json_spans(p, false)
+    dissect_to_json_spans(p, false, false)
 }
 
-/// [`dissect_to_json`] with the span taxonomy opt-in
-/// (`dissect --spans`): per-layer `spans` objects plus the payload span.
-/// Without the flag the shape is byte-identical to [`dissect_to_json`].
-pub fn dissect_to_json_spans(p: &DissectedPacket, spans: bool) -> JsonValue {
+/// [`dissect_to_json`] with the opt-in extras: the span taxonomy
+/// (`dissect --spans`: per-layer `spans` objects plus the payload span)
+/// and the retained frame (`dissect --frame`, tranche 14: a top-level
+/// `frame` hex key — the input bytes verbatim, the T11a retention).
+/// Without the flags the shape is byte-identical to [`dissect_to_json`].
+pub fn dissect_to_json_spans(p: &DissectedPacket, spans: bool, frame: bool) -> JsonValue {
     let mut out = json!({
         "start": p.start,
         "layers": p.layers.iter().map(|l| {
@@ -162,6 +164,11 @@ pub fn dissect_to_json_spans(p: &DissectedPacket, spans: bool) -> JsonValue {
             .expect("object literal")
             .insert("payload_span".into(), json!([payload_at, p.frame.len()]));
     }
+    if frame {
+        out.as_object_mut()
+            .expect("object literal")
+            .insert("frame".into(), json!(hex::encode(&p.frame)));
+    }
     out
 }
 
@@ -174,9 +181,10 @@ pub fn dissect_to_jsonl(p: &DissectedPacket) -> String {
     dissect_to_json(p).to_string()
 }
 
-/// [`dissect_to_jsonl`] with the span taxonomy opt-in (`dissect --spans`).
-pub fn dissect_to_jsonl_spans(p: &DissectedPacket, spans: bool) -> String {
-    dissect_to_json_spans(p, spans).to_string()
+/// [`dissect_to_jsonl`] with the opt-in extras (spans / frame), the
+/// json mirror of [`dissect_to_json_spans`].
+pub fn dissect_to_jsonl_spans(p: &DissectedPacket, spans: bool, frame: bool) -> String {
+    dissect_to_json_spans(p, spans, frame).to_string()
 }
 
 /// One field span as text (`bytes @0..6`, `bits @14..16 shift0 width2`,
@@ -257,14 +265,15 @@ pub fn hexdump(bytes: &[u8]) -> String {
 /// `text` format: indented field tree, `! path: message` anomaly lines,
 /// trailing payload hexdump.
 pub fn dissect_to_text(p: &DissectedPacket) -> String {
-    dissect_to_text_spans(p, false)
+    dissect_to_text_spans(p, false, false)
 }
 
-/// [`dissect_to_text`] with the span taxonomy opt-in
-/// (`dissect --spans`): a `spans:` section per layer plus a payload
-/// span line. Without the flag the text is byte-identical to
-/// [`dissect_to_text`].
-pub fn dissect_to_text_spans(p: &DissectedPacket, spans: bool) -> String {
+/// [`dissect_to_text`] with the opt-in extras: the span taxonomy
+/// (`dissect --spans`: a `spans:` section per layer plus a payload span
+/// line) and the retained frame (`dissect --frame`, tranche 14: a
+/// `frame (N bytes): <hex>` line after the payload section). Without
+/// the flags the text is byte-identical to [`dissect_to_text`].
+pub fn dissect_to_text_spans(p: &DissectedPacket, spans: bool, frame: bool) -> String {
     let mut out = String::new();
     for (i, layer) in p.layers.iter().enumerate() {
         let indent = "  ".repeat(i);
@@ -287,6 +296,13 @@ pub fn dissect_to_text_spans(p: &DissectedPacket, spans: bool) -> String {
         out.push_str(&hexdump(&p.payload));
     } else {
         out.push_str("payload (0 bytes)\n");
+    }
+    if frame {
+        out.push_str(&format!(
+            "frame ({} bytes): {}\n",
+            p.frame.len(),
+            hex::encode(&p.frame)
+        ));
     }
     if spans {
         let payload_at = p.frame.len() - p.payload.len();
@@ -393,10 +409,10 @@ mod tests {
         let plain = dissect_to_json(&s);
         assert!(plain["layers"][0].get("spans").is_none());
         assert!(plain.get("payload_span").is_none());
-        assert_eq!(plain, dissect_to_json_spans(&s, false));
+        assert_eq!(plain, dissect_to_json_spans(&s, false, false));
 
         // On: per-layer spans maps + the payload span.
-        let sp = dissect_to_json_spans(&s, true);
+        let sp = dissect_to_json_spans(&s, true, false);
         assert_eq!(
             sp["layers"][0]["spans"]["dst"],
             json!({"type": "bytes", "start": 0, "end": 6})
@@ -422,12 +438,46 @@ mod tests {
 
         // Text: a spans section per layer + the payload span line,
         // absent without the flag.
-        let text = dissect_to_text_spans(&s, true);
+        let text = dissect_to_text_spans(&s, true, false);
         assert!(text.contains("spans:\n"), "{text}");
         assert!(text.contains("dst: bytes @0..6\n"), "{text}");
         assert!(text.contains("sport: none\n"), "{text}");
         assert!(text.contains("payload span @22..26\n"), "{text}");
         assert!(!dissect_to_text(&s).contains("spans:"), "{text}");
+    }
+
+    /// Tranche 14 (`dissect --frame`): the retained input frame as hex,
+    /// opt-in and additive — default shapes carry no `frame` at all.
+    #[test]
+    fn frame_opt_in_shapes() {
+        let s = spans_sample();
+        // Off: no frame key/line anywhere (the pinned shapes).
+        let plain = dissect_to_json(&s);
+        assert!(plain.get("frame").is_none());
+        assert!(!dissect_to_text(&s).contains("frame ("), "default text");
+
+        // On (json): a top-level `frame` hex key — the input bytes
+        // verbatim (26 zero bytes in the fixture).
+        let v = dissect_to_json_spans(&s, false, true);
+        assert_eq!(v["frame"], json!(hex::encode(&s.frame[..])));
+        // jsonl rides the same object.
+        let line = dissect_to_jsonl_spans(&s, false, true);
+        let parsed: JsonValue = serde_json::from_str(&line).expect("jsonl line");
+        assert_eq!(parsed["frame"], v["frame"]);
+
+        // On (text): a `frame (N bytes): <hex>` line after the payload
+        // section; fields/anomalies unchanged.
+        let text = dissect_to_text_spans(&s, false, true);
+        assert!(
+            text.contains(&format!(
+                "frame ({} bytes): {}\n",
+                s.frame.len(),
+                hex::encode(&s.frame[..])
+            )),
+            "{text}"
+        );
+        // composes with --spans.
+        assert!(dissect_to_text_spans(&s, true, true).contains("frame ("));
     }
 
     /// A sample carrying field spans (bytes, bits, sub-bit, none).

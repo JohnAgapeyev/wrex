@@ -11,7 +11,7 @@ use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, int_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -194,6 +194,7 @@ impl Codec for UdpCodec {
             Derived::Length {
                 field: "length",
                 at: 4,
+                base: LengthBase::LayerStart,
             },
             Derived::Checksum {
                 field: "checksum",

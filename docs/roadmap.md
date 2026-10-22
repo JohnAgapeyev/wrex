@@ -777,6 +777,110 @@ T(n+1)".
     `127.0.0.1`; the driver is family-agnostic, only the stub is v4),
     `--tls-insecure`/`--tls-ca` without `--tls` (inert, not errors).
 
+- **T14 — `wrex patch`** — ✅ delivered (chartered at the T14 planning
+  pass): the CLI door into the T11–T13 span-patch engine — the
+  deterministic-edit counterpart to `wrex mut`'s random field strategy,
+  closing the "engine is SDK-only" gap; every piece it rides was
+  already delivered and verified. `wrex patch [FRAMES…] [-r
+  FILE.pcap] --set path=value… --insert AT:HEX --delete AT:LEN
+  [--scope SEL[,…]|--no-recompute] [--index N[-M][,…]] [--filter EXPR]
+  [--format FMT] [-w FILE.pcap] [--pcapng]`. Seeds: positional hex,
+  `-r` classic (all four magics) or pcapng (auto-detected) records,
+  and/or raw stdin — the mut grammar verbatim, kept as one ordered
+  stream. The whole edit grammar validates **upfront** against the
+  registry schema (`wrex::edit`, the spec.rs lineage): unknown
+  layers/fields, bad value spelling, `--index`/`--scope` grammar and
+  the edit/scope conflict (fully static — schema + scope — so the
+  engine's `EditScopeConflict` never surprises mid-stream) are usage
+  errors, exit 2 before any file is read; frame-level facts (the path
+  missing from THIS frame, span width, bounds, re-encode rejections)
+  are pointed runtime errors, exit 1, naming the frame. `--set` values
+  parse through the pinned field grammar and serialize through
+  `serialize_field_value` at the span's width (the mut field
+  strategy's serializer; over-wide bit-window values mask, the craft
+  rule; flag subpaths take the boolean grammar). The **`wire:HEX`
+  escape** hands a region raw bytes when the typed grammar cannot
+  speak the encoding — and it is required where a **string-typed
+  field sits over a raw span**: typed Str values there are refused
+  pointedly (the T13a mut-exclusion rule held on the verb — dns
+  names are label-encoded, dns type/class are u16s behind name
+  presentations; nothing writes presentation bytes silently), while
+  string-typed `ReEncode` regions stay typed (the codec hook owns the
+  encoding: dhcp `sname`/`file` NUL-pad their text, dhcp `msg_type`'s
+  1-byte TLV wants `wire:08`). Scope: default `Scope::all` (minimal
+  edits, whole frame consistent — the engine's zero-edit degenerate
+  IS the normalize verb, deliberately), `--no-recompute` = preserve
+  semantics (the mut field rule transposed), `--scope udp.*[,…]` =
+  selective; both knobs together is a usage error. Corpus mode:
+  `--index` (1-based ordinals, `N-M` ranges — the scan port grammar)
+  and `--filter` (the recv filter engine, schema-validated at startup)
+  select **which frames get patched** (both given = intersection;
+  unlike replay's `--filter` nothing is dropped — it selects);
+  unselected frames pass through **byte-identical** with their
+  capture timestamps and `orig_len` annotations kept (an additive
+  `write_record_orig` on both pcap writers, the T5/T8b `write_record`
+  delegating unchanged), a selected frame missing a path is the
+  pointed runtime error. stdout carries the whole stream (patched +
+  passthrough) per `--format` (hex default, raw, text/json/jsonl
+  dissections of the output frames); `-w` writes the same stream as a
+  pcap (classic default, `--pcapng` the T8b writer — the capture
+  verb's sink lifted into a shared `FrameWriter`). Composition over
+  new verbs: `patch -w → replay -i → diff` is the end-to-end story
+  (patch stays offline, the T12 precedent); a `--send` composite is
+  deliberately not built. The **T11a deferral closes in the same
+  pass**: `dissect --frame` emits the retained input frame as hex
+  (a top-level `frame` key in json/jsonl, a `frame (N bytes): <hex>`
+  line in text; default output byte-identical — the `--spans`
+  additive rule). No new crate, no new codec. **Engine fix the sweep
+  caught (pre-existing T11b-α bug)**: `Derived::Length` hard-coded
+  "frame end − layer start", which writes **52 for a 12-byte v6
+  payload** on `ipv6.payload_len` (RFC 8200 counts payload only, from
+  the header END; the encode side was always correct — it carries a
+  per-codec `base`). `Derived::Length` gained an additive
+  `LengthBase::{LayerStart, LayerEnd}` discriminator (ipv4
+  `total_len`/udp `length` stay LayerStart; the corpus sweep caught it
+  as a normalize that re-dissected truncated — the fixed-point test
+  pins the fix). Deliberate deferrals: presentation-to-wire sugar for
+  Str-over-raw-span fields (dns name/type/class wire encoders —
+  `wire:HEX` covers T14), JSON edit-list files and per-frame edit
+  scripts (the flags cover), record-section sugar ("append an A
+  record" — the engine accepts the edit set, sugar is caller work),
+  `mut` ReEncode strategies (the T13a decision stands), `--snaplen` on
+  write, a `--send` composite, `Derived::Count` (re-affirmed), BPF.
+  Verification: `tests/patch_cli.rs` (black-box, assert_cmd — typed
+  edits + re-dissection ground truth, bit-window masking through a
+  vlan golden, flag subpaths/aggregates, insert/delete shape
+  consistency, scope selective/conflict/grammar, index/filter
+  selection with passthrough byte-identity + timestamp preservation,
+  truncated-record `orig_len` passthrough, `-w`/`--pcapng` roundtrips
+  == stdout, stdin seeds, the wire:/ReEncode dhcp workflows, usage
+  exit 2 vs runtime exit 1 mapping, the identity + normalize
+  degenerates, `dissect --frame` opt-in/default-identity);
+  `tests/patch_sweep.rs` (engine + verb-library level) — the corpus
+  **identity sweep** (every first-of-kind layer, every span-Bytes
+  field: a self-value `--set` through the real grammar under
+  `Scope::none` reproduces the input exactly; Str-over-raw-span
+  fields assert the pointed refusal instead — the QinQ corpus also
+  pinned the engine's documented first-layer-of-a-kind addressing),
+  the **normalize fixed point** (zero edits + `Scope::all` on every
+  anomaly-free corpus frame: anomaly-free out, idempotent — the test
+  that caught the v6 length bug), a never-panic proptest over random
+  edit sets on corpus frames (resolve-or-pointed-error, outputs
+  re-dissect), and the patched-frame **tshark differential**
+  (independent lineage, ADR 2's inversion rule: a real field edit,
+  payload insert/delete, and the vlan insert/delete workflows —
+  wrex's zero-anomaly re-dissection is the checksum ground truth);
+  edit-grammar units in `wrex::edit` (static errors, the conflict
+  pre-check, typed widths, scope/index parsers, re-encode value
+  bytes); `write_record_orig` roundtrip units in wrex-pcap; the
+  population gate and the T11/T13 patch-engine suites unchanged
+  under the `LengthBase` fix. No new fuzz targets (the engine is
+  `fuzz_mut_strategies`' territory; the verb adds one proptest
+  instead), no Miri changes (patch_cli is a spawning suite, file-level
+  ignored; the sweep's tshark test is test-level ignored), no Kani
+  changes. Man pages + completions regenerate (`wrex-patch(1)` — the
+  verbs enumerate automatically).
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a

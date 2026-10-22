@@ -2,6 +2,7 @@
 //! wrex library facade + protocol registry composition.
 
 pub mod cli;
+pub mod edit;
 pub mod spec;
 pub mod verbs;
 

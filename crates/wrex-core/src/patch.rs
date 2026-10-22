@@ -123,6 +123,15 @@ impl Scope {
             ScopeSel::Field(f) => f == path,
         })
     }
+
+    /// Does this scope select the derived field at `path`
+    /// (`"<kind>.<field>"`)? Public mirror for callers that pre-check
+    /// the edit/scope conflict statically (tranche 14: the `wrex
+    /// patch` verb validates the whole edit grammar before any frame
+    /// is read).
+    pub fn selects_path(&self, path: &str) -> bool {
+        self.selects(path)
+    }
 }
 
 /// A patch-engine failure. Every one is pointed; the engine never
@@ -450,8 +459,15 @@ fn recompute(
     fresh: &DissectedPacket,
 ) -> Result<(), PatchError> {
     match d {
-        Derived::Length { at, .. } => {
-            let val = (frame.len() - layer.span.start) as u16;
+        Derived::Length { at, base, .. } => {
+            // Tranche-14 fix: the base is per-field (ipv6 payload_len
+            // counts from the header END — the corpus sweep caught the
+            // old start-only formula writing 52 for a 12-byte payload).
+            let base_at = match base {
+                crate::schema::LengthBase::LayerStart => layer.span.start,
+                crate::schema::LengthBase::LayerEnd => layer.span.end,
+            };
+            let val = (frame.len() - base_at) as u16;
             let pos = layer.span.start + at;
             if pos + 2 > frame.len() {
                 return Err(PatchError::OutOfBounds {
@@ -692,6 +708,7 @@ mod tests {
                 Derived::Length {
                     field: "len",
                     at: 2,
+                    base: crate::schema::LengthBase::LayerStart,
                 },
                 Derived::Checksum {
                     field: "ck",

@@ -457,12 +457,26 @@ impl<W: Write> PcapWriter<W> {
         frame: &[u8],
         snaplen: usize,
     ) -> std::io::Result<()> {
-        let (sec, frac) = ts_parts(ts);
         let orig = u32::try_from(frame.len()).unwrap_or(u32::MAX);
+        self.write_record_orig(ts, frame, orig, snaplen)
+    }
+
+    /// [`PcapWriter::write_record`] with an explicit `orig_len` —
+    /// corpus passthrough of a snaplen-truncated capture whose stored
+    /// bytes are shorter than the wire length (tranche 14: `wrex patch`
+    /// keeps untouched records byte-identical, `orig_len` included).
+    pub fn write_record_orig(
+        &mut self,
+        ts: SystemTime,
+        frame: &[u8],
+        orig_len: u32,
+        snaplen: usize,
+    ) -> std::io::Result<()> {
+        let (sec, frac) = ts_parts(ts);
         let incl = frame.len().min(snaplen);
         let incl = u32::try_from(incl).unwrap_or(u32::MAX);
         self.inner
-            .write_all(&encode_record_header(sec, frac, incl, orig))?;
+            .write_all(&encode_record_header(sec, frac, incl, orig_len))?;
         let cap = incl as usize;
         self.inner.write_all(&frame[..cap])?;
         Ok(())
@@ -525,10 +539,24 @@ impl<W: Write> PcapngWriter<W> {
         frame: &[u8],
         snaplen: usize,
     ) -> std::io::Result<()> {
+        let orig = u32::try_from(frame.len()).unwrap_or(u32::MAX);
+        self.write_record_orig(ts, frame, orig, snaplen)
+    }
+
+    /// [`PcapngWriter::write_record`] with an explicit `orig_len` —
+    /// corpus passthrough of a snaplen-truncated capture (tranche 14:
+    /// `wrex patch` keeps untouched records byte-identical, `orig_len`
+    /// included).
+    pub fn write_record_orig(
+        &mut self,
+        ts: SystemTime,
+        frame: &[u8],
+        orig_len: u32,
+        snaplen: usize,
+    ) -> std::io::Result<()> {
         let (sec, frac) = ts_parts(ts);
         // EPB unit: microseconds (the IDB's default resolution).
         let v = (sec as u64) * 1_000_000 + frac as u64;
-        let orig = u32::try_from(frame.len()).unwrap_or(u32::MAX);
         let incl = frame.len().min(snaplen);
         let incl = u32::try_from(incl).unwrap_or(u32::MAX);
         let padded = (incl as usize).next_multiple_of(4);
@@ -541,7 +569,7 @@ impl<W: Write> PcapngWriter<W> {
             (v >> 32) as u32,
             v as u32,
             incl,
-            orig,
+            orig_len,
         ));
         self.inner.write_all(&hdr)?;
         self.inner.write_all(&frame[..incl as usize])?;
@@ -615,6 +643,42 @@ mod tests {
         let file = read(&buf).unwrap();
         assert_eq!(file.records[0].bytes, &frame[..10]);
         assert_eq!(file.records[0].orig_len, 100);
+    }
+
+    /// Tranche 14: the explicit `orig_len` passthrough — a truncated
+    /// capture record writes back with its wire length kept (the
+    /// `wrex patch` corpus-passthrough contract), both writers.
+    #[test]
+    fn write_record_orig_keeps_wire_length() {
+        let frame = [0x22u8; 10];
+        for pcapng in [false, true] {
+            let mut buf = Vec::new();
+            if pcapng {
+                let mut w = PcapngWriter::new(&mut buf).unwrap();
+                w.write_record_orig(UNIX_EPOCH, &frame, 100, 65535).unwrap();
+                w.flush().unwrap();
+            } else {
+                let mut w = PcapWriter::new(&mut buf).unwrap();
+                w.write_record_orig(UNIX_EPOCH, &frame, 100, 65535).unwrap();
+                w.flush().unwrap();
+            }
+            let file = read(&buf).unwrap();
+            assert_eq!(file.records.len(), 1, "pcapng={pcapng}");
+            assert_eq!(file.records[0].bytes, &frame[..], "pcapng={pcapng}");
+            assert_eq!(file.records[0].orig_len, 100, "pcapng={pcapng}");
+            // write_record (the T5/T8b path) is unchanged: orig == len.
+            let mut buf2 = Vec::new();
+            if pcapng {
+                let mut w = PcapngWriter::new(&mut buf2).unwrap();
+                w.write_record(UNIX_EPOCH, &frame, 65535).unwrap();
+                w.flush().unwrap();
+            } else {
+                let mut w = PcapWriter::new(&mut buf2).unwrap();
+                w.write_record(UNIX_EPOCH, &frame, 65535).unwrap();
+                w.flush().unwrap();
+            }
+            assert_eq!(read(&buf2).unwrap().records[0].orig_len, 10);
+        }
     }
 
     #[test]

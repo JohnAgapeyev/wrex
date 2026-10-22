@@ -4,7 +4,7 @@
 .SH NAME
 dissect \- stdin → DissectedPacket → stdout (never fatal)
 .SH SYNOPSIS
-\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-\-spans\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBdissect\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-start\fR] [\fB\-\-spans\fR] [\fB\-\-frame\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 stdin → DissectedPacket → stdout (never fatal)
 .SH OPTIONS
@@ -30,6 +30,9 @@ Dissection start: auto|eth|ipv4|… (default auto)
 \fB\-\-spans\fR
 Emit the field\-span taxonomy (tranche 11b): per\-layer `spans` maps plus the payload span, json/jsonl and text
 .TP
+\fB\-\-frame\fR
+Emit the retained input frame as hex (tranche 14): a top\-level `frame` key in json/jsonl, a `frame (N bytes):` line in text
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .SH EXTRA
@@ -48,8 +51,15 @@ SPANS (\-\-spans, tranche 11b):
   every dissected field key resolves (the `none` variant carries the
   unpatchable policy — pointer\-resolved names, dynamic regions).
 
+FRAME (\-\-frame, tranche 14):
+  the retained input frame as hex — json/jsonl gain a top\-level
+  `frame` key, text a `frame (N bytes): <hex>` line after the payload
+  section. The input bytes verbatim (the tranche\-11a retention);
+  default output stays byte\-identical. raw/hex already echo them.
+
 EXAMPLES:
   wrex craft \-\-format raw \-\-layer eth ... | wrex dissect \-\-format json
   wrex dissect \-\-start eth < frame.bin
   wrex dissect \-\-spans \-\-format json < frame.bin   # span taxonomy
+  wrex patch \-\-format raw \-\-set ipv4.ttl=7 FRAME | wrex dissect \-\-frame
   # \-\-strict exits 1 when dissection finds anomalies (data failed checks)

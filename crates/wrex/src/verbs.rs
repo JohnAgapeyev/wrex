@@ -118,6 +118,7 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
             &args.common,
             args.start.as_deref().unwrap_or("auto"),
             args.spans,
+            args.frame,
         ),
         Cmd::Send(args) => send(
             &registry,
@@ -141,6 +142,7 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
         Cmd::Replay(args) => replay(&registry, &args.common, args),
         Cmd::Scan(args) => scan(&registry, args),
         Cmd::Mut(args) => mut_verb(&registry, &args.common, args),
+        Cmd::Patch(args) => patch_verb(&registry, &args.common, args),
         Cmd::Fuzz(args) => fuzz(&registry, args),
         Cmd::Http(args) => http(args),
         Cmd::Query(args) => query(&registry, args),
@@ -272,6 +274,7 @@ fn dissect_cmd(
     common: &Common,
     start: &str,
     spans: bool,
+    frame: bool,
 ) -> Result<(), CliError> {
     let format = Format::parse(common, Format::Text)?;
     // Validate the start kind upfront (auto passes through).
@@ -299,18 +302,19 @@ fn dissect_cmd(
     let packet = dissect(registry, &input, start);
     match format {
         Format::Text => {
-            let mut out = dissect_to_text_spans(&packet, spans);
+            let mut out = dissect_to_text_spans(&packet, spans, frame);
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
         Format::Json => {
-            let mut out = serde_json::to_string_pretty(&dissect_to_json_spans(&packet, spans))
-                .map_err(|e| usage(format!("json: {e}")))?;
+            let mut out =
+                serde_json::to_string_pretty(&dissect_to_json_spans(&packet, spans, frame))
+                    .map_err(|e| usage(format!("json: {e}")))?;
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
         Format::Jsonl => {
-            let mut out = dissect_to_jsonl_spans(&packet, spans);
+            let mut out = dissect_to_jsonl_spans(&packet, spans, frame);
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
@@ -792,14 +796,33 @@ fn print_frame(
 /// Default stored bytes per capture record (`--snaplen` overrides).
 const CAPTURE_DEFAULT_SNAPLEN: usize = 65535;
 
-/// The capture sink: classic pcap (default) or pcapng (`--pcapng`) —
-/// both writers share the `write_record`/`flush` shape.
-enum CaptureWriter {
+/// The pcap sink shared by capture (tranche 5/8b) and patch (tranche
+/// 14): classic pcap (default) or pcapng (`--pcapng`) — both writers
+/// share the `write_record`/`write_record_orig`/`flush` shape.
+enum FrameWriter {
     Classic(wrex_pcap::PcapWriter<std::io::BufWriter<std::fs::File>>),
     Ng(wrex_pcap::PcapngWriter<std::io::BufWriter<std::fs::File>>),
 }
 
-impl CaptureWriter {
+impl FrameWriter {
+    /// Create the sink: writes the global headers on open (the file is
+    /// valid the moment the writer exists).
+    fn new(pcapng: bool, path: &str) -> Result<FrameWriter, CliError> {
+        let file = std::fs::File::create(path)
+            .map_err(|e| CliError::Runtime(format!("cannot create `{path}`: {e}")))?;
+        let buf = std::io::BufWriter::new(file);
+        if pcapng {
+            Ok(FrameWriter::Ng(wrex_pcap::PcapngWriter::new(buf).map_err(
+                |e| CliError::Runtime(format!("`{path}`: {e}")),
+            )?))
+        } else {
+            Ok(FrameWriter::Classic(
+                wrex_pcap::PcapWriter::new(buf)
+                    .map_err(|e| CliError::Runtime(format!("`{path}`: {e}")))?,
+            ))
+        }
+    }
+
     fn write_record(
         &mut self,
         ts: std::time::SystemTime,
@@ -807,15 +830,30 @@ impl CaptureWriter {
         snaplen: usize,
     ) -> std::io::Result<()> {
         match self {
-            CaptureWriter::Classic(w) => w.write_record(ts, frame, snaplen),
-            CaptureWriter::Ng(w) => w.write_record(ts, frame, snaplen),
+            FrameWriter::Classic(w) => w.write_record(ts, frame, snaplen),
+            FrameWriter::Ng(w) => w.write_record(ts, frame, snaplen),
+        }
+    }
+
+    /// The tranche-14 passthrough record: an explicit `orig_len` keeps
+    /// a snaplen-truncated capture's wire length annotation intact.
+    fn write_record_orig(
+        &mut self,
+        ts: std::time::SystemTime,
+        frame: &[u8],
+        orig_len: u32,
+        snaplen: usize,
+    ) -> std::io::Result<()> {
+        match self {
+            FrameWriter::Classic(w) => w.write_record_orig(ts, frame, orig_len, snaplen),
+            FrameWriter::Ng(w) => w.write_record_orig(ts, frame, orig_len, snaplen),
         }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         match self {
-            CaptureWriter::Classic(w) => w.flush(),
-            CaptureWriter::Ng(w) => w.flush(),
+            FrameWriter::Classic(w) => w.flush(),
+            FrameWriter::Ng(w) => w.flush(),
         }
     }
 }
@@ -844,19 +882,7 @@ fn capture(
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
     let mut driver = RawEthDriver::open(iface, args.promisc, &table)?;
-    let file = std::fs::File::create(&args.write)
-        .map_err(|e| CliError::Runtime(format!("capture: cannot create `{}`: {e}", args.write)))?;
-    let mut writer = if args.pcapng {
-        CaptureWriter::Ng(
-            wrex_pcap::PcapngWriter::new(std::io::BufWriter::new(file))
-                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?,
-        )
-    } else {
-        CaptureWriter::Classic(
-            wrex_pcap::PcapWriter::new(std::io::BufWriter::new(file))
-                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?,
-        )
-    };
+    let mut writer = FrameWriter::new(args.pcapng, &args.write)?;
 
     let mut seen: u64 = 0;
     let deadline = timeout.map(|d| Instant::now() + d);
@@ -1271,6 +1297,157 @@ fn mut_verb(
             .map_err(|e| CliError::Runtime(format!("mut: write: {e}")))?;
     }
     Ok(())
+}
+
+// --- patch (tranche 14) --------------------------------------------------------
+
+/// Default stored bytes per patch pcap record (matches capture/mut).
+const PATCH_DEFAULT_SNAPLEN: usize = 65535;
+
+/// `wrex patch` (tranche 14): the CLI door into the span-patch engine —
+/// deterministic surgical edits of real frames. Seeds: positional hex,
+/// `-r` pcaps (classic or pcapng) and raw stdin — the mut grammar, kept
+/// as one ordered stream. `--index`/`--filter` select which frames get
+/// patched; everything else passes through byte-identical with its
+/// capture timestamp (and `orig_len`) kept. The whole stream (patched +
+/// passthrough) lands on stdout per `--format` and, with `-w`, in a
+/// pcap file. Grammar errors are usage (exit 2) before any file is
+/// read; frame-level failures are pointed runtime errors (exit 1)
+/// naming the frame.
+fn patch_verb(
+    registry: &Registry,
+    common: &Common,
+    args: &crate::cli::PatchArgs,
+) -> Result<(), CliError> {
+    use crate::edit;
+    use wrex_core::patch::patch;
+
+    // Grammar gates first (usage → exit 2, before any I/O): the whole
+    // edit set validates against the registry here, so a bad flag never
+    // lands mid-stream.
+    let scope = edit::parse_scope(args.scope.as_deref(), args.no_recompute).map_err(patch_usage)?;
+    let indices = match args.index.as_deref() {
+        Some(raw) => Some(edit::parse_indices(raw).map_err(patch_usage)?),
+        None => None,
+    };
+    let filter = match args.filter.as_deref() {
+        Some(f) => Some(Filter::parse(registry, f)?),
+        None => None,
+    };
+    let edit_set = edit::parse_edits(registry, &scope, &args.set, &args.insert, &args.delete)
+        .map_err(patch_usage)?;
+    let format = Format::parse(common, Format::Hex)?;
+
+    // Seed stream (the mut order): positional hex, then every -r pcap
+    // record with its timestamp and orig_len (passthrough fidelity),
+    // then raw stdin when piped and nothing else feeds.
+    let now = std::time::SystemTime::now();
+    let mut frames: Vec<(std::time::SystemTime, Vec<u8>, u32)> = Vec::new();
+    for raw in &args.frames {
+        let bytes = wrex_core::value::parse_hex_bytes(raw)
+            .map_err(|e| usage(format!("bad seed frame `{raw}`: {e}")))?;
+        if bytes.is_empty() {
+            return Err(usage(format!("empty seed frame `{raw}`")));
+        }
+        let orig = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
+        frames.push((now, bytes, orig));
+    }
+    for path in &args.read {
+        let pcap_bytes = std::fs::read(path)
+            .map_err(|e| CliError::Runtime(format!("patch: cannot read `{path}`: {e}")))?;
+        let file = wrex_pcap::read(&pcap_bytes)
+            .map_err(|e| CliError::Runtime(format!("patch: `{path}`: {e}")))?;
+        for rec in &file.records {
+            frames.push((rec.ts, rec.bytes.clone(), rec.orig_len));
+        }
+    }
+    {
+        use std::io::IsTerminal;
+        if !std::io::stdin().is_terminal() && args.frames.is_empty() && args.read.is_empty() {
+            let bytes = read_stdin_capped()?;
+            let orig = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
+            frames.push((now, bytes, orig));
+        }
+    }
+    if frames.is_empty() {
+        return Err(usage(
+            "patch: no seed frames given (positional hex, -r FILE.pcap or stdin)",
+        ));
+    }
+
+    let mut writer = match &args.write {
+        Some(path) => Some(FrameWriter::new(args.pcapng, path)?),
+        None => None,
+    };
+
+    for (i, (ts, bytes, orig_len)) in frames.iter().enumerate() {
+        let ordinal = i + 1;
+        // Selection: --index picks 1-based ordinals; --filter matches a
+        // read-only dissection (the replay/recv engine — selecting never
+        // patches). Both given = intersection.
+        let mut packet = None;
+        let mut selected = indices.as_ref().is_none_or(|s| s.contains(&ordinal));
+        if let Some(f) = &filter {
+            let p = dissect(registry, bytes, "auto");
+            if f.matches(&p) {
+                packet = Some(p);
+            } else {
+                selected = false;
+            }
+        }
+        let out: Vec<u8> = if selected {
+            let p = packet.unwrap_or_else(|| dissect(registry, bytes, "auto"));
+            let edits = edit_set
+                .materialize(&p)
+                .map_err(|e| patch_runtime(ordinal, e))?;
+            patch(registry, &p, &edits, &scope)
+                .map_err(|e| CliError::Runtime(format!("frame {ordinal}: {e}")))?
+                .to_vec()
+        } else {
+            bytes.clone()
+        };
+        if let Some(w) = writer.as_mut() {
+            // Patched frames carry their own length; passthrough keeps
+            // the source annotation (truncated captures included).
+            let orig = if selected {
+                u32::try_from(out.len()).unwrap_or(u32::MAX)
+            } else {
+                *orig_len
+            };
+            w.write_record_orig(*ts, &out, orig, PATCH_DEFAULT_SNAPLEN)
+                .map_err(|e| CliError::Runtime(format!("patch: write: {e}")))?;
+        }
+        match format {
+            Format::Hex => {
+                let mut line = hex::encode(&out);
+                line.push('\n');
+                write_stdout(line.as_bytes())?;
+            }
+            Format::Raw => {
+                write_stdout(&out)?;
+            }
+            Format::Text | Format::Json | Format::Jsonl => {
+                let p = dissect(registry, &out, "auto");
+                print_frame(format, &p, &out)?;
+            }
+        }
+    }
+    if let Some(w) = writer.as_mut() {
+        w.flush()
+            .map_err(|e| CliError::Runtime(format!("patch: write: {e}")))?;
+    }
+    Ok(())
+}
+
+/// Map the edit grammar onto the CLI exit classes with the `patch:`
+/// context: usage (exit 2) for static grammar errors, runtime (exit 1)
+/// for frame-level ones (the verb names the frame).
+fn patch_usage(e: crate::edit::EditError) -> CliError {
+    CliError::Usage(vec![format!("patch: {e}")])
+}
+
+fn patch_runtime(ordinal: usize, e: crate::edit::EditError) -> CliError {
+    CliError::Runtime(format!("frame {ordinal}: {e}"))
 }
 
 /// `wrex fuzz`: the stateful recording prober — baseline + mutated

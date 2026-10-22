@@ -33,7 +33,7 @@ VALUE GRAMMAR:
   flagsets   syn,ack | syn+ack | 0x02    bool  true | false | 1 | 0
   durations  (--count/--interval/--timeout)  500ms | 2s | 1m (bare: seconds)
 
-FILTERS (recv --filter, send --wait-reply):
+FILTERS (recv --filter, send --wait-reply, patch --filter):
   space-separated AND-terms: path OP value, OP in = != < <= > >=
   ipv4 = accepts CIDR (10.0.0.0/8); flagset = accepts bit names;
   bytes = is a hex-prefix match; a path absent from a frame is false
@@ -79,8 +79,8 @@ EXAMPLES:
 
   # no field flags + piped stdin: raw stdin bytes are sent as-is";
 
-/// Epilog for dissect: formats, the span taxonomy and the never-fatal
-/// contract.
+/// Epilog for dissect: formats, the span taxonomy, the retained frame
+/// and the never-fatal contract.
 pub const DISSECT_AFTER_HELP: &str = "\
 FORMATS:
   raw   input bytes echoed out (byte-transparent pipelines)
@@ -97,10 +97,17 @@ SPANS (--spans, tranche 11b):
   every dissected field key resolves (the `none` variant carries the
   unpatchable policy — pointer-resolved names, dynamic regions).
 
+FRAME (--frame, tranche 14):
+  the retained input frame as hex — json/jsonl gain a top-level
+  `frame` key, text a `frame (N bytes): <hex>` line after the payload
+  section. The input bytes verbatim (the tranche-11a retention);
+  default output stays byte-identical. raw/hex already echo them.
+
 EXAMPLES:
   wrex craft --format raw --layer eth ... | wrex dissect --format json
   wrex dissect --start eth < frame.bin
   wrex dissect --spans --format json < frame.bin   # span taxonomy
+  wrex patch --format raw --set ipv4.ttl=7 FRAME | wrex dissect --frame
   # --strict exits 1 when dissection finds anomalies (data failed checks)";
 
 /// Epilog for recv: formats, filters and stop conditions.
@@ -255,6 +262,7 @@ impl Cli {
             Cmd::Replay(a) => a.common.verbose,
             Cmd::Scan(a) => a.common.verbose,
             Cmd::Mut(a) => a.common.verbose,
+            Cmd::Patch(a) => a.common.verbose,
             Cmd::Fuzz(a) => a.common.verbose,
             Cmd::Http(a) => a.common.verbose,
             Cmd::Query(a) => a.common.verbose,
@@ -326,6 +334,10 @@ pub enum Cmd {
 
     /// Mutate seed frames (dissect-aware, seeded) → stdout / pcap.
     Mut(MutArgs),
+
+    /// Deterministic surgical edits of real frames (span-patch engine)
+    /// → stdout / pcap.
+    Patch(PatchArgs),
 
     /// Probe targets with mutated packets; record replies as findings.
     Fuzz(FuzzArgs),
@@ -492,6 +504,10 @@ pub struct DissectArgs {
     /// maps plus the payload span, json/jsonl and text.
     #[arg(long)]
     pub spans: bool,
+    /// Emit the retained input frame as hex (tranche 14): a top-level
+    /// `frame` key in json/jsonl, a `frame (N bytes):` line in text.
+    #[arg(long)]
+    pub frame: bool,
 }
 
 #[derive(Args, Debug)]
@@ -772,6 +788,134 @@ EXAMPLES:
   wrex fuzz --mode http --baseline --rounds 4 127.0.0.1   # app layer
   wrex fuzz --mode dns --ports 5353 --rounds 8 127.0.0.1
   wrex fuzz --mode http --tls --tls-insecure --baseline --rounds 4 127.0.0.1";
+
+/// Epilog for patch: the tranche-14 span-patch verb — deterministic
+/// surgical edits of real frames.
+pub const PATCH_AFTER_HELP: &str = "\
+GRAMMAR:
+  wrex patch [FRAMES...] [-r FILE.pcap] --set path=value ...
+                 [--insert AT:HEX] [--delete AT:LEN]
+                 [--scope SEL[,…]|--no-recompute]
+                 [--index N[-M][,…]] [--filter EXPR]
+                 [--format FMT] [-w FILE.pcap] [--pcapng]
+
+  The CLI door into the span-patch engine (tranche 11b/13a): dissect,
+  apply typed edits, run the wire->wire consistency walk. Deterministic
+  surgical edits of REAL frames — the mut field strategy's fixed-value
+  counterpart. Seeds: positional hex, -r pcap records (classic, all 4
+  magic variants, or pcapng — auto-detected), and/or raw stdin; the
+  stream is the frame list in that order.
+
+EDITS:
+  --set path=value   typed per the field's schema (the value grammar:
+                     ints/0x…, IPv4/IPv6, mac, hex:… bytes, flagset
+                     bit names or raw masks; flag subpaths take
+                     true|false: --set tcp.flags.syn=1). Every
+                     dissected field key is addressable (see
+                     `wrex fields`); ReEncode regions route through
+                     the codec hook (dhcp sname/file take their text).
+                     Over-wide bit-window values mask (the craft
+                     rule). String-typed fields over raw spans refuse
+                     typed values — their presentation is not their
+                     wire encoding (dns names are label-encoded,
+                     dns type/class are u16s behind names).
+  --set path=wire:HEX  raw region bytes, the escape for everything
+                     the typed grammar cannot speak: codec-owned
+                     encodings (dhcp msg_type's 1-byte TLV: wire:08),
+                     dns names (wire labels), dns type/class u16s.
+  --insert AT:HEX    insert bytes at an absolute pre-edit offset
+  --delete AT:LEN    delete LEN bytes at absolute offset AT
+  All offsets are INPUT-frame coordinates; the whole set validates
+  before anything applies (never partial, never last-write-wins).
+
+SCOPE (what re-derives after the edits):
+  default            every derived field (lengths, checksums): minimal
+                     edits, whole frame consistent — re-dissecting the
+                     output shows zero anomalies
+  --no-recompute     preserve semantics: nothing re-derives, stale
+                     checksums ride along (the mut field rule)
+  --scope udp.*      selective: whole layers (KIND.*) and single
+                     fields (udp.checksum), comma list
+  An edit on a scope-selected derived field is a pointed usage error.
+  NO edits + default scope = normalize (recompute every derived field
+  in place); no edits + --no-recompute = pure passthrough.
+
+SELECTION (--index 1-based ordinals, N-M ranges; --filter 'path OP
+  value', the recv filter grammar): pick WHICH frames of the stream
+  get patched (both given = intersection). Untouched frames pass
+  through byte-identical with their timestamps and orig_len kept —
+  nothing is dropped (replay's --filter drops; this one selects).
+  A path missing from a selected frame is a pointed runtime error
+  naming the frame (exit 1).
+
+OUTPUT: stdout carries the whole stream (patched + passthrough) per
+  --format (default hex; raw bytes; text/json/jsonl dissections of the
+  output frames); -w writes the same stream as a pcap (classic by
+  default, --pcapng the T8b writer). Purely offline: patch writes,
+  `wrex replay -i` sends, `wrex diff` compares findings.
+
+EXAMPLES:
+  # two fields, everything re-derived (checksums stay valid)
+  wrex patch --set ipv4.ttl=7 --set ipv4.dst=10.0.0.5 FRAME.hex
+
+  # re-write every captured web flow onto a new port, whole corpus out
+  wrex patch -r cap.pcap --filter 'tcp.dport=80' \\
+    --set tcp.dport=8080 -w edited.pcap
+
+  # frame 3 only, stale checksums kept deliberately
+  wrex patch -r cap.pcap --index 3 --set tcp.window=512 --no-recompute
+
+  # payload surgery: insert 4 bytes, lengths/checksums recompute
+  wrex craft --format raw ... | wrex patch --insert 42:deadbeef
+
+  # a codec-owned TLV through its wire encoding
+  wrex patch --set dhcp.msg_type=wire:08 -r dhcp.pcap";
+
+/// `wrex patch`: the span-patch engine's CLI door.
+#[derive(Args, Debug)]
+#[command(after_help = PATCH_AFTER_HELP)]
+pub struct PatchArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Seed frames as hex (repeatable); -r/--read and stdin also feed.
+    #[arg(value_name = "FRAME")]
+    pub frames: Vec<String>,
+    /// Pcap (classic or pcapng) to read frames from (repeatable).
+    #[arg(short = 'r', long = "read", value_name = "FILE")]
+    pub read: Vec<String>,
+    /// Set one field: path=value, typed per the field's schema
+    /// (repeatable; `wire:HEX` hands codec-owned regions raw bytes).
+    #[arg(long = "set", value_name = "PATH=VALUE")]
+    pub set: Vec<String>,
+    /// Insert HEX bytes at absolute frame offset AT (repeatable).
+    #[arg(long, value_name = "AT:HEX")]
+    pub insert: Vec<String>,
+    /// Delete LEN bytes at absolute frame offset AT (repeatable).
+    #[arg(long, value_name = "AT:LEN")]
+    pub delete: Vec<String>,
+    /// Recompute only these derived fields after the edits:
+    /// KIND.* (whole layer) or kind.field, comma list (default: all).
+    #[arg(long, value_name = "SEL[,…]")]
+    pub scope: Option<String>,
+    /// Nothing re-derives: stale checksums ride along (preserve).
+    #[arg(long)]
+    pub no_recompute: bool,
+    /// Patch only these frames (1-based ordinals, N-M ranges, comma
+    /// list).
+    #[arg(long, value_name = "N[-M][,…]")]
+    pub index: Option<String>,
+    /// Patch only frames matching this filter expression (the recv
+    /// grammar; unlike replay nothing is dropped — it selects).
+    #[arg(long)]
+    pub filter: Option<String>,
+    /// Write the edited stream as a pcap file (patched + passthrough,
+    /// original timestamps kept).
+    #[arg(short = 'w', long = "write", value_name = "FILE")]
+    pub write: Option<String>,
+    /// Write pcapng instead of classic pcap (with -w).
+    #[arg(long)]
+    pub pcapng: bool,
+}
 
 /// `wrex mut`: seeded, dissect-aware frame mutation.
 #[derive(Args, Debug)]
