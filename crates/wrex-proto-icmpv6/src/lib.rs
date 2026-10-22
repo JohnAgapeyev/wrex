@@ -24,6 +24,9 @@ use wrex_core::schema::{
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
+
+mod options;
+use options::parse_ndp_options;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
 /// ICMPv6 message type numbers (RFC 4443 / RFC 4861).
@@ -37,6 +40,10 @@ pub const T_NA: u8 = 136;
 /// NDP option type numbers (RFC 4861 §4.6).
 pub const OPT_SLLA: u8 = 1;
 pub const OPT_TLLA: u8 = 2;
+/// Prefix Information option (RFC 4861 §4.6.2) — tranche 17b.
+pub const OPT_PI: u8 = 3;
+/// MTU option (RFC 4861 §4.6.4) — tranche 17b.
+pub const OPT_MTU: u8 = 5;
 
 static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
@@ -156,6 +163,17 @@ static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
             required: false,
             doc: "raw option data (other options)",
         },
+        // Tranche 17b: the NDP option list grammar, the write-side of
+        // the dissect-only `opt` record section (the dhcp options
+        // precedent — a Str field keeps it CLI-reachable).
+        FieldSchema {
+            name: "options",
+            kind: FieldKind::Str,
+            bit_names: &[],
+            default: Value::Str(String::new()),
+            required: false,
+            doc: "NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma-continued), raw:TYPE:HEX",
+        },
     ]
 });
 
@@ -237,7 +255,15 @@ impl Codec for Icmp6Codec {
     fn header_len(&self, spec: &LayerSpec) -> Result<usize, EncodeError> {
         let af = true; // header_len only sizes the buffer; type is explicit
         let t = int_or_default(spec, &FIELDS[0], af) as u8;
-        Ok(8 + ndp_body_len(t))
+        let mut len = 8 + ndp_body_len(t);
+        // Tranche 17b: the NDP option list grammar appends after the
+        // body (only NDP types carry options per RFC 4861).
+        if is_ndp(t)
+            && let Some(Value::Str(raw)) = spec.fields.get("options")
+        {
+            len += parse_ndp_options(raw)?.len();
+        }
+        Ok(len)
     }
 
     fn write(&self, spec: &LayerSpec, ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
@@ -303,6 +329,18 @@ impl Codec for Icmp6Codec {
         // Checksum over the whole message (header + body + payload) with
         // the v6 pseudo-header (proto 58) — facts were recorded by ipv6.
         let pseudo = ctx.facts.net.map(|n| l4_pseudo(n, 58));
+        // Tranche 17b: the NDP option list grammar (the dhcp
+        // options-grammar architecture) appends after the NDP body,
+        // order preserved. Options on non-NDP types are a pointed
+        // error (echo payloads stay payloads, RFC 4861 §4.6).
+        if let Some(Value::Str(raw)) = spec.fields.get("options") {
+            if !is_ndp(t) {
+                return Err(EncodeError::IncompatibleStack {
+                    detail: "icmpv6.options: NDP options only follow NDP bodies".into(),
+                });
+            }
+            ctx.buf.extend_from_slice(&parse_ndp_options(raw)?);
+        }
         // Tranche 17a: the checksum covers the upper-layer packet —
         // with a v6 ext chain that includes the ext headers (RFC 8200
         // §8.1); equals this layer's own start on ext-free stacks.
@@ -383,6 +421,58 @@ impl Codec for Icmp6Codec {
                             mac[j] = *b;
                         }
                         fields.insert(format!("opt.{i}.addr"), Value::Mac(mac));
+                    }
+                    // Tranche 17b: the typed grammar surface — MTU and
+                    // the plastered PI option (RFC 4861 §4.6.2/§4.6.4).
+                    OPT_MTU if data.len() >= 6 => {
+                        // Wire: type, len, reserved(2), mtu(4) — the
+                        // value starts 2 bytes into the region.
+                        fields.insert(
+                            format!("opt.{i}.mtu"),
+                            Value::Int(
+                                u32::from_be_bytes([data[2], data[3], data[4], data[5]]) as u128
+                            ),
+                        );
+                    }
+                    OPT_PI if data.len() >= 30 => {
+                        fields.insert(
+                            format!("opt.{i}.prefix_len"),
+                            Value::Int(bytes[cursor + 2] as u128),
+                        );
+                        let fl = bytes[cursor + 3];
+                        let mut names = Vec::new();
+                        if fl & 0x80 != 0 {
+                            names.push(Value::Str("l".into()));
+                        }
+                        if fl & 0x40 != 0 {
+                            names.push(Value::Str("a".into()));
+                        }
+                        fields.insert(format!("opt.{i}.flags"), Value::List(names));
+                        // Wire after the TLV prefix: plen, flags,
+                        // reserved(4), prefix(16), valid(4),
+                        // preferred(4) — 30 bytes.
+                        fields.insert(
+                            format!("opt.{i}.prefix"),
+                            Value::Ipv6(std::net::Ipv6Addr::from([
+                                data[6], data[7], data[8], data[9], data[10], data[11], data[12],
+                                data[13], data[14], data[15], data[16], data[17], data[18],
+                                data[19], data[20], data[21],
+                            ])),
+                        );
+                        fields.insert(
+                            format!("opt.{i}.valid"),
+                            Value::Int(
+                                u32::from_be_bytes([data[22], data[23], data[24], data[25]])
+                                    as u128,
+                            ),
+                        );
+                        fields.insert(
+                            format!("opt.{i}.preferred"),
+                            Value::Int(
+                                u32::from_be_bytes([data[26], data[27], data[28], data[29]])
+                                    as u128,
+                            ),
+                        );
                     }
                     _ => {
                         fields.insert(
@@ -773,6 +863,87 @@ mod tests {
             ]
         );
         assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+    }
+
+    /// Tranche 17b: the NDP option list grammar round-trips through
+    /// the real codecs — slla/tlla/mtu/prefix (with lifetimes + l/a
+    /// flags) and the raw escape, order preserved; the PI option
+    /// dissects into its typed subpaths; options on echo types are
+    /// the pointed error.
+    #[test]
+    fn ndp_options_grammar_roundtrip() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut ns = std::collections::BTreeMap::new();
+        ns.insert("type".to_string(), Value::Int(135));
+        ns.insert(
+            "ndp.target".to_string(),
+            Value::Ipv6("fe80::1".parse().unwrap()),
+        );
+        ns.insert(
+            "options".to_string(),
+            Value::Str(
+                "slla:00:11:22:33:44:55, tlla:aa:bb:cc:dd:ee:ff, mtu:1500, prefix:64,2001:db8::1,3600,1800,l,a, raw:9:0102".into(),
+            ),
+        );
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                wrex_core::spec::LayerSpec::with_fields(KIND, ns),
+            ],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        let f = &p.layers[1].fields;
+        assert_eq!(f.get("opt.0.type"), Some(&Value::Int(1)));
+        assert_eq!(
+            f.get("opt.0.addr"),
+            Some(&Value::Mac([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]))
+        );
+        assert_eq!(f.get("opt.1.type"), Some(&Value::Int(2)));
+        assert_eq!(f.get("opt.2.mtu"), Some(&Value::Int(1500)));
+        assert_eq!(f.get("opt.3.type"), Some(&Value::Int(3)));
+        assert_eq!(f.get("opt.3.prefix_len"), Some(&Value::Int(64)));
+        assert_eq!(
+            f.get("opt.3.prefix"),
+            Some(&Value::Ipv6("2001:db8::1".parse().unwrap()))
+        );
+        assert_eq!(f.get("opt.3.valid"), Some(&Value::Int(3600)));
+        assert_eq!(f.get("opt.3.preferred"), Some(&Value::Int(1800)));
+        assert_eq!(
+            f.get("opt.3.flags"),
+            Some(&Value::List(vec![
+                Value::Str("l".into()),
+                Value::Str("a".into())
+            ]))
+        );
+        assert_eq!(f.get("opt.4.type"), Some(&Value::Int(9)));
+        // Options on a non-NDP type: the pointed error.
+        let mut echo = std::collections::BTreeMap::new();
+        echo.insert("type".to_string(), Value::Int(128));
+        echo.insert(
+            "options".to_string(),
+            Value::Str("slla:00:11:22:33:44:55".into()),
+        );
+        let bad = encode(
+            &r,
+            &wrex_core::spec::PacketSpec::new(
+                vec![wrex_core::spec::LayerSpec::with_fields(KIND, echo)],
+                None,
+            ),
+            &wrex_core::encode::EncodeOpts::default(),
+        );
+        assert!(bad.is_err(), "options must not follow an echo body");
     }
 
     #[test]

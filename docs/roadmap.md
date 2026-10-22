@@ -1277,8 +1277,28 @@ T(n+1)".
     PadN sugar — the MLD goldens hand-hex the RA option), routing
     type-2 typed segments, Mobility/HIP/Shim6, ESP plaintext (crypto,
     the standing rule), 6LoWPAN/NHC.
-  - **T17b — icmpv6 completion: MLD + NDP option crafting** —
-    chartered, not yet landed. The icmpv6 codec grows in place (its
+  - **T17b — icmpv6 completion: MLD + NDP option crafting** — in
+    flight, **NDP option crafting delivered (slice 1)**: the
+    dissect-only `opt` section's write-side list grammar landed —
+    a `FieldKind::Str` `options` field (the dhcp precedent, CLI via
+    `--icmpv6-options`), the pending-continuation architecture with
+    the IPv6-address gotcha handled (a bare continuation may contain
+    `:` — `prefix:64,2001:db8::1,…` — only the known option names
+    take the named branch): `slla:MAC`, `tlla:MAC`, `mtu:N`,
+    `prefix:LEN,IP[,valid,preferred][,l][,a]` (the RFC 4861 §4.6.2
+    plastered shape: plen, L|A flags, 4 reserved, addr, lifetimes),
+    and `raw:TYPE:HEX` (8-grid padded); order preserved, the
+    checksum covers the appended TLVs (written before the deferral),
+    options on non-NDP types are the pointed error. Dissection grew
+    the typed subpaths `opt.N.mtu` and the PI family
+    (`opt.N.prefix_len/flags/prefix/valid/preferred`) beside the
+    existing SLLA/TLLA `addr`. Verified by a full round-trip unit
+    (all five grammar items through the real codecs, zero
+    anomalies, typed asserts; the echo-type refusal); 78 suites
+    green, man pages regenerated. **Remaining in T17b**: MLD (the
+    v1 triad 130/131/132 + the v2 query/report shapes) and the
+    NS-SLLA byte-identity cross-check against the `wrex-io::ndp`
+    hand-roll. The icmpv6 codec grows in place (its
     ADR-3 dep on ip6 landed with T17-0). **MLD**, the `ndp.*`
     conditional-fields pattern keyed on type: MLDv1 (RFC 2710)
     query **130** (max_resp rides the code field, 1/10s units;

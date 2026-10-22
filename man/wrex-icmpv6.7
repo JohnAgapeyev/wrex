@@ -68,6 +68,7 @@ NDP option TLVs after the NDP body (dissect\-only; indexed paths opt.0.addr, …
   type (u8; default 0). option type (1 slla, 2 tlla)
   addr (mac; default 00:00:00:00:00:00). link\-layer address (slla/tlla options)
   data (bytes; default ). raw option data (other options)
+  options (str; default ). NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma\-continued), raw:TYPE:HEX
 
 .SH EXAMPLES
 wrex fields icmpv6
