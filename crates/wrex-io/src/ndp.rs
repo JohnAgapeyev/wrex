@@ -211,7 +211,11 @@ pub fn build_ns_frame(
     icmp.extend_from_slice(&target.octets());
     icmp.extend_from_slice(&[OPT_SLLA, 1]); // type 1, one 8-byte unit
     icmp.extend_from_slice(&slla);
-    icmp.extend_from_slice(&[0u8; 2]); // unit pad
+    // No pad: the SLLA option is exactly len×8 bytes (RFC 4861
+    // §4.6.1) — 2 + 6. The tranche-17b codec/driver byte-identity
+    // cross-check caught a 2-byte pad here that made the "option" 10
+    // bytes, past its own declared length (the T10b unit goldens
+    // self-confirmed the shape — the inversion-rule blind spot).
     let ck = icmp6_checksum(src, sn, &icmp);
     icmp[2] = ck.to_be_bytes()[0];
     icmp[3] = ck.to_be_bytes()[1];
@@ -220,9 +224,11 @@ pub fn build_ns_frame(
     frame.extend_from_slice(&dst_mac);
     frame.extend_from_slice(&iface_mac);
     frame.extend_from_slice(&0x86ddu16.to_be_bytes());
-    // IPv6 header: flow word 0, payload_len, next 58, hop 255 (NDP
-    // mandates 255 so receivers never forward it).
-    frame.extend_from_slice(&[0, 0, 0, 0]);
+    // IPv6 header: version 6 (the 17b byte-identity cross-check caught
+    // an all-zero flow word here — version 0, an invalid header), flow
+    // 0, payload_len, next 58, hop 255 (NDP mandates 255 so receivers
+    // never forward it).
+    frame.extend_from_slice(&[0x60, 0, 0, 0]);
     frame.extend_from_slice(&(icmp.len() as u16).to_be_bytes());
     frame.extend_from_slice(&[58, 255]);
     frame.extend_from_slice(&src.octets());

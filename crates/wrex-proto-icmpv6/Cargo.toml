@@ -25,3 +25,4 @@ test-util = ["proptest"]
 
 [dev-dependencies]
 proptest = { workspace = true }
+wrex-io = { workspace = true }

@@ -958,6 +958,69 @@ mod tests {
         }
     }
 
+    /// Tranche 17b: the NS-SLLA byte-identity cross-check — the codec's
+    /// craft vs the `wrex-io::ndp` driver hand-roll (two in-tree
+    /// lineages of the same wire bytes, the internal inversion-rule
+    /// cross-check; the driver is the RFC-verified one from T10b).
+    #[test]
+    fn ns_slla_matches_driver_handroll() {
+        let iface_mac = [0x00u8, 0x11, 0x22, 0x33, 0x44, 0x55];
+        let src: std::net::Ipv6Addr = "fe80::1234".parse().unwrap();
+        let target: std::net::Ipv6Addr = "fe80::1".parse().unwrap();
+        let slla = [0xaau8, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let want = wrex_io::ndp::build_ns_frame(iface_mac, src, target, slla);
+
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let sn = wrex_io::ndp::solicited_node(target);
+        let mut ef = std::collections::BTreeMap::new();
+        ef.insert("src".to_string(), Value::Mac(iface_mac));
+        ef.insert(
+            "dst".to_string(),
+            Value::Mac(wrex_io::ndp::multicast_mac(sn)),
+        );
+        let mut ipf = std::collections::BTreeMap::new();
+        ipf.insert("src".to_string(), Value::Ipv6(src));
+        ipf.insert("dst".to_string(), Value::Ipv6(sn));
+        ipf.insert("hop_limit".to_string(), Value::Int(255));
+        let mut nf = std::collections::BTreeMap::new();
+        nf.insert("type".to_string(), Value::Int(135));
+        nf.insert("ndp.target".to_string(), Value::Ipv6(target));
+        nf.insert(
+            "options".to_string(),
+            Value::Str(format!("slla:{}", mac_str(slla))),
+        );
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::with_fields("eth", ef),
+                wrex_core::spec::LayerSpec::with_fields(wrex_proto_ip6::KIND, ipf),
+                wrex_core::spec::LayerSpec::with_fields(KIND, nf),
+            ],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            &enc.bytes[..],
+            &want[..],
+            "the codec craft and the driver hand-roll must agree byte-for-byte"
+        );
+    }
+
+    fn mac_str(m: [u8; 6]) -> String {
+        m.iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .join(":")
+    }
+
     #[test]
     fn ndp_options_grammar_roundtrip() {
         let mut r = wrex_core::Registry::empty();

@@ -1306,7 +1306,15 @@ T(n+1)".
     130 with flags/qrv/qqic/sources, the report 143 with the
     `mcast.N.*` record section and its grammar) and the NS-SLLA
     byte-identity cross-check against the `wrex-io::ndp`
-    hand-roll. The icmpv6 codec grows in place (its
+    hand-roll — **delivered (slice 3), catching two real driver
+    bugs**: the hand-rolled `build_ns_frame` emitted a 10-byte SLLA
+    "option" (2 pad bytes PAST its declared 1-unit length — an RFC
+    4861 §4.6.1 violation whose T10b unit goldens had
+    self-confirmed, the inversion-rule blind spot) and an all-zero
+    IPv6 flow word (version 0 — an invalid header the `lo` path
+    tolerated). Both fixed in `wrex-io::ndp`; the codec's craft was
+    the RFC-correct lineage all along, and the two now agree
+    byte-for-byte. The icmpv6 codec grows in place (its
     ADR-3 dep on ip6 landed with T17-0). **MLD**, the `ndp.*`
     conditional-fields pattern keyed on type: MLDv1 (RFC 2710)
     query **130** (max_resp rides the code field, 1/10s units;

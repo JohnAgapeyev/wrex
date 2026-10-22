@@ -2543,6 +2543,7 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
+ "wrex-io",
  "wrex-proto-ip6",
  "wrex-proto-ip6ext",
 ]
