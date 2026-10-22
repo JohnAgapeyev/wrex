@@ -219,13 +219,16 @@ impl Codec for UdpCodec {
         };
         // Port-53 datagrams chain into the dns codec when registered
         // (tranche 3: tshark-parity dispatch); port-67/68 datagrams
-        // chain into the dhcp codec (tranche 7c: the same pattern).
-        // Otherwise the engine synthesizes the usual `unknown` layer
-        // for the payload when the kind is not registered.
+        // chain into the dhcp codec (tranche 7c: the same pattern);
+        // 546/547 into dhcp6 (tranche 17c). Otherwise the engine
+        // synthesizes the usual `unknown` layer for the payload when
+        // the kind is not registered.
         let next = if sport == 53 || dport == 53 {
             Next::Kind("dns")
         } else if sport == 67 || sport == 68 || dport == 67 || dport == 68 {
             Next::Kind("dhcp")
+        } else if sport == 546 || sport == 547 || dport == 546 || dport == 547 {
+            Next::Kind("dhcp6")
         } else {
             Next::Payload
         };

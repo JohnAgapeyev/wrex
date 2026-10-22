@@ -1370,7 +1370,21 @@ T(n+1)".
     icmpv6` extends. Deliberate deferrals: MLD probing (scan/fuzz
     mode — the T10b NDP-probe precedent), NDP cache policy changes,
     `opt` sections on echo messages.
-  - **T17c — DHCPv6** — chartered, not yet landed. New
+  - **T17c — DHCPv6** — in flight, **slice 1 delivered**: the
+    `wrex-proto-dhcp6` crate, ADR-3-shaped (dep on udp, KIND const,
+    `register()` closure, feature `proto-dhcp6`) — kind `dhcp6`,
+    rank 40, parent `udp`, the RFC 8415 4-byte fixed header
+    (`msg_type` 1–13 named/raw + the 3-byte `trans_id`, over-wide
+    masked), udp dispatch on 546/547 both sides (the 67/68
+    pattern), terminal for the slice (options stay payload), the
+    composition closure + order pin grown, a header round-trip +
+    dispatch unit through the real udp codec. **Remaining in
+    T17c**: the options list grammar (u16 TLVs, the pending
+    architecture), the `opt.N.*` record section with one-level
+    nested `opt.N.sub.M.*` (IA_NA → IAADDR), the relay-header
+    dissection (12/13), the dhcproto-v6 both-direction
+    differential, the differential stacks + corpus + fuzz target +
+    Miri membership. New
     `wrex-proto-dhcp6` crate, ADR-3-shaped (dep on
     `wrex-proto-udp`, `register()` fn, feature `proto-dhcp6`): kind
     `dhcp6`, rank 40, parent `udp`; the RFC 8415 fixed header is 4

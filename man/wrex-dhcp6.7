@@ -1,0 +1,31 @@
+.TH WREX-DHCP6 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-dhcp6 \- dhcp6 layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIdhcp6\fR \fB--dhcp6\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIdhcp6\fR
+
+.SH DESCRIPTION
+DHCPv6 (RFC 8415) over UDP 546/547: the 4\-byte fixed header (msg_type 1\-13 + the 3\-byte trans_id) — everything else is options (u16 code, u16 len TLVs; the options grammar with nested sub\-options is the recorded tranche\-17c tail). udp dispatches ports 546/547 into this codec.
+.
+
+.SH ENCAPSULATION
+Rank 40; stacks on udp (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --dhcp6-msg_type).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-dhcp6\-msg_type=\fIINT\fR\fR
+message type (1 solicit, 2 advertise, 3 request, 4 reply, 5 release, 6 decline, 8 info_req, 9 renew, 10 rebind, 12 relay_forward, 13 relay_reply; raw numbers kept) Type u8. Default: 1.
+.TP
+\fB\-\-dhcp6\-trans_id=\fIINT\fR\fR
+transaction id (3 bytes on the wire; over\-wide values mask) Type u32. Default: 0.
+
+.SH EXAMPLES
+wrex fields dhcp6
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

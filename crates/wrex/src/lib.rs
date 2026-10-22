@@ -48,5 +48,7 @@ pub fn standard() -> wrex_core::Registry {
     wrex_proto_dns::register(&mut r);
     #[cfg(feature = "proto-dhcp")]
     wrex_proto_dhcp::register(&mut r);
+    #[cfg(feature = "proto-dhcp6")]
+    wrex_proto_dhcp6::register(&mut r);
     r
 }

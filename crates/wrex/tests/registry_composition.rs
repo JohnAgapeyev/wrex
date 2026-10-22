@@ -49,7 +49,8 @@ fn no_dangling_parents() {
     feature = "proto-udp",
     feature = "proto-tcp",
     feature = "proto-dns",
-    feature = "proto-dhcp"
+    feature = "proto-dhcp",
+    feature = "proto-dhcp6"
 ))]
 #[test]
 fn standard_registration_order_pinned() {
@@ -58,7 +59,7 @@ fn standard_registration_order_pinned() {
         r.kinds(),
         &[
             "eth", "arp", "vlan", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah",
-            "esp", "nonext", "icmp", "icmpv6", "udp", "tcp", "dns", "dhcp",
+            "esp", "nonext", "icmp", "icmpv6", "udp", "tcp", "dns", "dhcp", "dhcp6",
         ]
     );
 }
@@ -173,4 +174,11 @@ closure_test!(
         "dhcp", "udp", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah", "esp",
         "nonext", "eth", "vlan"
     ]
+);
+
+closure_test!(
+    dhcp6_closure,
+    "proto-dhcp6",
+    wrex_proto_dhcp6::register,
+    ["dhcp6", "udp", "ipv4", "ipv6", "eth", "vlan"]
 );

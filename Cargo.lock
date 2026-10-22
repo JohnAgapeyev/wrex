@@ -2358,6 +2358,7 @@ dependencies = [
  "wrex-pcap",
  "wrex-proto-arp",
  "wrex-proto-dhcp",
+ "wrex-proto-dhcp6",
  "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",
@@ -2498,6 +2499,15 @@ dependencies = [
  "bytes",
  "hex",
  "proptest",
+ "wrex-core",
+ "wrex-proto-udp",
+]
+
+[[package]]
+name = "wrex-proto-dhcp6"
+version = "0.1.0"
+dependencies = [
+ "bytes",
  "wrex-core",
  "wrex-proto-udp",
 ]

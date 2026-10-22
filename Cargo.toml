@@ -34,6 +34,7 @@ wrex-proto-tcp = { path = "crates/wrex-proto-tcp", version = "0.1.0" }
 wrex-proto-vlan = { path = "crates/wrex-proto-vlan", version = "0.1.0" }
 wrex-proto-dns = { path = "crates/wrex-proto-dns", version = "0.1.0" }
 wrex-proto-dhcp = { path = "crates/wrex-proto-dhcp", version = "0.1.0" }
+wrex-proto-dhcp6 = { path = "crates/wrex-proto-dhcp6", version = "0.1.0" }
 wrex-mut = { path = "crates/wrex-mut", version = "0.1.0" }
 wrex-fuzz = { path = "crates/wrex-fuzz", version = "0.1.0" }
 
