@@ -1302,9 +1302,19 @@ T(n+1)".
     `mld.addr` multicast body (all-nodes `ff02::1` craft default),
     craft + dissect through the real codecs, zero anomalies; the
     stale "option crafting is a deferral" schema doc swept with it.
-    **Remaining in T17b**: MLDv2 (the length-discriminated query
-    130 with flags/qrv/qqic/sources, the report 143 with the
-    `mcast.N.*` record section and its grammar) and the NS-SLLA
+    **MLDv2 query delivered (slice
+    4)**: the RFC 3810 §5.1 length-discriminated type-130 superset —
+    `mld.flags [s]` (FlagSet, Int-packed through the craft grammar),
+    `mld.qrv` (3 bits), `mld.qqic`, and the raw `mld.sources` region
+    with `mld.nsrcs` autofilled; body ≥ 20 bytes discriminates the
+    v2 shape on read, any v2 field on write; the v1 query keeps its
+    16-byte body. The slice also fixed a slices-1–2 placement bug
+    the v2 schema lookups surfaced: the `options`/`mld.addr`/v2
+    fields had landed in the `opt` record-section list instead of
+    the main FIELDS (tests passed because the codec paths never
+    consult the schema; CLI flag enumeration was the casualty) —
+    relocated, `wrex fields`/man pages correct. **Remaining in
+    T17b**: the report 143 and the NS-SLLA
     byte-identity cross-check against the `wrex-io::ndp`
     hand-roll — **delivered (slice 3), catching two real driver
     bugs**: the hand-rolled `build_ns_frame` emitted a 10-byte SLLA

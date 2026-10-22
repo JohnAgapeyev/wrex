@@ -134,6 +134,72 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
             "neighbor solicitation/advertisement: target address",
             Value::Ipv6(Ipv6Addr::UNSPECIFIED),
         ),
+        // Tranche 17b: MLDv1 (RFC 2710) — the 16-byte multicast
+        // address body of query/report/done (the v1 query's
+        // max-response rides the `code` field, 1/10s units).
+        FieldSchema {
+            name: "mld.addr",
+            kind: FieldKind::Ipv6,
+            bit_names: &[],
+            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
+            required: false,
+            doc: "MLD multicast address (types 130/131/132; ff02::1 all-nodes, ff02::2 all-routers)",
+        },
+        // Tranche 17b: MLDv2 query (RFC 3810) — type 130 with an
+        // extended body (>= 20 bytes), discriminated from the v1
+        // query by body length: flags [s], qrv, qqic, and the raw
+        // sources region (nsrcs autofilled over it).
+        FieldSchema {
+            name: "mld.flags",
+            kind: FieldKind::FlagSet,
+            bit_names: &["s"],
+            default: Value::Int(0),
+            required: false,
+            doc: "MLDv2 query flags [s] (suppress router-side processing)",
+        },
+        FieldSchema {
+            name: "mld.qrv",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "MLDv2 querier's robustness variable (3 bits)",
+        },
+        FieldSchema {
+            name: "mld.qqic",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "MLDv2 querier's query interval code",
+        },
+        FieldSchema {
+            name: "mld.nsrcs",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "MLDv2 query source count (autofilled over mld.sources)",
+        },
+        FieldSchema {
+            name: "mld.sources",
+            kind: FieldKind::Bytes,
+            bit_names: &[],
+            default: Value::Bytes(Bytes::new()),
+            required: false,
+            doc: "MLDv2 query sources region (16-byte addresses; hex on the CLI)",
+        },
+        // Tranche 17b: the NDP option list grammar, the write-side of
+        // the dissect-only `opt` record section (the dhcp options
+        // precedent — a Str field keeps it CLI-reachable).
+        FieldSchema {
+            name: "options",
+            kind: FieldKind::Str,
+            bit_names: &[],
+            default: Value::Str(String::new()),
+            required: false,
+            doc: "NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma-continued), raw:TYPE:HEX",
+        },
     ]
 });
 
@@ -162,28 +228,6 @@ static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
             default: Value::Bytes(Bytes::new()),
             required: false,
             doc: "raw option data (other options)",
-        },
-        // Tranche 17b: MLDv1 (RFC 2710) — the 16-byte multicast
-        // address body of query/report/done (the v1 query's
-        // max-response rides the `code` field, 1/10s units).
-        FieldSchema {
-            name: "mld.addr",
-            kind: FieldKind::Ipv6,
-            bit_names: &[],
-            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
-            required: false,
-            doc: "MLD multicast address (types 130/131/132; ff02::1 all-nodes, ff02::2 all-routers)",
-        },
-        // Tranche 17b: the NDP option list grammar, the write-side of
-        // the dissect-only `opt` record section (the dhcp options
-        // precedent — a Str field keeps it CLI-reachable).
-        FieldSchema {
-            name: "options",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma-continued), raw:TYPE:HEX",
         },
     ]
 });
@@ -246,6 +290,18 @@ pub fn register(r: &mut wrex_core::Registry) {
 pub const T_MLD_QUERY: u8 = 130;
 pub const T_MLD_REPORT: u8 = 131;
 pub const T_MLD_DONE: u8 = 132;
+
+fn mld_field(name: &str) -> &'static FieldSchema {
+    SCHEMA
+        .fields
+        .iter()
+        .find(|f| f.name == name)
+        .expect("mld field in schema")
+}
+
+fn mld_flag_field() -> &'static FieldSchema {
+    mld_field("mld.flags")
+}
 
 fn is_mld(t: u8) -> bool {
     matches!(t, T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE)
@@ -357,6 +413,29 @@ impl Codec for Icmp6Codec {
                 _ => std::net::Ipv6Addr::UNSPECIFIED,
             };
             ctx.buf.extend_from_slice(&addr.octets());
+        }
+        // MLDv2 query extension (tranche 17b, RFC 3810 §5.1): present
+        // iff any v2 field is set — flags/qrv/qqic byte, then the
+        // sources region with nsrcs autofilled over it.
+        if t == T_MLD_QUERY
+            && (spec.fields.contains_key("mld.flags")
+                || spec.fields.contains_key("mld.qrv")
+                || spec.fields.contains_key("mld.qqic")
+                || spec.fields.contains_key("mld.sources"))
+        {
+            let s_bit = flagset_or_default(spec, mld_flag_field(), af) as u8;
+            let qrv = int_or_default(spec, mld_field("mld.qrv"), af) as u8 & 0x07;
+            ctx.buf.put_u8((s_bit << 3 & 0x08) | qrv);
+            ctx.buf
+                .put_u8(int_or_default(spec, mld_field("mld.qqic"), af) as u8);
+            let sources = bytes_or_empty(spec, "mld.sources");
+            let n = if spec.fields.contains_key("mld.nsrcs") {
+                int_or_default(spec, mld_field("mld.nsrcs"), af) as u16
+            } else {
+                (sources.len() / 16) as u16
+            };
+            ctx.buf.put_u16(n);
+            ctx.buf.extend_from_slice(&sources);
         }
         // Checksum over the whole message (header + body + payload) with
         // the v6 pseudo-header (proto 58) — facts were recorded by ipv6.
@@ -519,6 +598,29 @@ impl Codec for Icmp6Codec {
             }
         }
 
+        // MLDv2 query extension (tranche 17b): body >= 20 bytes
+        // discriminates the v2 shape from the v1 16-byte body
+        // (RFC 3810 §5.1 — the v2 query is a superset).
+        if t == T_MLD_QUERY && bytes.len() >= 8 + 20 {
+            let flags_qrv = bytes[24];
+            fields.insert(
+                "mld.flags".into(),
+                Value::List(if flags_qrv & 0x08 != 0 {
+                    vec![Value::Str("s".into())]
+                } else {
+                    Default::default()
+                }),
+            );
+            fields.insert("mld.qrv".into(), Value::Int((flags_qrv & 0x07) as u128));
+            fields.insert("mld.qqic".into(), Value::Int(bytes[25] as u128));
+            let n = u16::from_be_bytes([bytes[26], bytes[27]]);
+            fields.insert("mld.nsrcs".into(), Value::Int(n as u128));
+            let src_end = (8 + 28 + n as usize * 16).min(bytes.len());
+            fields.insert(
+                "mld.sources".into(),
+                Value::Bytes(Bytes::copy_from_slice(&bytes[28..src_end])),
+            );
+        }
         // MLDv1 bodies (tranche 17b): the 16-byte multicast address
         // (the option pass is NDP-only, so MLD bytes were skipped).
         if is_mld(t) && bytes.len() >= need {
@@ -962,6 +1064,92 @@ mod tests {
     /// craft vs the `wrex-io::ndp` driver hand-roll (two in-tree
     /// lineages of the same wire bytes, the internal inversion-rule
     /// cross-check; the driver is the RFC-verified one from T10b).
+    /// Tranche 17b: the MLDv2 query (RFC 3810 §5.1) — the
+    /// length-discriminated type-130 superset: flags [s], qrv, qqic,
+    /// the sources region with nsrcs autofilled; the v1 query (no
+    /// v2 fields) keeps its 16-byte body untouched.
+    #[test]
+    fn mldv2_query_roundtrip() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut f = std::collections::BTreeMap::new();
+        f.insert("type".to_string(), Value::Int(130));
+        f.insert("code".to_string(), Value::Int(125));
+        f.insert(
+            "mld.addr".to_string(),
+            Value::Ipv6("ff02::1".parse().unwrap()),
+        );
+        // FlagSet craft values pack as Int (bit_names MSB-first:
+        // "s" = 1); the List form is the rendered output.
+        f.insert("mld.flags".to_string(), Value::Int(1));
+        f.insert("mld.qrv".to_string(), Value::Int(2));
+        f.insert("mld.qqic".to_string(), Value::Int(125));
+        f.insert(
+            "mld.sources".to_string(),
+            Value::Bytes(Bytes::from(
+                [
+                    "2001:db8::1"
+                        .parse::<std::net::Ipv6Addr>()
+                        .unwrap()
+                        .octets(),
+                    "2001:db8::2"
+                        .parse::<std::net::Ipv6Addr>()
+                        .unwrap()
+                        .octets(),
+                ]
+                .concat(),
+            )),
+        );
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                wrex_core::spec::LayerSpec::with_fields(KIND, f),
+            ],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        let l = &p.layers[1];
+        assert_eq!(l.fields.get("mld.nsrcs"), Some(&Value::Int(2)));
+        assert_eq!(l.fields.get("mld.qrv"), Some(&Value::Int(2)));
+        assert_eq!(l.fields.get("mld.qqic"), Some(&Value::Int(125)));
+        assert_eq!(
+            l.fields.get("mld.flags"),
+            Some(&Value::List(vec![Value::Str("s".into())]))
+        );
+        let Value::Bytes(sources) = l.fields.get("mld.sources").expect("sources") else {
+            panic!("sources must be bytes");
+        };
+        assert_eq!(sources.len(), 32, "two 16-byte sources");
+        // The v1 query keeps its 16-byte body (no v2 fields set).
+        let mut v1 = std::collections::BTreeMap::new();
+        v1.insert("type".to_string(), Value::Int(130));
+        v1.insert("code".to_string(), Value::Int(10));
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![wrex_core::spec::LayerSpec::with_fields(KIND, v1)],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(enc.bytes.len(), 8 + 16, "the v1 body stays 16 bytes");
+    }
+
     #[test]
     fn ns_slla_matches_driver_handroll() {
         let iface_mac = [0x00u8, 0x11, 0x22, 0x33, 0x44, 0x55];
