@@ -103,6 +103,7 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
             "wrex-proto-tcp",
             "wrex-proto-dns",
             "wrex-proto-dhcp",
+            "wrex-proto-dhcp6",
             "wrex-proto-vlan",
             "wrex-session",
             "wrex-scan",
