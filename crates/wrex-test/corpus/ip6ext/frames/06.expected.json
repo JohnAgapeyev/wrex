@@ -1,0 +1,47 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:00:00:00:00:00",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "::1",
+        "flow_label": 0,
+        "hop_limit": 64,
+        "next_header": 50,
+        "payload_len": 10,
+        "src": "::1",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "seq": 7,
+        "spi": 287454020
+      },
+      "kind": "esp",
+      "span": [
+        54,
+        62
+      ]
+    }
+  ],
+  "payload_hex": "aa55",
+  "start": "eth"
+}

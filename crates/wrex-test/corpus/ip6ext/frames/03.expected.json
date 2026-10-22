@@ -1,0 +1,63 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ff:ff:ff:ff:ff:ff",
+        "src": "00:00:00:00:00:00",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "::1",
+        "flow_label": 0,
+        "hop_limit": 64,
+        "next_header": 43,
+        "payload_len": 32,
+        "src": "::1",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "len": 2,
+        "next_header": 17,
+        "segments": "00000000112233445566778899aabbcc00000000",
+        "segs_left": 1,
+        "type": 0
+      },
+      "kind": "routing",
+      "span": [
+        54,
+        78
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 34802,
+        "dport": 2,
+        "length": 8,
+        "sport": 1
+      },
+      "kind": "udp",
+      "span": [
+        78,
+        86
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

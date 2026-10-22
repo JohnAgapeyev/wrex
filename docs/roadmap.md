@@ -1218,13 +1218,36 @@ T(n+1)".
     udp/tcp/icmpv6/dns/dhcp closures extend through udp's new
     parents — the lean CI proto-dns expected closure 6 → 13 kinds),
     `wrex fields`/man pages/completions regenerated, full workspace
-    suite green (78 suites), clippy/fmt clean. **Verification tail
-    (next in order, chartered)**: the differential stacks +
-    etherparse ext arms (Ipv6Extensions slices; esp is tshark-only —
-    etherparse stops at esp) + tshark map blocks, the `ip6ext`
-    golden corpus, the population/identity-sweep gates over it, the
-    Kani candidate on the quantized-length fold (measure first — the
-    T4 dns-proof retirement precedent), and the env-gated `lo`
+    suite green (78 suites), clippy/fmt clean. **Verification tail, first
+    slice delivered**: the `ip6ext` golden corpus (7 frames —
+    hopopts/icmpv6, dstopts-twice/tcp, RH-style routing/udp,
+    frag-offset-0/tcp, AH+ICV/icmpv6, esp+payload, nonext; zero
+    anomalies, CLI-generated expected.json) — and the gates over it
+    (population, identity sweep, normalize fixed point) **caught two
+    real engine gaps, both fixed additively**: (1) the ext `len`
+    fields count **their own span**, which frame-end `LengthBase`
+    arithmetic cannot express — the dstopts-twice normalize proved it;
+    `LengthBase` grew the `Span` variant (layer end − layer start);
+    and (2) the pseudo-header under an ext chain folded with the
+    ipv6 `next_header` (0 = hopopts) instead of the RFC 8200 §8.1
+    *terminal* upper-layer protocol — the ext codecs now thread the
+    final proto through the net facts (the L4 dissect verifies always
+    hardcoded theirs; the patch walk's FromFacts path needed the
+    threaded value). Also swept: `serialize_field_value`'s 16-byte
+    ceiling was a *numeric* constraint that wrongly refused 20+ byte
+    Bytes-kind spans (routing.segments — now Bytes kinds bypass it),
+    and the self-referential ext-`len` insert workflow is pinned as
+    the explicit-len-under-preserve two-step (the dissector trusts
+    len, so a stale len cannot grow its own span — count-style
+    fields are caller-decided, the add-a-record precedent);
+    `LengthNotQuantized` is pinned by a wrex-core mock over a
+    synthetic non-grid span (unreachable through the family's own
+    dissectors — grid-aligned by construction). **Remaining tail
+    (next in order)**: the differential stacks + etherparse ext arms
+    (Ipv6Extensions slices; esp is tshark-only — etherparse stops at
+    esp) + tshark map blocks, the Kani candidate on the
+    quantized-length fold (measure first — the T4 dns-proof
+    retirement precedent), and the env-gated `lo`
     echo-through-hopopts ground truth. Deliberate deferrals: fragment
     reassembly, hopopts/dstopts option typing (Router Alert/Jumbo/
     PadN sugar — the MLD goldens hand-hex the RA option), routing

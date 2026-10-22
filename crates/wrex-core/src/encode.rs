@@ -289,6 +289,15 @@ pub fn serialize_field_value(
     bits: usize,
     v: &Value,
 ) -> Option<Vec<u8>> {
+    // Bytes kinds serialize at any span width (the tranche-17a ext
+    // regions run 20+ bytes); the 16-byte ceiling below is a *numeric*
+    // constraint (u128 masking), not a Bytes one.
+    if matches!(kind, FieldKind::Bytes | FieldKind::ByteList) {
+        return match v {
+            Value::Bytes(b) => Some(b.to_vec()),
+            _ => None,
+        };
+    }
     if bits == 0 || bits > 16 * 8 {
         return None;
     }

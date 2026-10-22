@@ -488,11 +488,13 @@ fn recompute(
             // (RFC 8200 §4.3.1 / RFC 4302 §2.2) — a non-multiple
             // covered length has no consistent value, which is a
             // pointed error, never a silent truncation.
-            let base_at = match base {
-                crate::schema::LengthBase::LayerStart => layer.span.start,
-                crate::schema::LengthBase::LayerEnd => layer.span.end,
+            let covered = match base {
+                crate::schema::LengthBase::LayerStart => frame.len() - layer.span.start,
+                crate::schema::LengthBase::LayerEnd => frame.len() - layer.span.end,
+                // The ext `len` fields count their own header
+                // (tranche 17a): layer end − layer start.
+                crate::schema::LengthBase::Span => layer.span.end - layer.span.start,
             };
-            let covered = frame.len() - base_at;
             let pos = layer.span.start + at;
             let path = format!("{}.{}", layer.kind, d.field());
             match units {
@@ -828,6 +830,104 @@ mod tests {
             .as_slice()
             .into();
         crate::dissect::dissect(&reg, &bytes, "mock")
+    }
+
+    /// A quantized derived length over a NON-grid span is the pointed
+    /// `LengthNotQuantized` (tranche 17a) — unreachable through the ext
+    /// family's own dissectors (their spans are grid-aligned by
+    /// construction), so the guard is pinned here over a synthetic
+    /// 7-byte span with an Octlets8 `len`.
+    static QUANT_FIELDS: &[FieldSchema] = &[FieldSchema {
+        name: "qlen",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "quantized len",
+    }];
+    static QUANT_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mockq",
+        rank: 5,
+        parents: &[],
+        doc: "patch-engine quantized mock",
+        fields: QUANT_FIELDS,
+        records: &[],
+    };
+    struct MockQuantized;
+    impl Codec for MockQuantized {
+        fn schema(&self) -> &'static LayerSchema {
+            &QUANT_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(7)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'b>(&self, bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+            if bytes.len() < 7 {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind: "mockq",
+                        need: 7,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = std::collections::BTreeMap::new();
+            fields.insert("qlen".to_string(), Value::Int(bytes[0] as u128));
+            let mut spans = std::collections::BTreeMap::new();
+            spans.insert(
+                "qlen".to_string(),
+                crate::dissect::FieldSpan::Bytes(ctx.offset..ctx.offset + 1),
+            );
+            ReadOutcome::Layer(
+                crate::dissect::LayerView {
+                    kind: "mockq",
+                    span: ctx.offset..ctx.offset + 7,
+                    field_spans: spans,
+                    fields,
+                },
+                Some(Next::Payload),
+            )
+        }
+        fn layouts(&self) -> &'static [(&'static str, crate::schema::Layout)] {
+            static L: &[(&str, crate::schema::Layout)] =
+                &[("qlen", crate::schema::Layout::Bytes { at: 0, len: 1 })];
+            L
+        }
+        fn derived(&self) -> &'static [Derived] {
+            static D: &[Derived] = &[Derived::Length {
+                field: "qlen",
+                at: 0,
+                base: crate::schema::LengthBase::Span,
+                units: crate::schema::LengthUnits::Octlets8,
+            }];
+            D
+        }
+    }
+
+    #[test]
+    fn quantized_length_off_grid_is_pointed() {
+        let mut reg = Registry::default();
+        reg.register(&MockQuantized);
+        let bytes: Bytes = [0x00u8, 1, 2, 3, 4, 5, 6].as_slice().into();
+        let p = crate::dissect::dissect(&reg, &bytes, "mockq");
+        // The 7-byte span is not a multiple of 8: no consistent value
+        // exists — pointed, never a silent truncation.
+        match patch(&reg, &p, &[], &Scope::all()) {
+            Err(PatchError::LengthNotQuantized {
+                path,
+                unit,
+                remainder,
+            }) => {
+                assert_eq!(path, "mockq.qlen");
+                assert_eq!(unit, 8);
+                assert_eq!(remainder, 7);
+            }
+            other => panic!("expected LengthNotQuantized, got {other:?}"),
+        }
     }
 
     #[test]

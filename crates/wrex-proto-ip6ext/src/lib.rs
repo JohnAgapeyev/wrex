@@ -525,6 +525,21 @@ impl Codec for OptsCodec {
             "options".to_string(),
             FieldSpan::Bytes(ctx.offset + 2..ctx.offset + total),
         );
+
+        // Thread the terminal upper-layer protocol through the chain:
+        // RFC 8200 §8.1's pseudo-header carries the FINAL upper-layer
+        // protocol, and the patch-engine checksum walk reads it from
+        // the net facts (the L4 dissect verifies hardcode their own
+        // proto; the walk's FromFacts path needs the threaded value —
+        // without this, [ipv6, hopopts, icmpv6] would pseudo-fold with
+        // proto 0 instead of 58).
+        if let Some(wrex_core::dissect::NetFacts::V6 { src, dst, .. }) = ctx.facts.net {
+            ctx.facts.net = Some(wrex_core::dissect::NetFacts::V6 {
+                src,
+                dst,
+                next_header,
+            });
+        }
         let _ = region;
         let view = LayerView {
             kind,
@@ -549,7 +564,7 @@ impl Codec for OptsCodec {
         static DERIVED: &[Derived] = &[Derived::Length {
             field: "len",
             at: 1,
-            base: LengthBase::LayerStart,
+            base: LengthBase::Span,
             units: LengthUnits::Octlets8,
         }];
         DERIVED
@@ -655,6 +670,22 @@ impl Codec for RoutingCodec {
             "segments".to_string(),
             FieldSpan::Bytes(ctx.offset + 4..ctx.offset + total),
         );
+
+        // Thread the terminal upper-layer protocol through the chain:
+        // RFC 8200 §8.1's pseudo-header carries the FINAL upper-layer
+        // protocol, and the patch-engine checksum walk reads it from
+        // the net facts (the L4 dissect verifies hardcode their own
+        // proto; the walk's FromFacts path needs the threaded value —
+        // without this, [ipv6, hopopts, icmpv6] would pseudo-fold with
+        // proto 0 instead of 58).
+        if let Some(wrex_core::dissect::NetFacts::V6 { src, dst, .. }) = ctx.facts.net {
+            ctx.facts.net = Some(wrex_core::dissect::NetFacts::V6 {
+                src,
+                dst,
+                next_header,
+            });
+        }
+
         let view = LayerView {
             kind: KIND_ROUTING,
             span: ctx.offset..ctx.offset + total,
@@ -678,7 +709,7 @@ impl Codec for RoutingCodec {
         static DERIVED: &[Derived] = &[Derived::Length {
             field: "len",
             at: 1,
-            base: LengthBase::LayerStart,
+            base: LengthBase::Span,
             units: LengthUnits::Octlets8,
         }];
         DERIVED
@@ -773,6 +804,20 @@ impl Codec for FragCodec {
         // (reassembly is a deferral). At offset 0 the upper header IS
         // present — chain regardless of M.
         if offset == 0 {
+            // Thread the terminal upper-layer protocol through the chain:
+            // RFC 8200 §8.1's pseudo-header carries the FINAL upper-layer
+            // protocol, and the patch-engine checksum walk reads it from
+            // the net facts (the L4 dissect verifies hardcode their own
+            // proto; the walk's FromFacts path needs the threaded value —
+            // without this, [ipv6, hopopts, icmpv6] would pseudo-fold with
+            // proto 0 instead of 58).
+            if let Some(wrex_core::dissect::NetFacts::V6 { src, dst, .. }) = ctx.facts.net {
+                ctx.facts.net = Some(wrex_core::dissect::NetFacts::V6 {
+                    src,
+                    dst,
+                    next_header,
+                });
+            }
             ReadOutcome::Layer(view, Some(Next::Kind(next_header_to_kind(next_header))))
         } else {
             ReadOutcome::Layer(view, Some(Next::Payload))
@@ -914,6 +959,22 @@ impl Codec for AhCodec {
             "icv".to_string(),
             FieldSpan::Bytes(ctx.offset + 12..ctx.offset + total),
         );
+
+        // Thread the terminal upper-layer protocol through the chain:
+        // RFC 8200 §8.1's pseudo-header carries the FINAL upper-layer
+        // protocol, and the patch-engine checksum walk reads it from
+        // the net facts (the L4 dissect verifies hardcode their own
+        // proto; the walk's FromFacts path needs the threaded value —
+        // without this, [ipv6, hopopts, icmpv6] would pseudo-fold with
+        // proto 0 instead of 58).
+        if let Some(wrex_core::dissect::NetFacts::V6 { src, dst, .. }) = ctx.facts.net {
+            ctx.facts.net = Some(wrex_core::dissect::NetFacts::V6 {
+                src,
+                dst,
+                next_header,
+            });
+        }
+
         let view = LayerView {
             kind: KIND_AH,
             span: ctx.offset..ctx.offset + total,
@@ -937,7 +998,7 @@ impl Codec for AhCodec {
         static DERIVED: &[Derived] = &[Derived::Length {
             field: "len",
             at: 1,
-            base: LengthBase::LayerStart,
+            base: LengthBase::Span,
             units: LengthUnits::Octlets4,
         }];
         DERIVED
@@ -1393,34 +1454,38 @@ mod tests {
         // Normalize (Scope::all): byte-identical (already consistent).
         let out = patch(&r, &p, &[], &Scope::all()).unwrap();
         assert_eq!(&out[..], &enc.bytes[..]);
-        // Insert 8 bytes into the options region: len recomputes.
+        // Insert 8 bytes into the options region: the ext `len` is
+        // self-referential under dissection (the dissector trusts it,
+        // so the re-dissected span cannot grow past the stale len) —
+        // the honest workflow sets len explicitly alongside the
+        // insert, under preserve (the add-a-record precedent:
+        // count-style fields are caller-decided), then a second
+        // normalize pass heals everything (len already consistent →
+        // a no-op; the udp/tcp checksums fold over the grown region).
         let p2 = wrex_core::dissect::dissect(&r, &out, KIND_HOPOPTS);
-        let edits = vec![Edit::Insert {
-            at: 2 + 3, // inside the options region
-            bytes: bytes::Bytes::from_static(&[0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        }];
-        let out2 = patch(&r, &p2, &edits, &Scope::all()).unwrap();
-        assert_eq!(out2[1], 1); // 16 octets → len 1
+        let edits = vec![
+            Edit::Insert {
+                at: 2 + 3, // inside the options region
+                bytes: bytes::Bytes::from_static(&[0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+            },
+            Edit::SetField {
+                path: "hopopts.len".to_string(),
+                bytes: bytes::Bytes::from_static(&[1]),
+            },
+        ];
+        let out2 = patch(&r, &p2, &edits, &Scope::none()).unwrap();
+        assert_eq!(out2[1], 1); // 16 octets, declared
         let re = wrex_core::dissect::dissect(&r, &out2, KIND_HOPOPTS);
+        assert_eq!(re.layers[0].span, 0..16, "the grown region dissects");
         assert!(re.anomalies.is_empty(), "{:?}", re.anomalies);
-        // Off-grid insert (5 bytes): the pointed error, never a silent
-        // truncation.
-        let p3 = wrex_core::dissect::dissect(&r, &out, KIND_HOPOPTS);
-        let bad = patch(
-            &r,
-            &p3,
-            &[Edit::Insert {
-                at: 4,
-                bytes: bytes::Bytes::from_static(&[1, 2, 3, 4, 5]),
-            }],
-            &Scope::all(),
-        );
-        match bad {
-            Err(wrex_core::patch::PatchError::LengthNotQuantized { path, unit, .. }) => {
-                assert_eq!(path, "hopopts.len");
-                assert_eq!(unit, 8);
-            }
-            other => panic!("expected LengthNotQuantized, got {other:?}"),
-        }
+        // Normalize afterwards: idempotent (len already consistent).
+        let p3 = wrex_core::dissect::dissect(&r, &out2, KIND_HOPOPTS);
+        let out3 = patch(&r, &p3, &[], &Scope::all()).unwrap();
+        assert_eq!(&out3[..], &out2[..]);
+        // A quantized recompute over a non-grid span is a pointed
+        // error (LengthNotQuantized) — unreachable through THIS
+        // family's dissectors (the span is grid-aligned by
+        // construction); the guard is pinned by the wrex-core mock
+        // suite over a synthetic non-multiple span.
     }
 }

@@ -241,6 +241,12 @@ pub enum LengthBase {
     LayerStart,
     /// frame end − layer end: payload only (`ipv6.payload_len`).
     LayerEnd,
+    /// layer end − layer start: the field counts **its own header**
+    /// (tranche 17a — the ext `len` fields: hopopts/dstopts/routing
+    /// `hdr_ext_len` covers `(len+1)*8` bytes of layer, AH's
+    /// `payload_len` covers `(len+2)*4`; frame-end arithmetic cannot
+    /// express it, the dstopts-twice corpus normalize proved it).
+    Span,
 }
 
 /// Quantization of a [`Derived::Length`] (tranche 17a): the IPv6
