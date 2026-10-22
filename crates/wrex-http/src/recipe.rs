@@ -24,6 +24,9 @@ pub struct RecipeOverrides {
     pub tls_insecure: Option<bool>,
     /// Extra CA bundle path (https urls only; complements system roots).
     pub tls_ca: Option<String>,
+    /// HTTP version for https urls: `1.1` (default) or `2` (tranche
+    /// 15: ALPN `h2`, concurrent streams on one connection).
+    pub http_version: Option<String>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -47,6 +50,10 @@ pub struct Recipe {
     /// Extra CA bundle path, PEM or DER (https urls).
     #[serde(default)]
     pub tls_ca: Option<String>,
+    /// HTTP version for https urls: `1.1` (default) or `2` (tranche
+    /// 15: ALPN-negotiated h2, concurrent streams per connection).
+    #[serde(default)]
+    pub http_version: Option<String>,
     /// Body wire framing: `length` (default) or `chunked` (tranche 9a).
     #[serde(default)]
     pub body_framing: Option<String>,
@@ -130,12 +137,18 @@ impl Recipe {
                 ));
             }
         };
+        if let Some(v) = self.http_version.as_deref()
+            && !["1.1", "2"].contains(&v)
+        {
+            return Err(format!("recipe: unknown http_version `{v}` (1.1|2)"));
+        }
         let overrides = RecipeOverrides {
             timeout_ms: self.timeout_ms,
             retries: self.retries,
             max_bytes: self.max_bytes,
             tls_insecure: self.tls_insecure,
             tls_ca: self.tls_ca,
+            http_version: self.http_version,
         };
         Ok((spec, overrides))
     }
@@ -256,6 +269,22 @@ mod tests {
                 "tls_insecure": true, "tls_ca": "/etc/ca.pem"}"#,
         );
         assert_eq!(r2.into_request().unwrap().0.serialize().unwrap(), wire);
+    }
+
+    #[test]
+    fn http_version_knob() {
+        // default: absent
+        let r = recipe(r#"{"method": "GET", "url": "https://example.com/"}"#);
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.http_version, None);
+        // tranche 15: "2" rides through
+        let r = recipe(r#"{"method": "GET", "url": "https://example.com/", "http_version": "2"}"#);
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.http_version.as_deref(), Some("2"));
+        // old recipes (pre-T15) parse byte-identically: serde default
+        // again; bad values are usage errors
+        let r = recipe(r#"{"method": "GET", "url": "https://example.com/", "http_version": "3"}"#);
+        assert!(r.into_request().unwrap_err().contains("http_version"));
     }
 
     // --- tranche 9a --------------------------------------------------------

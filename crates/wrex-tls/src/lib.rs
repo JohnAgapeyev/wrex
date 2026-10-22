@@ -22,9 +22,14 @@
 //! under the caller's deadline: `send` buffers plaintext into the
 //! rustls connection and flushes whatever TLS records are ready
 //! (ClientHello, then the queued request once the handshake completes
-//! during `recv` pumping).
+//! during `recv` pumping). Callers that must know the *negotiated
+//! protocol* before sending (ALPN-picked sessions, tranche 15) drive
+//! [`TlsDriver::complete_handshake`] first.
 //!
-//! ALPN: none — plain https/1.1, no h2. Close mode: one exchange per
+//! ALPN (tranche 15): [`TlsConfig::alpn_protocols`] offers protocols
+//! in order; the negotiated one is exposed as
+//! [`TlsDriver::alpn_protocol`] once the handshake completes (None
+//! before, or when the peer offers none). Close mode: one exchange per
 //! connection, unchanged from the tranche-4 contract.
 //!
 //! ## The insecure path
@@ -77,6 +82,11 @@ pub struct TlsConfig {
     /// Additional DER trust anchors that **complement** the system
     /// roots (the `--tls-ca FILE` contract).
     pub ca_der: Option<Vec<Vec<u8>>>,
+    /// ALPN protocol identifiers to offer, in preference order
+    /// (tranche 15: `["h2", "http/1.1"]` behind `wrex http
+    /// --http-version 2`). Empty (the default since 8a) negotiates
+    /// nothing — plain https/1.1 semantics.
+    pub alpn_protocols: Vec<String>,
 }
 
 /// Load a CA bundle file for [`TlsConfig::ca_der`]: a PEM file yields
@@ -192,8 +202,16 @@ fn client_config(cfg: &TlsConfig) -> Result<ClientConfig, String> {
     } else {
         builder.with_root_certificates(root_store(cfg)?)
     };
-    // No client certs, no ALPN: plain https/1.1 (mTLS is a deferral).
-    Ok(builder.with_no_client_auth())
+    // No client certs (mTLS is a deferral). ALPN: offered in the
+    // caller's order (tranche 15); the negotiated protocol is exposed
+    // on the driver (a public field on this rustls line).
+    let mut config = builder.with_no_client_auth();
+    config.alpn_protocols = cfg
+        .alpn_protocols
+        .iter()
+        .map(|p| p.as_bytes().to_vec())
+        .collect();
+    Ok(config)
 }
 
 /// A TLS client connection over the inner [`TcpDriver`].
@@ -236,6 +254,51 @@ impl TlsDriver {
     /// The connected peer address (rendering/diagnostics).
     pub fn peer(&self) -> &str {
         &self.peer
+    }
+
+    /// The negotiated ALPN protocol (tranche 15), once the handshake
+    /// completes: `None` before, or when neither side offered.
+    pub fn alpn_protocol(&self) -> Option<&str> {
+        self.conn
+            .alpn_protocol()
+            .and_then(|p| std::str::from_utf8(p).ok())
+    }
+
+    /// Drive the TLS handshake to completion (or the deadline) without
+    /// sending application data: flushes the ClientHello, then pumps
+    /// inner-driver frames into the rustls connection until the
+    /// handshake is done. Returns the negotiated ALPN protocol
+    /// (tranche 15) — `None` when neither side offered one. A deadline
+    /// miss is `Err(TimedOut)` (retry-grade); transport/handshake
+    /// failures (verification included) are `Err` (exit-1 grade).
+    pub fn complete_handshake(&mut self, deadline: Instant) -> io::Result<Option<&str>> {
+        loop {
+            self.flush_tls()?;
+            if !self.conn.is_handshaking() {
+                return Ok(self.alpn_protocol());
+            }
+            match self.inner.recv(deadline)? {
+                None => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "tls: handshake did not complete before the deadline",
+                    ));
+                }
+                Some(frame) if frame.bytes.is_empty() => {
+                    // Inner TCP EOF mid-handshake.
+                    return Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "tls: connection closed during handshake",
+                    ));
+                }
+                Some(frame) => {
+                    self.conn.read_tls(&mut frame.bytes.as_ref())?;
+                    self.conn.process_new_packets().map_err(|e| {
+                        io::Error::new(io::ErrorKind::InvalidData, format!("tls: {e}"))
+                    })?;
+                }
+            }
+        }
     }
 
     /// Pump pending TLS records into the inner driver (bounded: the
@@ -411,6 +474,7 @@ mod tests {
             server_name: "127.0.0.1".to_string(),
             insecure: true,
             ca_der: None,
+            alpn_protocols: vec![],
         };
         let stub = spawn(RESPONSE.to_vec(), 3, 2, StubRequest::HttpHead);
         let resp = exchange(&stub, &cfg).expect("insecure exchange");
@@ -453,6 +517,7 @@ mod tests {
             server_name: "127.0.0.1".to_string(),
             insecure: false,
             ca_der: Some(vec![stub.ca_der.clone()]),
+            alpn_protocols: vec![],
         };
         let resp = exchange(&stub, &cfg).expect("verifying exchange via ca_der");
         assert_eq!(resp.status.as_u16(), 200);
@@ -468,6 +533,7 @@ mod tests {
             server_name: "127.0.0.1".to_string(),
             insecure: false,
             ca_der: None,
+            alpn_protocols: vec![],
         };
         let stub = spawn(RESPONSE.to_vec(), 2, 1, StubRequest::HttpHead);
         let err = exchange(&stub, &cfg).expect_err("verification must fail");
@@ -498,9 +564,44 @@ mod tests {
             server_name: "127.0.0.1".to_string(),
             insecure: false,
             ca_der: Some(ders),
+            alpn_protocols: vec![],
         };
         let resp = exchange(&stub, &cfg).expect("verifying exchange via --tls-ca pem");
         assert_eq!(&resp.body[..], b"hello world");
+    }
+
+    // --- tranche 15: ALPN -----------------------------------------------
+
+    #[test]
+    #[cfg_attr(miri, ignore = "TCP sockets; not Miri-safe")]
+    fn alpn_negotiates_and_exposes_the_pick() {
+        use wrex_test::h2_stub::{self, AlpnPick};
+        // Server offers h2 only; the client offers h2 + http/1.1 → h2.
+        let stub = h2_stub::spawn_h2(200, b"hello world", 1, AlpnPick::H2);
+        let cfg = TlsConfig {
+            server_name: "127.0.0.1".to_string(),
+            insecure: true,
+            ca_der: None,
+            alpn_protocols: vec!["h2".to_string(), "http/1.1".to_string()],
+        };
+        let mut driver = TlsDriver::connect(stub.addr, None, TIMEOUT, &cfg).expect("connect");
+        let negotiated = driver
+            .complete_handshake(Instant::now() + TIMEOUT)
+            .expect("handshake");
+        assert_eq!(negotiated, Some("h2"));
+        // No ALPN offered at all (the T8a shape): None either way.
+        let stub = spawn(RESPONSE.to_vec(), 1, 1, StubRequest::HttpHead);
+        let cfg = TlsConfig {
+            server_name: "127.0.0.1".to_string(),
+            insecure: true,
+            ca_der: None,
+            alpn_protocols: vec![],
+        };
+        let mut driver = TlsDriver::connect(stub.addr, None, TIMEOUT, &cfg).expect("connect");
+        let negotiated = driver
+            .complete_handshake(Instant::now() + TIMEOUT)
+            .expect("handshake");
+        assert_eq!(negotiated, None);
     }
 
     #[test]
@@ -509,6 +610,7 @@ mod tests {
             server_name: "not a dns name or ip \u{1}".to_string(),
             insecure: true,
             ca_der: None,
+            alpn_protocols: vec![],
         };
         let stub = spawn(RESPONSE.to_vec(), 1, 1, StubRequest::HttpHead);
         let err = match TlsDriver::connect(stub.addr, None, TIMEOUT, &cfg) {

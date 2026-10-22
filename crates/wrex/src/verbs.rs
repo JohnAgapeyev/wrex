@@ -1743,6 +1743,7 @@ fn fuzz_app_probes(
                 server_name: target.to_string(),
                 insecure: k.insecure,
                 ca_der: k.ca_der.clone(),
+                alpn_protocols: vec![],
             });
             // The unmutated seed request (verb-side; transport framing
             // is well-formed so mutations land on the request bytes).
@@ -1947,6 +1948,28 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
         ));
     }
 
+    // HTTP/2 (tranche 15): one pick per queue — mixed versions are a
+    // usage error, and h2 needs https + ALPN (h2c is a deferral).
+    let want_h2 = match cfgs.first().and_then(|c| c.http_version.as_deref()) {
+        None | Some("1.1") => false,
+        Some("2") => true,
+        Some(other) => {
+            return Err(usage(format!(
+                "bad http-version `{other}` (expected 1.1 or 2)"
+            )));
+        }
+    };
+    if want_h2 && cfgs.iter().any(|c| c.http_version.as_deref() != Some("2")) {
+        return Err(usage(
+            "http queue: one http-version per connection (split mixed 1.1/2 runs)",
+        ));
+    }
+    if want_h2 && scheme != "https" {
+        return Err(usage(
+            "http-version 2 requires https (ALPN negotiates h2; h2c is a deferral)",
+        ));
+    }
+
     // TLS transport (https://): the driver is the only thing that
     // differs — retry/render/--fail/budget handling stay identical.
     // SNI comes from the URL host (an IP literal matches the cert's
@@ -1976,6 +1999,14 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
             server_name: host,
             insecure: cfgs[0].tls_insecure,
             ca_der,
+            // ALPN offer (tranche 15): h2 with an http/1.1 fallback —
+            // the server's pick decides the session (auto-downgrade,
+            // the T15 planning decision).
+            alpn_protocols: if want_h2 {
+                vec!["h2".to_string(), "http/1.1".to_string()]
+            } else {
+                vec![]
+            },
         })
     } else {
         None
@@ -1996,21 +2027,48 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
                 max_bytes: c.max_bytes as usize,
             })
             .collect();
-        let mut session = HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
-            .map_err(|e| usage(format!("http: {e}")))?;
+
+        // Transport pick + session run. The 1.1 session is the same
+        // machine in every branch; the h2 session (concurrent streams,
+        // one `HttpOutcome` per queued request) swaps in only when the
+        // server negotiated `h2`.
         let outcomes = {
-            match &tls_cfg {
-                Some(tcfg) => {
-                    let mut driver =
-                        wrex_tls::TlsDriver::connect(peer, bind, cfgs[0].timeout, tcfg)
-                            .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
-                }
-                None => {
-                    let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
+            if let Some(tcfg) = &tls_cfg {
+                let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfgs[0].timeout, tcfg)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                let use_h2 = if want_h2 {
+                    let negotiated = driver
+                        .complete_handshake(Instant::now() + cfgs[0].timeout)
                         .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                    if negotiated == Some("h2") {
+                        true
+                    } else {
+                        // Auto-downgrade (the T15 planning decision): a
+                        // pointed note, then the 1.1 session.
+                        let what = negotiated.unwrap_or("no ALPN protocol");
+                        eprintln!("note: server negotiated `{what}` — falling back to HTTP/1.1");
+                        false
+                    }
+                } else {
+                    false
+                };
+                if use_h2 {
+                    let mut session = wrex_h2::H2Session::new(&specs, &queue_cfgs, Instant::now())
+                        .map_err(|e| usage(format!("http: {e}")))?;
+                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                } else {
+                    let mut session =
+                        HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
+                            .map_err(|e| usage(format!("http: {e}")))?;
                     wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 }
+            } else {
+                let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                let mut session =
+                    HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
+                        .map_err(|e| usage(format!("http: {e}")))?;
+                wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
             }
             .map_err(|e| CliError::Runtime(format!("http: {e}")))?
         };
@@ -2085,6 +2143,9 @@ struct HttpVerbConfig {
     tls_insecure: bool,
     /// Extra CA bundle path (https urls; recipe wins).
     tls_ca: Option<String>,
+    /// HTTP/2 requested (recipe `http_version: "2"` or
+    /// `--http-version 2`; recipe wins over the CLI flag).
+    http_version: Option<String>,
 }
 
 /// One per queued request: the CLI defaults + that request's recipe
@@ -2092,8 +2153,11 @@ struct HttpVerbConfig {
 fn http_verb_cfg(
     args: &crate::cli::HttpArgs,
     overrides: wrex_http::recipe::RecipeOverrides,
-) -> HttpVerbConfig {
-    HttpVerbConfig {
+) -> Result<HttpVerbConfig, CliError> {
+    // Recipe wins over the CLI flag (the retries/timeout_ms/max_bytes
+    // precedence direction, transposed).
+    let http_version = overrides.http_version.or_else(|| args.http_version.clone());
+    Ok(HttpVerbConfig {
         retries: overrides.retries.unwrap_or(args.retries.unwrap_or(0)),
         timeout: overrides
             .timeout_ms
@@ -2108,7 +2172,8 @@ fn http_verb_cfg(
         // (same precedence direction as retries/timeout_ms/max_bytes).
         tls_insecure: overrides.tls_insecure.unwrap_or(args.tls_insecure),
         tls_ca: overrides.tls_ca.clone().or_else(|| args.tls_ca.clone()),
-    }
+        http_version,
+    })
 }
 
 /// Materialize the whole request queue: `--recipe FILE` (a single
@@ -2140,7 +2205,7 @@ fn build_http_requests(
                 .into_request()
                 .map_err(|e| usage(format!("bad recipe `{path}`: {e}")))?;
             specs.push(spec);
-            cfgs.push(http_verb_cfg(args, overrides));
+            cfgs.push(http_verb_cfg(args, overrides)?);
         }
         return Ok((specs, cfgs));
     }
@@ -2153,7 +2218,12 @@ fn build_http_requests(
                 "http needs a URL (or --recipe FILE): wrex http [METHOD] URL...",
             ));
         }
-        [first, rest @ ..] if rest.is_empty() || first.starts_with("http://") => {
+        // A URL-looking first token ⇒ GET + a URL list (tranche 9a);
+        // both schemes — an `https://` list must not fall into the
+        // METHOD slot (caught by the T15 CLI suite).
+        [first, rest @ ..]
+            if rest.is_empty() || first.starts_with("http://") || first.starts_with("https://") =>
+        {
             ("GET", args.positional.iter().map(|s| s.as_str()).collect())
         }
         [first, rest @ ..] => (first.as_str(), rest.iter().map(|s| s.as_str()).collect()),
@@ -2183,7 +2253,7 @@ fn build_http_requests(
             .map_err(|e| usage(format!("http: {e}")))?;
         specs.push(spec);
     }
-    let cfg = http_verb_cfg(args, wrex_http::recipe::RecipeOverrides::default());
+    let cfg = http_verb_cfg(args, wrex_http::recipe::RecipeOverrides::default())?;
     let cfgs = vec![cfg; specs.len()];
     Ok((specs, cfgs))
 }
@@ -2293,7 +2363,11 @@ fn http_response_json(resp: &wrex_http::HttpResponse) -> serde_json::Value {
     serde_json::json!({
         "status": resp.status.as_u16(),
         "reason": resp.reason,
-        "version": if resp.version == wrex_http::http::Version::HTTP_10 { "HTTP/1.0" } else { "HTTP/1.1" },
+        "version": match resp.version {
+            http2 if http2 == wrex_http::http::Version::HTTP_2 => "HTTP/2",
+            http10 if http10 == wrex_http::http::Version::HTTP_10 => "HTTP/1.0",
+            _ => "HTTP/1.1",
+        },
         "headers": headers,
         "body_hex": hex::encode(&resp.body),
     })
@@ -2313,11 +2387,11 @@ fn render_http_responses(
             Format::Raw => write_stdout(&resp.body)?,
             Format::Text => {
                 let mut out = format!(
-                    "HTTP/1.{} {} {}\r\n",
-                    if resp.version == wrex_http::http::Version::HTTP_10 {
-                        0
-                    } else {
-                        1
+                    "HTTP/{} {} {}\r\n",
+                    match resp.version {
+                        wrex_http::http::Version::HTTP_10 => "1.0".to_string(),
+                        wrex_http::http::Version::HTTP_2 => "2".to_string(),
+                        _ => "1.1".to_string(),
                     },
                     status,
                     resp.reason
@@ -2553,6 +2627,7 @@ fn query_tcp(
                 server_name: server.to_string(),
                 insecure: args.tls_insecure,
                 ca_der,
+                alpn_protocols: vec![],
             })
         } else {
             None

@@ -1164,6 +1164,11 @@ pub struct HttpArgs {
     /// Extra CA bundle, PEM or DER (complements the system roots).
     #[arg(long, value_name = "FILE")]
     pub tls_ca: Option<String>,
+    /// HTTP version for https URLs: `1.1` (default) or `2` — h2 rides
+    /// ALPN (`h2` then `http/1.1`); a server that declines h2 falls
+    /// back to HTTP/1.1 with a note (recipe wins over the flag).
+    #[arg(long = "http-version", value_name = "1.1|2")]
+    pub http_version: Option<String>,
     /// Exit 1 on 4xx/5xx statuses (completed exchanges stay data).
     #[arg(long)]
     pub fail: bool,

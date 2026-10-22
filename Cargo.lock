@@ -2351,6 +2351,7 @@ dependencies = [
  "wrex-core",
  "wrex-dns",
  "wrex-fuzz",
+ "wrex-h2",
  "wrex-http",
  "wrex-io",
  "wrex-mut",
@@ -2418,6 +2419,17 @@ dependencies = [
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-scan",
+ "wrex-session",
+]
+
+[[package]]
+name = "wrex-h2"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "hex",
+ "wrex-http",
+ "wrex-io",
  "wrex-session",
 ]
 
@@ -2640,10 +2652,12 @@ name = "wrex-tls"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "hex",
  "rustls",
  "rustls-native-certs",
  "rustls-pemfile",
  "thiserror",
+ "wrex-h2",
  "wrex-http",
  "wrex-io",
  "wrex-session",

@@ -5,6 +5,7 @@
 pub mod corpus;
 pub mod dhcp_oracle;
 pub mod dns_oracle;
+pub mod h2_stub;
 pub mod harness;
 pub mod oracle;
 pub mod strategies;

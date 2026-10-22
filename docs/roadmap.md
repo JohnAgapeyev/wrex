@@ -881,6 +881,101 @@ T(n+1)".
   changes. Man pages + completions regenerate (`wrex-patch(1)` — the
   verbs enumerate automatically).
 
+- **T15 — HTTP/2** — ✅ delivered (chartered at the T15 planning pass;
+  ADR 2 dispositions recorded there: the binary framing layer and
+  HPACK are **owned** — byte control over the wire is the point — and
+  the session semantics are an owned sans-IO state machine, the
+  T2/T4/T9 pattern; TLS stays delegated to rustls via the T8a adapter,
+  which now negotiates ALPN). Four sub-tranches, both additive; the
+  `Session` contract is untouched (`SessionAction` stays `Send`
+  only — the session decides frame ordering; concurrency is internal
+  state):
+  - **T15a — ALPN groundwork** — ✅ delivered. `wrex_tls::TlsConfig`
+    grows `alpn_protocols` (offered in the caller's order; empty — the
+    default since 8a — negotiates nothing, plain https/1.1 semantics).
+    The negotiated protocol is exposed on the driver:
+    `TlsDriver::alpn_protocol()` plus `complete_handshake(deadline)`
+    — drives the handshake to completion without sending application
+    data (a deadline miss is `Err(TimedOut)`, retry-grade;
+    transport/verification failures are runtime errors, exit 1) so
+    ALPN-picked sessions can choose their wire protocol before the
+    first byte. **Auto-downgrade** (the planning decision): `wrex http
+    --http-version 2` offers `h2` then `http/1.1`; a server that
+    declines h2 prints a pointed note and falls back to the 1.1
+    session on the same TLS connection.
+  - **T15b — the framing layer (own)** — ✅ delivered. New `wrex-h2`
+    crate, pure and sans-IO (`chunked.rs` lineage): the 9-octet frame
+    header codec (24-bit length, 8-bit type, 8-bit flags, R + 31-bit
+    stream id, reserved bit masked in both directions), the committed
+    frame-type set (DATA, HEADERS, PRIORITY, RST_STREAM, SETTINGS,
+    PUSH_PROMISE, PING, GOAWAY, WINDOW_UPDATE, CONTINUATION) with
+    per-type flag grammar + shape validation (never fatal, pointed),
+    settings payloads, padding stripping, and the connection preface
+    (server preface = SETTINGS, enforced).
+  - **T15c — HPACK (own)** — ✅ delivered. Full **decode** grammar
+    (RFC 7541 §6: indexed, literal with/without indexing,
+    never-indexed, dynamic-table size updates) with the dynamic table
+    (entry size = name+value+32, §4.3/§4.4 eviction, SETTINGS-driven
+    caps) and the static Huffman code (appendix B, generated from the
+    RFC table and verified at generation: bits == hex == len per row —
+    bit-serial decode with the EOS-padding rule). **Encode is
+    deliberately literal-only**: indexed representations for exact
+    static matches, literal-without-indexing otherwise, never Huffman —
+    deterministic recipe bytes, no dynamic-table state on the send
+    side (Huffman *encode* and incremental indexing are recorded
+    deferrals).
+  - **T15d — the sans-IO client session (own, concurrent streams)** —
+    ✅ delivered. `wrex_h2::H2Session: Session` (output =
+    `wrex_http::HttpOutcome` — the 1.1 verb paths render/retry it
+    unchanged): preface + SETTINGS burst, N **concurrent** streams
+    opened in request order (odd ids, a `MAX_STREAMS` budget),
+    interleaved DATA subject to **both** connection and per-stream
+    window accounting (SETTINGS INITIAL_WINDOW_SIZE deltas,
+    MAX_FRAME_SIZE honored, WINDOW_UPDATEs unblock), HEADERS/
+    CONTINUATION fragmentation (END_STREAM rides the first fragment),
+    response assembly (`:status` pseudo-header → `HttpResponse`,
+    HTTP/2 version, reason from the status code), PING ACKs, and
+    pointed outcomes for RST_STREAM (stream reset), GOAWAY (everything
+    past last-stream-id truncates), budget breaches (TooLarge +
+    CANCEL), protocol/HPACK errors, per-stream deadlines and the
+    stream-EOF empty-frame convention (the T4 rule, transposed).
+  - **T15e — CLI + verification** — ✅ delivered. `wrex http
+    --http-version 1.1|2` (recipe `http_version` knob, recipe wins
+    over the flag; h2 requires https + ALPN — h2c/prior-knowledge is a
+    deferral; mixed versions in one queue are a usage error) and the
+    recipe JSON grows the additive `http_version` field (old recipes
+    parse byte-identically). Verification: RFC 7541 appendix C
+    known-answer vectors (C.1 integers, C.2 literals/indexed, the
+    C.3/C.4 request sequences, the C.5/C.6 response sequences with
+    dynamic-table eviction and Huffman strings) as the spec-derived
+    oracle (the inversion rule for owned codecs), frame-header shape
+    vectors, session walkthrough units (concurrent out-of-order
+    replies, window gating + WINDOW_UPDATE unblock, SETTINGS-driven
+    window/frame-size deltas, continuation fragments, EOF/RST/GOAWAY/
+    budget/timeout mappings, determinism), the new in-test
+    rustls+ALPN h2 stub (`wrex_test::h2_stub` — server-side h2
+    hand-rolled from fixed bytes, never the wrex-h2 encoder, so the
+    harness never self-confirms), CLI ground truth (h2 end-to-end,
+    two URLs → one connection → two concurrent streams, the ALPN
+    auto-downgrade note, recipe knobs, usage exit 2 gates),
+    `fuzz_h2_frame_decoder` + `fuzz_hpack` + `fuzz_h2_session` in the
+    fuzz gate (release workflow + xtask smoke list), wrex-h2 in the
+    Miri job, and wrex-tls ALPN negotiation tests. **Pre-existing bug
+    the T15 suite caught (T9a)**: a positional URL list only
+    auto-implied GET when the first token started `http://` — an
+    `https://` list fell into the METHOD slot (fixed additively, both
+    schemes). **A deliberate deviation from the charter sketch**: no
+    new Kani harness for wrex-h2 (the frame codec is fuzz + RFC-vector
+    territory; a header-roundtrip proof adds gate time for little
+    coverage — the T4 chunked proof stays the Kani pattern for framing
+    codecs). **Deliberate deferrals**: Huffman encode, HPACK
+    incremental indexing on send, h2c/prior-knowledge cleartext,
+    extended CONNECT, server push (never enabled), the HTTP/2 server
+    role, SETTINGS_MAX_CONCURRENT_STREAMS-driven stream queueing
+    (all streams open at once under the `MAX_STREAMS` budget), and
+    TLS-protocol fuzzing (the standing rule). Man pages +
+    completions regenerated (`wrex-http(1)`).
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a

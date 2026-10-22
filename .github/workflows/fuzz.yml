@@ -24,7 +24,7 @@ env:
 jobs:
   fuzz:
     runs-on: ubuntu-latest
-    # 15 targets x 300s budget + nightly build + corpus sync.
+    # 22 targets x 300s budget + nightly build + corpus sync.
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
@@ -36,7 +36,7 @@ jobs:
         env:
           BUDGET: ${{ inputs.seconds || '300' }}
         run: |
-          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_ipv6 fuzz_dissect_icmp fuzz_dissect_icmpv6 fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_dissect_dhcp fuzz_dissect_vlan fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session fuzz_app_session; do
+          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_ipv6 fuzz_dissect_icmp fuzz_dissect_icmpv6 fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_dissect_dhcp fuzz_dissect_vlan fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session fuzz_app_session fuzz_h2_frame_decoder fuzz_hpack fuzz_h2_session; do
             cargo +nightly fuzz run "$t" -- -max_total_time="$BUDGET" -rss_limit_mb=2560
           done
 
@@ -54,6 +54,6 @@ jobs:
       # Deterministic golden/unit tests run under Miri; the proptest-based
       # suites carry #[cfg_attr(miri, ignore)].
       - run: cargo +nightly miri setup
-      - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-ip6 -p wrex-proto-icmp -p wrex-proto-icmpv6 -p wrex-proto-udp -p wrex-proto-tcp -p wrex-proto-dns -p wrex-proto-dhcp -p wrex-proto-vlan -p wrex-session -p wrex-scan -p wrex-dns -p wrex-http -p wrex-pcap
+      - run: cargo +nightly miri test -p wrex-core -p wrex-proto-eth -p wrex-proto-arp -p wrex-proto-ip -p wrex-proto-ip6 -p wrex-proto-icmp -p wrex-proto-icmpv6 -p wrex-proto-udp -p wrex-proto-tcp -p wrex-proto-dns -p wrex-proto-dhcp -p wrex-proto-vlan -p wrex-session -p wrex-scan -p wrex-dns -p wrex-http -p wrex-h2 -p wrex-pcap
         env:
           MIRIFLAGS: -Zmiri-disable-isolation

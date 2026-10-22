@@ -220,6 +220,9 @@ fn fuzz_stage(root: &Path) {
         "fuzz_mut_strategies",
         "fuzz_prober_session",
         "fuzz_app_session",
+        "fuzz_h2_frame_decoder",
+        "fuzz_hpack",
+        "fuzz_h2_session",
     ];
     let nightly = Command::new("cargo")
         .arg("+nightly")

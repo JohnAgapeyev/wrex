@@ -39,6 +39,9 @@ path = "../crates/wrex-mut"
 [dependencies.wrex-fuzz]
 path = "../crates/wrex-fuzz"
 
+[dependencies.wrex-h2]
+path = "../crates/wrex-h2"
+
 [[bin]]
 name = "fuzz_dissect_eth"
 path = "fuzz_targets/fuzz_dissect_eth.rs"
@@ -153,6 +156,27 @@ bench = false
 [[bin]]
 name = "fuzz_prober_session"
 path = "fuzz_targets/fuzz_prober_session.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_h2_frame_decoder"
+path = "fuzz_targets/fuzz_h2_frame_decoder.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_hpack"
+path = "fuzz_targets/fuzz_hpack.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_h2_session"
+path = "fuzz_targets/fuzz_h2_session.rs"
 test = false
 doc = false
 bench = false

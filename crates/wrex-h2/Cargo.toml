@@ -1,0 +1,19 @@
+[package]
+name = "wrex-h2"
+version = "0.1.0"
+edition = "2024"
+# Same floor as the workspace (hickory-proto 0.26); no extra floor here.
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+description = "wrex HTTP/2: owned binary framing (RFC 9113) + HPACK (RFC 7541) + the sans-IO concurrent-stream client session"
+
+[dependencies]
+bytes = { workspace = true }
+wrex-http = { workspace = true }
+wrex-io = { workspace = true }
+wrex-session = { workspace = true }
+
+[dev-dependencies]
+hex = { workspace = true }
+wrex-io = { workspace = true }
+wrex-session = { workspace = true }
