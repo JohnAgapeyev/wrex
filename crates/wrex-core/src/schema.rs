@@ -268,6 +268,85 @@ pub enum LengthUnits {
     Octlets8,
 }
 
+impl LengthUnits {
+    /// The octet quantum this field counts in (`Bytes` = plain).
+    pub fn unit(self) -> usize {
+        match self {
+            LengthUnits::Bytes => 1,
+            LengthUnits::Octlets4 => 4,
+            LengthUnits::Octlets8 => 8,
+        }
+    }
+
+    /// The cell bias: the wire value is `(octets / unit) − bias`
+    /// (hdr_ext_len counts 8-octet units *minus the first*; AH's
+    /// payload_len counts 4-octet units *minus the fixed two*).
+    pub fn bias(self) -> usize {
+        match self {
+            LengthUnits::Bytes => 0,
+            LengthUnits::Octlets4 => 2,
+            LengthUnits::Octlets8 => 1,
+        }
+    }
+
+    /// Quantize a covered byte length into the field's u8 value.
+    /// `None` = off-grid (the length is not a multiple of the unit —
+    /// the pointed [`crate::patch::PatchError::LengthNotQuantized`],
+    /// never a silent truncation) or a plain `Bytes` field (not
+    /// quantized; the caller writes the u16 path). A below-bias cell
+    /// count saturates to 0 (the RFC minimum), an above-u8 count
+    /// truncates — both analyzer-visible, matching the pre-17a
+    /// `val as u16` truncation behavior of the `Bytes` arm.
+    pub fn quantize(self, covered: usize) -> Option<u8> {
+        let (unit, bias) = (self.unit(), self.bias());
+        if unit == 1 || !covered.is_multiple_of(unit) {
+            return None;
+        }
+        Some(((covered / unit).saturating_sub(bias)).min(u8::MAX as usize) as u8)
+    }
+}
+
+/// Kani proofs (tranche 17a): the quantized-length fold — the ext
+/// `len` fields' `(octets / unit) − bias` arithmetic. Scoped tight
+/// (a single symbolic covered length, no loops — the T4
+/// chunked-decoder/checksum pattern; measured against the 6 GB
+/// ceiling in the kani job, retire per the dns-proof precedent if
+/// the solver state ever grows past it).
+#[cfg(kani)]
+mod kani_proofs {
+    use super::LengthUnits;
+
+    /// Panic-freedom + the grid roundtrip: for ANY covered length the
+    /// fold never panics; for every on-grid, u8-representable length
+    /// the quantized value folds back to exactly the input
+    /// (`(v + bias) * unit == covered` — hdr_ext_len/AH semantics),
+    /// and every off-grid length is the pointed `None`.
+    #[kani::proof]
+    fn quantized_length_fold_roundtrip() {
+        let covered = kani::any::<u32>() as usize;
+        for units in [LengthUnits::Octlets8, LengthUnits::Octlets4] {
+            let (unit, bias) = (units.unit(), units.bias());
+            let v = units.quantize(covered);
+            if covered % unit == 0 {
+                let cells = covered / unit;
+                if (bias..=u8::MAX as usize + bias).contains(&cells) {
+                    // On-grid and representable: the exact roundtrip.
+                    let v = v.expect("on-grid, representable lengths quantize");
+                    assert_eq!((v as usize + bias) * unit, covered);
+                } else {
+                    // Saturating/truncating extremes: still Some, never
+                    // a panic (analyzer-visible, the documented policy).
+                    assert!(v.is_some());
+                }
+            } else {
+                // Off-grid: no consistent value exists — the pointed
+                // error at the call site, never a silent truncation.
+                assert!(v.is_none());
+            }
+        }
+    }
+}
+
 /// Range start of a [`Derived::Checksum`] (tranche 17a).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChecksumStart {

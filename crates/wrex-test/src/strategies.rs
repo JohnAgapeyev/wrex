@@ -27,6 +27,26 @@ pub const STACKS: &[&str] = &[
     "eth-ipv6-icmpv6",
     "ipv4",
     "ipv6",
+    // Tranche 17a: the v6 extension-header stacks (esp excluded —
+    // etherparse stops at esp, the tshark/corpus arms carry it).
+    "eth-ipv6-hopopts-tcp",
+    "eth-ipv6-hopopts-udp",
+    "eth-ipv6-hopopts-icmpv6",
+    "eth-ipv6-dstopts-tcp",
+    "eth-ipv6-dstopts-udp",
+    "eth-ipv6-dstopts-icmpv6",
+    "eth-ipv6-routing-tcp",
+    "eth-ipv6-routing-udp",
+    "eth-ipv6-routing-icmpv6",
+    "eth-ipv6-frag-tcp",
+    "eth-ipv6-frag-udp",
+    "eth-ipv6-frag-icmpv6",
+    "eth-ipv6-ah-tcp",
+    "eth-ipv6-ah-udp",
+    "eth-ipv6-ah-icmpv6",
+    "eth-vlan-ipv6-hopopts-tcp",
+    "eth-vlan-ipv6-hopopts-udp",
+    "eth-vlan-ipv6-hopopts-icmpv6",
 ];
 
 pub fn stacks() -> &'static [&'static str] {
@@ -65,6 +85,19 @@ fn udp_for_dhcp() -> BoxedStrategy<LayerSpec> {
             udp.fields.insert("sport".to_string(), Value::Int(68));
             udp.fields.insert("dport".to_string(), Value::Int(67));
             udp
+        })
+        .boxed()
+}
+
+/// Frag spec pinned to the unfragmented-carrying shape (offset 0, M 0):
+/// the differential chain needs the full stack to dissect, and etherparse
+/// treats M=1 as payload fragmentation (no transport slice to compare).
+fn frag_unfragmented() -> BoxedStrategy<LayerSpec> {
+    wrex_proto_ip6ext::strategy::frag()
+        .prop_map(|mut frag| {
+            frag.fields.insert("offset".to_string(), Value::Int(0));
+            frag.fields.insert("m".to_string(), Value::Int(0));
+            frag
         })
         .boxed()
 }
@@ -259,6 +292,177 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             payload(),
         )
             .prop_map(|(eth, ip, icmp, pay)| PacketSpec::new(vec![eth, ip, icmp], Some(pay)))
+            .boxed(),
+        "eth-ipv6-hopopts-tcp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::hopopts(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-hopopts-udp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::hopopts(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-hopopts-icmpv6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::hopopts(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-dstopts-tcp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::dstopts(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-dstopts-udp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::dstopts(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-dstopts-icmpv6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::dstopts(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-routing-tcp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::routing(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-routing-udp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::routing(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-routing-icmpv6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::routing(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-frag-tcp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            frag_unfragmented(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-frag-udp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            frag_unfragmented(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-frag-icmpv6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            frag_unfragmented(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-ah-tcp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::ah(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-ah-udp" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::ah(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-ipv6-ah-icmpv6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::ah(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, ip, ext, l4, pay)| PacketSpec::new(vec![eth, ip, ext, l4], Some(pay)))
+            .boxed(),
+        "eth-vlan-ipv6-hopopts-tcp" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::hopopts(),
+            wrex_proto_tcp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, ext, l4, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, ext, l4], Some(pay))
+            })
+            .boxed(),
+        "eth-vlan-ipv6-hopopts-udp" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::hopopts(),
+            wrex_proto_udp::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, ext, l4, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, ext, l4], Some(pay))
+            })
+            .boxed(),
+        "eth-vlan-ipv6-hopopts-icmpv6" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            wrex_proto_ip6ext::strategy::hopopts(),
+            wrex_proto_icmpv6::strategy::strategy(),
+            payload(),
+        )
+            .prop_map(|(eth, vlan, ip, ext, l4, pay)| {
+                PacketSpec::new(vec![eth, vlan, ip, ext, l4], Some(pay))
+            })
             .boxed(),
         "ipv6" => (wrex_proto_ip6::strategy::strategy(), payload())
             .prop_map(|(ip, pay)| PacketSpec::new(vec![ip], Some(pay)))

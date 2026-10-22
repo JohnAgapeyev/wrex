@@ -2672,6 +2672,7 @@ dependencies = [
  "wrex-proto-icmpv6",
  "wrex-proto-ip",
  "wrex-proto-ip6",
+ "wrex-proto-ip6ext",
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-proto-vlan",

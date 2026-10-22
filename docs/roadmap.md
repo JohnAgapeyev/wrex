@@ -1242,13 +1242,30 @@ T(n+1)".
     fields are caller-decided, the add-a-record precedent);
     `LengthNotQuantized` is pinned by a wrex-core mock over a
     synthetic non-grid span (unreachable through the family's own
-    dissectors — grid-aligned by construction). **Remaining tail
-    (next in order)**: the differential stacks + etherparse ext arms
-    (Ipv6Extensions slices; esp is tshark-only — etherparse stops at
-    esp) + tshark map blocks, the Kani candidate on the
-    quantized-length fold (measure first — the T4 dns-proof
-    retirement precedent), and the env-gated `lo`
-    echo-through-hopopts ground truth. Deliberate deferrals: fragment
+    dissectors — grid-aligned by construction). **Remaining tail, second
+    slice delivered**: the differential stacks (18: the five
+    stackable ext kinds × {tcp,udp,icmpv6} + the three vlan
+    hopopts variants; esp excluded — etherparse stops at it; frag
+    pinned to the unfragmented shape offset 0/M 0, since etherparse
+    treats M=1 as payload fragmentation with no transport to
+    compare) with the **etherparse ext arm live**: the opaque
+    `Ipv6ExtensionsSlice` re-parsed through the owned
+    `Ipv6Extensions` API — hopopts/dstopts next_header + the raw
+    options region, routing type/segs_left/next_header/segments,
+    frag next_header/offset/m/ident, AH next_header/spi/seq/icv —
+    the proptest differential green over all 18 stacks; the **Kani
+    candidate landed**: the quantized-length fold extracted into the
+    provable `LengthUnits::quantize` (recompute routes through it),
+    with a scoped panic-freedom + grid-roundtrip harness (single
+    symbolic length, no loops — strictly smaller than the T4
+    checksum proof; the kani job measures it, the dns-proof
+    retirement precedent stands); and the **env-gated `lo`
+    ground truth**: `lo_echo_through_hopopts_alive` — an icmpv6 echo
+    through a PadN hop-by-hop chain on `lo`, the kernel answers and
+    the captured reply dissects as a 129 (the ext chain speaks wire
+    the kernel accepts, over the unchanged `RawIpv6Driver`). Still
+    open: the tshark map's ext blocks (the etherparse arm is the
+    primary oracle; tshark compares only mapped kinds until then). Deliberate deferrals: fragment
     reassembly, hopopts/dstopts option typing (Router Alert/Jumbo/
     PadN sugar — the MLD goldens hand-hex the RA option), routing
     type-2 typed segments, Mobility/HIP/Shim6, ESP plaintext (crypto,

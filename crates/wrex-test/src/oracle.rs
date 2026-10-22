@@ -200,6 +200,116 @@ fn etherparse_map(
             &Value::Ipv6(std::net::Ipv6Addr::from(ip.destination())),
         );
     }
+    // Tranche 17a: the v6 extension-header chain. etherparse parses
+    // the family natively (Ipv6Extensions); the opaque slice struct
+    // exposes only the raw bytes + the first header number, so the arm
+    // re-parses through the owned API and compares per-kind fields.
+    // ESP never reaches here (etherparse stops at it — the tshark arm
+    // and the corpus carry esp).
+    if let Some(etherparse::NetSlice::Ipv6(ip)) = &parsed.net {
+        let ext_slice = ip.extensions();
+        if let Some(first) = ext_slice.first_header()
+            && let Ok((exts, _final, _rest)) =
+                etherparse::Ipv6Extensions::from_slice(first, ext_slice.slice())
+        {
+            if let (Some(e), Some(ours)) = (&exts.hop_by_hop_options, by_kind("hopopts")) {
+                field_eq(
+                    report,
+                    "hopopts.next_header",
+                    ours,
+                    &Value::Int(u8::from(e.next_header) as u128),
+                );
+                field_eq(
+                    report,
+                    "hopopts.options",
+                    ours,
+                    &Value::Bytes(bytes::Bytes::copy_from_slice(e.payload())),
+                );
+            }
+            if let (Some(e), Some(ours)) = (&exts.destination_options, by_kind("dstopts")) {
+                field_eq(
+                    report,
+                    "dstopts.next_header",
+                    ours,
+                    &Value::Int(u8::from(e.next_header) as u128),
+                );
+                field_eq(
+                    report,
+                    "dstopts.options",
+                    ours,
+                    &Value::Bytes(bytes::Bytes::copy_from_slice(e.payload())),
+                );
+            }
+            if let (Some(r), Some(ours)) = (&exts.routing, by_kind("routing")) {
+                // Ipv6RoutingExtensions wraps the raw ext: the
+                // type-specific payload starts [type, segs_left, …].
+                let p = r.routing.payload();
+                if p.len() >= 2 {
+                    field_eq(report, "routing.type", ours, &Value::Int(p[0] as u128));
+                    field_eq(report, "routing.segs_left", ours, &Value::Int(p[1] as u128));
+                }
+                field_eq(
+                    report,
+                    "routing.next_header",
+                    ours,
+                    &Value::Int(u8::from(r.routing.next_header) as u128),
+                );
+                field_eq(
+                    report,
+                    "routing.segments",
+                    ours,
+                    &Value::Bytes(bytes::Bytes::copy_from_slice(&p[p.len().min(2)..])),
+                );
+            }
+            if let (Some(f), Some(ours)) = (&exts.fragment, by_kind("frag")) {
+                field_eq(
+                    report,
+                    "frag.next_header",
+                    ours,
+                    &Value::Int(u8::from(f.next_header) as u128),
+                );
+                field_eq(
+                    report,
+                    "frag.offset",
+                    ours,
+                    &Value::Int(u16::from(f.fragment_offset) as u128),
+                );
+                field_eq(
+                    report,
+                    "frag.m",
+                    ours,
+                    &Value::Int(f.more_fragments as u128),
+                );
+                field_eq(
+                    report,
+                    "frag.ident",
+                    ours,
+                    &Value::Int(f.identification as u128),
+                );
+            }
+            if let (Some(a), Some(ours)) = (&exts.auth, by_kind("ah")) {
+                field_eq(
+                    report,
+                    "ah.next_header",
+                    ours,
+                    &Value::Int(u8::from(a.next_header) as u128),
+                );
+                field_eq(report, "ah.spi", ours, &Value::Int(a.spi as u128));
+                field_eq(
+                    report,
+                    "ah.seq",
+                    ours,
+                    &Value::Int(a.sequence_number as u128),
+                );
+                field_eq(
+                    report,
+                    "ah.icv",
+                    ours,
+                    &Value::Bytes(bytes::Bytes::copy_from_slice(a.raw_icv())),
+                );
+            }
+        }
+    }
     if let (Some(etherparse::TransportSlice::Udp(header)), Some(ours)) =
         (&parsed.transport, by_kind("udp"))
     {

@@ -505,33 +505,22 @@ fn recompute(
                     }
                     frame[pos..pos + 2].copy_from_slice(&val.to_be_bytes());
                 }
-                crate::schema::LengthUnits::Octlets8 => {
-                    let rem = covered % 8;
-                    if rem != 0 {
-                        return Err(PatchError::LengthNotQuantized {
-                            path,
-                            unit: 8,
-                            remainder: rem,
-                        });
+                crate::schema::LengthUnits::Octlets8 | crate::schema::LengthUnits::Octlets4 => {
+                    match units.quantize(covered) {
+                        None => {
+                            return Err(PatchError::LengthNotQuantized {
+                                path,
+                                unit: units.unit() as u8,
+                                remainder: covered % units.unit(),
+                            });
+                        }
+                        Some(v) => {
+                            if pos + 1 > frame.len() {
+                                return Err(PatchError::OutOfBounds { path });
+                            }
+                            frame[pos] = v;
+                        }
                     }
-                    if pos + 1 > frame.len() {
-                        return Err(PatchError::OutOfBounds { path });
-                    }
-                    frame[pos] = (covered / 8).saturating_sub(1) as u8;
-                }
-                crate::schema::LengthUnits::Octlets4 => {
-                    let rem = covered % 4;
-                    if rem != 0 {
-                        return Err(PatchError::LengthNotQuantized {
-                            path,
-                            unit: 4,
-                            remainder: rem,
-                        });
-                    }
-                    if pos + 1 > frame.len() {
-                        return Err(PatchError::OutOfBounds { path });
-                    }
-                    frame[pos] = (covered / 4).saturating_sub(2) as u8;
                 }
             }
         }
