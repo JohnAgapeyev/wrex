@@ -1381,10 +1381,16 @@ T(n+1)".
     dispatch unit through the real udp codec. **Remaining in
     T17c**: the options list grammar (u16 TLVs, the pending
     architecture), the `opt.N.*` record section with one-level
-    nested `opt.N.sub.M.*` (IA_NA → IAADDR), the relay-header
-    dissection (12/13), the dhcproto-v6 both-direction
-    differential, the differential stacks + corpus + fuzz target +
-    Miri membership. New
+    nested `opt.N.sub.M.*` (IA_NA → IAADDR), the dhcproto-v6
+    both-direction differential and the differential stacks +
+    corpus (the fuzz target + Miri membership landed in slice 2;
+    **slice 3 delivered the relay-header dissection**: msg-type
+    12/13 carry the RFC 8415 §7.1 extended fixed header —
+    hop-count(1) + link-address(16) + peer-address(16), 34 bytes
+    total, dissect-only fields, the nested relay-message option
+    staying payload with the options region — crafting relay
+    messages stays deferred per the charter; the index catch: the
+    hop-count sits at byte 1, not the trans_id slot). New
     `wrex-proto-dhcp6` crate, ADR-3-shaped (dep on
     `wrex-proto-udp`, `register()` fn, feature `proto-dhcp6`): kind
     `dhcp6`, rank 40, parent `udp`; the RFC 8415 fixed header is 4

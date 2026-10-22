@@ -105,13 +105,34 @@ impl Codec for Dhcp6Codec {
             "trans_id".into(),
             Value::Int(u32::from_be_bytes([0, bytes[1], bytes[2], bytes[3]]) as u128),
         );
+        // Relay shapes (tranche 17c, RFC 8415 §7.1): msg-type 12/13
+        // carry the 33-byte extended fixed header — hop-count,
+        // link-address, peer-address (dissect-only fields; the
+        // nested relay-message option is the recorded tail).
+        if (bytes[0] == 12 || bytes[0] == 13) && bytes.len() >= 34 {
+            // Relay header: msg-type(1), hop-count(1), link(16),
+            // peer(16) — hop-count at byte 1, not the trans_id slot.
+            fields.insert("hop_count".into(), Value::Int(bytes[1] as u128));
+            let mut addr = [0u8; 16];
+            addr.copy_from_slice(&bytes[2..18]);
+            fields.insert("link_addr".into(), Value::Ipv6(addr.into()));
+            addr.copy_from_slice(&bytes[18..34]);
+            fields.insert("peer_addr".into(), Value::Ipv6(addr.into()));
+            let view = LayerView {
+                kind: KIND,
+                span: ctx.offset..ctx.offset + 34,
+                field_spans: Default::default(),
+                fields,
+            };
+            return ReadOutcome::Layer(view, Some(Next::Payload));
+        }
         let view = LayerView {
             kind: KIND,
             span: ctx.offset..ctx.offset + 4,
             field_spans: Default::default(),
             fields,
         };
-        // Terminal for slice 1: the options region stays payload.
+        // Terminal for the slice: the options region stays payload.
         ReadOutcome::Layer(view, Some(Next::Payload))
     }
 }
@@ -165,5 +186,28 @@ mod tests {
             p.layers[1].fields.get("trans_id"),
             Some(&Value::Int(0x112233))
         );
+    }
+
+    /// Tranche 17c: the relay shapes (12/13) dissect with their
+    /// 33-byte extended fixed header — hop-count, link-address,
+    /// peer-address (dissect-only; crafting relay messages stays
+    /// deferred per the charter).
+    #[test]
+    fn relay_header_dissects() {
+        let mut r = Registry::empty();
+        register(&mut r);
+        let mut frame = vec![12u8, 0x0a];
+        frame.extend_from_slice(&[0u8; 32]); // link + peer (::)
+        frame.extend_from_slice(&[0x00, 0x01, 0x00, 0x02, 0xde, 0xad]); // a TLV tail
+        let p = wrex_core::dissect::dissect(&r, &frame, KIND);
+        assert_eq!(p.layers[0].kind, KIND);
+        assert_eq!(p.layers[0].fields.get("hop_count"), Some(&Value::Int(10)));
+        assert_eq!(p.layers[0].span, 0..34);
+        // The TLV tail stays payload (the options grammar is the tail).
+        assert_eq!(&p.payload[..], &[0x00, 0x01, 0x00, 0x02, 0xde, 0xad][..]);
+        // A SOLICIT-family type keeps the 4-byte header.
+        let plain = [1u8, 0x11, 0x22, 0x33, 0xde];
+        let p = wrex_core::dissect::dissect(&r, &plain, KIND);
+        assert_eq!(p.layers[0].span, 0..4);
     }
 }
