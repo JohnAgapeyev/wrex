@@ -1,0 +1,25 @@
+.TH WREX-NONEXT 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-nonext \- nonext layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fInonext\fR \fB--nonext\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fInonext\fR
+
+.SH DESCRIPTION
+IPv6 no\-next\-header sentinel (RFC 8200 §4.6, next\-header 59): a zero\-extent terminal marker layer — it consumes no bytes and carries no fields, but materializes as a real layer so filters can speak `nonext` presence and craft can terminate a stack (`\-\-layer ipv6 \-\-layer nonext`; the ipv6 next_header autofills 59). Zero\-length spans are safe through the reassemble/coverage invariants (verified by the tranche\-17a units).
+.
+
+.SH ENCAPSULATION
+Rank 25; stacks on ipv6 (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --nonext-<field>).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+
+.SH EXAMPLES
+wrex fields nonext
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

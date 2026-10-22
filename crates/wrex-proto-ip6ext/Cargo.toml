@@ -1,0 +1,25 @@
+[package]
+name = "wrex-proto-ip6ext"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex IPv6 extension header codecs (hop-by-hop, routing, fragment, AH, ESP, dest-opt, no-next)"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+# ADR 3: parents are real Cargo deps — a child codec cannot build
+# without the crates it stacks on.
+wrex-proto-ip6 = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }
+hex = { workspace = true }

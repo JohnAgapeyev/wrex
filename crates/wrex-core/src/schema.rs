@@ -185,12 +185,24 @@ pub enum Derived {
         field: &'static str,
         at: usize,
         base: LengthBase,
+        /// Quantization of the covered length (tranche 17a): the v6
+        /// extension-header `len` fields count in 4- or 8-octet units
+        /// with a bias (see [`LengthUnits`]). `Bytes` is every
+        /// pre-17a field.
+        units: LengthUnits,
     },
     /// Internet checksum at `u16 at`, accumulated over the covered
     /// range plus the pseudo-header when `pseudo` selects one.
     Checksum {
         field: &'static str,
         at: usize,
+        /// Range **start**: at the layer's own start (`Layer`, e.g.
+        /// the ipv4 header checksum) or at the upper-layer packet
+        /// (`UpperPacket`, tranche 17a: the RFC 8200 §8.1 L4
+        /// checksums cover the v6 extension headers before the L4
+        /// layer — `Layer == UpperPacket` on every ext-free stack, so
+        /// the udp/tcp/icmpv6 switch is behavior-identical today).
+        start: ChecksumStart,
         /// Range end: to the frame end (`Frame`) or to the layer's span
         /// end (`Layer`, e.g. the ipv4 header including options).
         end: ChecksumEnd,
@@ -229,6 +241,40 @@ pub enum LengthBase {
     LayerStart,
     /// frame end − layer end: payload only (`ipv6.payload_len`).
     LayerEnd,
+}
+
+/// Quantization of a [`Derived::Length`] (tranche 17a): the IPv6
+/// extension-header `len` fields count in fixed octet units with a
+/// bias — `hdr_ext_len = (octets / 8) − 1` (hop-by-hop, destination
+/// options, routing) and AH's `payload_len = (octets / 4) − 2`
+/// (RFC 4302 §2.2). The variants also fix the field's write width:
+/// `Bytes` is the pre-17a u16 (2-byte BE write), the quantized
+/// forms are the u8 `len` fields (1-byte write).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LengthUnits {
+    /// Plain byte count, written as u16 (`ipv4.total_len`,
+    /// `udp.length`, `ipv6.payload_len`).
+    Bytes,
+    /// `(octets / 4) − 2`, written as u8 — the AH length field.
+    Octlets4,
+    /// `(octets / 8) − 1`, written as u8 — hopopts/dstopts/routing
+    /// `hdr_ext_len`.
+    Octlets8,
+}
+
+/// Range start of a [`Derived::Checksum`] (tranche 17a).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChecksumStart {
+    /// The layer's own span start (ipv4 header checksum: covers only
+    /// itself).
+    Layer,
+    /// The upper-layer packet start — the offset the net-layer codec
+    /// recorded in [`crate::dissect::Facts::upper_start`] (falls back
+    /// to the layer's own start when no net parent recorded it).
+    /// udp/tcp/icmpv6: RFC 8200 §8.1 counts the v6 extension headers
+    /// into the L4 checksum, so an edit in a hopopts region must heal
+    /// the udp checksum over the ext bytes too.
+    UpperPacket,
 }
 
 /// Pseudo-header provenance of a [`Derived::Checksum`].

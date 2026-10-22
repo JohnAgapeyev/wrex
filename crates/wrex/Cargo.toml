@@ -41,6 +41,7 @@ wrex-proto-ip = { workspace = true, optional = true }
 wrex-proto-icmp = { workspace = true, optional = true }
 wrex-proto-icmpv6 = { workspace = true, optional = true }
 wrex-proto-ip6 = { workspace = true, optional = true }
+wrex-proto-ip6ext = { workspace = true, optional = true }
 wrex-proto-udp = { workspace = true, optional = true }
 wrex-proto-tcp = { workspace = true, optional = true }
 wrex-proto-dns = { workspace = true, optional = true }
@@ -48,11 +49,12 @@ wrex-proto-vlan = { workspace = true, optional = true }
 wrex-proto-dhcp = { workspace = true, optional = true }
 
 [features]
-default = ["proto-eth", "proto-arp", "proto-ip", "proto-ip6", "proto-icmp", "proto-icmpv6", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan", "proto-dhcp"]
+default = ["proto-eth", "proto-arp", "proto-ip", "proto-ip6", "proto-ip6ext", "proto-icmp", "proto-icmpv6", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan", "proto-dhcp"]
 proto-eth = ["dep:wrex-proto-eth"]
 proto-arp = ["dep:wrex-proto-arp"]
 proto-ip = ["dep:wrex-proto-ip"]
 proto-ip6 = ["dep:wrex-proto-ip6"]
+proto-ip6ext = ["dep:wrex-proto-ip6ext"]
 proto-icmp = ["dep:wrex-proto-icmp"]
 proto-icmpv6 = ["dep:wrex-proto-icmpv6"]
 proto-udp = ["dep:wrex-proto-udp"]

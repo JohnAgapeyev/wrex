@@ -13,7 +13,7 @@ use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, flagset_or_default, int_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+    ChecksumEnd, ChecksumStart, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -85,7 +85,17 @@ pub const KIND: &str = "tcp";
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: KIND,
     rank: 30,
-    parents: &[wrex_proto_ip::KIND, wrex_proto_ip6::KIND],
+    parents: &[
+        wrex_proto_ip::KIND,
+        wrex_proto_ip6::KIND,
+        // Tranche 17a: the stackable v6 ext headers (esp/nonext are
+        // terminal — nothing stacks on them).
+        wrex_proto_ip6ext::KIND_HOPOPTS,
+        wrex_proto_ip6ext::KIND_ROUTING,
+        wrex_proto_ip6ext::KIND_FRAG,
+        wrex_proto_ip6ext::KIND_DSTOPTS,
+        wrex_proto_ip6ext::KIND_AH,
+    ],
     doc: "TCP (RFC 9293): 20-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under --strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per-bit subpaths --tcp-flags-syn exist. checksum over the pseudo-header (v4 RFC 9293 / v6 RFC 8200 §8.1, family follows the network-layer parent) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.",
     fields: FIELDS.as_slice(),
     records: &[],
@@ -107,6 +117,9 @@ pub fn register(r: &mut wrex_core::Registry) {
     }
     wrex_proto_ip::register(r);
     wrex_proto_ip6::register(r);
+    // Tranche 17a: the ext family is a parent now (tcp stacks on the
+    // five non-terminal kinds — ADR 3: parents are deps).
+    wrex_proto_ip6ext::register(r);
 }
 
 /// Options bytes for a spec (Str list grammar or raw Bytes), zero-padded.
@@ -164,9 +177,13 @@ impl Codec for TcpCodec {
         ctx.buf.put_u16(int_or_default(spec, &FIELDS[8], af) as u16); // urgent
         ctx.buf.extend_from_slice(&opts);
         let pseudo = ctx.facts.net.map(|n| wrex_core::encode::l4_pseudo(n, 6));
+        // Tranche 17a: the checksum covers the upper-layer packet —
+        // with a v6 ext chain that includes the ext headers (RFC 8200
+        // §8.1); equals this layer's own start on ext-free stacks.
+        let ck_start = ctx.facts.upper_start.unwrap_or(start);
         ctx.defer(Patch::Checksum {
             at: at_ck,
-            start,
+            start: ck_start,
             end: None,
             pseudo,
             explicit: ck_explicit,
@@ -221,13 +238,29 @@ impl Codec for TcpCodec {
         let urgent = u16::from_be_bytes([bytes[18], bytes[19]]);
 
         // Checksum verify (non-fatal): pseudo-header (family follows the
-        // network-layer parent) + segment, ck zeroed.
+        // network-layer parent) + the upper-layer packet (tranche 17a:
+        // v6 ext headers included, RFC 8200 §8.1), ck zeroed. With the
+        // engine's frame lookback + a recorded upper_start the range
+        // starts at the first ext header; the legacy `bytes` slice
+        // otherwise (identical on ext-free stacks).
         if let Some(net) = ctx.facts.net {
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            wrex_core::encode::l4_pseudo(net, 6).accumulate_into(&mut acc, bytes.len());
-            acc.add_bytes(&bytes[..16]);
-            acc.add_u16(0);
-            acc.add_bytes(&bytes[18..]);
+            let upper = ctx
+                .facts
+                .upper_start
+                .filter(|&u| u <= ctx.offset && u < ctx.frame.len());
+            if let (Some(upper), true) = (upper, !ctx.frame.is_empty()) {
+                let upper_len = ctx.frame.len() - upper;
+                wrex_core::encode::l4_pseudo(net, 6).accumulate_into(&mut acc, upper_len);
+                acc.add_bytes(&ctx.frame[upper..ctx.offset + 16]);
+                acc.add_u16(0);
+                acc.add_bytes(&ctx.frame[ctx.offset + 18..]);
+            } else {
+                wrex_core::encode::l4_pseudo(net, 6).accumulate_into(&mut acc, bytes.len());
+                acc.add_bytes(&bytes[..16]);
+                acc.add_u16(0);
+                acc.add_bytes(&bytes[18..]);
+            }
             let computed = acc.value();
             if found_ck != computed {
                 ctx.anomalies.push(Anomaly::new(
@@ -298,6 +331,7 @@ impl Codec for TcpCodec {
         &[Derived::Checksum {
             field: "checksum",
             at: 16,
+            start: ChecksumStart::UpperPacket,
             end: ChecksumEnd::Frame,
             pseudo: PseudoSource::FromFacts,
         }]
@@ -433,6 +467,46 @@ mod tests {
                 "{parent} proto/next_header 6 must chain into the real tcp codec"
             );
         }
+    }
+
+    /// Tranche 17a: tcp under a v6 extension chain — [ipv6, hopopts,
+    /// tcp] crafts with the ext bytes counted into the checksum
+    /// (RFC 8200 §8.1) and dissects anomaly-free through the real
+    /// codecs.
+    #[test]
+    fn ext_chain_checksum_covers_hopopts() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut hf = std::collections::BTreeMap::new();
+        hf.insert(
+            "options".to_string(),
+            wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
+                0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
+            ])),
+        );
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                wrex_core::spec::LayerSpec::with_fields(wrex_proto_ip6ext::KIND_HOPOPTS, hf),
+                tcp_spec(&[]),
+            ],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_ip6::KIND, wrex_proto_ip6ext::KIND_HOPOPTS, "tcp"]
+        );
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
     }
 
     #[test]

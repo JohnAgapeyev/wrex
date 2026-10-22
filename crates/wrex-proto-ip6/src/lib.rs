@@ -17,7 +17,9 @@ use bytes::BufMut;
 use wrex_core::dissect::{LayerView, NetFacts};
 use wrex_core::encode::{EncodeCtx, Patch, int_or_default, ipv6_or_default};
 use wrex_core::error::DecodeError;
-use wrex_core::schema::{Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase};
+use wrex_core::schema::{
+    Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, LengthUnits,
+};
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
@@ -91,7 +93,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: KIND,
     rank: 20,
     parents: &[wrex_proto_eth::KIND, wrex_proto_vlan::KIND],
-    doc: "IPv6 (RFC 8200) fixed 40-byte header. Also a valid stack start. ver=6, traffic_class/flow_label pack the first 32-bit word (flow_label 20 bits, explicit over-wide values masked), payload_len autofilled from the bytes after this header (explicit wins), hop_limit defaults 64. src/dst are FieldKind::Ipv6 (::1 autofill). next_header drives the chain: 58=icmpv6, 6=tcp, 17=udp, else synthesized `unknown`. Extension headers are a deliberate deferral. Stacks on eth or vlan (802.1Q tag). CLI alias: `ip6`/`v6` (--ip6-hop-limit == --ipv6-hop-limit). No header checksum (RFC 8200 §8.1): upper layers checksum over the v6 pseudo-header.",
+    doc: "IPv6 (RFC 8200) fixed 40-byte header. Also a valid stack start. ver=6, traffic_class/flow_label pack the first 32-bit word (flow_label 20 bits, explicit over-wide values masked), payload_len autofilled from the bytes after this header (explicit wins), hop_limit defaults 64. src/dst are FieldKind::Ipv6 (::1 autofill). next_header drives the chain: 58=icmpv6, 6=tcp, 17=udp, and the extension-header family (tranche 17a): 0=hopopts, 43=routing, 44=frag, 50=esp, 51=ah, 59=nonext, 60=dstopts — else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). CLI alias: `ip6`/`v6` (--ip6-hop-limit == --ipv6-hop-limit). No header checksum (RFC 8200 §8.1): upper layers checksum over the v6 pseudo-header, which covers the extension headers too (Facts::upper_start, tranche 17a).",
     fields: FIELDS.as_slice(),
     records: &[],
 });
@@ -120,6 +122,15 @@ fn kind_to_next_header(kind: Option<&'static str>) -> u8 {
         Some("icmpv6") => 58,
         Some("tcp") => 6,
         Some("udp") => 17,
+        // Tranche 17a: the extension-header family (craft autofill —
+        // [ipv6, hopopts, …] writes next_header 0).
+        Some("hopopts") => 0,
+        Some("routing") => 43,
+        Some("frag") => 44,
+        Some("esp") => 50,
+        Some("ah") => 51,
+        Some("nonext") => 59,
+        Some("dstopts") => 60,
         _ => 0,
     }
 }
@@ -130,6 +141,16 @@ fn next_header_to_kind(n: u8) -> &'static str {
         58 => "icmpv6",
         6 => "tcp",
         17 => "udp",
+        // Tranche 17a: the extension-header family (wrex-proto-ip6ext —
+        // dispatch stays registry strings; the child crate's
+        // integration test pins this table against its own copy).
+        0 => "hopopts",
+        43 => "routing",
+        44 => "frag",
+        50 => "esp",
+        51 => "ah",
+        59 => "nonext",
+        60 => "dstopts",
         _ => "unknown",
     }
 }
@@ -170,6 +191,13 @@ impl Codec for Ip6Codec {
         ctx.buf
             .extend_from_slice(&ipv6_or_default(spec, &FIELDS[7], af).octets());
         let header_end = ctx.buf.len();
+        // Tranche 17a: the upper-layer packet begins here — at the
+        // first extension header when one follows (RFC 8200 §8.1:
+        // the L4 checksum covers the ext headers). The ext codecs
+        // never touch it; the L4 checksum defers and the dissect-side
+        // verify read it. Equals the L4 layer's own start on every
+        // ext-free stack, so pre-17a wire bytes stay identical.
+        ctx.facts.upper_start = Some(header_end);
         // payload_len covers everything after this header (base = header
         // end); the engine resolves it after the terminal payload append.
         ctx.defer(Patch::Length {
@@ -246,6 +274,12 @@ impl Codec for Ip6Codec {
             dst,
             next_header,
         });
+        // Tranche 17a: the upper-layer packet begins right after the
+        // fixed header (at the first extension header when one
+        // follows). The L4 dissect-side verify reads this through
+        // `DecodeCtx::frame`; equals the L4 layer's own offset on
+        // every ext-free stack (pre-17a behavior identical).
+        ctx.facts.upper_start = Some(ctx.offset + 40);
         let view = LayerView {
             kind: "ipv6",
             span: ctx.offset..ctx.offset + HEADER_LEN,
@@ -299,6 +333,7 @@ impl Codec for Ip6Codec {
             field: "payload_len",
             at: 4,
             base: LengthBase::LayerEnd,
+            units: LengthUnits::Bytes,
         }]
     }
 }

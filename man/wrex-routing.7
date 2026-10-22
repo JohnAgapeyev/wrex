@@ -1,0 +1,40 @@
+.TH WREX-ROUTING 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-routing \- routing layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIrouting\fR \fB--routing\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIrouting\fR
+
+.SH DESCRIPTION
+IPv6 routing header (RFC 8200 §4.4, next\-header 43): next_header + hdr_ext_len + routing type + segments left + the raw type\-specific region (zero\-padded to the 8\-octet grid on craft; the caller embeds the per\-type reserved prefix + 16\-byte addresses — e.g. RH0's 4 reserved bytes — verbatim on the wire). Dissection renders type/segs_left and the region raw; segs_left is NOT validated against the segment count (deliberate invalid packets are a feature). Typed per\-type decoding (type\-2 home address) is a deferral. len autofills (octets/8)\-1; explicit wins and is kept.
+.
+
+.SH ENCAPSULATION
+Rank 25; stacks on ipv6, hopopts, routing, frag, dstopts, ah (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --routing-next_header).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-routing\-next_header=\fIINT\fR\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header) Type u8. Default: 59.
+.TP
+\fB\-\-routing\-len=\fIINT\fR\fR
+hdr_ext_len: header length in 8\-octet units minus 1 (autofill: exact over the padded region) Type u8. Default: 0.
+.TP
+\fB\-\-routing\-type=\fIINT\fR\fR
+routing type (0 = the deprecated RH0, 2 = home address) Type u8. Default: 0.
+.TP
+\fB\-\-routing\-segs_left=\fIINT\fR\fR
+segments left (not validated against the segment count) Type u8. Default: 0.
+.TP
+\fB\-\-routing\-segments\fR
+raw type\-specific region after the 4\-byte prefix (reserved bytes + 16\-byte addresses, hand\-built; hex on the CLI) Type bytes. Default: .
+
+.SH EXAMPLES
+wrex fields routing
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

@@ -2364,6 +2364,7 @@ dependencies = [
  "wrex-proto-icmpv6",
  "wrex-proto-ip",
  "wrex-proto-ip6",
+ "wrex-proto-ip6ext",
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-proto-vlan",
@@ -2543,6 +2544,7 @@ dependencies = [
  "proptest",
  "wrex-core",
  "wrex-proto-ip6",
+ "wrex-proto-ip6ext",
 ]
 
 [[package]]
@@ -2569,6 +2571,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-proto-ip6ext"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "hex",
+ "proptest",
+ "wrex-core",
+ "wrex-proto-ip6",
+]
+
+[[package]]
 name = "wrex-proto-tcp"
 version = "0.1.0"
 dependencies = [
@@ -2578,6 +2591,7 @@ dependencies = [
  "wrex-core",
  "wrex-proto-ip",
  "wrex-proto-ip6",
+ "wrex-proto-ip6ext",
 ]
 
 [[package]]
@@ -2589,6 +2603,7 @@ dependencies = [
  "wrex-core",
  "wrex-proto-ip",
  "wrex-proto-ip6",
+ "wrex-proto-ip6ext",
 ]
 
 [[package]]

@@ -46,7 +46,9 @@ jobs:
       - run: |
           cargo build -p wrex --no-default-features --features proto-dns
           kinds=$(cargo run -q -p wrex --no-default-features --features proto-dns -- fields | grep -E '^[a-z0-9]+ \(rank' | cut -d' ' -f1 | sort)
-          expected=$(printf '%s\n' dns eth ipv4 ipv6 udp vlan | sort)
+          # udp stacks on the v6 ext family (tranche 17a), so the dns
+          # closure pulls them along: 13 kinds.
+          expected=$(printf '%s\n' dns udp ipv4 ipv6 hopopts dstopts routing frag ah esp nonext eth vlan | sort)
           [ "$kinds" = "$expected" ] || { echo "lean closure mismatch:"; echo "$kinds"; exit 1; }
       - run: |
           cargo build -p wrex --no-default-features

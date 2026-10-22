@@ -1,0 +1,34 @@
+.TH WREX-DSTOPTS 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-dstopts \- dstopts layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIdstopts\fR \fB--dstopts\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIdstopts\fR
+
+.SH DESCRIPTION
+IPv6 destination options header (RFC 8200 §4.6, next\-header 60): the hop\-by\-hop shape examined only by the destination — next_header + hdr_ext_len + the raw options TLV region (zero\-padded to the 8\-octet grid on craft, verbatim on dissection; TLV typing is a deferral). May appear twice in one chain (before routing and before the upper layer) — dstopts\-on\-dstopts is legal per RFC 8200 §4.2 ordering. len autofills (octets/8)\-1; explicit wins and is kept.
+.
+
+.SH ENCAPSULATION
+Rank 25; stacks on ipv6, hopopts, routing, frag, dstopts, ah (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --dstopts-next_header).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-dstopts\-next_header=\fIINT\fR\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header) Type u8. Default: 59.
+.TP
+\fB\-\-dstopts\-len=\fIINT\fR\fR
+hdr_ext_len: header length in 8\-octet units minus 1 (autofill: exact over the padded region) Type u8. Default: 0.
+.TP
+\fB\-\-dstopts\-options\fR
+raw TLV region after the 2\-byte prefix, zero\-padded to the 8\-octet grid on craft (hex on the CLI) Type bytes. Default: .
+
+.SH EXAMPLES
+wrex fields dstopts
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

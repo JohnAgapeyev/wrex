@@ -34,6 +34,8 @@ pub fn standard() -> wrex_core::Registry {
     wrex_proto_ip::register(&mut r);
     #[cfg(feature = "proto-ip6")]
     wrex_proto_ip6::register(&mut r);
+    #[cfg(feature = "proto-ip6ext")]
+    wrex_proto_ip6ext::register(&mut r);
     #[cfg(feature = "proto-icmp")]
     wrex_proto_icmp::register(&mut r);
     #[cfg(feature = "proto-icmpv6")]

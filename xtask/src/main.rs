@@ -96,6 +96,7 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
             "wrex-proto-arp",
             "wrex-proto-ip",
             "wrex-proto-ip6",
+            "wrex-proto-ip6ext",
             "wrex-proto-icmp",
             "wrex-proto-icmpv6",
             "wrex-proto-udp",

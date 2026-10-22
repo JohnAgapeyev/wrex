@@ -13,6 +13,8 @@ bytes = { workspace = true }
 # without the crates it stacks on.
 wrex-proto-ip = { workspace = true }
 wrex-proto-ip6 = { workspace = true }
+# Tranche 17a: udp stacks on the non-terminal v6 ext headers.
+wrex-proto-ip6ext = { workspace = true }
 
 [dependencies.proptest]
 workspace = true

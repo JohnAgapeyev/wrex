@@ -10,7 +10,7 @@ use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, bytes_or_empty, int_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+    ChecksumEnd, ChecksumStart, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -216,6 +216,7 @@ impl Codec for IcmpCodec {
         &[Derived::Checksum {
             field: "checksum",
             at: 2,
+            start: ChecksumStart::Layer,
             end: ChecksumEnd::Frame,
             pseudo: PseudoSource::None,
         }]

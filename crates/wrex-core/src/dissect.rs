@@ -46,6 +46,17 @@ pub struct Facts {
     pub link_src: Option<[u8; 6]>,
     /// Interface MAC for dst autofill (reserved; unused in tranche 1).
     pub link_dst: Option<[u8; 6]>,
+    /// Absolute offset where the *upper-layer packet* begins — recorded
+    /// by the net-layer codecs (ipv4: after its header incl. options;
+    /// ipv6: after the 40-byte header, i.e. at the first extension
+    /// header) at both write and read. RFC 8200 §8.1 makes the L4
+    /// checksum cover everything from here (tranche 17a): the L4
+    /// encode-side checksum defers and the patch-engine
+    /// `ChecksumStart::UpperPacket` walk accumulate from it, and the
+    /// dissect-side verify reads the range through [`DecodeCtx::frame`].
+    /// `None` = no net-layer parent recorded it (bare-layer craft, the
+    /// pre-17a direct-parent value falls out as the layer's own start).
+    pub upper_start: Option<usize>,
 }
 
 /// One dissected layer: kind, byte span in the input, local fields, and
@@ -196,6 +207,15 @@ impl DissectedPacket {
 pub struct DecodeCtx<'a> {
     /// Absolute offset of `bytes` within the full input.
     pub offset: usize,
+    /// The **full input frame** (tranche 17a): codecs receive
+    /// `read(bytes = frame[offset..])` as their slice, and this field
+    /// gives the lookback — the dissect-side L4 checksum verify under
+    /// v6 extension chains accumulates
+    /// `frame[facts.upper_start..]` (the RFC 8200 §8.1 upper-layer
+    /// packet), which its forward slice cannot see. Empty under
+    /// `new()` (in-crate codec unit tests call `read` directly); the
+    /// dissect engine always sets it via [`DecodeCtx::with_frame`].
+    pub frame: &'a [u8],
     /// Facts recorded by earlier layers in this chain.
     pub facts: Facts,
     /// Non-fatal anomalies pushed by codecs (checksum mismatches etc.).
@@ -207,6 +227,19 @@ impl<'a> DecodeCtx<'a> {
     pub fn new(offset: usize) -> Self {
         Self {
             offset,
+            frame: &[],
+            facts: Facts::default(),
+            anomalies: Vec::new(),
+            _lifetime: PhantomData,
+        }
+    }
+
+    /// Engine constructor: `frame` is the complete input, `offset` the
+    /// layer's position within it (`bytes == frame[offset..]`).
+    pub fn with_frame(frame: &'a [u8], offset: usize) -> Self {
+        Self {
+            offset,
+            frame,
             facts: Facts::default(),
             anomalies: Vec::new(),
             _lifetime: PhantomData,
@@ -277,7 +310,7 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
                 let rest = &bytes[offset.min(bytes.len())..];
                 match registry.get(kind) {
                     Some(codec) => {
-                        let mut ctx = DecodeCtx::new(offset);
+                        let mut ctx = DecodeCtx::with_frame(bytes, offset);
                         ctx.facts = facts;
                         match codec.read(rest, &mut ctx) {
                             ReadOutcome::Layer(mut view, next) => {

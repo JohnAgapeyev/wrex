@@ -1,0 +1,40 @@
+.TH WREX-AH 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-ah \- ah layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIah\fR \fB--ah\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIah\fR
+
+.SH DESCRIPTION
+IP authentication header (RFC 4302 §2.2, next\-header 51): next_header + payload_len (AH length in 4\-octet units minus 2 — autofills (octets/4)\-2, explicit wins) + reserved (2 bytes) + spi + seq + the raw ICV region (verbatim, never padded — it is the actual integrity check value; len autofill truncates over non\-multiple regions, kept). NO integrity verification: wrex carves headers, never touches crypto (the standing TLS rule transposed).
+.
+
+.SH ENCAPSULATION
+Rank 25; stacks on ipv6, hopopts, routing, frag, dstopts, ah (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --ah-next_header).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-ah\-next_header=\fIINT\fR\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header) Type u8. Default: 59.
+.TP
+\fB\-\-ah\-len=\fIINT\fR\fR
+payload_len: AH length in 4\-octet units minus 2 (autofill: (octets/4)\-2, truncating — kept) Type u8. Default: 1.
+.TP
+\fB\-\-ah\-spi=\fIINT\fR\fR
+security parameters index Type u32. Default: 0.
+.TP
+\fB\-\-ah\-seq=\fIINT\fR\fR
+sequence number Type u32. Default: 0.
+.TP
+\fB\-\-ah\-icv\fR
+integrity check value (raw, verbatim — never verified; hex on the CLI) Type bytes. Default: .
+
+.SH EXAMPLES
+wrex fields ah
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

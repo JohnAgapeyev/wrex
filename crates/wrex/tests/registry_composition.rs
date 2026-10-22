@@ -43,6 +43,7 @@ fn no_dangling_parents() {
     feature = "proto-vlan",
     feature = "proto-ip",
     feature = "proto-ip6",
+    feature = "proto-ip6ext",
     feature = "proto-icmp",
     feature = "proto-icmpv6",
     feature = "proto-udp",
@@ -56,7 +57,8 @@ fn standard_registration_order_pinned() {
     assert_eq!(
         r.kinds(),
         &[
-            "eth", "arp", "vlan", "ipv4", "ipv6", "icmp", "icmpv6", "udp", "tcp", "dns", "dhcp",
+            "eth", "arp", "vlan", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah",
+            "esp", "nonext", "icmp", "icmpv6", "udp", "tcp", "dns", "dhcp",
         ]
     );
 }
@@ -114,6 +116,14 @@ closure_test!(
     ["ipv6", "eth", "vlan"]
 );
 closure_test!(
+    ip6ext_closure,
+    "proto-ip6ext",
+    wrex_proto_ip6ext::register,
+    [
+        "hopopts", "dstopts", "routing", "frag", "ah", "esp", "nonext", "ipv6", "eth", "vlan"
+    ]
+);
+closure_test!(
     icmp_closure,
     "proto-icmp",
     wrex_proto_icmp::register,
@@ -123,29 +133,44 @@ closure_test!(
     icmpv6_closure,
     "proto-icmpv6",
     wrex_proto_icmpv6::register,
-    ["icmpv6", "ipv6", "eth", "vlan"]
+    [
+        "icmpv6", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah", "esp", "nonext", "eth",
+        "vlan"
+    ]
 );
 closure_test!(
     udp_closure,
     "proto-udp",
     wrex_proto_udp::register,
-    ["udp", "ipv4", "ipv6", "eth", "vlan"]
+    [
+        "udp", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah", "esp", "nonext",
+        "eth", "vlan"
+    ]
 );
 closure_test!(
     tcp_closure,
     "proto-tcp",
     wrex_proto_tcp::register,
-    ["tcp", "ipv4", "ipv6", "eth", "vlan"]
+    [
+        "tcp", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah", "esp", "nonext",
+        "eth", "vlan"
+    ]
 );
 closure_test!(
     dns_closure,
     "proto-dns",
     wrex_proto_dns::register,
-    ["dns", "udp", "ipv4", "ipv6", "eth", "vlan"]
+    [
+        "dns", "udp", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah", "esp",
+        "nonext", "eth", "vlan"
+    ]
 );
 closure_test!(
     dhcp_closure,
     "proto-dhcp",
     wrex_proto_dhcp::register,
-    ["dhcp", "udp", "ipv4", "ipv6", "eth", "vlan"]
+    [
+        "dhcp", "udp", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah", "esp",
+        "nonext", "eth", "vlan"
+    ]
 );

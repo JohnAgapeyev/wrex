@@ -166,6 +166,16 @@ pub enum PatchError {
     EditScopeConflict(String),
     /// A scope selector is malformed or names an unknown layer.
     BadScope(String),
+    /// A quantized derived length (ext-header `len`, tranche 17a)
+    /// cannot be recomputed: the covered length is not a multiple of
+    /// its unit — an insert/delete broke the 8- or 4-octet grid. Pad
+    /// to the grid at the caller; the engine never writes a value
+    /// that would not re-derive.
+    LengthNotQuantized {
+        path: String,
+        unit: u8,
+        remainder: usize,
+    },
 }
 
 impl std::fmt::Display for PatchError {
@@ -187,6 +197,15 @@ impl std::fmt::Display for PatchError {
             PatchError::OutOfBounds { path } => {
                 write!(f, "field {path:?} span lies outside the frame")
             }
+            PatchError::LengthNotQuantized {
+                path,
+                unit,
+                remainder,
+            } => write!(
+                f,
+                "field {path:?} covers a length not divisible by {unit} \
+                 (remainder {remainder}); pad to the grid to recompute"
+            ),
             PatchError::Overlap => write!(f, "edits overlap"),
             PatchError::EditScopeConflict(p) => {
                 write!(f, "edit touches {p:?}, which the scope also recomputes")
@@ -459,27 +478,78 @@ fn recompute(
     fresh: &DissectedPacket,
 ) -> Result<(), PatchError> {
     match d {
-        Derived::Length { at, base, .. } => {
+        Derived::Length {
+            at, base, units, ..
+        } => {
             // Tranche-14 fix: the base is per-field (ipv6 payload_len
             // counts from the header END — the corpus sweep caught the
-            // old start-only formula writing 52 for a 12-byte payload).
+            // old start-only formula writing 52 for a 12-byte v6 payload).
+            // Tranche 17a: the ext-header `len` fields are quantized
+            // (RFC 8200 §4.3.1 / RFC 4302 §2.2) — a non-multiple
+            // covered length has no consistent value, which is a
+            // pointed error, never a silent truncation.
             let base_at = match base {
                 crate::schema::LengthBase::LayerStart => layer.span.start,
                 crate::schema::LengthBase::LayerEnd => layer.span.end,
             };
-            let val = (frame.len() - base_at) as u16;
+            let covered = frame.len() - base_at;
             let pos = layer.span.start + at;
-            if pos + 2 > frame.len() {
-                return Err(PatchError::OutOfBounds {
-                    path: format!("{}.{}", layer.kind, d.field()),
-                });
+            let path = format!("{}.{}", layer.kind, d.field());
+            match units {
+                crate::schema::LengthUnits::Bytes => {
+                    let val = covered as u16;
+                    if pos + 2 > frame.len() {
+                        return Err(PatchError::OutOfBounds { path });
+                    }
+                    frame[pos..pos + 2].copy_from_slice(&val.to_be_bytes());
+                }
+                crate::schema::LengthUnits::Octlets8 => {
+                    let rem = covered % 8;
+                    if rem != 0 {
+                        return Err(PatchError::LengthNotQuantized {
+                            path,
+                            unit: 8,
+                            remainder: rem,
+                        });
+                    }
+                    if pos + 1 > frame.len() {
+                        return Err(PatchError::OutOfBounds { path });
+                    }
+                    frame[pos] = (covered / 8).saturating_sub(1) as u8;
+                }
+                crate::schema::LengthUnits::Octlets4 => {
+                    let rem = covered % 4;
+                    if rem != 0 {
+                        return Err(PatchError::LengthNotQuantized {
+                            path,
+                            unit: 4,
+                            remainder: rem,
+                        });
+                    }
+                    if pos + 1 > frame.len() {
+                        return Err(PatchError::OutOfBounds { path });
+                    }
+                    frame[pos] = (covered / 4).saturating_sub(2) as u8;
+                }
             }
-            frame[pos..pos + 2].copy_from_slice(&val.to_be_bytes());
         }
         Derived::Checksum {
-            at, end, pseudo, ..
+            at,
+            start: start_sel,
+            end,
+            pseudo,
+            ..
         } => {
-            let start = layer.span.start;
+            // Tranche 17a: UpperPacket starts at the net layer's
+            // recorded upper-layer packet (the v6 ext headers count
+            // into the L4 checksum, RFC 8200 §8.1); Layer is the
+            // layer's own span. Equal on every ext-free stack.
+            let start = match start_sel {
+                crate::schema::ChecksumStart::Layer => layer.span.start,
+                crate::schema::ChecksumStart::UpperPacket => {
+                    fresh.facts.upper_start.unwrap_or(layer.span.start)
+                }
+            };
             let stop = match end {
                 ChecksumEnd::Frame => frame.len(),
                 ChecksumEnd::Layer => layer.span.end,
@@ -709,10 +779,12 @@ mod tests {
                     field: "len",
                     at: 2,
                     base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Bytes,
                 },
                 Derived::Checksum {
                     field: "ck",
                     at: 4,
+                    start: crate::schema::ChecksumStart::Layer,
                     end: ChecksumEnd::Frame,
                     pseudo: PseudoSource::None,
                 },

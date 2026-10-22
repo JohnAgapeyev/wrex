@@ -1,0 +1,34 @@
+.TH WREX-HOPOPTS 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-hopopts \- hopopts layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIhopopts\fR \fB--hopopts\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIhopopts\fR
+
+.SH DESCRIPTION
+IPv6 hop\-by\-hop options header (RFC 8200 §4.3, next\-header 0): next_header + hdr_ext_len + the raw options TLV region (zero\-padded to the 8\-octet grid on craft, verbatim on dissection). Options must be examined by every node on the path; the wrex codec dissects and re\-emits the region verbatim — TLV typing (Router Alert, Jumbo Payload, PadN) is a tranche\-17a deferral, the raw region covers. len autofills (octets/8)\-1; explicit wins and is kept.
+.
+
+.SH ENCAPSULATION
+Rank 25; stacks on ipv6, hopopts, routing, frag, dstopts, ah (parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --hopopts-next_header).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-hopopts\-next_header=\fIINT\fR\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header) Type u8. Default: 59.
+.TP
+\fB\-\-hopopts\-len=\fIINT\fR\fR
+hdr_ext_len: header length in 8\-octet units minus 1 (autofill: exact over the padded region) Type u8. Default: 0.
+.TP
+\fB\-\-hopopts\-options\fR
+raw TLV region after the 2\-byte prefix, zero\-padded to the 8\-octet grid on craft (hex on the CLI) Type bytes. Default: .
+
+.SH EXAMPLES
+wrex fields hopopts
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

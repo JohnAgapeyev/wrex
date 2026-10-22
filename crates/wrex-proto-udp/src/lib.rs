@@ -11,7 +11,8 @@ use wrex_core::dissect::LayerView;
 use wrex_core::encode::{EncodeCtx, Patch, int_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, PseudoSource,
+    ChecksumEnd, ChecksumStart, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase,
+    LengthUnits, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -52,7 +53,17 @@ pub const KIND: &str = "udp";
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: KIND,
     rank: 30,
-    parents: &[wrex_proto_ip::KIND, wrex_proto_ip6::KIND],
+    parents: &[
+        wrex_proto_ip::KIND,
+        wrex_proto_ip6::KIND,
+        // Tranche 17a: the stackable v6 ext headers (esp/nonext are
+        // terminal — nothing stacks on them).
+        wrex_proto_ip6ext::KIND_HOPOPTS,
+        wrex_proto_ip6ext::KIND_ROUTING,
+        wrex_proto_ip6ext::KIND_FRAG,
+        wrex_proto_ip6ext::KIND_DSTOPTS,
+        wrex_proto_ip6ext::KIND_AH,
+    ],
     doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network-layer parent) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec (tranche-3 dispatch), port-67/68 into the dhcp codec (tranche 7c); other ports are terminal (the payload follows).",
     fields: FIELDS.as_slice(),
     records: &[],
@@ -74,6 +85,9 @@ pub fn register(r: &mut wrex_core::Registry) {
     }
     wrex_proto_ip::register(r);
     wrex_proto_ip6::register(r);
+    // Tranche 17a: the ext family is a parent now (udp stacks on the
+    // five non-terminal kinds — ADR 3: parents are deps).
+    wrex_proto_ip6ext::register(r);
 }
 
 impl Codec for UdpCodec {
@@ -113,9 +127,16 @@ impl Codec for UdpCodec {
             explicit: len_explicit,
             path: "udp.length",
         });
+        // Tranche 17a: the checksum covers the upper-layer packet —
+        // with a v6 extension chain that includes the ext headers
+        // before this segment (RFC 8200 §8.1). The net parent recorded
+        // where the upper packet begins; without one (or directly
+        // stacked) it equals this layer's own start, so pre-17a wire
+        // bytes are identical.
+        let ck_start = ctx.facts.upper_start.unwrap_or(start);
         ctx.defer(Patch::Checksum {
             at: at_ck,
-            start,
+            start: ck_start,
             end: None,
             pseudo,
             explicit: ck_explicit,
@@ -153,13 +174,30 @@ impl Codec for UdpCodec {
             ));
         }
         // Checksum verify (non-fatal): pseudo-header (when NetFacts were
-        // recorded by a network-layer parent) + segment, ck field zeroed.
+        // recorded by a network-layer parent) + the upper-layer packet
+        // (tranche 17a: v6 ext headers included, RFC 8200 §8.1), ck
+        // field zeroed. With the engine's frame lookback + a recorded
+        // upper_start the range starts at the first ext header; the
+        // legacy `bytes` slice otherwise (identical on ext-free
+        // stacks — `frame[offset..] == bytes`).
         if let Some(net) = ctx.facts.net {
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, bytes.len());
-            acc.add_bytes(&bytes[..6]);
-            acc.add_u16(0);
-            acc.add_bytes(&bytes[8..]);
+            let upper = ctx
+                .facts
+                .upper_start
+                .filter(|&u| u <= ctx.offset && u < ctx.frame.len());
+            if let (Some(upper), true) = (upper, !ctx.frame.is_empty()) {
+                let upper_len = ctx.frame.len() - upper;
+                wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, upper_len);
+                acc.add_bytes(&ctx.frame[upper..ctx.offset + 6]);
+                acc.add_u16(0);
+                acc.add_bytes(&ctx.frame[ctx.offset + 8..]);
+            } else {
+                wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, bytes.len());
+                acc.add_bytes(&bytes[..6]);
+                acc.add_u16(0);
+                acc.add_bytes(&bytes[8..]);
+            }
             let computed = acc.value();
             if found_ck != computed {
                 ctx.anomalies.push(Anomaly::new(
@@ -213,10 +251,12 @@ impl Codec for UdpCodec {
                 field: "length",
                 at: 4,
                 base: LengthBase::LayerStart,
+                units: LengthUnits::Bytes,
             },
             Derived::Checksum {
                 field: "checksum",
                 at: 6,
+                start: ChecksumStart::UpperPacket,
                 end: ChecksumEnd::Frame,
                 pseudo: PseudoSource::FromFacts,
             },
@@ -326,6 +366,74 @@ mod tests {
                 "{parent} proto/next_header 17 must chain into the real udp codec"
             );
         }
+    }
+
+    /// Tranche 17a: the udp checksum covers the upper-layer packet —
+    /// with a v6 ext chain that includes the hopopts bytes (RFC 8200
+    /// §8.1, the `Facts::upper_start` seam). Craft → dissect through
+    /// the real ipv6 + hopopts codecs, no anomalies, and the wire
+    /// checksum matches an independent fold over the ext bytes (the
+    /// T7b pattern).
+    #[test]
+    fn checksum_covers_ext_chain() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut hf = std::collections::BTreeMap::new();
+        hf.insert(
+            "options".to_string(),
+            wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
+                0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
+            ])),
+        );
+        let spec = PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                wrex_core::spec::LayerSpec::with_fields(wrex_proto_ip6ext::KIND_HOPOPTS, hf),
+                // Non-dispatching ports: 53 would chain into the absent
+                // dns (children — stub-covered in this crate's own
+                // dispatch tests); this test pins the ext seam.
+                udp_spec(&[("sport", "40000"), ("dport", "40001")]),
+            ],
+            Some(wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
+                0xde, 0xad,
+            ]))),
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_ip6::KIND, wrex_proto_ip6ext::KIND_HOPOPTS, "udp"],
+            "the ext chain must dissect through the real codecs"
+        );
+        // The dissect-side verify (frame lookback) agrees: no anomaly.
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        // Independent fold over the upper-layer packet (ext bytes
+        // included): src/dst ::1 (the ipv6 defaults), len = upper
+        // len, proto 17.
+        let upper = &enc.bytes[40..];
+        let mut acc = wrex_core::ChecksumAccumulator::new();
+        acc.add_bytes(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+        acc.add_bytes(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+        acc.add_bytes(&(upper.len() as u32).to_be_bytes());
+        acc.add_bytes(&[0, 17]);
+        let udp_at = upper.len() - 10; // udp header 8 + payload 2
+        acc.add_bytes(&upper[..udp_at + 6]);
+        acc.add_u16(0);
+        acc.add_bytes(&upper[udp_at + 8..]);
+        let ck = u16::from_be_bytes([enc.bytes[40 + udp_at + 6], enc.bytes[40 + udp_at + 7]]);
+        assert_eq!(
+            ck,
+            acc.value(),
+            "the wire checksum must match the independent fold over the ext bytes"
+        );
     }
 
     #[test]

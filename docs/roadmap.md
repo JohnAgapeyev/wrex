@@ -1113,11 +1113,16 @@ T(n+1)".
     headers), tshark, and dhcproto 0.15 in-process — it carries
     `dhcproto::v6`, so the DHCPv6 differential reuses the in-tree
     dependency (no MSRV bump).
-  - **T17a — IPv6 extension headers** — chartered, not yet landed.
-    New `wrex-proto-ip6ext` crate, **the first crate shaped by ADR 3
-    from day one** (dep on `wrex-proto-ip6`, parents via KIND consts,
-    a `register()` fn, feature `proto-ip6ext`) — and the **first
-    multi-kind crate, deliberately** (rejected: folding into
+  - **T17a — IPv6 extension headers** — in flight: **the core
+    delivered** (the crate, the checksum seam, the wiring, units,
+    child-side integration tests, the fuzz target, the gate lists);
+    the differential-oracle arms + corpus + the Kani candidate are
+    the recorded verification tail, next in order (the T11 α/β/γ
+    sub-slice precedent). What landed: new `wrex-proto-ip6ext` crate,
+    **the first crate shaped by ADR 3 from day one** (dep on
+    `wrex-proto-ip6`, parents via KIND consts, a `register()` fn,
+    feature `proto-ip6ext`) — and the **first multi-kind crate,
+    deliberately** (rejected: folding into
     `wrex-proto-ip6` — churns a delivered T7b contract crate for
     zero gain, ip6's only edit stays the additive dispatch-map row;
     and seven crates — chain-shaped tests are inherently cross-kind,
@@ -1164,7 +1169,63 @@ T(n+1)".
     *candidate* on the quantized-length fold (measure first — the T4
     dns-proof retirement precedent), a child-side integration test
     through the real ipv6 codec, raw v6 probes with ext chains over
-    the unchanged `RawIpv6Driver`. Deliberate deferrals: fragment
+    the unchanged `RawIpv6Driver`. **Planning decisions resolved at execution**
+    (beyond the charter): `nonext` is a REAL zero-extent kind (the
+    dissect loop's `Layer` arm and `reassemble`'s coverage invariant
+    both accept `start == end` spans — pinned by units;
+    `ReadOutcome::Empty` materializes nothing, so it is never used);
+    `frag` chains into next_header only at `offset == 0` (a
+    non-initial fragment carries no upper header — `offset > 0` is
+    terminal, the fragment bytes stay payload); `esp` is CRAFTABLE
+    (the 8-byte spi/seq header + the caller's ciphertext as payload
+    — "dissect-only" meant no further parsing); the options-style
+    regions zero-pad to the 8-octet grid on craft (the dhcp sname
+    precedent) with `len` autofill exact and explicit kept; AH's
+    `icv` stays verbatim (never padded — it is the actual ICV);
+    off-grid patch recomputation is the new pointed
+    `PatchError::LengthNotQuantized` (never a silent truncation).
+    **The seam planning discovered — resolved for full correctness,
+    additively**: RFC 8200 §8.1 makes the L4 checksum cover the ext
+    headers, so `Facts` grew `upper_start` (recorded by ipv4/ipv6 at
+    write AND read — equals the L4 layer's own start on every
+    ext-free stack, so pre-17a wire bytes are byte-identical), the
+    L4 encode checksum defers accumulate from it, `DecodeCtx` grew
+    `frame: &[u8]` (a `with_frame` engine constructor; `new()` keeps
+    the empty frame so in-crate codec unit tests stay source- and
+    behavior-compatible) so the dissect-side verify reads the range
+    through the lookback — no verify-skip, no deferral — and
+    `Derived::Checksum` grew an additive
+    `ChecksumStart::{Layer, UpperPacket}` (the patch walk heals L4
+    checksums over edited ext bytes; `Derived::Length` grew
+    `LengthUnits::{Bytes, Octlets4, Octlets8}` with the −2/−1
+    biases). Verification landed: codec units (the full in-crate
+    RFC 8200 chain eth→ipv6→hopopts→dstopts→routing→frag→nonext
+    through the real codecs, zero anomalies, T11a reassemble
+    byte-identity; hopopts golden; routing len autofill/explicit;
+    frag offset-0-chains/offset>0-terminal goldens; AH len bias +
+    below-minimum never-fatal; esp terminal craft; nonext
+    zero-extent reassemble; the quantized-length patch — normalize
+    fixed point, 8-byte insert recompute, off-grid pointed error),
+    child-side integration tests in the L4 crates (udp:
+    [ipv6, hopopts, udp] with the wire checksum matching an
+    independent RFC 8200 fold over the ext bytes and the dissect
+    verify anomaly-free; tcp/icmpv6 ext-chain craft→dissect
+    anomaly-free — the in-crate chain tests end at `nonext` because
+    tcp/udp are children, uncreatable without a cycle), the fuzz
+    target `fuzz_dissect_ip6ext` (start picked from the first byte
+    over the seven kinds) in the fuzz gate list + the crate in both
+    Miri lists, the composition suite grown (the ip6ext closure; the
+    udp/tcp/icmpv6/dns/dhcp closures extend through udp's new
+    parents — the lean CI proto-dns expected closure 6 → 13 kinds),
+    `wrex fields`/man pages/completions regenerated, full workspace
+    suite green (78 suites), clippy/fmt clean. **Verification tail
+    (next in order, chartered)**: the differential stacks +
+    etherparse ext arms (Ipv6Extensions slices; esp is tshark-only —
+    etherparse stops at esp) + tshark map blocks, the `ip6ext`
+    golden corpus, the population/identity-sweep gates over it, the
+    Kani candidate on the quantized-length fold (measure first — the
+    T4 dns-proof retirement precedent), and the env-gated `lo`
+    echo-through-hopopts ground truth. Deliberate deferrals: fragment
     reassembly, hopopts/dstopts option typing (Router Alert/Jumbo/
     PadN sugar — the MLD goldens hand-hex the RA option), routing
     type-2 typed segments, Mobility/HIP/Shim6, ESP plaintext (crypto,

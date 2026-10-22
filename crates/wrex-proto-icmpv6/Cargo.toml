@@ -12,6 +12,8 @@ bytes = { workspace = true }
 # ADR 3: parents are real Cargo deps — a child codec cannot build
 # without the crates it stacks on.
 wrex-proto-ip6 = { workspace = true }
+# Tranche 17a: icmpv6 stacks on the non-terminal v6 ext headers.
+wrex-proto-ip6ext = { workspace = true }
 hex = { workspace = true }
 
 [dependencies.proptest]

@@ -4,7 +4,7 @@
 .SH NAME
 craft \- Encode a PacketSpec from field flags → stdout
 .SH SYNOPSIS
-\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-vlan\-pcp\fR] [\fB\-\-vlan\-dei\fR] [\fB\-\-vlan\-vid\fR] [\fB\-\-vlan\-type\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-ipv6\-ver\fR] [\fB\-\-ipv6\-traffic_class\fR] [\fB\-\-ipv6\-flow_label\fR] [\fB\-\-ipv6\-payload_len\fR] [\fB\-\-ipv6\-next_header\fR] [\fB\-\-ipv6\-hop_limit\fR] [\fB\-\-ipv6\-src\fR] [\fB\-\-ipv6\-dst\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-icmpv6\-type\fR] [\fB\-\-icmpv6\-code\fR] [\fB\-\-icmpv6\-checksum\fR] [\fB\-\-icmpv6\-echo\-id\fR] [\fB\-\-icmpv6\-echo\-seq\fR] [\fB\-\-icmpv6\-rest\fR] [\fB\-\-icmpv6\-ndp\-cur_hop_limit\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-m\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-router_lifetime\fR] [\fB\-\-icmpv6\-ndp\-reachable_time\fR] [\fB\-\-icmpv6\-ndp\-retrans_timer\fR] [\fB\-\-icmpv6\-ndp\-na_flags\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-r\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-s\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-target\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-\-dhcp\-op\fR] [\fB\-\-dhcp\-htype\fR] [\fB\-\-dhcp\-hlen\fR] [\fB\-\-dhcp\-hops\fR] [\fB\-\-dhcp\-xid\fR] [\fB\-\-dhcp\-secs\fR] [\fB\-\-dhcp\-flags\fR] [\fB\-\-dhcp\-flags\-broadcast\fR] [\fB\-\-dhcp\-ciaddr\fR] [\fB\-\-dhcp\-yiaddr\fR] [\fB\-\-dhcp\-siaddr\fR] [\fB\-\-dhcp\-giaddr\fR] [\fB\-\-dhcp\-chaddr\fR] [\fB\-\-dhcp\-sname\fR] [\fB\-\-dhcp\-file\fR] [\fB\-\-dhcp\-cookie\fR] [\fB\-\-dhcp\-msg_type\fR] [\fB\-\-dhcp\-options\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-vlan\-pcp\fR] [\fB\-\-vlan\-dei\fR] [\fB\-\-vlan\-vid\fR] [\fB\-\-vlan\-type\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-ipv6\-ver\fR] [\fB\-\-ipv6\-traffic_class\fR] [\fB\-\-ipv6\-flow_label\fR] [\fB\-\-ipv6\-payload_len\fR] [\fB\-\-ipv6\-next_header\fR] [\fB\-\-ipv6\-hop_limit\fR] [\fB\-\-ipv6\-src\fR] [\fB\-\-ipv6\-dst\fR] [\fB\-\-hopopts\-next_header\fR] [\fB\-\-hopopts\-len\fR] [\fB\-\-hopopts\-options\fR] [\fB\-\-dstopts\-next_header\fR] [\fB\-\-dstopts\-len\fR] [\fB\-\-dstopts\-options\fR] [\fB\-\-routing\-next_header\fR] [\fB\-\-routing\-len\fR] [\fB\-\-routing\-type\fR] [\fB\-\-routing\-segs_left\fR] [\fB\-\-routing\-segments\fR] [\fB\-\-frag\-next_header\fR] [\fB\-\-frag\-offset\fR] [\fB\-\-frag\-m\fR] [\fB\-\-frag\-ident\fR] [\fB\-\-ah\-next_header\fR] [\fB\-\-ah\-len\fR] [\fB\-\-ah\-spi\fR] [\fB\-\-ah\-seq\fR] [\fB\-\-ah\-icv\fR] [\fB\-\-esp\-spi\fR] [\fB\-\-esp\-seq\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-icmpv6\-type\fR] [\fB\-\-icmpv6\-code\fR] [\fB\-\-icmpv6\-checksum\fR] [\fB\-\-icmpv6\-echo\-id\fR] [\fB\-\-icmpv6\-echo\-seq\fR] [\fB\-\-icmpv6\-rest\fR] [\fB\-\-icmpv6\-ndp\-cur_hop_limit\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-m\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-router_lifetime\fR] [\fB\-\-icmpv6\-ndp\-reachable_time\fR] [\fB\-\-icmpv6\-ndp\-retrans_timer\fR] [\fB\-\-icmpv6\-ndp\-na_flags\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-r\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-s\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-target\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-\-dhcp\-op\fR] [\fB\-\-dhcp\-htype\fR] [\fB\-\-dhcp\-hlen\fR] [\fB\-\-dhcp\-hops\fR] [\fB\-\-dhcp\-xid\fR] [\fB\-\-dhcp\-secs\fR] [\fB\-\-dhcp\-flags\fR] [\fB\-\-dhcp\-flags\-broadcast\fR] [\fB\-\-dhcp\-ciaddr\fR] [\fB\-\-dhcp\-yiaddr\fR] [\fB\-\-dhcp\-siaddr\fR] [\fB\-\-dhcp\-giaddr\fR] [\fB\-\-dhcp\-chaddr\fR] [\fB\-\-dhcp\-sname\fR] [\fB\-\-dhcp\-file\fR] [\fB\-\-dhcp\-cookie\fR] [\fB\-\-dhcp\-msg_type\fR] [\fB\-\-dhcp\-options\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 Encode a PacketSpec from field flags → stdout
 .SH OPTIONS
@@ -146,6 +146,72 @@ source address (autofill: ::1)
 .TP
 \fB\-\-ipv6\-dst\fR \fI<IPV6>\fR
 destination address (autofill: ::1)
+.TP
+\fB\-\-hopopts\-next_header\fR \fI<INT>\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header)
+.TP
+\fB\-\-hopopts\-len\fR \fI<INT>\fR
+hdr_ext_len: header length in 8\-octet units minus 1 (autofill: exact over the padded region)
+.TP
+\fB\-\-hopopts\-options\fR \fI<BYTES>\fR
+raw TLV region after the 2\-byte prefix, zero\-padded to the 8\-octet grid on craft (hex on the CLI)
+.TP
+\fB\-\-dstopts\-next_header\fR \fI<INT>\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header)
+.TP
+\fB\-\-dstopts\-len\fR \fI<INT>\fR
+hdr_ext_len: header length in 8\-octet units minus 1 (autofill: exact over the padded region)
+.TP
+\fB\-\-dstopts\-options\fR \fI<BYTES>\fR
+raw TLV region after the 2\-byte prefix, zero\-padded to the 8\-octet grid on craft (hex on the CLI)
+.TP
+\fB\-\-routing\-next_header\fR \fI<INT>\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header)
+.TP
+\fB\-\-routing\-len\fR \fI<INT>\fR
+hdr_ext_len: header length in 8\-octet units minus 1 (autofill: exact over the padded region)
+.TP
+\fB\-\-routing\-type\fR \fI<INT>\fR
+routing type (0 = the deprecated RH0, 2 = home address)
+.TP
+\fB\-\-routing\-segs_left\fR \fI<INT>\fR
+segments left (not validated against the segment count)
+.TP
+\fB\-\-routing\-segments\fR \fI<BYTES>\fR
+raw type\-specific region after the 4\-byte prefix (reserved bytes + 16\-byte addresses, hand\-built; hex on the CLI)
+.TP
+\fB\-\-frag\-next_header\fR \fI<INT>\fR
+next header protocol of the fragmentable part (autofill: derived from the next layer)
+.TP
+\fB\-\-frag\-offset\fR \fI<INT>\fR
+fragment offset in 8\-octet units (13 bits; over\-wide values mask)
+.TP
+\fB\-\-frag\-m\fR \fI<INT>\fR
+more\-fragments flag (1 bit: 0 = last fragment)
+.TP
+\fB\-\-frag\-ident\fR \fI<INT>\fR
+fragment identification (matches fragments of one packet)
+.TP
+\fB\-\-ah\-next_header\fR \fI<INT>\fR
+next header protocol (autofill: derived from the next layer; 59 = no next header)
+.TP
+\fB\-\-ah\-len\fR \fI<INT>\fR
+payload_len: AH length in 4\-octet units minus 2 (autofill: (octets/4)\-2, truncating — kept)
+.TP
+\fB\-\-ah\-spi\fR \fI<INT>\fR
+security parameters index
+.TP
+\fB\-\-ah\-seq\fR \fI<INT>\fR
+sequence number
+.TP
+\fB\-\-ah\-icv\fR \fI<BYTES>\fR
+integrity check value (raw, verbatim — never verified; hex on the CLI)
+.TP
+\fB\-\-esp\-spi\fR \fI<INT>\fR
+security parameters index
+.TP
+\fB\-\-esp\-seq\fR \fI<INT>\fR
+sequence number
 .TP
 \fB\-\-icmp\-type\fR \fI<INT>\fR
 type (autofill: 8 echo request)

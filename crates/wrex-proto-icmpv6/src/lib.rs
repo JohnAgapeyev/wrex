@@ -19,7 +19,8 @@ use wrex_core::encode::l4_pseudo;
 use wrex_core::encode::{EncodeCtx, Patch, bytes_or_empty, flagset_or_default, int_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource, RecordSchema,
+    ChecksumEnd, ChecksumStart, Derived, FieldKind, FieldSchema, LayerSchema, Layout, PseudoSource,
+    RecordSchema,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -175,7 +176,16 @@ pub const KIND: &str = "icmpv6";
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     kind: KIND,
     rank: 30,
-    parents: &[wrex_proto_ip6::KIND],
+    parents: &[
+        wrex_proto_ip6::KIND,
+        // Tranche 17a: the stackable v6 ext headers (esp/nonext are
+        // terminal — nothing stacks on them).
+        wrex_proto_ip6ext::KIND_HOPOPTS,
+        wrex_proto_ip6ext::KIND_ROUTING,
+        wrex_proto_ip6ext::KIND_FRAG,
+        wrex_proto_ip6ext::KIND_DSTOPTS,
+        wrex_proto_ip6ext::KIND_AH,
+    ],
     doc: "ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) expose echo.id and echo.seq. NDP craft: RS (133, header only), RA (134: ndp.cur_hop_limit, ndp.ra_flags [m,o], ndp.router_lifetime, ndp.reachable_time, ndp.retrans_timer), NS (135: ndp.target), NA (136: ndp.na_flags [r,s,o] + ndp.target). Other types render the 4-byte rest as icmpv6.rest raw bytes. checksum always covers the RFC 8200 §8.1 v6 pseudo-header (proto 58) plus the whole message. NDP options (SLLA/TLLA, …) dissect into the opt record section (opt.0.addr, …; dissect-only — crafting them is a deferral). icmpv6 is terminal (the payload follows).",
     fields: FIELDS.as_slice(),
     records: RECORDS.as_slice(),
@@ -196,6 +206,9 @@ pub fn register(r: &mut wrex_core::Registry) {
         r.register(&CODEC);
     }
     wrex_proto_ip6::register(r);
+    // Tranche 17a: the ext family is a parent now (icmpv6 stacks on
+    // the five non-terminal kinds — ADR 3: parents are deps).
+    wrex_proto_ip6ext::register(r);
 }
 
 fn is_echo(t: u8) -> bool {
@@ -290,9 +303,13 @@ impl Codec for Icmp6Codec {
         // Checksum over the whole message (header + body + payload) with
         // the v6 pseudo-header (proto 58) — facts were recorded by ipv6.
         let pseudo = ctx.facts.net.map(|n| l4_pseudo(n, 58));
+        // Tranche 17a: the checksum covers the upper-layer packet —
+        // with a v6 ext chain that includes the ext headers (RFC 8200
+        // §8.1); equals this layer's own start on ext-free stacks.
+        let ck_start = ctx.facts.upper_start.unwrap_or(start);
         ctx.defer(Patch::Checksum {
             at: at_ck,
-            start,
+            start: ck_start,
             end: None, // header + NDP body + payload
             pseudo,
             explicit: ck_explicit,
@@ -454,13 +471,29 @@ impl Codec for Icmp6Codec {
         }
 
         // Checksum verify (non-fatal) when the v6 parent recorded facts:
-        // pseudo-header (proto 58) + message, ck field zeroed.
+        // pseudo-header (proto 58) + the upper-layer packet (tranche 17a:
+        // v6 ext headers included, RFC 8200 §8.1), ck field zeroed.
+        // With the engine's frame lookback + a recorded upper_start the
+        // range starts at the first ext header; the legacy `bytes`
+        // slice otherwise (identical on ext-free stacks).
         if let Some(net) = ctx.facts.net {
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            l4_pseudo(net, 58).accumulate_into(&mut acc, bytes.len());
-            acc.add_bytes(&bytes[..2]);
-            acc.add_u16(0);
-            acc.add_bytes(&bytes[4..]);
+            let upper = ctx
+                .facts
+                .upper_start
+                .filter(|&u| u <= ctx.offset && u < ctx.frame.len());
+            if let (Some(upper), true) = (upper, !ctx.frame.is_empty()) {
+                let upper_len = ctx.frame.len() - upper;
+                l4_pseudo(net, 58).accumulate_into(&mut acc, upper_len);
+                acc.add_bytes(&ctx.frame[upper..ctx.offset + 2]);
+                acc.add_u16(0);
+                acc.add_bytes(&ctx.frame[ctx.offset + 4..]);
+            } else {
+                l4_pseudo(net, 58).accumulate_into(&mut acc, bytes.len());
+                acc.add_bytes(&bytes[..2]);
+                acc.add_u16(0);
+                acc.add_bytes(&bytes[4..]);
+            }
             let computed = acc.value();
             if found_ck != computed {
                 ctx.anomalies.push(Anomaly::new(
@@ -522,6 +555,7 @@ impl Codec for Icmp6Codec {
         &[Derived::Checksum {
             field: "checksum",
             at: 2,
+            start: ChecksumStart::UpperPacket,
             end: ChecksumEnd::Frame,
             pseudo: PseudoSource::FromFacts,
         }]
@@ -695,6 +729,50 @@ mod tests {
             vec![wrex_proto_ip6::KIND, KIND],
             "ipv6.next_header 58 must chain into the real icmpv6 codec"
         );
+    }
+
+    /// Tranche 17a: icmpv6 under a v6 extension chain — [ipv6,
+    /// hopopts, icmpv6] crafts with the ext bytes counted into the
+    /// checksum (RFC 8200 §8.1) and dissects anomaly-free through the
+    /// real codecs.
+    #[test]
+    fn ext_chain_checksum_covers_hopopts() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut hf = std::collections::BTreeMap::new();
+        hf.insert(
+            "options".to_string(),
+            wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
+                0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
+            ])),
+        );
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                wrex_core::spec::LayerSpec::with_fields(wrex_proto_ip6ext::KIND_HOPOPTS, hf),
+                icmp6_spec(&[]),
+            ],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![
+                wrex_proto_ip6::KIND,
+                wrex_proto_ip6ext::KIND_HOPOPTS,
+                "icmpv6"
+            ]
+        );
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
     }
 
     #[test]

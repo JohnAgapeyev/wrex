@@ -64,6 +64,10 @@ doc = false
 bench = false
 
 [[bin]]
+name = "fuzz_dissect_ip6ext"
+path = "fuzz_targets/fuzz_dissect_ip6ext.rs"
+
+[[bin]]
 name = "fuzz_dissect_icmp"
 path = "fuzz_targets/fuzz_dissect_icmp.rs"
 test = false

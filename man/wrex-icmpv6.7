@@ -11,7 +11,7 @@ ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) 
 .
 
 .SH ENCAPSULATION
-Rank 30; stacks on ipv6 (parents).
+Rank 30; stacks on ipv6, hopopts, routing, frag, dstopts, ah (parents).
 
 .SH "FIELD FLAGS"
 Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --icmpv6-type).
@@ -73,4 +73,4 @@ NDP option TLVs after the NDP body (dissect\-only; indexed paths opt.0.addr, …
 wrex fields icmpv6
 
 .SH "SEE ALSO"
-\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)

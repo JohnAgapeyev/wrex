@@ -13,7 +13,8 @@ use wrex_core::dissect::{LayerView, NetFacts};
 use wrex_core::encode::{EncodeCtx, Patch, flagset_or_default, int_or_default, ipv4_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{
-    ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, PseudoSource,
+    ChecksumEnd, ChecksumStart, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase,
+    LengthUnits, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
@@ -250,6 +251,12 @@ impl Codec for IpCodec {
                 proto,
             },
         );
+        // Tranche 17a: the upper-layer packet begins right after this
+        // header (options included — they are part of the ipv4 header).
+        // The L4 checksum defers read it from the threaded facts; with
+        // no extension chain it equals the L4 layer's own start, so
+        // every pre-17a wire byte stays identical.
+        ctx.facts.upper_start = Some(header_end);
         Ok(())
     }
 
@@ -351,6 +358,9 @@ impl Codec for IpCodec {
             Value::Bytes(Bytes::copy_from_slice(&bytes[20..hlen])),
         );
         ctx.facts.net = Some(NetFacts::V4 { src, dst, proto });
+        // Tranche 17a: the upper-layer packet begins after the full
+        // header (options included — `hlen` is ihl*4).
+        ctx.facts.upper_start = Some(ctx.offset + hlen);
         let view = LayerView {
             kind: "ipv4",
             span: ctx.offset..ctx.offset + hlen,
@@ -415,10 +425,12 @@ impl Codec for IpCodec {
                 field: "total_len",
                 at: 2,
                 base: LengthBase::LayerStart,
+                units: LengthUnits::Bytes,
             },
             Derived::Checksum {
                 field: "checksum",
                 at: 10,
+                start: ChecksumStart::Layer,
                 end: ChecksumEnd::Layer,
                 pseudo: PseudoSource::None,
             },

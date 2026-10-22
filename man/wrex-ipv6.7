@@ -7,7 +7,7 @@ wrex-ipv6 \- ipv6 layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIipv6\fR
 
 .SH DESCRIPTION
-IPv6 (RFC 8200) fixed 40\-byte header. Also a valid stack start. ver=6, traffic_class/flow_label pack the first 32\-bit word (flow_label 20 bits, explicit over\-wide values masked), payload_len autofilled from the bytes after this header (explicit wins), hop_limit defaults 64. src/dst are FieldKind::Ipv6 (::1 autofill). next_header drives the chain: 58=icmpv6, 6=tcp, 17=udp, else synthesized `unknown`. Extension headers are a deliberate deferral. Stacks on eth or vlan (802.1Q tag). CLI alias: `ip6`/`v6` (\-\-ip6\-hop\-limit == \-\-ipv6\-hop\-limit). No header checksum (RFC 8200 §8.1): upper layers checksum over the v6 pseudo\-header.
+IPv6 (RFC 8200) fixed 40\-byte header. Also a valid stack start. ver=6, traffic_class/flow_label pack the first 32\-bit word (flow_label 20 bits, explicit over\-wide values masked), payload_len autofilled from the bytes after this header (explicit wins), hop_limit defaults 64. src/dst are FieldKind::Ipv6 (::1 autofill). next_header drives the chain: 58=icmpv6, 6=tcp, 17=udp, and the extension\-header family (tranche 17a): 0=hopopts, 43=routing, 44=frag, 50=esp, 51=ah, 59=nonext, 60=dstopts — else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). CLI alias: `ip6`/`v6` (\-\-ip6\-hop\-limit == \-\-ipv6\-hop\-limit). No header checksum (RFC 8200 §8.1): upper layers checksum over the v6 pseudo\-header, which covers the extension headers too (Facts::upper_start, tranche 17a).
 .
 
 .SH ENCAPSULATION
@@ -46,4 +46,4 @@ destination address (autofill: ::1) Type ipv6. Default: ::1.
 wrex fields ipv6
 
 .SH "SEE ALSO"
-\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7)
