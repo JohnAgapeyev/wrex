@@ -562,6 +562,47 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_str(report, "ipv6.dst", ours, get("ipv6.dst"));
         cmp_int_str(report, "ipv6.payload_len", ours, get("ipv6.plen"));
     }
+    // v6 extension headers (tranche 17a): the reachable tshark arms —
+    // hop-by-hop under `ipv6.hopopts`, destination options under
+    // `ipv6.opts`, routing under `ipv6.routing`, AH under `ah`.
+    // tshark NEVER emits a fragment layer for the unfragmented shapes
+    // the differential pins (offset 0 / M 0 — verified against 4.7.4:
+    // the header is dropped, not rendered), so frag stays with the
+    // etherparse arm; esp has no stack (etherparse stops at it).
+    if let Some(j) = layers.get("ipv6.hopopts")
+        && let Some(ours) = by_kind("hopopts")
+    {
+        let get = |k: &str| j[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "hopopts.next_header", ours, get("ipv6.hopopts.nxt"));
+        cmp_int_str(report, "hopopts.len", ours, get("ipv6.hopopts.len"));
+    }
+    if let Some(j) = layers.get("ipv6.opts")
+        && let Some(ours) = by_kind("dstopts")
+    {
+        let get = |k: &str| j[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "dstopts.next_header", ours, get("ipv6.opts.nxt"));
+        cmp_int_str(report, "dstopts.len", ours, get("ipv6.opts.len"));
+    }
+    if let Some(j) = layers.get("ipv6.routing")
+        && let Some(ours) = by_kind("routing")
+    {
+        let get = |k: &str| j[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "routing.next_header", ours, get("ipv6.routing.nxt"));
+        cmp_int_str(
+            report,
+            "routing.segs_left",
+            ours,
+            get("ipv6.routing.segleft"),
+        );
+    }
+    if let Some(j) = layers.get("ah")
+        && let Some(ours) = by_kind("ah")
+    {
+        let get = |k: &str| j[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "ah.next_header", ours, get("ah.next_header"));
+        cmp_int_str(report, "ah.spi", ours, get("ah.spi"));
+        cmp_int_str(report, "ah.seq", ours, get("ah.sequence"));
+    }
     // icmpv6 (tranche 7b): type/code parity (echo/NDP bodies are ours
     // alone — no etherparse surface for them).
     if let Some(icmp6_json) = layers.get("icmpv6")

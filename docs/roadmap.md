@@ -1113,8 +1113,8 @@ T(n+1)".
     headers), tshark, and dhcproto 0.15 in-process — it carries
     `dhcproto::v6`, so the DHCPv6 differential reuses the in-tree
     dependency (no MSRV bump).
-  - **T17a — IPv6 extension headers** — in flight: **the core
-    delivered** (the crate, the checksum seam, the wiring, units,
+  - **T17a — IPv6 extension headers** — ✅ delivered (core + the
+    verification-tail slices; the closed state: (the crate, the checksum seam, the wiring, units,
     child-side integration tests, the fuzz target, the gate lists);
     the differential-oracle arms + corpus + the Kani candidate are
     the recorded verification tail, next in order (the T11 α/β/γ
@@ -1263,9 +1263,16 @@ T(n+1)".
     ground truth**: `lo_echo_through_hopopts_alive` — an icmpv6 echo
     through a PadN hop-by-hop chain on `lo`, the kernel answers and
     the captured reply dissects as a 129 (the ext chain speaks wire
-    the kernel accepts, over the unchanged `RawIpv6Driver`). Still
-    open: the tshark map's ext blocks (the etherparse arm is the
-    primary oracle; tshark compares only mapped kinds until then). Deliberate deferrals: fragment
+    the kernel accepts, over the unchanged `RawIpv6Driver`). The tshark map's ext
+    blocks closed the tail in the same slice: hop-by-hop under
+    `ipv6.hopopts` (nxt/len), destination options under `ipv6.opts`,
+    routing (nxt/segleft), AH (next_header/spi/sequence) — with the
+    recorded finding that tshark NEVER renders a fragment layer for
+    the unfragmented shapes the differential pins (verified against
+    4.7.4: offset 0/M 0 — the header is dropped, not dissected), so
+    frag stays etherparse-covered; esp carries no stack by design.
+    The tshark differential is green over all 18 stacks with the
+    blocks live — **T17a is closed**. Deliberate deferrals: fragment
     reassembly, hopopts/dstopts option typing (Router Alert/Jumbo/
     PadN sugar — the MLD goldens hand-hex the RA option), routing
     type-2 typed segments, Mobility/HIP/Shim6, ESP plaintext (crypto,
