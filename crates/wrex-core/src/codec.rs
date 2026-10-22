@@ -1,5 +1,7 @@
 //! Codec contract and the compile-time protocol registry.
 
+use std::ops::Range;
+
 use crate::dissect::{DecodeCtx, LayerView};
 use crate::encode::EncodeCtx;
 use crate::error::{DecodeError, EncodeError};
@@ -60,6 +62,29 @@ pub trait Codec: Send + Sync {
     /// derived fields (eth, vlan, arp) and test mocks.
     fn derived(&self) -> &'static [Derived] {
         &[]
+    }
+
+    /// Serialize a [`crate::patch::Edit::SetField`] value into the
+    /// replacement bytes of a [`crate::dissect::FieldSpan::ReEncode`]
+    /// region (tranche 13a): the value *does not* splice verbatim —
+    /// the codec owns the region's encoding (NUL padding, wire-name
+    /// rules) and returns the full `region.len()`-byte replacement.
+    ///
+    /// `field` is the full field key within the layer (`"sname"`,
+    /// `"an.0.name"`); `value` is the edit's raw bytes; `region` is
+    /// the absolute frame range. The engine enforces the returned
+    /// width. `None` (the default) = the field does not re-encode —
+    /// the patch is a pointed [`crate::patch::PatchError::UnsupportedPath`]
+    /// (mocks and dynamic codecs inherit); `Some(Err(reason))` is a
+    /// pointed rejection (over-length value, malformed wire name, …).
+    fn reencode(
+        &self,
+        field: &str,
+        value: &[u8],
+        region: Range<usize>,
+    ) -> Option<Result<Vec<u8>, String>> {
+        let _ = (field, value, region);
+        None
     }
 }
 

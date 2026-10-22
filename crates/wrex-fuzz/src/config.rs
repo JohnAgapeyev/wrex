@@ -119,6 +119,10 @@ pub struct FuzzConfig {
     pub timeout: Duration,
     /// Max in-flight probes.
     pub concurrent: usize,
+    /// Wrap the app-mode probe connections in TLS (tranche 13b:
+    /// https for `http`, DoT/RFC 7858 for `dns`). Requires an app
+    /// mode; the raw modes inject at L3/L4 and never TLS-wrap.
+    pub tls: bool,
 }
 
 impl FuzzConfig {
@@ -139,7 +143,17 @@ impl FuzzConfig {
         retries: u32,
         timeout: Duration,
         concurrent: usize,
+        tls: bool,
     ) -> Result<Self, String> {
+        // TLS wraps the kernel-stream app probes only: the raw modes
+        // inject datagrams/frames at L3/L4 — there is no stream to
+        // wrap (the T8a `TlsDriver` contract).
+        if tls && !mode.is_app() {
+            return Err(
+                "--tls wraps the app-mode probes (http|dns); the raw modes inject at L3/L4"
+                    .to_string(),
+            );
+        }
         let targets = parse_targets(targets_raw)?;
         if targets.is_empty() {
             return Err("no targets given".to_string());
@@ -154,10 +168,12 @@ impl FuzzConfig {
                     "udp mode requires --ports (there is no meaningful default)".to_string()
                 );
             }
-            // Tranche 9b app modes: conventional default ports
-            // (an explicit --ports list still enumerates the slots).
-            (ProbeMode::Http, None) => vec![80],
-            (ProbeMode::Dns, None) => vec![53],
+            // Tranche 9b app modes: conventional default ports (an
+            // explicit --ports list still enumerates the slots);
+            // tranche 13b: TLS picks the TLS-registered defaults
+            // (https 443, DoT 853).
+            (ProbeMode::Http, None) => vec![if tls { 443 } else { 80 }],
+            (ProbeMode::Dns, None) => vec![if tls { 853 } else { 53 }],
             // Icmp is a host sweep: ports stay empty; a `Some` was
             // rejected above and udp's `None` too, so `None` here is
             // only icmp (or tcp — which the next arm serves first).
@@ -194,6 +210,7 @@ impl FuzzConfig {
             retries,
             timeout,
             concurrent,
+            tls,
         })
     }
 
@@ -220,6 +237,10 @@ mod tests {
     use super::*;
 
     fn build(mode: ProbeMode, ports: Option<&str>) -> Result<FuzzConfig, String> {
+        build_tls(mode, ports, false)
+    }
+
+    fn build_tls(mode: ProbeMode, ports: Option<&str>, tls: bool) -> Result<FuzzConfig, String> {
         FuzzConfig::build(
             mode,
             &["127.0.0.1".to_string()],
@@ -233,6 +254,7 @@ mod tests {
             1,
             Duration::from_secs(1),
             256,
+            tls,
         )
     }
 
@@ -294,6 +316,7 @@ mod tests {
             1,
             Duration::from_secs(1),
             256,
+            false,
         )
         .unwrap_err();
         assert!(e.contains("--rounds 0"), "{e}");
@@ -312,6 +335,7 @@ mod tests {
                 1,
                 Duration::from_secs(1),
                 256,
+                false,
             )
             .is_ok()
         );
@@ -328,9 +352,42 @@ mod tests {
             1,
             Duration::ZERO,
             256,
+            false,
         )
         .unwrap_err();
         assert!(e.contains("timeout"), "{e}");
+    }
+
+    /// Tranche 13b: `--tls` wraps the app-mode probes only.
+    #[test]
+    fn tls_gating_and_port_defaults() {
+        // Raw modes reject --tls (L3/L4 injection has no stream).
+        for mode in [ProbeMode::Tcp, ProbeMode::Udp, ProbeMode::Icmp] {
+            let e = build_tls(mode, None, true).unwrap_err();
+            assert!(e.contains("--tls"), "{e}");
+        }
+        // App modes accept it and pick the TLS-registered defaults.
+        let cfg = build_tls(ProbeMode::Http, None, true).unwrap();
+        assert!(cfg.tls);
+        assert_eq!(cfg.ports, vec![443]);
+        let cfg = build_tls(ProbeMode::Dns, None, true).unwrap();
+        assert_eq!(cfg.ports, vec![853]);
+        // Plain app defaults unchanged (80/53).
+        assert_eq!(
+            build_tls(ProbeMode::Http, None, false).unwrap().ports,
+            vec![80]
+        );
+        assert_eq!(
+            build_tls(ProbeMode::Dns, None, false).unwrap().ports,
+            vec![53]
+        );
+        // An explicit --ports list overrides the TLS defaults too.
+        assert_eq!(
+            build_tls(ProbeMode::Http, Some("8443"), true)
+                .unwrap()
+                .ports,
+            vec![8443]
+        );
     }
 
     #[test]

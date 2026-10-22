@@ -739,12 +739,21 @@ MODES (--mode, default udp):
   dual-family kernel driver for the app modes; the raw modes keep
   the scan's AF_PACKET/raw-IP inject paths.
 
+TLS (--tls, tranche 13b; app modes http|dns only): wraps each probe
+  connection in rustls (the T8a adapter; https for http, DoT/RFC 7858
+  for dns; default ports become 443/853). --tls-ca FILE adds trust
+  anchors that COMPLEMENT the system roots; --tls-insecure accepts any
+  certificate (no verification at all). One fresh TLS connection per
+  probe, retries repeat the exact mutated bytes on fresh connections;
+  a connect or handshake failure spends the attempt as silence.
+
   Reply keys derive from the POST-mutation dissection: a mutation
   that moved the identity still matches its own replies.
 
 PORTS (--ports): comma list with ranges. tcp defaults to the
   committed top-100 list (same as scan); udp REQUIRES --ports; icmp
-  takes none; http defaults to 80; dns defaults to 53.
+  takes none; http defaults to 80 (443 under --tls); dns defaults to
+  53 (853 under --tls).
 
 TIMING (same vocabulary as scan): --rate N (default 100; 0 = burst),
   --interval DUR, --jitter DUR, --seed U64 (identities, mutation
@@ -761,7 +770,8 @@ EXAMPLES:
   wrex fuzz -i eth0 --mode udp --ports 53,161 --rounds 16 --seed 7 10.0.0.0/24
   wrex fuzz -i eth0 --mode tcp --ports 22,443 --strategy field 10.0.0.5
   wrex fuzz --mode http --baseline --rounds 4 127.0.0.1   # app layer
-  wrex fuzz --mode dns --ports 5353 --rounds 8 127.0.0.1";
+  wrex fuzz --mode dns --ports 5353 --rounds 8 127.0.0.1
+  wrex fuzz --mode http --tls --tls-insecure --baseline --rounds 4 127.0.0.1";
 
 /// `wrex mut`: seeded, dissect-aware frame mutation.
 #[derive(Args, Debug)]
@@ -835,6 +845,19 @@ pub struct FuzzArgs {
     /// Max in-flight probes (default 256).
     #[arg(long)]
     pub concurrent: Option<usize>,
+    /// Wrap the app-mode probe connections in TLS (https for `http`,
+    /// DoT/RFC 7858 for `dns`; implies the app modes — default ports
+    /// become 443/853).
+    #[arg(long)]
+    pub tls: bool,
+    /// Accept any server certificate (no verification at all; see
+    /// wrex-tls: the danger is semantic, documented at every surface).
+    #[arg(long)]
+    pub tls_insecure: bool,
+    /// Extra CA bundle (PEM or DER) complementing — never replacing —
+    /// the system roots (with --tls).
+    #[arg(long, value_name = "FILE")]
+    pub tls_ca: Option<String>,
 }
 
 /// Epilog for diff: the offline findings differential (tranche 12).

@@ -226,8 +226,14 @@ impl<'a> Mutator<'a> {
                     continue;
                 }
                 // Only patchable geometry is a candidate: dynamic
-                // regions, pointer-resolved names and re-encode
-                // slices fall through to the raw level (the T6 rule).
+                // regions (`None`) and re-encode slices fall through to
+                // the raw level (the T6 rule). Tranche 13a kept the
+                // `ReEncode` exclusion deliberately: the codec hook's
+                // value encoding is codec-specific (dhcp NUL-pads
+                // presentation bytes; dns wants wire-label bytes at
+                // the pointer target), so `serialize_field_value`
+                // cannot speak it generically — the engine API and
+                // tests carry those patches instead.
                 match l.field_spans.get(name) {
                     Some(FieldSpan::Bytes(_) | FieldSpan::Bits { .. }) => {}
                     _ => continue,

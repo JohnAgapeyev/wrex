@@ -344,25 +344,32 @@ fn dns_reply() -> Bytes {
     Bytes::from(m)
 }
 
-/// Tranche 11b-β: pointer-resolved names carry `FieldSpan::None` —
-/// a patch through the pointer is a pointed error, never a silent
-/// wrong-target write. The other record fields patch normally.
+/// Tranche 13a: pointer-resolved names re-attach as
+/// [`wrex_core::FieldSpan::ReEncode`] over the **pointer target** — a
+/// patch rewrites the shared target in place (same width), so every
+/// alias through that pointer sees the change. The other record fields
+/// patch normally.
 #[test]
-fn dns_pointer_names_are_none_but_record_fields_patch() {
+fn dns_pointer_names_patch_at_the_shared_target() {
     let reg = registry();
     let frame = dns_reply();
     let p = dissect(&reg, &frame, "dns");
     assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
     let dns = p.layers.iter().find(|l| l.kind == "dns").unwrap();
-    assert!(
-        matches!(dns.field_spans["an.0.name"], wrex_core::FieldSpan::None),
-        "compressed name: {:?}",
-        dns.field_spans["an.0.name"]
-    );
+    // The answer name is a pointer to offset 12 (the question name):
+    // the span is the TARGET's extent (13 bytes), not the 2-byte
+    // pointer — the tranche-13a re-attach.
+    let span = dns.field_spans["an.0.name"].clone();
+    let wrex_core::FieldSpan::ReEncode(region) = span else {
+        panic!("compressed name span: {span:?}")
+    };
+    assert_eq!(region, 12..25, "the pointer target's extent");
     assert!(matches!(
         dns.field_spans["an.0.rdata"],
         wrex_core::FieldSpan::Bytes(_)
     ));
+    // An empty value does not fit the region: the hook's pointed
+    // rejection (never a silent wrong-target write).
     let err = patch(
         &reg,
         &p,
@@ -373,7 +380,7 @@ fn dns_pointer_names_are_none_but_record_fields_patch() {
         &Scope::none(),
     )
     .unwrap_err();
-    assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
+    assert!(matches!(err, PatchError::ReEncodeFailed { .. }), "{err}");
     // The question name is UNCOMPRESSED: a real span, patchable.
     let out = patch(
         &reg,
@@ -390,6 +397,64 @@ fn dns_pointer_names_are_none_but_record_fields_patch() {
     assert_eq!(dns.fields["qd.0.type"], Value::Str("MX".into()));
     // the answer name still resolves through the pointer (untouched).
     assert_eq!(dns.fields["an.0.name"], Value::Str("example.com".into()));
+
+    // --- the tranche-13a same-width rewrite-at-the-target -----------
+    // "example.org" encodes to the same 13 wire bytes as the target's
+    // "example.com": the patch lands AT THE TARGET, and the alias
+    // (the answer's pointer) resolves to the new name too.
+    let mut wire = Vec::new();
+    wrex_proto_dns::name::encode_name("example.org", &mut wire).unwrap();
+    assert_eq!(wire.len(), 13);
+    let out = patch(
+        &reg,
+        &p,
+        &[Edit::SetField {
+            path: "dns.an.0.name".to_string(),
+            bytes: Bytes::from(wire),
+        }],
+        &Scope::none(),
+    )
+    .expect("patch");
+    // The pointer bytes themselves are untouched (still C0 0C at 29:
+    // after the 12-byte header, 13-byte name, 4-byte type/class).
+    assert_eq!(&out[29..31], &[0xC0, 0x0C]);
+    let fresh = dissect(&reg, &out, "dns");
+    assert!(fresh.anomalies.is_empty(), "{:?}", fresh.anomalies);
+    let dns = fresh.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert_eq!(dns.fields["an.0.name"], Value::Str("example.org".into()));
+    assert_eq!(
+        dns.fields["qd.0.name"],
+        Value::Str("example.org".into()),
+        "the alias through the shared target sees the rewrite"
+    );
+    // Length changes (10-byte "test.com") are a pointed rejection:
+    // they ride Insert/Delete at the caller (the T11b-β policy).
+    let mut short = Vec::new();
+    wrex_proto_dns::name::encode_name("test.com", &mut short).unwrap();
+    let err = patch(
+        &reg,
+        &p,
+        &[Edit::SetField {
+            path: "dns.an.0.name".to_string(),
+            bytes: Bytes::from(short),
+        }],
+        &Scope::none(),
+    )
+    .unwrap_err();
+    assert!(matches!(err, PatchError::ReEncodeFailed { .. }), "{err}");
+    // A same-width but malformed label run is rejected pointedly (a
+    // garbage region at a shared target would corrupt every alias).
+    let err = patch(
+        &reg,
+        &p,
+        &[Edit::SetField {
+            path: "dns.an.0.name".to_string(),
+            bytes: Bytes::from_static(&[0xAA; 13]),
+        }],
+        &Scope::none(),
+    )
+    .unwrap_err();
+    assert!(matches!(err, PatchError::ReEncodeFailed { .. }), "{err}");
 }
 
 /// The dns flags word is scattered: the aggregate is `None`, every
@@ -536,22 +601,50 @@ fn dhcp_option_and_hoisted_spans() {
             let fresh = dissect(&reg, &out, "auto");
             let l2 = fresh.layers.iter().find(|l| l.kind == "dhcp").unwrap();
             assert_eq!(l2.fields["msg_type"], Value::Str("inform".into()));
-            // sname/file are ReEncode: recorded, pointed-deferral.
-            let err = patch(
-                &reg,
-                &p,
-                &[Edit::SetField {
-                    path: "dhcp.sname".to_string(),
-                    bytes: Bytes::from_static(&[0x41; 64]),
-                }],
-                &Scope::none(),
-            )
-            .unwrap_err();
-            assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
+            // sname/file are ReEncode: the tranche-13a hook applies
+            // them (value + NUL padding, the craft-time rule re-used).
             assert!(matches!(
                 l.field_spans["sname"],
                 wrex_core::FieldSpan::ReEncode(_)
             ));
+            let sname_span = l.field_spans["sname"].clone();
+            let wrex_core::FieldSpan::ReEncode(sregion) = sname_span else {
+                unreachable!("checked above")
+            };
+            assert_eq!(sregion.len(), 64);
+            let out3 = patch(
+                &reg,
+                &p,
+                &[Edit::SetField {
+                    path: "dhcp.sname".to_string(),
+                    bytes: Bytes::from_static(b"myserver"),
+                }],
+                &Scope::none(),
+            )
+            .expect("sname patch");
+            // value + NUL padding to the region width.
+            assert_eq!(&out3[sregion.start..sregion.start + 8], b"myserver");
+            assert_eq!(&out3[sregion.start + 8..sregion.end], &[0u8; 56]);
+            let fresh3 = dissect(&reg, &out3, "auto");
+            let l3 = fresh3.layers.iter().find(|l3| l3.kind == "dhcp").unwrap();
+            assert_eq!(l3.fields["sname"], Value::Str("myserver".into()));
+            // Over-length and embedded-NUL values are pointed rejections.
+            for bad in [
+                Bytes::from(vec![0x41; 65]),   // over-length
+                Bytes::from_static(b"a\x00b"), // embedded NUL
+            ] {
+                let err = patch(
+                    &reg,
+                    &p,
+                    &[Edit::SetField {
+                        path: "dhcp.sname".to_string(),
+                        bytes: bad,
+                    }],
+                    &Scope::none(),
+                )
+                .unwrap_err();
+                assert!(matches!(err, PatchError::ReEncodeFailed { .. }), "{err}");
+            }
             // one same-width option value patch: byte-verified.
             let value_span = l
                 .field_spans

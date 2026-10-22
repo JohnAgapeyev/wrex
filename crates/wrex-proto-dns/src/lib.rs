@@ -405,11 +405,7 @@ impl Codec for DnsCodec {
                 Ok((q, next)) => {
                     spans.insert(
                         format!("qd.{i}.name"),
-                        if q.name_compressed {
-                            FieldSpan::None
-                        } else {
-                            FieldSpan::Bytes(base + cursor..base + cursor + q.name_used)
-                        },
+                        name_span(base, cursor, q.name_used, q.name_region),
                     );
                     let at = base + cursor + q.name_used;
                     spans.insert(format!("qd.{i}.type"), FieldSpan::Bytes(at..at + 2));
@@ -433,11 +429,7 @@ impl Codec for DnsCodec {
                     Ok((r, next)) => {
                         spans.insert(
                             format!("{section}.{i}.name"),
-                            if r.name_compressed {
-                                FieldSpan::None
-                            } else {
-                                FieldSpan::Bytes(base + cursor..base + cursor + r.name_used)
-                            },
+                            name_span(base, cursor, r.name_used, r.name_region),
                         );
                         let at = base + cursor + r.name_used;
                         spans.insert(format!("{section}.{i}.type"), FieldSpan::Bytes(at..at + 2));
@@ -518,6 +510,58 @@ impl Codec for DnsCodec {
             ("arcount", Layout::Bytes { at: 10, len: 2 }),
         ]
     }
+
+    /// Tranche 13a: names — compressed or not — re-encode at their
+    /// recorded region. For a pointer-resolved name the region is the
+    /// **pointer target** (see [`name_span`]): a same-width wire-name
+    /// rewrite lands *at the shared target*, so every alias through
+    /// that pointer sees the change (the alias-safety contract).
+    /// Length-changing rewrites ride `Insert`/`Delete` at the caller
+    /// (the T11b-β policy, unchanged).
+    fn reencode(
+        &self,
+        field: &str,
+        value: &[u8],
+        region: std::ops::Range<usize>,
+    ) -> Option<Result<Vec<u8>, String>> {
+        if !field.ends_with(".name") {
+            return None;
+        }
+        if value.len() != region.len() {
+            return Some(Err(format!(
+                "wire name wants {} bytes (got {}); length changes ride Insert/Delete",
+                region.len(),
+                value.len()
+            )));
+        }
+        // The replacement must be a complete, uncompressed wire name
+        // (labels + root byte) consuming the region exactly — a
+        // malformed label run at a shared pointer target would corrupt
+        // every alias, so validation is pointed, never assumed.
+        match decode_name(value, 0) {
+            Ok((_, used, false, None)) if used == value.len() => Some(Ok(value.to_vec())),
+            _ => Some(Err(
+                "value is not a complete uncompressed wire name".to_string()
+            )),
+        }
+    }
+}
+
+/// The span of one name field (tranche 13a): uncompressed names carry
+/// their real `Bytes` extent from the record start; pointer-resolved
+/// names carry a [`FieldSpan::ReEncode`] over the **final pointer
+/// target**'s extent, so a patch rewrites the shared target in place
+/// (same width) instead of the 2-byte pointer.
+fn name_span(
+    base: usize,
+    cursor: usize,
+    name_used: usize,
+    name_region: Option<(usize, usize)>,
+) -> FieldSpan {
+    match name_region {
+        None => FieldSpan::Bytes(base + cursor..base + cursor + name_used),
+        Some((target, extent)) => FieldSpan::ReEncode(base + target..base + target + extent),
+    }
 }
 
 /// Build a partial (never-fatal) layer view for `bytes[..consumed]`.
@@ -538,20 +582,24 @@ fn partial(
     )
 }
 
-/// One parsed question, carrying the span bookkeeping (tranche 11b).
+/// One parsed question, carrying the span bookkeeping (tranche 11b /
+/// 13a).
 struct Question {
     name: String,
     qtype: u16,
     qclass: u16,
     /// Name wire extent from the record start.
     name_used: usize,
-    /// A compression pointer was followed (name unpatchable then).
-    name_compressed: bool,
+    /// Pointer-resolved name (tranche 13a): `(target, extent)` — the
+    /// message-relative offset of the final pointer target and its
+    /// full wire extent there. `None` = uncompressed (a real span).
+    name_region: Option<(usize, usize)>,
 }
 
 /// Parse the question at `offset` + next offset.
 fn question_at(bytes: &[u8], offset: usize) -> Result<(Question, usize), String> {
-    let (name, used, compressed) = decode_name(bytes, offset)?;
+    let (name, used, _compressed, target) = decode_name(bytes, offset)?;
+    let name_region = name_region(bytes, target)?;
     let at = offset + used;
     if at + 4 > bytes.len() {
         return Err("truncated question (need 4 bytes for type/class)".to_string());
@@ -564,10 +612,29 @@ fn question_at(bytes: &[u8], offset: usize) -> Result<(Question, usize), String>
             qtype,
             qclass,
             name_used: used,
-            name_compressed: compressed,
+            name_region,
         },
         at + 4,
     ))
+}
+
+/// Resolve a compression-pointer target (tranche 13a) to
+/// `(target, wire extent at the target)` — the target of the *final*
+/// jump, so the segment there terminates without further pointers and
+/// `decode_name` yields its full extent.
+fn name_region(bytes: &[u8], target: Option<usize>) -> Result<Option<(usize, usize)>, String> {
+    match target {
+        None => Ok(None),
+        Some(t) => {
+            let (_, used, _c, next) = decode_name(bytes, t)?;
+            // `t` is the FINAL target by the decode_name contract: the
+            // walk from it never jumps again, so `next` is None and
+            // `used` is the full extent. (A Some here would contradict
+            // the contract; keep the walk honest anyway.)
+            debug_assert_eq!(next, None, "final pointer target jumped again");
+            Ok(Some((t, used)))
+        }
+    }
 }
 
 struct Record {
@@ -581,13 +648,15 @@ struct Record {
     rdata_at: usize,
     /// Name wire extent from the record start (tranche 11b).
     name_used: usize,
-    /// A compression pointer was followed (name unpatchable then).
-    name_compressed: bool,
+    /// Pointer-resolved name (tranche 13a): `(target, extent)`;
+    /// `None` = uncompressed.
+    name_region: Option<(usize, usize)>,
 }
 
 /// Parse one RR at `offset`: owner, type, class, ttl, rdlength, rdata.
 fn record_at(bytes: &[u8], offset: usize) -> Result<(Record, usize), String> {
-    let (name, used, compressed) = decode_name(bytes, offset)?;
+    let (name, used, _compressed, target) = decode_name(bytes, offset)?;
+    let name_region = name_region(bytes, target)?;
     let at = offset + used;
     if at + 10 > bytes.len() {
         return Err("truncated record (need type/class/ttl/rdlength)".to_string());
@@ -610,7 +679,7 @@ fn record_at(bytes: &[u8], offset: usize) -> Result<(Record, usize), String> {
             rdata,
             rdata_at,
             name_used: used,
-            name_compressed: compressed,
+            name_region,
         },
         rdata_at + rdlen,
     ))
@@ -660,7 +729,7 @@ fn typed_rdata(
         TYPE_CNAME | TYPE_NS | TYPE_PTR => {
             // A name, possibly compressed (pointers are message-relative).
             match decode_name(message, rdata_at) {
-                Ok((name, _, _)) => Value::Str(name),
+                Ok((name, _, _, _)) => Value::Str(name),
                 Err(e) => {
                     ctx.anomalies.push(Anomaly::new(
                         format!("{section}.{index}.rdata"),

@@ -148,12 +148,11 @@ pub enum Layout {
     /// big-endian byte window starting at `at`. The container is
     /// `ceil((shift + width) / 8)` bytes.
     Bits { at: usize, shift: u8, width: u8 },
-    /// The value re-encodes at this range (trimmed/re-padded; the
-    /// schema-side mirror of [`crate::dissect::FieldSpan::ReEncode`]):
-    /// dhcp sname/file — value + NUL + zero-padding re-encoded at the
-    /// span. Recording the span is tranche 11b; *applying* such a
-    /// patch stays the codec-hook deferral (a pointed error until
-    /// then).
+    /// The value re-encodes at this range (the schema-side mirror of
+    /// [`crate::dissect::FieldSpan::ReEncode`]): the codec's
+    /// [`crate::codec::Codec::reencode`] hook (tranche 13a) serializes
+    /// the edit value into the region replacement — dhcp sname/file
+    /// (value + NUL + zero-padding re-encoded at the span).
     ReEncode { at: usize, len: usize },
 }
 

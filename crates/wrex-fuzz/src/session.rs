@@ -651,6 +651,7 @@ mod tests {
             0, // no retransmissions: timeout == silence
             SEC,
             256,
+            false,
         )
         .unwrap()
     }

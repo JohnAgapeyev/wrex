@@ -699,6 +699,83 @@ T(n+1)".
   under duplicate keys, one-sided ordering, equal-pair silence) and a
   CLI suite (text/json/jsonl shapes, raw/hex usage rejection,
   unreadable-file exit 1). Man pages + completions regenerated.
+- **T13 — span-patch completion + TLS-wrapped app probes** — ✅
+  delivered (chartered at the T13 planning pass as two sub-tranches,
+  both additive; T13a closes the T11b-β recorded deferral list — the
+  engine's own holes, not trigger-gated — and T13b closes the T9b
+  TLS-wrapped-probes deferral by composing the T8a adapter):
+  - **T13a — ReEncode application + dns compression-pointer
+    patching** — ✅ delivered. After T13a **every dissected field key
+    is patchable**. The engine's `FieldSpan::ReEncode` arm (was: a
+    pointed deferral) routes through a new default-trait `Codec::
+    reencode(field, value, region)` hook — the codec owns the region's
+    encoding and returns the full `region.len()`-byte replacement
+    (the engine enforces the width); `None` (the default, inherited by
+    mocks and dynamic codecs) stays the pointed `UnsupportedPath`, a
+    `Some(Err)` is the new pointed `PatchError::ReEncodeFailed`.
+    **dhcp `sname`/`file`**: value + NUL padding to the region width
+    (the craft-time rule re-used); over-length and embedded-NUL values
+    are pointed rejections (dissection trims at the first NUL — an
+    embedded NUL would render inconsistently). **dns names**:
+    `decode_name` grew a final-pointer-target return (the target of
+    the *last* jump — the walk from there never jumps again), and
+    pointer-resolved names (was `FieldSpan::None`, the T11b-β
+    policy) re-attach as `ReEncode` over the **pointer target's**
+    extent: a patch rewrites the shared target in place, same-width,
+    with the value validated as a complete uncompressed wire name
+    (a garbage region at a shared target would corrupt every alias);
+    aliases through the pointer see the change (the alias-safety
+    gate — a unit asserts a shared-target patch is visible through
+    both paths after re-dissection); length changes ride Insert/Delete
+    at the caller (the T11b-β policy, unchanged). `Derived::Count` is
+    re-affirmed deferred (the 11b-β decision stands). The `wrex-mut`
+    field strategy keeps its `ReEncode` exclusion **deliberately**
+    (decided at execution): the hook's value encoding is
+    codec-specific (dhcp pads presentation bytes, dns wants wire
+    labels at the target), which `serialize_field_value` cannot
+    speak generically — the engine API and tests carry those patches.
+    No CLI change (`dissect --spans` renders the taxonomy; only the
+    variant's semantics filled in). Verification: engine mock units
+    (hook application/padding, pointed rejections, the default-`None`
+    deferral), name units (plain/pointer/chained final-target
+    exposure), `tests/patch_engine.rs` — the 11b-β dns/dhcp
+    pointed-deferral assertions flipped to application semantics
+    (same-width rewrite-at-the-target with the alias assertion, the
+    pointer bytes untouched, over-length/malformed rejections, dhcp
+    sname NUL-padding byte-verified + re-dissection roundtrip), the
+    population gate and differentials unchanged.
+  - **T13b — TLS-wrapped app probes** — ✅ delivered. The T9b deferral
+    closed: `wrex fuzz --mode http|dns --tls` composes the T8a
+    `TlsDriver` into the app-mode probe table — the `AppSession`
+    contract is untouched (transport-agnostic by construction), only
+    the verb's per-probe connection factory swaps `TcpDriver` for the
+    rustls adapter (`Box<dyn Driver>`, the query-verb pattern). One
+    fresh TLS connection per probe (the T9b rule transposed; retries
+    repeat the exact mutated bytes on fresh connections); the
+    handshake rides lazily inside the first send/recv pump under the
+    probe deadline (the T8a convention); a connect or verification
+    failure spends the attempt as a **silence finding** — data, exit 0,
+    never a crash. `--tls` config-gates to the app modes (a raw mode
+    is a pointed usage error: L3/L4 injection has no stream) and
+    picks the TLS-registered default ports (http 443, dns DoT/RFC
+    7858 853; explicit `--ports` overrides); `--tls-ca FILE`
+    complements the system roots and `--tls-insecure` accepts any
+    certificate (both carried through the `TlsKnobs` shared config,
+    SNI/server name from the target IP); the http seed URL speaks
+    `https://` under `--tls` (serialization accepted both schemes
+    since T8a). Verification: config units (mode+tls gating, port
+    defaults), CLI suites against `wrex-test::tls_stub` (http
+    baseline+rounds findings with probe+reply hex over fresh TLS
+    connections, `--tls-ca` PEM verification end-to-end, untrusted
+    cert → silence findings exit 0, dns DoT canned-reply findings,
+    same-seed identity+probe-byte determinism with wall-clock `rtt`
+    normalized out — T12's recorded noise decision), and the
+    `--tls`-on-raw-mode usage errors. Man pages + completions
+    regenerated (`wrex-fuzz(1)`). Deliberate deferrals: TLS-protocol
+    fuzzing (the standing rule — session keys, a separate specialized
+    capability), v6 TLS stubs in the CLI suite (the stub binds
+    `127.0.0.1`; the driver is family-agnostic, only the stub is v4),
+    `--tls-insecure`/`--tls-ca` without `--tls` (inert, not errors).
 
 ## Standing rules (carried from the tranche-1 plan)
 

@@ -33,9 +33,10 @@ use crate::schema::{ChecksumEnd, Derived, PseudoSource};
 pub enum Edit {
     /// Overwrite a dissected field path (`"tcp.seq"`, `"vlan.vid"`,
     /// `"ipv4.flags.df"`) with big-endian field bytes. The span must
-    /// exist (`FieldSpan::None` / `ReEncode` → a pointed error) and the
-    /// width must match (`Bytes`: exactly; `Bits`: `ceil(width/8)`
-    /// bytes, masked into the container).
+    /// exist (`FieldSpan::None` → a pointed error; a `ReEncode` span
+    /// routes through the codec's [`crate::codec::Codec::reencode`]
+    /// hook, tranche 13a) and the width must match (`Bytes`: exactly;
+    /// `Bits`: `ceil(width/8)` bytes, masked into the container).
     SetField { path: String, bytes: Bytes },
     /// Insert bytes at an absolute frame offset (shape change).
     Insert { at: usize, bytes: Bytes },
@@ -131,10 +132,14 @@ pub enum PatchError {
     /// `SetField` path resolved to no layer/field.
     UnresolvedPath(String),
     /// `SetField` path has no patchable span (`FieldSpan::None` —
-    /// pointer-resolved or dynamic) or a `ReEncode` span (codec slice
-    /// pending). Fall back to spec re-encode at the caller if the edit
-    /// must land.
+    /// dynamic regions) or the codec provides no `reencode` hook for
+    /// its `ReEncode` region. Fall back to spec re-encode at the
+    /// caller if the edit must land.
     UnsupportedPath(String),
+    /// The codec's [`crate::codec::Codec::reencode`] hook refused the
+    /// value (over-length, embedded NUL, malformed wire name, …) —
+    /// pointed, never a silent wrong-width splice.
+    ReEncodeFailed { path: String, reason: String },
     /// `SetField` bytes do not match the field's wire width.
     WidthMismatch {
         path: String,
@@ -163,6 +168,9 @@ impl std::fmt::Display for PatchError {
                     f,
                     "field {p:?} has no patchable span (unsupported under span-patch)"
                 )
+            }
+            PatchError::ReEncodeFailed { path, reason } => {
+                write!(f, "re-encode of {path:?} refused: {reason}")
             }
             PatchError::WidthMismatch { path, want, got } => {
                 write!(f, "field {path:?} wants {want} bytes, got {got}")
@@ -223,13 +231,15 @@ pub fn patch(
     for edit in edits {
         match edit {
             Edit::SetField { path, bytes } => {
+                let (kind, field) = path
+                    .split_once('.')
+                    .ok_or_else(|| PatchError::UnresolvedPath(path.to_string()))?;
                 let span = resolve_span(packet, path)?;
                 // Edits decide bytes; scope decides recomputation. The
                 // conflict is narrow and pointed: an edit on a field
                 // that is a *derived target* of its codec AND selected
                 // by the scope. Non-derived fields never conflict.
-                if let Some((kind, field)) = path.split_once('.')
-                    && let Some(codec) = registry.get(kind)
+                if let Some(codec) = registry.get(kind)
                     && codec.derived().iter().any(|d| d.field() == field)
                     && scope.selects(path)
                 {
@@ -281,7 +291,46 @@ pub fn patch(
                             value,
                         });
                     }
-                    FieldSpan::ReEncode(_) | FieldSpan::None => {
+                    // Tranche 13a: a ReEncode span routes through the
+                    // codec's `reencode` hook — the codec owns the
+                    // region's encoding (NUL padding, wire-name rules)
+                    // and returns the full region replacement.
+                    FieldSpan::ReEncode(r) => {
+                        let Some(codec) = registry.get(kind) else {
+                            return Err(PatchError::UnsupportedPath(path.clone()));
+                        };
+                        match codec.reencode(field, bytes, r.clone()) {
+                            None => {
+                                return Err(PatchError::UnsupportedPath(path.clone()));
+                            }
+                            Some(Err(reason)) => {
+                                return Err(PatchError::ReEncodeFailed {
+                                    path: path.clone(),
+                                    reason,
+                                });
+                            }
+                            Some(Ok(region_bytes)) => {
+                                if region_bytes.len() != r.len() {
+                                    return Err(PatchError::ReEncodeFailed {
+                                        path: path.clone(),
+                                        reason: format!(
+                                            "hook returned {} bytes for a {}-byte region",
+                                            region_bytes.len(),
+                                            r.len()
+                                        ),
+                                    });
+                                }
+                                if r.end > packet.frame.len() {
+                                    return Err(PatchError::OutOfBounds { path: path.clone() });
+                                }
+                                ops.push(Op::Overwrite {
+                                    span: r,
+                                    bytes: region_bytes.into(),
+                                });
+                            }
+                        }
+                    }
+                    FieldSpan::None => {
                         return Err(PatchError::UnsupportedPath(path.clone()));
                     }
                 }
@@ -550,6 +599,22 @@ mod tests {
             required: false,
             doc: "nib",
         },
+        FieldSchema {
+            name: "re",
+            kind: FieldKind::Bytes,
+            bit_names: &[],
+            default: Value::Int(0), // unused in the mock (read builds runtime values)
+            required: false,
+            doc: "re (ReEncode region, hooked)",
+        },
+        FieldSchema {
+            name: "rn",
+            kind: FieldKind::Bytes,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "rn (ReEncode region, NOT hooked)",
+        },
     ];
     static SCHEMA: LayerSchema = LayerSchema {
         kind: "mock",
@@ -589,6 +654,14 @@ mod tests {
             fields.insert("len".to_string(), Value::Int(9u128));
             fields.insert("ck".to_string(), Value::Int(7u128));
             fields.insert("nib".to_string(), Value::Int((bytes[6] >> 4) as u128));
+            fields.insert(
+                "re".to_string(),
+                Value::Bytes(Bytes::copy_from_slice(&bytes[7..9])),
+            );
+            fields.insert(
+                "rn".to_string(),
+                Value::Bytes(Bytes::copy_from_slice(&bytes[7..9])),
+            );
             let view = crate::dissect::LayerView {
                 kind: "mock",
                 span: ctx.offset..ctx.offset + 7,
@@ -610,6 +683,8 @@ mod tests {
                         width: 4,
                     },
                 ),
+                ("re", Layout::ReEncode { at: 7, len: 2 }),
+                ("rn", Layout::ReEncode { at: 7, len: 2 }),
             ]
         }
         fn derived(&self) -> &'static [Derived] {
@@ -625,6 +700,29 @@ mod tests {
                     pseudo: PseudoSource::None,
                 },
             ]
+        }
+
+        /// Tranche-13a hook: `re` pads with NULs (the dhcp sname/file
+        /// rule); `rn` stays unhooked (the default `None`).
+        fn reencode(
+            &self,
+            field: &str,
+            value: &[u8],
+            region: std::ops::Range<usize>,
+        ) -> Option<Result<Vec<u8>, String>> {
+            if field != "re" {
+                return None;
+            }
+            if value.len() > region.len() {
+                return Some(Err(format!(
+                    "value is {} bytes, region is {}",
+                    value.len(),
+                    region.len()
+                )));
+            }
+            let mut out = value.to_vec();
+            out.resize(region.len(), 0);
+            Some(Ok(out))
         }
     }
 
@@ -879,5 +977,54 @@ mod tests {
         let mut c3 = [0xab, 0xcd];
         write_bits_window(&mut c3, 4, 12, 0x0123);
         assert_eq!(c3, [0xa1, 0x23]);
+    }
+
+    /// Tranche 13a: a `ReEncode` span routes through the codec hook —
+    /// the codec serializes the value into the region replacement
+    /// (here: NUL padding, the dhcp sname/file rule).
+    #[test]
+    fn reencode_hook_applies_and_rejects_pointedly() {
+        let reg = reg();
+        let p = frame();
+        // `re` spans 7..9 (the "dead" payload): [0x41] pads to [41 00].
+        let out = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mock.re".to_string(),
+                bytes: Bytes::from_static(&[0x41]),
+            }],
+            &Scope::none(),
+        )
+        .expect("patch");
+        assert_eq!(&out[7..9], &[0x41, 0x00]);
+        assert_eq!(&out[..7], &[0x11, 0x11, 0x00, 0x09, 0x00, 0x00, 0x20]);
+
+        // Over-length value: the hook's pointed rejection.
+        let err = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mock.re".to_string(),
+                bytes: Bytes::from_static(&[1, 2, 3]),
+            }],
+            &Scope::none(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, PatchError::ReEncodeFailed { .. }), "{err}");
+
+        // An unhooked ReEncode field: the default `None` → the pointed
+        // deferral (mocks and dynamic codecs inherit).
+        let err = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mock.rn".to_string(),
+                bytes: Bytes::from_static(&[0, 0]),
+            }],
+            &Scope::none(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
     }
 }

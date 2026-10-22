@@ -41,6 +41,7 @@ fn cfg(retries: u32, baseline: bool) -> FuzzConfig {
         retries,
         Duration::from_secs(1),
         256,
+        false,
     )
     .expect("static config")
 }

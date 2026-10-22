@@ -87,12 +87,15 @@ pub enum FieldSpan {
         shift: u8,
         width: u8,
     },
-    /// The value re-encodes at this range (NUL-padded, re-derived
-    /// padding: dhcp sname/file). Reserved for the tranche-11b codec
-    /// slices; patching one is a pointed deferral error until then.
+    /// The value re-encodes at this range (tranche 13a): the codec's
+    /// [`crate::codec::Codec::reencode`] hook serializes the edit
+    /// value into the region replacement (NUL-padded `Str` regions:
+    /// dhcp sname/file; pointer-resolved dns names: the range is the
+    /// *pointer target*, so a patch rewrites the shared target).
+    /// A codec without a hook for the field → a pointed deferral
+    /// error ([`crate::patch::PatchError::UnsupportedPath`]).
     ReEncode(Range<usize>),
-    /// No span recorded: pointer-resolved (dns compressed names) or
-    /// dynamic regions (options, record sections until their slice).
+    /// No span recorded: dynamic regions (ipv4/tcp `options`, …).
     /// Patching is a **pointed error**, never a silent wrong-target
     /// write.
     None,

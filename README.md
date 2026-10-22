@@ -220,6 +220,44 @@ capped), one finding per probe, seeded and reproducible. The
 twice-deferred userspace TCP stack stays deferred — kernel transport
 covers application-layer mutation; only mutating TCP state *and*
 continuing the exchange would need it.
+ 
+**Tranche 11** (delivered): lossless dissection + the span-patch
+engine — `DissectedPacket` retains the frame (reassemble is
+byte-identical by construction), every dissected field carries wire
+geometry (`dissect --spans`), and `wrex_core::patch::patch` applies
+byte/bit edits + a caller-selected consistency scope. **13a**: the
+`Codec::reencode` hook applies `ReEncode` regions (dhcp
+`sname`/`file` NUL-padding) and dns compression-resolved names
+re-attach over the **pointer target** — a same-width wire-name patch
+rewrites the shared target, aliases see it too. **13b**: `wrex fuzz
+--mode http|dns --tls` wraps each probe connection in the T8a rustls
+adapter (https/DoT; `--tls-ca` complements the system roots,
+`--tls-insecure` accepts anything; defaults 443/853).
+
+**Tranche 12** (delivered): `wrex diff BASELINE.jsonl MUTATED.jsonl` —
+the offline findings differential (outcome deltas, reply
+add/remove/divergence, one-sided probes; pairs by probe identity,
+index-wise, `strategy` never matched; exit 0, malformed lines exit 2).
+
+**Tranche 13** (delivered): span-patch completion + TLS-wrapped app
+probes. **13a**: every dissected field key is patchable — the
+`Codec::reencode` codec hook applies `FieldSpan::ReEncode` regions
+(dhcp sname/file: value + NUL padding, the craft-time rule re-used;
+over-length/embedded-NUL are pointed rejections), and dns names
+resolved through compression pointers carry the **pointer target's**
+extent: a patch rewrites the shared target in place (same width,
+wire-label bytes validated; every alias through the pointer sees the
+change; length changes ride Insert/Delete, the 11b-β policy). The
+`wrex-mut` field strategy keeps its ReEncode exclusion deliberately —
+the hook's value encoding is codec-specific, so the engine API/tests
+carry those patches. **13b**: `wrex fuzz --mode http|dns --tls` — one
+fresh TLS connection per probe over the T8a `TlsDriver` (lazy
+handshake inside the first pump under the probe deadline; a connect
+or verification failure spends the attempt as a silence finding),
+`--tls-insecure`/`--tls-ca` carried through (SNI from the target),
+default ports 443/853, retries repeat the exact mutated bytes on
+fresh connections. The userspace TCP stack keeps its deferral (the
+6th; the trigger is still unmet).
 
 **Tranche 10** (delivered): IPv6 parity closure. **10a**: the kernel
 `TcpDriver` speaks both families (EOF/bind/`--source-port` conventions

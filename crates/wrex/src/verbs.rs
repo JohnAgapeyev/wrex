@@ -1341,6 +1341,7 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
         retries,
         timeout,
         concurrent,
+        args.tls,
     )
     .map_err(|e| usage(format!("fuzz: {e}")))?;
 
@@ -1353,9 +1354,27 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
     }
 
     // Tranche 9b: the application-layer modes ride the kernel stream
-    // driver (plain sockets, no -i, no capabilities).
+    // driver (plain sockets, no -i, no capabilities); tranche 13b:
+    // --tls swaps in the T8a rustls adapter (https / DoT).
     if mode.is_app() {
-        let findings = fuzz_app_probes(registry, &cfg)?;
+        // TLS knobs are app-mode-only by config validation (--tls on
+        // a raw mode never reaches here); --tls-insecure/--tls-ca
+        // without --tls are inert (there is nothing to wrap).
+        let tls_knobs = if args.tls {
+            let ca_der = match &args.tls_ca {
+                Some(path) => {
+                    Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("fuzz: {e}")))?)
+                }
+                None => None,
+            };
+            Some(TlsKnobs {
+                insecure: args.tls_insecure,
+                ca_der,
+            })
+        } else {
+            None
+        };
+        let findings = fuzz_app_probes(registry, &cfg, tls_knobs.as_ref())?;
         write_stdout(render_findings(&findings, format)?.as_bytes())?;
         return Ok(());
     }
@@ -1497,14 +1516,30 @@ fn render_findings(findings: &[wrex_fuzz::Finding], format: Format) -> Result<St
     Ok(out)
 }
 
+/// Tranche 13b: the TLS knobs shared by every app probe connection
+/// (the `--tls-insecure`/`--tls-ca` contract); the per-target
+/// [`wrex_tls::TlsConfig`] derives its `server_name` from the target.
+struct TlsKnobs {
+    insecure: bool,
+    ca_der: Option<Vec<Vec<u8>>>,
+}
+
 /// Tranche 9b: run the app-mode probe table — per (target, port) slot,
 /// an optional baseline then `--rounds` mutated rounds, one finding
 /// each. Every probe is one fresh kernel-TCP connection (mirroring
 /// `query --tcp`); retransmissions repeat the exact mutated bytes on a
 /// new connection; a connect failure or empty run is silence.
+/// Tranche 13b: `tls` swaps the kernel `TcpDriver` for the T8a
+/// `TlsDriver` (https / DoT) — the `AppSession` contract is unchanged,
+/// only the transport differs (one fresh TLS connection per probe, the
+/// handshake driven lazily inside the first send/recv pump under the
+/// probe deadline; a verification failure is an attempt spent →
+/// silence, never a crash).
+#[allow(clippy::too_many_arguments)]
 fn fuzz_app_probes(
     registry: &Registry,
     cfg: &wrex_fuzz::FuzzConfig,
+    tls: Option<&TlsKnobs>,
 ) -> Result<Vec<wrex_fuzz::Finding>, CliError> {
     use std::net::IpAddr;
     use wrex_fuzz::{AppConfig, AppOutcome, AppSession, Outcome};
@@ -1525,14 +1560,23 @@ fn fuzz_app_probes(
             ScanAddr::V6(a) => IpAddr::V6(a),
         };
         for &port in &cfg.ports {
+            // Tranche 13b: the per-target TLS config (SNI = the target
+            // IP string — brackets never appear in a bare Display).
+            let tls_cfg = tls.map(|k| wrex_tls::TlsConfig {
+                server_name: target.to_string(),
+                insecure: k.insecure,
+                ca_der: k.ca_der.clone(),
+            });
             // The unmutated seed request (verb-side; transport framing
             // is well-formed so mutations land on the request bytes).
             let seed: bytes::Bytes = match cfg.mode {
                 wrex_fuzz::ProbeMode::Http => {
-                    // v6 literals need brackets in a URL (RFC 3986).
+                    // v6 literals need brackets in a URL (RFC 3986);
+                    // --tls speaks https (SNI from the URL host).
+                    let scheme = if cfg.tls { "https" } else { "http" };
                     let url = match target {
-                        ScanAddr::V4(_) => format!("http://{target}/"),
-                        ScanAddr::V6(_) => format!("http://[{target}]/"),
+                        ScanAddr::V4(_) => format!("{scheme}://{target}/"),
+                        ScanAddr::V6(_) => format!("{scheme}://[{target}]/"),
                     };
                     let spec =
                         wrex_http::HttpRequestSpec::build("GET", &url, &[], bytes::Bytes::new())
@@ -1599,6 +1643,9 @@ fn fuzz_app_probes(
 
                 // One fresh connection per attempt; a reply is whatever
                 // the peer sends before orderly EOF (budget capped).
+                // Tranche 13b: --tls wraps the same stream conventions
+                // in rustls (the T8a adapter); a connect or handshake
+                // failure spends the attempt as silence either way.
                 let mut outcome = Outcome::Silence;
                 let mut reply_hex: Option<String> = None;
                 let mut rtt_ms: Option<u64> = None;
@@ -1606,9 +1653,17 @@ fn fuzz_app_probes(
                 for _ in 0..=cfg.retries {
                     attempts += 1;
                     let peer = std::net::SocketAddr::new(target_ip, port);
-                    let Ok(mut driver) = wrex_io::TcpDriver::connect(peer, None, cfg.timeout)
-                    else {
-                        continue; // refused/unreachable: silence, attempt spent
+                    let mut driver: Box<dyn wrex_io::Driver> = match &tls_cfg {
+                        Some(tcfg) => {
+                            match wrex_tls::TlsDriver::connect(peer, None, cfg.timeout, tcfg) {
+                                Ok(d) => Box::new(d),
+                                Err(_) => continue, // refused/unreachable: silence, attempt spent
+                            }
+                        }
+                        None => match wrex_io::TcpDriver::connect(peer, None, cfg.timeout) {
+                            Ok(d) => Box::new(d),
+                            Err(_) => continue,
+                        },
                     };
                     let t_start = Instant::now();
                     let mut session = AppSession::new(
@@ -1620,9 +1675,9 @@ fn fuzz_app_probes(
                         t_start,
                     );
                     let Ok(outs) =
-                        wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                        wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
                     else {
-                        continue; // io/reset: silence, attempt spent
+                        continue; // io/reset/tls-verify: silence, attempt spent
                     };
                     if let Some(AppOutcome::Reply(reply)) = outs.into_iter().next() {
                         outcome = Outcome::Reply;

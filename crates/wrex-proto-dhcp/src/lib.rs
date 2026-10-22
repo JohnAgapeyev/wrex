@@ -544,8 +544,8 @@ impl Codec for DhcpCodec {
     /// options region (`opt.N.*`, the hoisted `msg_type`) is
     /// codec-side (parse-time spans). `sname`/`file` are
     /// [`Layout::ReEncode`] — NUL-trimmed values over padded regions;
-    /// recording the span is this tranche, applying such a patch is
-    /// the codec-hook deferral.
+    /// the tranche-13a `Codec::reencode` hook applies them
+    /// (value + NUL padding).
     fn layouts(&self) -> &'static [(&'static str, Layout)] {
         &[
             ("op", Layout::Bytes { at: 0, len: 1 }),
@@ -571,6 +571,35 @@ impl Codec for DhcpCodec {
             ("file", Layout::ReEncode { at: 108, len: 128 }),
             ("cookie", Layout::Bytes { at: 236, len: 4 }),
         ]
+    }
+
+    /// Tranche 13a: `sname`/`file` re-encode at their padded regions —
+    /// the value (presentation bytes) NUL-padded to the region width,
+    /// the craft-time rule re-used. An embedded NUL would render
+    /// inconsistently (dissection trims at the first NUL) and an
+    /// over-length value does not fit: both are pointed rejections.
+    fn reencode(
+        &self,
+        field: &str,
+        value: &[u8],
+        region: std::ops::Range<usize>,
+    ) -> Option<Result<Vec<u8>, String>> {
+        if !matches!(field, "sname" | "file") {
+            return None;
+        }
+        if value.len() > region.len() {
+            return Some(Err(format!(
+                "value is {} bytes, the region is {}",
+                value.len(),
+                region.len()
+            )));
+        }
+        if value.contains(&0) {
+            return Some(Err(format!("{field} value contains a NUL")));
+        }
+        let mut out = value.to_vec();
+        out.resize(region.len(), 0);
+        Some(Ok(out))
     }
 }
 
