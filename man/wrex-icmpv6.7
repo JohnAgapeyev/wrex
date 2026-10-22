@@ -78,6 +78,9 @@ MLDv2 query source count (autofilled over mld.sources) Type u16. Default: 0.
 \fB\-\-icmpv6\-mld\-sources\fR
 MLDv2 query sources region (16\-byte addresses; hex on the CLI) Type bytes. Default: .
 .TP
+\fB\-\-icmpv6\-mld=\fIINT\fR\fR
+MLDv2 report (type 143) record grammar: include:ADDR, exclude:ADDR, to_include:ADDR, to_exclude:ADDR, allow:ADDR, block:ADDR, bare IPv6 tokens continue the previous record as sources Type str. Default: .
+.TP
 \fB\-\-icmpv6\-options=\fIINT\fR\fR
 NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma\-continued), raw:TYPE:HEX Type str. Default: .
 
@@ -90,6 +93,13 @@ NDP option TLVs after the NDP body (dissect\-only; indexed paths opt.0.addr, …
   type (u8; default 0). option type (1 slla, 2 tlla)
   addr (mac; default 00:00:00:00:00:00). link\-layer address (slla/tlla options)
   data (bytes; default ). raw option data (other options)
+.TP
+\fBmcast\fR (dissect\-only)
+MLDv2 multicast\-address records (dissect\-only; indexed paths mcast.0.*, …)
+  type (u8; default 0). record type (1 include, 2 exclude, 3 change\-to\-include, 4 change\-to\-exclude, 5 allow, 6 block)
+  nsrcs (u16; default 0). source count
+  addr (ipv6; default ::). multicast address
+  sources (bytes; default ). raw source addresses (16 bytes each)
 
 .SH EXAMPLES
 wrex fields icmpv6

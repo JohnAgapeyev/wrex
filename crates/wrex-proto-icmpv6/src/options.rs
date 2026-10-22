@@ -172,3 +172,73 @@ fn flush(pending: &mut Pending, out: &mut Vec<u8>) -> Result<(), EncodeError> {
         }
     }
 }
+
+/// The MLDv2 report record grammar (tranche 17b, RFC 3810 §5.2): one
+/// token per multicast-address record — `include:ADDR`, `exclude:ADDR`,
+/// `to_include:ADDR`, `to_exclude:ADDR`, `allow:ADDR`, `block:ADDR` —
+/// with bare IPv6 continuations as the record's sources (the pending
+/// architecture). Returns the records region (no 4-byte prefix).
+pub(crate) fn parse_mld_records(raw: &str) -> Result<Vec<u8>, EncodeError> {
+    #[derive(Clone, Copy)]
+    enum Mode {
+        // RFC 3810 §5.2 record types — the wire values ARE the
+        // discriminants (a 0-based enum wrote mode 1 for exclude).
+        Include = 1,
+        Exclude = 2,
+        ToInclude = 3,
+        ToExclude = 4,
+        Allow = 5,
+        Block = 6,
+    }
+    let mut out = Vec::new();
+    let mut pending: Option<(Mode, std::net::Ipv6Addr, Vec<std::net::Ipv6Addr>)> = None;
+    let flush = |pending: &mut Option<(Mode, std::net::Ipv6Addr, Vec<std::net::Ipv6Addr>)>,
+                 out: &mut Vec<u8>|
+     -> Result<(), EncodeError> {
+        if let Some((mode, addr, sources)) = pending.take() {
+            out.push(mode as u8);
+            out.push(0); // aux data len
+            out.extend_from_slice(&(sources.len() as u16).to_be_bytes());
+            out.extend_from_slice(&addr.octets());
+            for s in sources {
+                out.extend_from_slice(&s.octets());
+            }
+        }
+        Ok(())
+    };
+    for token in raw.split(',') {
+        let token = token.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let known = matches!(
+            token.split_once(':').map(|(n, _)| n),
+            Some("include" | "exclude" | "to_include" | "to_exclude" | "allow" | "block")
+        );
+        if let (true, Some((name, args))) = (known, token.split_once(':')) {
+            flush(&mut pending, &mut out)?;
+            let mode = match name {
+                "include" => Mode::Include,
+                "exclude" => Mode::Exclude,
+                "to_include" => Mode::ToInclude,
+                "to_exclude" => Mode::ToExclude,
+                "allow" => Mode::Allow,
+                _ => Mode::Block,
+            };
+            let addr: std::net::Ipv6Addr = args
+                .trim()
+                .parse()
+                .map_err(|_| bad(format!("bad multicast address in `{token}`")))?;
+            pending = Some((mode, addr, Vec::new()));
+        } else if let Ok(ip) = token.parse::<std::net::Ipv6Addr>() {
+            match &mut pending {
+                Some((_, _, sources)) => sources.push(ip),
+                None => return Err(bad(format!("dangling source `{token}`"))),
+            }
+        } else {
+            return Err(bad(format!("bad record token `{token}`")));
+        }
+    }
+    flush(&mut pending, &mut out)?;
+    Ok(out)
+}

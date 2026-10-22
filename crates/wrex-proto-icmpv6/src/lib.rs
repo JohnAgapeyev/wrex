@@ -26,6 +26,7 @@ use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 
 mod options;
+use options::parse_mld_records;
 use options::parse_ndp_options;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
@@ -189,6 +190,17 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
             required: false,
             doc: "MLDv2 query sources region (16-byte addresses; hex on the CLI)",
         },
+        // Tranche 17b: the MLDv2 report record grammar (RFC 3810
+        // §5.2): include:/exclude:/to_include:/to_exclude:/allow:/
+        // block:ADDR with bare IPv6 source continuations.
+        FieldSchema {
+            name: "mld",
+            kind: FieldKind::Str,
+            bit_names: &[],
+            default: Value::Str(String::new()),
+            required: false,
+            doc: "MLDv2 report (type 143) record grammar: include:ADDR, exclude:ADDR, to_include:ADDR, to_exclude:ADDR, allow:ADDR, block:ADDR, bare IPv6 tokens continue the previous record as sources",
+        },
         // Tranche 17b: the NDP option list grammar, the write-side of
         // the dissect-only `opt` record section (the dhcp options
         // precedent — a Str field keeps it CLI-reachable).
@@ -232,14 +244,60 @@ static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+static MCAST_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
+    vec![
+        FieldSchema {
+            name: "type",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "record type (1 include, 2 exclude, 3 change-to-include, 4 change-to-exclude, 5 allow, 6 block)",
+        },
+        FieldSchema {
+            name: "nsrcs",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "source count",
+        },
+        FieldSchema {
+            name: "addr",
+            kind: FieldKind::Ipv6,
+            bit_names: &[],
+            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
+            required: false,
+            doc: "multicast address",
+        },
+        FieldSchema {
+            name: "sources",
+            kind: FieldKind::Bytes,
+            bit_names: &[],
+            default: Value::Bytes(Bytes::new()),
+            required: false,
+            doc: "raw source addresses (16 bytes each)",
+        },
+    ]
+});
+
 static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
-    vec![RecordSchema {
-        name: "opt",
-        fields: OPT_FIELDS.as_slice(),
-        settable: false,
-        max: None,
-        doc: "NDP option TLVs after the NDP body (dissect-only; indexed paths opt.0.addr, …)",
-    }]
+    vec![
+        RecordSchema {
+            name: "opt",
+            fields: OPT_FIELDS.as_slice(),
+            settable: false,
+            max: None,
+            doc: "NDP option TLVs after the NDP body (dissect-only; indexed paths opt.0.addr, …)",
+        },
+        RecordSchema {
+            name: "mcast",
+            fields: MCAST_FIELDS.as_slice(),
+            settable: false,
+            max: None,
+            doc: "MLDv2 multicast-address records (dissect-only; indexed paths mcast.0.*, …)",
+        },
+    ]
 });
 
 /// The kind string this codec implements (ADR 3): the vocabulary is
@@ -290,6 +348,9 @@ pub fn register(r: &mut wrex_core::Registry) {
 pub const T_MLD_QUERY: u8 = 130;
 pub const T_MLD_REPORT: u8 = 131;
 pub const T_MLD_DONE: u8 = 132;
+/// MLDv2 report (RFC 3810 §5.2; tranche 17b): the 4-byte "rest" is
+/// reserved(2) + record count(2), the records region follows.
+pub const T_MLD_REPORT_V2: u8 = 143;
 
 fn mld_field(name: &str) -> &'static FieldSchema {
     SCHEMA
@@ -304,7 +365,7 @@ fn mld_flag_field() -> &'static FieldSchema {
 }
 
 fn is_mld(t: u8) -> bool {
-    matches!(t, T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE)
+    matches!(t, T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE | T_MLD_REPORT_V2)
 }
 
 fn is_echo(t: u8) -> bool {
@@ -322,6 +383,7 @@ fn ndp_body_len(t: u8) -> usize {
         T_RA => 8,
         T_NS | T_NA => 16,
         T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE => 16,
+        T_MLD_REPORT_V2 => 0, // records region: dynamic, written separately
         _ => 0,
     }
 }
@@ -341,6 +403,11 @@ impl Codec for Icmp6Codec {
             && let Some(Value::Str(raw)) = spec.fields.get("options")
         {
             len += parse_ndp_options(raw)?.len();
+        }
+        if t == T_MLD_REPORT_V2
+            && let Some(Value::Str(raw)) = spec.fields.get("mld")
+        {
+            len += parse_mld_records(raw)?.len();
         }
         Ok(len)
     }
@@ -378,6 +445,10 @@ impl Codec for Icmp6Codec {
                     ctx.buf
                         .put_u32(int_or_default(spec, &FIELDS[10], af) as u32); // retrans_timer
                 }
+                T_MLD_REPORT_V2 => {
+                    // reserved(2) + record count(2) written by the mld
+                    // grammar block — RFC 3810 §5.2 has no rest field.
+                }
                 T_NS | T_NA => {
                     if t == T_NA {
                         // [r,s,o] is a 3-bit aggregate (r=bit2, s=bit1,
@@ -406,13 +477,47 @@ impl Codec for Icmp6Codec {
             }
         }
         // MLDv1 bodies (tranche 17b): the 16-byte multicast address.
-        if is_mld(t) {
+        if is_mld(t) && t != T_MLD_REPORT_V2 {
             let addr = match spec.fields.get("mld.addr") {
                 Some(Value::Ipv6(a)) => *a,
                 _ if af => "ff02::1".parse().unwrap(), // all-nodes default
                 _ => std::net::Ipv6Addr::UNSPECIFIED,
             };
             ctx.buf.extend_from_slice(&addr.octets());
+        }
+        // MLDv2 report (tranche 17b, RFC 3810 §5.2): the 4-byte rest is
+        // reserved(2) + the record count (autofilled over the parsed
+        // grammar), the records region appended after.
+        if t == T_MLD_REPORT_V2
+            && let Some(Value::Str(raw)) = spec.fields.get("mld")
+        {
+            let records = options::parse_mld_records(raw)?;
+            let count = records.len() / 24; // minimum record size; true count parsed below
+            let _ = count;
+            // Recompute the true count from the grammar tokens.
+            let true_count = raw
+                .split(',')
+                .filter(|tk| {
+                    tk.trim()
+                        .split_once(':')
+                        .map(|(n, _)| {
+                            matches!(
+                                n,
+                                "include"
+                                    | "exclude"
+                                    | "to_include"
+                                    | "to_exclude"
+                                    | "allow"
+                                    | "block"
+                            )
+                        })
+                        .unwrap_or(false)
+                })
+                .count();
+            ctx.buf.extend_from_slice(&[0, 0]);
+            ctx.buf
+                .extend_from_slice(&(true_count as u16).to_be_bytes());
+            ctx.buf.extend_from_slice(&records);
         }
         // MLDv2 query extension (tranche 17b, RFC 3810 §5.1): present
         // iff any v2 field is set — flags/qrv/qqic byte, then the
@@ -598,7 +703,31 @@ impl Codec for Icmp6Codec {
             }
         }
 
-        // MLDv2 query extension (tranche 17b): body >= 20 bytes
+        // MLDv2 report (tranche 17b, RFC 3810 §5.2): reserved(2) +
+        // record count(2) at the rest position, records after.
+        if t == T_MLD_REPORT_V2 && bytes.len() >= 8 {
+            let count = u16::from_be_bytes([bytes[6], bytes[7]]);
+            let mut cursor = 8usize;
+            for n in 0..count as usize {
+                if cursor + 20 > bytes.len() {
+                    break; // overrunning record: stop (never fatal)
+                }
+                let rtype = bytes[cursor];
+                let nsrcs = u16::from_be_bytes([bytes[cursor + 2], bytes[cursor + 3]]);
+                fields.insert(format!("mcast.{n}.type"), Value::Int(rtype as u128));
+                fields.insert(format!("mcast.{n}.nsrcs"), Value::Int(nsrcs as u128));
+                let mut addr = [0u8; 16];
+                addr.copy_from_slice(&bytes[cursor + 4..cursor + 20]);
+                fields.insert(format!("mcast.{n}.addr"), Value::Ipv6(addr.into()));
+                let src_end = (cursor + 20 + nsrcs as usize * 16).min(bytes.len());
+                fields.insert(
+                    format!("mcast.{n}.sources"),
+                    Value::Bytes(Bytes::copy_from_slice(&bytes[cursor + 20..src_end])),
+                );
+                cursor = src_end;
+            }
+        }
+        // MLDv2 query extension (tranche 17b): body >= 20 bytes        // MLDv2 query extension (tranche 17b): body >= 20 bytes
         // discriminates the v2 shape from the v1 16-byte body
         // (RFC 3810 §5.1 — the v2 query is a superset).
         if t == T_MLD_QUERY && bytes.len() >= 8 + 20 {
@@ -623,7 +752,7 @@ impl Codec for Icmp6Codec {
         }
         // MLDv1 bodies (tranche 17b): the 16-byte multicast address
         // (the option pass is NDP-only, so MLD bytes were skipped).
-        if is_mld(t) && bytes.len() >= need {
+        if is_mld(t) && t != T_MLD_REPORT_V2 && bytes.len() >= need {
             fields.insert(
                 "mld.addr".into(),
                 Value::Ipv6(std::net::Ipv6Addr::from([
@@ -1148,6 +1277,55 @@ mod tests {
         )
         .unwrap();
         assert_eq!(enc.bytes.len(), 8 + 16, "the v1 body stays 16 bytes");
+    }
+
+    /// Tranche 17b: the MLDv2 report (RFC 3810 §5.2) — the record
+    /// grammar (mode:ADDR with bare source continuations) round-trips
+    /// through the `mcast.N.*` record section; the record count
+    /// autofills into the reserved+count rest position.
+    #[test]
+    fn mldv2_report_roundtrip() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut f = std::collections::BTreeMap::new();
+        f.insert("type".to_string(), Value::Int(143));
+        f.insert(
+            "mld".to_string(),
+            Value::Str("exclude:ff02::1, 2001:db8::1, include:ff02::2, allow:ff05::1".into()),
+        );
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                wrex_core::spec::LayerSpec::with_fields(KIND, f),
+            ],
+            None,
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        let l = &p.layers[1];
+        assert_eq!(l.fields.get("mcast.0.type"), Some(&Value::Int(2)));
+        assert_eq!(
+            l.fields.get("mcast.0.addr"),
+            Some(&Value::Ipv6("ff02::1".parse().unwrap()))
+        );
+        assert_eq!(l.fields.get("mcast.0.nsrcs"), Some(&Value::Int(1)));
+        assert_eq!(l.fields.get("mcast.1.type"), Some(&Value::Int(1)));
+        assert_eq!(
+            l.fields.get("mcast.1.addr"),
+            Some(&Value::Ipv6("ff02::2".parse().unwrap()))
+        );
+        assert_eq!(l.fields.get("mcast.2.type"), Some(&Value::Int(5)));
+        // The record count lands in the reserved+count rest position.
+        assert_eq!(&enc.bytes[40 + 6..40 + 8], &[0, 3][..]);
     }
 
     #[test]

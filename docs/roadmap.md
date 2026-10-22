@@ -1277,8 +1277,10 @@ T(n+1)".
     PadN sugar — the MLD goldens hand-hex the RA option), routing
     type-2 typed segments, Mobility/HIP/Shim6, ESP plaintext (crypto,
     the standing rule), 6LoWPAN/NHC.
-  - **T17b — icmpv6 completion: MLD + NDP option crafting** — in
-    flight, **NDP option crafting delivered (slice 1)**: the
+  - **T17b — icmpv6 completion: MLD + NDP option crafting** — ✅
+    delivered (five slices: the option grammar, the MLDv1 triad,
+    the NS-SLLA byte-identity + two driver-bug fixes, the MLDv2
+    query, the report 143). NDP option crafting delivered (slice 1): the
     dissect-only `opt` section's write-side list grammar landed —
     a `FieldKind::Str` `options` field (the dhcp precedent, CLI via
     `--icmpv6-options`), the pending-continuation architecture with
@@ -1313,8 +1315,20 @@ T(n+1)".
     fields had landed in the `opt` record-section list instead of
     the main FIELDS (tests passed because the codec paths never
     consult the schema; CLI flag enumeration was the casualty) —
-    relocated, `wrex fields`/man pages correct. **Remaining in
-    T17b**: the report 143 and the NS-SLLA
+    relocated, `wrex fields`/man pages correct. **The report 143 delivered (slice 5) — T17b CLOSED**: the RFC 3810
+    §5.2 record grammar (`--icmpv6-mld`: `include:ADDR`,
+    `exclude:ADDR`, `to_include:ADDR`, `to_exclude:ADDR`,
+    `allow:ADDR`, `block:ADDR`, bare IPv6 tokens continuing the
+    open record as sources — the pending architecture) writes
+    reserved(2) + the autofilled record count(2) into the rest
+    position (exactly the RFC layout: no generic rest bytes) and
+    the records region after; dissection renders the dissect-only
+    `mcast` record section (`mcast.N.type/nsrcs/addr/sources`).
+    Two write-path catches fixed en route: the mode enum's
+    discriminants must BE the RFC record types (1–6 — a 0-based
+    enum wrote mode 1 for exclude), and `is_mld(143)` must not fire
+    the MLDv1 address arms for reports (the v1 addr block spliced
+    16 garbage bytes ahead of the records region). and the NS-SLLA
     byte-identity cross-check against the `wrex-io::ndp`
     hand-roll — **delivered (slice 3), catching two real driver
     bugs**: the hand-rolled `build_ns_frame` emitted a 10-byte SLLA
