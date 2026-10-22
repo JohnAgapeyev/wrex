@@ -27,6 +27,10 @@ pub struct RecipeOverrides {
     /// HTTP version for https urls: `1.1` (default) or `2` (tranche
     /// 15: ALPN `h2`, concurrent streams on one connection).
     pub http_version: Option<String>,
+    /// Send-side HPACK policy for h2 (tranche 16a): `indexed`
+    /// (default: dynamic table + Huffman-when-strictly-shorter) or
+    /// `literal` (the T15 wire bytes verbatim).
+    pub hpack: Option<String>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -54,6 +58,10 @@ pub struct Recipe {
     /// 15: ALPN-negotiated h2, concurrent streams per connection).
     #[serde(default)]
     pub http_version: Option<String>,
+    /// Send-side HPACK policy for h2 (tranche 16a): `indexed`
+    /// (default) or `literal`.
+    #[serde(default)]
+    pub hpack: Option<String>,
     /// Body wire framing: `length` (default) or `chunked` (tranche 9a).
     #[serde(default)]
     pub body_framing: Option<String>,
@@ -142,6 +150,11 @@ impl Recipe {
         {
             return Err(format!("recipe: unknown http_version `{v}` (1.1|2)"));
         }
+        if let Some(v) = self.hpack.as_deref()
+            && !["indexed", "literal"].contains(&v)
+        {
+            return Err(format!("recipe: unknown hpack `{v}` (indexed|literal)"));
+        }
         let overrides = RecipeOverrides {
             timeout_ms: self.timeout_ms,
             retries: self.retries,
@@ -149,6 +162,7 @@ impl Recipe {
             tls_insecure: self.tls_insecure,
             tls_ca: self.tls_ca,
             http_version: self.http_version,
+            hpack: self.hpack,
         };
         Ok((spec, overrides))
     }
@@ -277,14 +291,23 @@ mod tests {
         let r = recipe(r#"{"method": "GET", "url": "https://example.com/"}"#);
         let (_, o) = r.into_request().unwrap();
         assert_eq!(o.http_version, None);
+        assert_eq!(o.hpack, None);
         // tranche 15: "2" rides through
         let r = recipe(r#"{"method": "GET", "url": "https://example.com/", "http_version": "2"}"#);
         let (_, o) = r.into_request().unwrap();
         assert_eq!(o.http_version.as_deref(), Some("2"));
+        // tranche 16a: the hpack knob rides through
+        let r = recipe(
+            r#"{"method": "GET", "url": "https://example.com/", "http_version": "2", "hpack": "literal"}"#,
+        );
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.hpack.as_deref(), Some("literal"));
         // old recipes (pre-T15) parse byte-identically: serde default
         // again; bad values are usage errors
         let r = recipe(r#"{"method": "GET", "url": "https://example.com/", "http_version": "3"}"#);
         assert!(r.into_request().unwrap_err().contains("http_version"));
+        let r = recipe(r#"{"method": "GET", "url": "https://example.com/", "hpack": "bogus"}"#);
+        assert!(r.into_request().unwrap_err().contains("hpack"));
     }
 
     // --- tranche 9a --------------------------------------------------------

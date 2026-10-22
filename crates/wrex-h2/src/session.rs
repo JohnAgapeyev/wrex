@@ -25,7 +25,9 @@ use crate::frame::{
     self, ACK, DEFAULT_MAX_FRAME, DEFAULT_WINDOW, END_HEADERS, END_STREAM, FrameStep, FrameType,
     PADDED, PREFACE, PRIORITY,
 };
-use crate::hpack::{self, HpackDecoder};
+#[cfg(test)]
+use crate::hpack;
+use crate::hpack::{HpackDecoder, HpackEncodePolicy, HpackEncoder};
 
 /// Cap on concurrent client streams (a prober budget, not a protocol
 /// rule; requests beyond it are a pointed usage error).
@@ -74,6 +76,9 @@ pub struct H2Session {
     streams: Vec<Stream>,
     rx: BytesMut,
     hpack: HpackDecoder,
+    /// The send-side HPACK encoding context (tranche 16a): one per
+    /// connection, so dynamic-table index reuse is stream-ordered.
+    encoder: HpackEncoder,
     /// Our SETTINGS_INITIAL_WINDOW_SIZE bookkeeping value.
     initial_window: i64,
     /// Our send credit, connection-wide.
@@ -91,12 +96,25 @@ pub struct H2Session {
 type VecDequeBytes = std::collections::VecDeque<Bytes>;
 
 impl H2Session {
-    /// Build a session over a fully-resolved request queue. All frames
-    /// are pre-encoded (deterministic replay: same specs ⇒ same bytes).
+    /// Build a session over a fully-resolved request queue under the
+    /// default (Indexed) HPACK policy. All frames are pre-encoded
+    /// (deterministic replay: same specs ⇒ same bytes).
     pub fn new(
         specs: &[HttpRequestSpec],
         cfgs: &[HttpConfig],
         t0: Instant,
+    ) -> Result<Self, H2Error> {
+        Self::with_policy(specs, cfgs, t0, HpackEncodePolicy::default())
+    }
+
+    /// Build a session with an explicit send-side HPACK policy (tranche
+    /// 16a): `Literal` reproduces the T15 wire bytes; `Indexed`
+    /// (default) keeps a dynamic table across the queue's streams.
+    pub fn with_policy(
+        specs: &[HttpRequestSpec],
+        cfgs: &[HttpConfig],
+        t0: Instant,
+        policy: HpackEncodePolicy,
     ) -> Result<Self, H2Error> {
         if specs.is_empty() {
             return Err("h2: empty request queue".to_string());
@@ -107,6 +125,7 @@ impl H2Session {
         if specs.len() > MAX_STREAMS {
             return Err(format!("h2: {MAX_STREAMS} concurrent streams max"));
         }
+        let mut encoder = HpackEncoder::new(policy);
         let mut out = VecDequeBytes::new();
         // Client preface + SETTINGS with defaults (§3.4): one burst.
         let mut preface = BytesMut::with_capacity(PREFACE.len() + 9);
@@ -121,7 +140,7 @@ impl H2Session {
         let mut streams = Vec::with_capacity(specs.len());
         for (i, spec) in specs.iter().enumerate() {
             let id = 2 * i as u32 + 1; // client streams are odd
-            let block = encode_request_headers(spec)?;
+            let block = encode_request_headers(spec, &mut encoder)?;
             // END_STREAM rides the HEADERS when there is no body.
             let end = spec.body.is_empty();
             out.push_back(frame::headers_frame(id, &block, end));
@@ -145,6 +164,7 @@ impl H2Session {
             streams,
             rx: BytesMut::new(),
             hpack: HpackDecoder::default(),
+            encoder,
             initial_window: DEFAULT_WINDOW,
             conn_window: DEFAULT_WINDOW,
             peer_max_frame: DEFAULT_MAX_FRAME,
@@ -279,7 +299,12 @@ impl H2Session {
                         for &(id, value) in &entries {
                             match id {
                                 frame::SETTINGS_HEADER_TABLE_SIZE => {
+                                    // The peer's cap bounds both sides
+                                    // of our HPACK context: their
+                                    // send-side table (our decoder) and
+                                    // ours (their number back to us).
                                     self.hpack.set_max_size(value as usize);
+                                    self.encoder.set_max_size(value as usize);
                                 }
                                 frame::SETTINGS_INITIAL_WINDOW_SIZE => {
                                     let value = value as i64;
@@ -649,8 +674,15 @@ const CONNECTION_HEADERS: [&str; 5] = [
 
 /// Build the HPACK request header block for one spec: pseudo-headers
 /// first (§8.3), user headers in spec order, then the derived defaults
-/// only where absent (the 1.1 serializer's rule, transposed).
-pub fn encode_request_headers(spec: &HttpRequestSpec) -> Result<Bytes, H2Error> {
+/// only where absent (the 1.1 serializer's rule, transposed). Encoded
+/// through the caller's [`HpackEncoder`] — the 16a send-side context:
+/// under `Indexed` the table persists across the queue's streams
+/// (index reuse is stream-ordered), under `Literal` this is the T15
+/// byte stream verbatim.
+pub fn encode_request_headers(
+    spec: &HttpRequestSpec,
+    enc: &mut HpackEncoder,
+) -> Result<Bytes, H2Error> {
     let authority = spec
         .url
         .authority()
@@ -706,7 +738,7 @@ pub fn encode_request_headers(spec: &HttpRequestSpec) -> Result<Bytes, H2Error> 
     if !content_length {
         fields.push(("content-length", &body_len));
     }
-    Ok(hpack::encode_header_block(&fields))
+    Ok(enc.encode(&fields))
 }
 
 #[cfg(test)]
@@ -1177,9 +1209,56 @@ mod tests {
         // connection header already rejected above.
         let spec = HttpRequestSpec::build("GET", "https://a/", &[("te", "trailers")], Bytes::new())
             .unwrap();
-        let block = encode_request_headers(&spec).unwrap();
+        let mut enc = HpackEncoder::new(HpackEncodePolicy::Literal);
+        let block = encode_request_headers(&spec, &mut enc).unwrap();
         let mut dec = HpackDecoder::default();
         let fields = dec.decode(&block).unwrap();
         assert!(fields.contains(&("te".as_bytes().to_vec(), "trailers".as_bytes().to_vec())));
+    }
+
+    #[test]
+    fn indexed_policy_reuses_the_table_across_streams() {
+        // Two identical paths on one connection: under Indexed the
+        // second stream's `:authority`/`:path` literals become indexed
+        // dynamic references (index reuse, stream-ordered); under
+        // Literal the blocks are byte-identical (no state).
+        let specs = vec![
+            spec("https://example.test/a"),
+            spec("https://example.test/a"),
+        ];
+        let mut idx =
+            H2Session::with_policy(&specs, &[cfg(), cfg()], t0(), HpackEncodePolicy::Indexed)
+                .unwrap();
+        let (sends_idx, _) = drive(&mut idx, &[]);
+        let mut lit =
+            H2Session::with_policy(&specs, &[cfg(), cfg()], t0(), HpackEncodePolicy::Literal)
+                .unwrap();
+        let (sends_lit, _) = drive(&mut lit, &[]);
+        // strip the frame headers: compare HPACK blocks (stream ids differ)
+        let blocks = |sends: &[Vec<u8>]| -> Vec<Vec<u8>> {
+            sends[1..]
+                .iter()
+                .filter(|f| f[3] == 0x01)
+                .map(|f| f[9..].to_vec())
+                .collect()
+        };
+        let bi = blocks(&sends_idx);
+        let bl = blocks(&sends_lit);
+        // both decode identically through one stateful peer context
+        // (the dynamic table is shared connection state)
+        let mut peer = HpackDecoder::default();
+        for b in &bi {
+            let _ = peer.decode(b).unwrap();
+        }
+        // Indexed: the second stream's block is *shorter* (dynamic hits)
+        assert!(
+            bi[1].len() < bi[0].len(),
+            "second stream reuses the dynamic table: {} vs {}",
+            bi[1].len(),
+            bi[0].len()
+        );
+        // Literal: byte-identical blocks, no state (T15 parity)
+        assert_eq!(bl[0], bl[1]);
+        assert!(bl[0].len() >= bi[0].len());
     }
 }

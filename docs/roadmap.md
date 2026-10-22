@@ -976,6 +976,75 @@ T(n+1)".
     TLS-protocol fuzzing (the standing rule). Man pages +
     completions regenerated (`wrex-http(1)`).
 
+- **T16 — HTTP/2 send-side completion** — ✅ delivered (chartered at
+  the T16 planning pass as two sub-tranches, both additive; the owned
+  framing/session machinery from T15 is reused as-is, so ADR 2's
+  ownership question stays settled — this closes T15's own recorded
+  encode deferrals):
+  - **T16a — HPACK encode completion** — ✅ delivered. `wrex-h2::hpack`
+    grows the send-side **`HpackEncoder`** behind a two-value
+    **`HpackEncodePolicy`**: `Indexed` (the new default — exact matches
+    go out indexed, static **or** the send-side dynamic table; misses
+    are literal-**with**-incremental-indexing (§6.2.1) with §4.3/§4.4
+    eviction under the cap — entry size name+value+32 — and a §6.3
+    size update leading the next block after a cap shrink; strings are
+    Huffman-coded **when strictly shorter**, the fixed deterministic
+    rule, no ratio heuristic) and `Literal` (the T15 wire verbatim —
+    `encode_header_block` unchanged, the replay-parity knob).
+    `wrex-h2::huffman` grows the **encode** side (appendix B table in
+    reverse, MSB-first, EOS-prefix padding) closing the T15 deferral;
+    both policies Huffman — the rule is per-string, not per-policy.
+    The session owns **one encoder per connection** (the dynamic table
+    persists across concurrent streams, so index reuse is
+    stream-ordered); `encode_request_headers` threads it, and the
+    peer's SETTINGS_HEADER_TABLE_SIZE applies to both sides of the
+    context. `H2Session::new` delegates to the new `with_policy`; the
+    recipe JSON grows the additive `hpack` field (`indexed`|`literal`,
+    default `indexed`, recipe wins over `--hpack`; old recipes parse
+    byte-identically).
+  - **T16b — h2c / prior-knowledge cleartext** — ✅ delivered. The T15
+    h2c deferral closed the honest way: **prior knowledge only** (RFC
+    9113 §3.4) — `wrex http --http-version 2 http://…` speaks the
+    client preface straight over the kernel `TcpDriver`, no TLS, no
+    ALPN, and **no `Upgrade:` dance** (the 101-switch path stays a
+    pointed usage error by omission). `H2Session` is untouched —
+    transport-agnostic by construction (the T9b pattern); only the
+    verb's transport pick differs. `https://` + 2 keeps the T15 ALPN
+    rule (h2 offered, auto-downgrade note on decline).
+  - Verification: Huffman **encode known-answer vectors** from RFC
+    7541 appendix C.4 (`www.example.com`, `no-cache`,
+    `custom-key`/`custom-value`, C.6.2 `307`) plus the every-byte
+    0..=255 decode(encode(x)) == x roundtrip and the
+    strictly-shorter gate; the **Indexed encoder reproduces the
+    C.4.1/C.4.2/C.4.3 request sequences byte-for-byte** (the
+    inversion rule for owned codecs — the spec's own bytes are the
+    oracle; the decoder-side C.3/C.4/C.5/C.6 vectors already in-tree
+    stay), send-side eviction/§4.4-oversize/size-update walkthroughs,
+    the **T15 byte-identity pin** (`Literal` == `encode_header_block`,
+    no state, replayed byte-identical), cross-stream table-reuse +
+    determinism units (same sequence ⇒ byte-identical blocks
+    round-for-round), and stateful-pairing roundtrips under both
+    policies; `fuzz_hpack` extended over the encoder (never-panic,
+    both-policy roundtrips through one peer context, replay
+    determinism); the `wrex_test::h2_stub` frame loop genericized over
+    `Read + Write` with a new cleartext **`spawn_h2c`** (prior
+    knowledge, no TLS, no certificate — never the wrex-h2 encoder, so
+    the harness never self-confirms); CLI ground truth — h2c
+    end-to-end (`--format json`), two URLs → one cleartext connection →
+    two concurrent streams, the `--hpack`/recipe knob riding both
+    policies end-to-end, recipe-wins precedence, and the usage gates
+    (bad `--hpack` exit 2, 1.1+`--hpack` inert). Man pages +
+    completions regenerated (`wrex-http(1)` — the flags enumerate
+    automatically). Deliberate deferrals: the `Upgrade: h2c`/101 path
+    (prior knowledge only), Huffman *ratios* (strictly-shorter is the
+    whole rule), HPACK never-indexed sending (a client-side privacy
+    hint, not a wire need), extended CONNECT, server push (never
+    enabled — the T15 disposition), the HTTP/2 server role,
+    SETTINGS_MAX_CONCURRENT_STREAMS-driven stream queueing (the
+    `MAX_STREAMS` budget stands), CONTINUATION **on send** (headers fit
+    one frame in the CLI grammar), and cross-queue encoder reuse (one
+    connection, one encoder, by construction).
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a

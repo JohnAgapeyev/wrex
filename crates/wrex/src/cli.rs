@@ -1164,11 +1164,20 @@ pub struct HttpArgs {
     /// Extra CA bundle, PEM or DER (complements the system roots).
     #[arg(long, value_name = "FILE")]
     pub tls_ca: Option<String>,
-    /// HTTP version for https URLs: `1.1` (default) or `2` — h2 rides
-    /// ALPN (`h2` then `http/1.1`); a server that declines h2 falls
-    /// back to HTTP/1.1 with a note (recipe wins over the flag).
+    /// HTTP version: `1.1` (default) or `2` — for https, h2 rides ALPN
+    /// (`h2` then `http/1.1`; a server that declines h2 falls back to
+    /// HTTP/1.1 with a note); for http, h2 is cleartext **prior
+    /// knowledge** (RFC 9113 §3.4: the preface goes straight over the
+    /// TCP stream, no `Upgrade:` dance). Recipe wins over the flag.
     #[arg(long = "http-version", value_name = "1.1|2")]
     pub http_version: Option<String>,
+    /// Send-side HPACK policy for h2 (tranche 16a): `indexed`
+    /// (default: dynamic table + Huffman-when-strictly-shorter) or
+    /// `literal` (the pre-16 wire bytes: indexed statics, no
+    /// dynamic-table state, never Huffman — the replay-parity knob).
+    /// Recipe wins over the flag; inert on 1.1 runs.
+    #[arg(long, value_name = "indexed|literal")]
+    pub hpack: Option<String>,
     /// Exit 1 on 4xx/5xx statuses (completed exchanges stay data).
     #[arg(long)]
     pub fail: bool,

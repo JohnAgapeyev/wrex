@@ -2,7 +2,9 @@
 //! `ServerConnection` with ALPN in a std thread speaking minimal h2 —
 //! the connection preface, SETTINGS exchange, then scripted HEADERS/
 //! DATA responses — over a self-signed rcgen certificate (the
-//! `tls_stub` pattern, extended with ALPN).
+//! `tls_stub` pattern, extended with ALPN). Tranche 16b: the same
+//! frame loop serves **cleartext prior-knowledge h2c** over a plain
+//! `TcpStream` (`spawn_h2c`, no TLS, no certificate).
 //!
 //! Server-side h2 here is hand-rolled from fixed byte constants (the
 //! RFC 7541/9113 examples — `88` = indexed `:status 200`), **not**
@@ -207,24 +209,26 @@ fn serve_11(tls: &mut StreamOwned<rustls::ServerConnection, std::net::TcpStream>
 
 /// Minimal h2: preface, SETTINGS, then one response per request
 /// stream (read frames until HEADERS/DATA with END_STREAM).
-fn serve_h2(tls: &mut StreamOwned<rustls::ServerConnection, std::net::TcpStream>, body: &[u8]) {
+/// Tranche 16b: the frame loop is transport-agnostic — TLS streams
+/// and cleartext prior-knowledge sockets speak the same frames.
+fn serve_h2<S: Read + Write>(io: &mut S, body: &[u8]) {
     // Consume the client preface.
     let mut pre = vec![0u8; PREFACE.len()];
-    if tls.read_exact(&mut pre).is_err() || pre != PREFACE {
+    if io.read_exact(&mut pre).is_err() || pre != PREFACE {
         return;
     }
     // Client SETTINGS (empty): consume its 9-byte frame, answer ours.
     let mut frame = vec![0u8; 9];
-    if tls.read_exact(&mut frame).is_err() {
+    if io.read_exact(&mut frame).is_err() {
         return;
     }
-    if tls.write_all(&settings_frame()).is_err() {
+    if io.write_all(&settings_frame()).is_err() {
         return;
     }
     // Respond to each request stream on this connection.
     loop {
         let mut header = [0u8; 9];
-        if tls.read_exact(&mut header).is_err() {
+        if io.read_exact(&mut header).is_err() {
             return;
         }
         let ty = header[3];
@@ -232,7 +236,7 @@ fn serve_h2(tls: &mut StreamOwned<rustls::ServerConnection, std::net::TcpStream>
         let stream = u32::from_be_bytes([header[5], header[6], header[7], header[8]]) & 0x7fff_ffff;
         let len = u32::from_be_bytes([0, header[0], header[1], header[2]]) as usize;
         let mut payload = vec![0u8; len];
-        if !payload.is_empty() && tls.read_exact(&mut payload).is_err() {
+        if !payload.is_empty() && io.read_exact(&mut payload).is_err() {
             return;
         }
         // SETTINGS from the client → ACK; PING → ACK; request frames
@@ -240,28 +244,55 @@ fn serve_h2(tls: &mut StreamOwned<rustls::ServerConnection, std::net::TcpStream>
         match ty {
             0x04 if flags & 0x01 == 0 => {
                 let ack = head(0x04, 0x01, 0, 0);
-                if tls.write_all(&ack).is_err() {
+                if io.write_all(&ack).is_err() {
                     return;
                 }
             }
             0x06 if flags & 0x01 == 0 => {
                 let mut ack = head(0x06, 0x01, 0, 8);
                 ack.extend(payload);
-                if tls.write_all(&ack).is_err() {
+                if io.write_all(&ack).is_err() {
                     return;
                 }
             }
             0x01 | 0x00 if flags & 0x01 != 0 => {
                 let response = response_frames(stream, body);
-                if tls.write_all(&response).is_err() {
+                if io.write_all(&response).is_err() {
                     return;
                 }
             }
             _ => {}
         }
-        if ty == 0x08 {
-            // WINDOW_UPDATE: nothing to do server-side.
-        }
         let _ = stream;
     }
+}
+
+/// A running cleartext (h2c prior-knowledge, tranche 16b) stub: plain
+/// TCP, the h2 frame loop, no TLS and no certificate.
+pub struct H2cStub {
+    /// Listening address (connect here).
+    pub addr: SocketAddr,
+}
+
+/// Spawn a cleartext h2c stub (prior knowledge, RFC 9113 §3.4: no
+/// `Upgrade:`, the client sends the preface directly) answering
+/// `status`/`body` on every request stream (`conns` sequential
+/// connections; each connection may carry several streams).
+pub fn spawn_h2c(status: u16, body: &[u8], conns: usize) -> H2cStub {
+    assert_eq!(status, 200, "the canned response block speaks 200 only");
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind stub");
+    let addr = listener.local_addr().expect("addr");
+    let body = body.to_vec();
+    std::thread::spawn(move || {
+        for _ in 0..conns {
+            let Ok(conn) = listener.accept() else {
+                return;
+            };
+            let mut sock = conn.0;
+            let _ = sock.set_read_timeout(Some(Duration::from_secs(20)));
+            let _ = sock.set_write_timeout(Some(Duration::from_secs(20)));
+            serve_h2(&mut sock, &body);
+        }
+    });
+    H2cStub { addr }
 }

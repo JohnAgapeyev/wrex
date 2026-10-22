@@ -11,9 +11,11 @@
 //! - [`frame`]: the 9-octet frame header codec, the committed frame
 //!   types with per-type flag grammar, settings payloads, preface.
 //! - [`huffman`]: the RFC 7541 appendix B static Huffman code,
-//!   decode side only (encode is a deliberate deferral).
-//! - [`hpack`]: HPACK (RFC 7541) — full decode grammar, deterministic
-//!   literal-only encode (no Huffman, no dynamic-table state on send).
+//!   decode and encode (16a: strings Huffman when strictly shorter).
+//! - [`hpack`]: HPACK (RFC 7541) — full decode grammar, the T15
+//!   deterministic literal encoder, and the 16a send-side
+//!   [`HpackEncoder`] (Indexed: incremental indexing + Huffman /
+//!   Literal: the T15 bytes verbatim).
 //! - [`session`]: [`H2Session`] — one connection, N concurrent
 //!   streams, flow-control-gated DATA, one [`wrex_http::HttpOutcome`]
 //!   per queued request, over the frozen [`wrex_session::Session`]
@@ -28,10 +30,13 @@
 //! extended-verification gate, and CLI ground truth against the
 //! in-test rustls+ALPN h2 stub (`wrex_test::h2_stub`).
 //!
-//! Deliberate T15 deferrals: Huffman *encode*, HPACK incremental
-//! indexing on the send side, h2c/prior-knowledge cleartext (`wrex
-//! http --http-version 2` requires https + ALPN), extended CONNECT,
-//! server push handling (never enabled), and the HTTP/2 server role.
+//! Deliberate T15 deferrals closed at **T16** (send-side completion):
+//! Huffman *encode* and HPACK incremental indexing on send ([`hpack`]
+//! [`HpackEncoder`], 16a) and h2c/prior-knowledge cleartext (16b —
+//! the session is transport-agnostic; the `wrex http` verb drives it
+//! over the kernel `TcpDriver` without TLS). Standing T15 deferrals:
+//! extended CONNECT, server push handling (never enabled), and the
+//! HTTP/2 server role.
 
 pub mod frame;
 pub mod hpack;
@@ -44,5 +49,6 @@ pub const DEFAULT_USER_AGENT: &str = "wrex/0.1.0";
 pub use frame::{
     DEFAULT_MAX_FRAME, DEFAULT_WINDOW, FrameHeader, FrameStep, FrameType, HEADER_LEN, PREFACE,
 };
-pub use hpack::{HpackDecoder, STATIC_TABLE};
+pub use hpack::{HpackDecoder, HpackEncodePolicy, HpackEncoder, STATIC_TABLE};
+pub use huffman::{huffman_decode, huffman_encode};
 pub use session::{H2Session, MAX_STREAMS};

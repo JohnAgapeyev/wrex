@@ -4,7 +4,7 @@
 .SH NAME
 http \- HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH SYNOPSIS
-\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
+\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
 .SH DESCRIPTION
 HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH OPTIONS
@@ -52,7 +52,10 @@ Accept any server certificate for https:// (dangerous; no name/chain/validity ch
 Extra CA bundle, PEM or DER (complements the system roots)
 .TP
 \fB\-\-http\-version\fR \fI<1.1|2>\fR
-HTTP version for https URLs: `1.1` (default) or `2` — h2 rides ALPN (`h2` then `http/1.1`); a server that declines h2 falls back to HTTP/1.1 with a note (recipe wins over the flag)
+HTTP version: `1.1` (default) or `2` — for https, h2 rides ALPN (`h2` then `http/1.1`; a server that declines h2 falls back to HTTP/1.1 with a note); for http, h2 is cleartext **prior knowledge** (RFC 9113 §3.4: the preface goes straight over the TCP stream, no `Upgrade:` dance). Recipe wins over the flag
+.TP
+\fB\-\-hpack\fR \fI<indexed|literal>\fR
+Send\-side HPACK policy for h2 (tranche 16a): `indexed` (default: dynamic table + Huffman\-when\-strictly\-shorter) or `literal` (the pre\-16 wire bytes: indexed statics, no dynamic\-table state, never Huffman — the replay\-parity knob). Recipe wins over the flag; inert on 1.1 runs
 .TP
 \fB\-\-fail\fR
 Exit 1 on 4xx/5xx statuses (completed exchanges stay data)

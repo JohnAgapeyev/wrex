@@ -1,12 +1,15 @@
-//! The static HPACK Huffman code (RFC 7541 appendix B), decode side.
+//! The static HPACK Huffman code (RFC 7541 appendix B): decode and
+//! (tranche 16a) encode.
 //!
 //! The table is generated from the RFC's appendix B `(sym, code, len)`
 //! rows (verified at generation: bits == hex == len for every row).
 //! Decode is bit-serial with a per-length sorted index — the code is
 //! canonical per length, so a binary search per accumulated bit length
-//! resolves each symbol. Encode is a **deliberate deferral** (see the
-//! crate doc): wrex crafts string literals without Huffman coding, so
-//! only the decoder exists.
+//! resolves each symbol. Encode emits each symbol's code MSB-first
+//! and pads the final octet with the EOS prefix (§5.2: the padding is
+//! the EOS code's leading bits, all 1s). The 16a
+//! **encode-when-strictly-shorter** rule lives with the encoder's
+//! policy (`hpack`); `huffman_encode` itself always encodes.
 
 /// `(symbol, code, len)` for every symbol 0..=256 (256 = EOS).
 /// Source: RFC 7541 appendix B.
@@ -311,6 +314,42 @@ pub fn huffman_decode(data: &[u8]) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
+/// Encode `data` with the static Huffman code (RFC 7541 §5.2): each
+/// symbol's code MSB-first, the final partial octet padded with the
+/// EOS prefix (1 bits). Every output decodes back through
+/// [`huffman_decode`] to exactly `data`.
+pub fn huffman_encode(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len() * 5 / 8 + 1);
+    let mut acc: u64 = 0;
+    let mut bits: u32 = 0;
+    for &b in data {
+        let (_, code, len) = HUFFMAN_TABLE[b as usize];
+        acc = (acc << len) | u64::from(code);
+        bits += u32::from(len);
+        while bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1u64 << bits) - 1;
+        }
+    }
+    if bits > 0 {
+        // Pad with the EOS prefix (all 1 bits — the decoder's padding
+        // check accepts exactly that prefix).
+        let pad = 8 - bits;
+        out.push(((acc << pad) | ((1u64 << pad) - 1)) as u8);
+    }
+    out
+}
+
+/// Encoded length of `data` (the [`huffman_encode`] output length).
+pub fn huffman_encoded_len(data: &[u8]) -> usize {
+    let bits: usize = data
+        .iter()
+        .map(|&b| HUFFMAN_TABLE[b as usize].2 as usize)
+        .sum();
+    bits.div_ceil(8)
+}
+
 /// Resolve `(acc, bits)` to a symbol via the per-length sorted index.
 fn lookup(acc: u32, bits: u32) -> Option<u32> {
     let by_len = index();
@@ -417,6 +456,75 @@ mod tests {
             assert_eq!(sym, i as u32);
             assert!((5..=30).contains(&len), "sym {sym} len {len}");
             assert!(code < (1u32 << len), "sym {sym} code exceeds len");
+        }
+    }
+
+    // --- encode (tranche 16a) --------------------------------------------
+
+    /// RFC 7541 C.4.1: `www.example.com` → `f1e3 c2e5 f23a 6ba0 ab90
+    /// f4ff`.
+    #[test]
+    fn encodes_rfc_c41_authority() {
+        let out = huffman_encode(b"www.example.com");
+        assert_eq!(
+            out,
+            vec![
+                0xf1, 0xe3, 0xc2, 0xe5, 0xf2, 0x3a, 0x6b, 0xa0, 0xab, 0x90, 0xf4, 0xff
+            ]
+        );
+        assert_eq!(out.len(), huffman_encoded_len(b"www.example.com"));
+    }
+
+    /// RFC 7541 C.4.2: `no-cache` → `a8eb 1064 9cbf`.
+    #[test]
+    fn encodes_rfc_c42_no_cache() {
+        assert_eq!(
+            huffman_encode(b"no-cache"),
+            vec![0xa8, 0xeb, 0x10, 0x64, 0x9c, 0xbf]
+        );
+    }
+
+    /// RFC 7541 C.4.3: `custom-key`/`custom-value` literals.
+    #[test]
+    fn encodes_rfc_c43_custom() {
+        assert_eq!(
+            huffman_encode(b"custom-key"),
+            vec![0x25, 0xa8, 0x49, 0xe9, 0x5b, 0xa9, 0x7d, 0x7f]
+        );
+        assert_eq!(
+            huffman_encode(b"custom-value"),
+            vec![0x25, 0xa8, 0x49, 0xe9, 0x5b, 0xb8, 0xe8, 0xb4, 0xbf]
+        );
+    }
+
+    #[test]
+    fn encodes_rfc_c62_status() {
+        // RFC 7541 C.6.2: `307` → `640e ff`.
+        assert_eq!(huffman_encode(b"307"), vec![0x64, 0x0e, 0xff]);
+    }
+
+    #[test]
+    fn every_byte_roundtrips() {
+        for b in 0..=u8::MAX {
+            let enc = huffman_encode(&[b]);
+            assert_eq!(huffman_decode(&enc).unwrap(), vec![b], "byte {b}");
+        }
+        // multi-symbol strings, including the empty string (zero bytes:
+        // no padding at all).
+        for s in [
+            &b""[..],
+            b"a",
+            b"www.example.com",
+            b"no-cache",
+            b"custom-key",
+            b"custom-value",
+            b"307",
+            b"0123456789 abcdefghijklmnopqrstuvwxyz",
+            &[0u8, 1, 128, 255][..],
+        ] {
+            let enc = huffman_encode(s);
+            assert_eq!(enc.len(), huffman_encoded_len(s));
+            assert_eq!(huffman_decode(&enc).unwrap(), s, "{s:?}");
         }
     }
 }

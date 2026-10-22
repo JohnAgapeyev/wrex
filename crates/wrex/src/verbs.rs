@@ -1949,7 +1949,9 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     }
 
     // HTTP/2 (tranche 15): one pick per queue — mixed versions are a
-    // usage error, and h2 needs https + ALPN (h2c is a deferral).
+    // usage error. Tranche 16b: `http` + `--http-version 2` is cleartext
+    // **prior knowledge** (RFC 9113 §3.4 — the preface straight over
+    // the kernel TCP stream); `https` + 2 keeps the T15 ALPN rule.
     let want_h2 = match cfgs.first().and_then(|c| c.http_version.as_deref()) {
         None | Some("1.1") => false,
         Some("2") => true,
@@ -1964,9 +1966,26 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
             "http queue: one http-version per connection (split mixed 1.1/2 runs)",
         ));
     }
-    if want_h2 && scheme != "https" {
+
+    // Send-side HPACK policy (tranche 16a): indexed (default) or the
+    // T15-parity literal. One policy per connection (one encoder);
+    // mixed recipe policies are a usage error. Inert on 1.1 runs.
+    let hpack_policy = match cfgs.first().and_then(|c| c.hpack.as_deref()) {
+        None => wrex_h2::HpackEncodePolicy::default(),
+        Some("indexed") => wrex_h2::HpackEncodePolicy::Indexed,
+        Some("literal") => wrex_h2::HpackEncodePolicy::Literal,
+        Some(other) => {
+            return Err(usage(format!(
+                "bad hpack policy `{other}` (expected indexed or literal)"
+            )));
+        }
+    };
+    if cfgs
+        .iter()
+        .any(|c| c.hpack.as_deref().is_some() && c.hpack != cfgs[0].hpack)
+    {
         return Err(usage(
-            "http-version 2 requires https (ALPN negotiates h2; h2c is a deferral)",
+            "http queue: one hpack policy per connection (split mixed indexed/literal runs)",
         ));
     }
 
@@ -2053,8 +2072,13 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
                     false
                 };
                 if use_h2 {
-                    let mut session = wrex_h2::H2Session::new(&specs, &queue_cfgs, Instant::now())
-                        .map_err(|e| usage(format!("http: {e}")))?;
+                    let mut session = wrex_h2::H2Session::with_policy(
+                        &specs,
+                        &queue_cfgs,
+                        Instant::now(),
+                        hpack_policy,
+                    )
+                    .map_err(|e| usage(format!("http: {e}")))?;
                     wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 } else {
                     let mut session =
@@ -2063,12 +2087,26 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
                     wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 }
             } else {
+                // Cleartext transport: 1.1 keep-alive, or — tranche 16b —
+                // h2c **prior knowledge** (the same `H2Session` on the
+                // kernel `TcpDriver`, no TLS, no ALPN, no `Upgrade:`).
                 let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
                     .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                let mut session =
-                    HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
-                        .map_err(|e| usage(format!("http: {e}")))?;
-                wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                if want_h2 {
+                    let mut session = wrex_h2::H2Session::with_policy(
+                        &specs,
+                        &queue_cfgs,
+                        Instant::now(),
+                        hpack_policy,
+                    )
+                    .map_err(|e| usage(format!("http: {e}")))?;
+                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                } else {
+                    let mut session =
+                        HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
+                            .map_err(|e| usage(format!("http: {e}")))?;
+                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                }
             }
             .map_err(|e| CliError::Runtime(format!("http: {e}")))?
         };
@@ -2146,6 +2184,9 @@ struct HttpVerbConfig {
     /// HTTP/2 requested (recipe `http_version: "2"` or
     /// `--http-version 2`; recipe wins over the CLI flag).
     http_version: Option<String>,
+    /// Send-side HPACK policy (recipe `hpack` or `--hpack`; recipe wins
+    /// — the recipe/CLI precedence direction, transposed).
+    hpack: Option<String>,
 }
 
 /// One per queued request: the CLI defaults + that request's recipe
@@ -2173,6 +2214,7 @@ fn http_verb_cfg(
         tls_insecure: overrides.tls_insecure.unwrap_or(args.tls_insecure),
         tls_ca: overrides.tls_ca.clone().or_else(|| args.tls_ca.clone()),
         http_version,
+        hpack: overrides.hpack.clone().or_else(|| args.hpack.clone()),
     })
 }
 

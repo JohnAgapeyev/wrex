@@ -1,23 +1,29 @@
 //! HPACK (RFC 7541): the static table, the integer/string primitives,
-//! the dynamic table with size accounting + eviction, the decoder, and
-//! wrex's deterministic literal encoder.
+//! the dynamic table with size accounting + eviction, the decoder, the
+//! literal encoder, and the tranche-16a **send-side encoder**
+//! (`HpackEncoder`).
 //!
 //! **Disposition (ADR 2, T15 planning)**: HPACK is *owned* — byte
 //! control over the header block is the point. Decode implements the
 //! full §6 grammar (indexed, literal with/without indexing,
 //! never-indexed, dynamic-table size updates, Huffman strings).
-//! **Encode is deliberately literal**: every field goes out as a
-//! literal-without-indexing representation with raw (no-Huffman)
-//! strings — deterministic recipe bytes, no dynamic-table state on the
-//! send side (Huffman *encode* and incremental indexing are recorded
-//! deferrals). Every encoding this module produces decodes to exactly
-//! what went in (roundtrip-tested).
+//! Encode (16a) speaks two policies through [`HpackEncoder`]:
+//! - **[`HpackEncodePolicy::Indexed`]** (default): exact matches go
+//!   out indexed (static *or* the send-side dynamic table, one
+//!   encoder per connection so index reuse is stream-ordered), misses
+//!   are literal-**with**-incremental-indexing (§6.2.1, entry size
+//!   name+value+32, §4.3/§4.4 eviction under the cap), and strings
+//!   are Huffman-coded **when strictly shorter** (no ratio
+//!   heuristic — deterministic recipe bytes);
+//! - **[`HpackEncodePolicy::Literal`]**: the T15 wire verbatim
+//!   (indexed statics, literal-without-indexing, never Huffman, no
+//!   dynamic-table state) — the replay-parity knob.
 
 use std::collections::VecDeque;
 
 use bytes::{BufMut as _, Bytes, BytesMut};
 
-use crate::huffman::huffman_decode;
+use crate::huffman::{huffman_decode, huffman_encode, huffman_encoded_len};
 
 /// One static-table entry (RFC 7541 appendix A). Index = position + 1.
 pub fn static_entry(idx: usize) -> Option<(&'static str, &'static str)> {
@@ -155,11 +161,25 @@ pub fn decode_integer(buf: &[u8], prefix: u8) -> Result<(u32, usize), String> {
 }
 
 /// One string literal (RFC 7541 §5.2): H bit + 7-bit-prefix length +
-/// data (raw or Huffman).
+/// data. The 16a rule: Huffman when strictly shorter (deterministic —
+/// no ratio heuristic), raw otherwise; the Literal policy always raw.
+fn encode_string_policy(out: &mut BytesMut, value: &[u8], huffman: bool) {
+    if huffman && huffman_encoded_len(value) < value.len() {
+        let enc = huffman_encode(value);
+        let start = out.len();
+        encode_integer(out, 7, enc.len() as u32);
+        out[start] |= 0x80; // H = 1 (the length prefix carries it)
+        out.extend_from_slice(&enc);
+    } else {
+        // H = 0 (never Huffman — the T15 literal rule).
+        encode_integer(out, 7, value.len() as u32);
+        out.extend_from_slice(value);
+    }
+}
+
+/// One string literal, raw (the T15 rule, `encode_header_block` only).
 fn encode_string(out: &mut BytesMut, value: &[u8]) {
-    // Never Huffman (the crate rule): H = 0.
-    encode_integer(out, 7, value.len() as u32);
-    out.extend_from_slice(value);
+    encode_string_policy(out, value, false);
 }
 
 /// Decode one string literal; returns `(bytes, consumed)`.
@@ -233,6 +253,182 @@ pub fn encode_header_block(headers: &[(&str, &str)]) -> Bytes {
         }
     }
     out.freeze()
+}
+
+/// The send-side HPACK policy (tranche 16a).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum HpackEncodePolicy {
+    /// Exact matches go out indexed (static *or* the send-side dynamic
+    /// table); misses are literal-with-**incremental-indexing** (§6.2.1)
+    /// with the derived default `content-length` value following the
+    /// spec order; strings Huffman when strictly shorter. One
+    /// [`HpackEncoder`] per connection — the table persists across
+    /// concurrent streams, so index reuse is stream-ordered and
+    /// deterministic.
+    #[default]
+    Indexed,
+    /// The T15 wire verbatim (the `encode_header_block` bytes):
+    /// indexed statics, literal-without-indexing, never Huffman, no
+    /// dynamic-table state. The recipe-replay parity knob.
+    Literal,
+}
+
+/// The send-side HPACK encoding context (tranche 16a): the dynamic
+/// table, its size cap, and what the peer was last told the cap is.
+///
+/// Determinism: same policy + same header sequence ⇒ byte-identical
+/// blocks (the lookup order is fixed: static full match, then dynamic
+/// full match; static name, then dynamic name).
+#[derive(Debug)]
+pub struct HpackEncoder {
+    policy: HpackEncodePolicy,
+    table: VecDeque<(Vec<u8>, Vec<u8>)>,
+    size: usize,
+    max_size: usize,
+    /// The cap as last announced on the wire (§4.2: a change MUST be
+    /// signaled at the start of the next block as a size update).
+    announced: usize,
+}
+
+impl Default for HpackEncoder {
+    fn default() -> Self {
+        Self::new(HpackEncodePolicy::default())
+    }
+}
+
+impl HpackEncoder {
+    /// Build an encoder under a policy at the default table capacity
+    /// (`SETTINGS_HEADER_TABLE_SIZE` = 4096).
+    pub fn new(policy: HpackEncodePolicy) -> Self {
+        Self::with_max_size(policy, DEFAULT_MAX_SIZE)
+    }
+
+    /// Build with an explicit table capacity.
+    pub fn with_max_size(policy: HpackEncodePolicy, max_size: usize) -> Self {
+        Self {
+            policy,
+            table: VecDeque::new(),
+            size: 0,
+            max_size,
+            announced: max_size,
+        }
+    }
+
+    pub fn policy(&self) -> HpackEncodePolicy {
+        self.policy
+    }
+
+    /// Apply a new table capacity (evicting per §4.3; the next block
+    /// leads with a size update, §4.2).
+    pub fn set_max_size(&mut self, max_size: usize) {
+        self.max_size = max_size;
+        self.evict();
+    }
+
+    fn evict(&mut self) {
+        while self.size > self.max_size {
+            if let Some((name, value)) = self.table.pop_back() {
+                self.size -= name.len() + value.len() + ENTRY_OVERHEAD;
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// Insert one entry at the front (§4.2) after §4.3 eviction; §4.4
+    /// (entry larger than the whole cap) empties the table instead.
+    fn insert(&mut self, name: Vec<u8>, value: Vec<u8>) {
+        let entry = name.len() + value.len() + ENTRY_OVERHEAD;
+        if entry > self.max_size {
+            self.table.clear();
+            self.size = 0;
+            return;
+        }
+        while self.size + entry > self.max_size {
+            match self.table.pop_back() {
+                Some((n, v)) => self.size -= n.len() + v.len() + ENTRY_OVERHEAD,
+                None => break,
+            }
+        }
+        self.table.push_front((name, value));
+        self.size += entry;
+    }
+
+    /// Full dynamic-table match → its overall (62-based) index.
+    fn dynamic_full(&self, name: &[u8], value: &[u8]) -> Option<usize> {
+        self.table
+            .iter()
+            .position(|(n, v)| n.as_slice() == name && v.as_slice() == value)
+            .map(|pos| STATIC_TABLE.len() + 1 + pos)
+    }
+
+    /// Dynamic-table name match → its overall index.
+    fn dynamic_name(&self, name: &[u8]) -> Option<usize> {
+        self.table
+            .iter()
+            .position(|(n, _)| n.as_slice() == name)
+            .map(|pos| STATIC_TABLE.len() + 1 + pos)
+    }
+
+    /// Encode one header block under the policy. The T15 byte-identity
+    /// pin: `Literal` delegates to [`encode_header_block`] unchanged.
+    pub fn encode(&mut self, headers: &[(&str, &str)]) -> Bytes {
+        if self.policy == HpackEncodePolicy::Literal {
+            return encode_header_block(headers);
+        }
+        let mut out = BytesMut::new();
+        // §4.2: a capacity change is signaled at the start of the next
+        // block (a shrink below what we last announced).
+        if self.max_size != self.announced {
+            let start = out.len();
+            encode_integer(&mut out, 5, self.max_size as u32);
+            out[start] |= 0x20; // the 001 size-update pattern
+            self.announced = self.max_size;
+        }
+        for &(name, value) in headers {
+            let (name, value) = (name.as_bytes(), value.as_bytes());
+            if let Some(idx) = static_full(name, value) {
+                // Indexed static (§6.1): < 127, one octet.
+                out.put_u8(0x80 | idx);
+            } else if let Some(idx) = self.dynamic_full(name, value) {
+                // Indexed dynamic (§6.1): 1 + 7-bit prefix.
+                let start = out.len();
+                encode_integer(&mut out, 7, idx as u32);
+                out[start] |= 0x80;
+            } else {
+                // Literal with incremental indexing (§6.2.1): 01
+                // + 6-bit name index (0 = new name), strings per the
+                // 16a rule; every miss enters the dynamic table.
+                let name_idx = static_name(name)
+                    .map(|idx| idx as usize)
+                    .or_else(|| self.dynamic_name(name));
+                match name_idx {
+                    Some(idx) => {
+                        let start = out.len();
+                        encode_integer(&mut out, 6, idx as u32);
+                        out[start] |= 0x40;
+                    }
+                    // 01 000000: new name — the name string follows.
+                    None => {
+                        out.put_u8(0x40);
+                        encode_string_policy(&mut out, name, true);
+                    }
+                }
+                encode_string_policy(&mut out, value, true);
+                self.insert(name.to_vec(), value.to_vec());
+            }
+        }
+        out.freeze()
+    }
+
+    /// The dynamic table (test/diagnostic surface).
+    pub fn dynamic_entries(&self) -> &VecDeque<(Vec<u8>, Vec<u8>)> {
+        &self.table
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
 }
 
 /// The HPACK decoding context: the dynamic table plus its size cap.
@@ -696,5 +892,202 @@ mod tests {
         block.push(0);
         let mut dec2 = HpackDecoder::default();
         assert!(dec2.decode(&block).is_err(), "over-budget literal");
+    }
+
+    // --- send-side encoder (tranche 16a) ---------------------------------
+
+    /// RFC 7541 C.4.1: `:method: GET` / `:scheme: http` / `:path: /` /
+    /// `:authority: www.example.com` — the Indexed policy reproduces
+    /// the spec's encoded bytes exactly (indexed statics, literal with
+    /// incremental indexing on the static `:authority` name, Huffman
+    /// value — 12 < 15).
+    #[test]
+    fn indexed_encoder_reproduces_c41() {
+        let mut enc = HpackEncoder::new(HpackEncodePolicy::Indexed);
+        let block = enc.encode(&[
+            (":method", "GET"),
+            (":scheme", "http"),
+            (":path", "/"),
+            (":authority", "www.example.com"),
+        ]);
+        assert_eq!(
+            &block[..],
+            &hex("8286 8441 8cf1 e3c2 e5f2 3a6b a0ab 90f4 ff")[..]
+        );
+        // the miss entered the dynamic table (size 57 = 15+32)
+        assert_eq!(enc.size(), 57);
+        assert_eq!(enc.dynamic_entries().len(), 1);
+        // …and decodes back (the roundtrip contract).
+        let mut dec = HpackDecoder::default();
+        let back = dec.decode(&block).unwrap();
+        assert_eq!(
+            back,
+            headers_of(&[
+                (":method", "GET"),
+                (":scheme", "http"),
+                (":path", "/"),
+                (":authority", "www.example.com"),
+            ])
+        );
+    }
+
+    /// RFC 7541 C.4.2 + C.4.3: the follow-up requests index the dynamic
+    /// `:authority` (`be` = 62) and then `:authority` at 63 after the
+    /// `cache-control` insertion; Huffman on strictly-shorter strings.
+    #[test]
+    fn indexed_encoder_reproduces_c42_and_c43() {
+        let mut enc = HpackEncoder::new(HpackEncodePolicy::Indexed);
+        enc.encode(&[
+            (":method", "GET"),
+            (":scheme", "http"),
+            (":path", "/"),
+            (":authority", "www.example.com"),
+        ]);
+        // C.4.2: cache-control: no-cache (static name 24 → 0x58; the
+        // dynamic :authority is a full match at 62).
+        let block = enc.encode(&[
+            (":method", "GET"),
+            (":scheme", "http"),
+            (":path", "/"),
+            (":authority", "www.example.com"),
+            ("cache-control", "no-cache"),
+        ]);
+        assert_eq!(&block[..], &hex("8286 84be 5886 a8eb 1064 9cbf")[..]);
+        assert_eq!(enc.size(), 110);
+        // C.4.3: https + /index.html + custom-key/custom-value.
+        let block = enc.encode(&[
+            (":method", "GET"),
+            (":scheme", "https"),
+            (":path", "/index.html"),
+            (":authority", "www.example.com"),
+            ("custom-key", "custom-value"),
+        ]);
+        assert_eq!(
+            &block[..],
+            &hex("8287 85bf 4088 25a8 49e9 5ba9 7d7f 8925 a849 e95b b8e8 b4bf")[..]
+        );
+        assert_eq!(enc.size(), 164);
+    }
+
+    /// The T15 byte-identity pin: `Literal` reproduces
+    /// `encode_header_block` byte-for-byte, Huffman never, no state.
+    #[test]
+    fn literal_policy_is_the_t15_wire() {
+        let headers = [
+            (":method", "GET"),
+            (":scheme", "https"),
+            (":path", "/x"),
+            (":authority", "www.example.com"),
+            ("cache-control", "no-cache"),
+            ("custom-key", "custom-value"),
+        ];
+        let mut enc = HpackEncoder::new(HpackEncodePolicy::Literal);
+        let a = enc.encode(&headers);
+        let b = encode_header_block(&headers);
+        assert_eq!(a, b);
+        // the same list twice: byte-identical, table stays empty
+        assert_eq!(enc.encode(&headers), b);
+        assert!(enc.dynamic_entries().is_empty());
+        assert_eq!(enc.size(), 0);
+    }
+
+    /// The default policy is Indexed (the 16a planning decision: the
+    /// deferral closes; `literal` is the explicit parity knob).
+    #[test]
+    fn default_policy_is_indexed() {
+        assert_eq!(HpackEncodePolicy::default(), HpackEncodePolicy::Indexed);
+        assert_eq!(HpackEncoder::default().policy(), HpackEncodePolicy::Indexed);
+    }
+
+    /// Indexed blocks decode back to exactly what went in, whatever the
+    /// mix of static/dynamic hits (the fuzz target's contract, pinned).
+    #[test]
+    fn indexed_roundtrips_arbitrary_headers() {
+        let headers = [
+            (":method", "POST"),
+            (":scheme", "https"),
+            (":path", "/submit"),
+            (":authority", "example.test"),
+            ("user-agent", "wrex/0.1.0"),
+            ("accept", "*/*"),
+            ("content-type", "application/json"),
+            ("x-long-value", "0123456789 abcdefghijklmnopqrstuvwxyz"),
+            ("x-binary", "\u{1}\u{2}"),
+        ];
+        let mut enc = HpackEncoder::new(HpackEncodePolicy::Indexed);
+        // The decoder is the encoder's *peer*: one context across the
+        // blocks (the dynamic table is shared connection state).
+        let mut peer = HpackDecoder::default();
+        for round in 0..3 {
+            let block = enc.encode(&headers);
+            assert_eq!(
+                peer.decode(&block).unwrap(),
+                headers_of(&headers),
+                "round {round}"
+            );
+        }
+        // determinism: the same sequence from scratch ⇒ byte-identical
+        // blocks round-for-round (round 1 ≠ round 2 *by design* —
+        // incremental indexing — so compare per-round, not flattened).
+        let mut enc3 = HpackEncoder::new(HpackEncodePolicy::Indexed);
+        let blocks3: Vec<_> = (0..3).map(|_| enc3.encode(&headers)).collect();
+        let mut enc4 = HpackEncoder::new(HpackEncodePolicy::Indexed);
+        let blocks4: Vec<_> = (0..3).map(|_| enc4.encode(&headers)).collect();
+        assert_eq!(blocks3, blocks4);
+        assert_ne!(blocks3[0], blocks3[1], "round 2 reuses the table");
+    }
+
+    /// §4.3/§4.4 eviction on the send side: a shrinking cap evicts from
+    /// the back; an oversized entry empties the table; a growth past
+    /// what was announced leads the next block with a size update.
+    #[test]
+    fn encoder_eviction_and_size_updates() {
+        let mut enc = HpackEncoder::with_max_size(HpackEncodePolicy::Indexed, 100);
+        enc.encode(&[(":authority", "abc")]); // entry 10+3+32 = 45
+        enc.encode(&[(":path", "/")]); // static, no insert — 45 stays
+        assert_eq!(enc.size(), 45);
+        // cap shrink evicts the oldest (45 > 30 ⇒ evict everything).
+        enc.set_max_size(30); // 40 > 30 ⇒ evict everything
+        assert_eq!(enc.size(), 0);
+        assert!(enc.dynamic_entries().is_empty());
+        // the next block leads with a 001 size update (30 < 31 ⇒ one
+        // octet: 0x20|30 = 0x3e), then the miss itself (new name).
+        let block = enc.encode(&[("x-a", "1")]);
+        assert_eq!(&block[..1], &[0x3e], "size update 30 leads the block");
+        // §4.4: an entry larger than the cap empties the table.
+        let mut enc = HpackEncoder::with_max_size(HpackEncodePolicy::Indexed, 40);
+        enc.encode(&[("x-long-name", "0123456789abcdef")]); // 11+16+32 = 59 > 40
+        assert_eq!(enc.size(), 0);
+        assert!(enc.dynamic_entries().is_empty());
+        // …and the header still decodes (the field is never lost).
+        let mut dec = HpackDecoder::default();
+        assert_eq!(
+            dec.decode(&enc.encode(&[("x-long-name", "0123456789abcdef")]))
+                .unwrap(),
+            headers_of(&[("x-long-name", "0123456789abcdef")])
+        );
+    }
+
+    /// Huffman only when strictly shorter: a raw-strictly-shorter
+    /// string stays raw (`"0"` encodes to 5 bits → 1 raw byte either
+    /// way: not strictly shorter ⇒ raw); multi-byte values shrink.
+    #[test]
+    fn huffman_when_strictly_shorter() {
+        let mut enc = HpackEncoder::new(HpackEncodePolicy::Indexed);
+        let mut peer = HpackDecoder::default();
+        let block = enc.encode(&[("x", "0")]);
+        // 0x40 (new name) + len("x")=1 … "x" Huffman is 5 bits = 1 raw
+        // byte (not strictly shorter) ⇒ raw; "0" likewise ⇒ raw.
+        assert_eq!(peer.decode(&block).unwrap(), headers_of(&[("x", "0")]));
+        // a long value compresses: some string literal carries H=1.
+        let block = enc.encode(&[("x", "0123456789 abcdefghijklmnopqrstuvwxyz")]);
+        assert!(
+            block.iter().any(|&b| b & 0x80 != 0 && (b & 0x7f) < 0x40),
+            "some string literal carries H=1: {block:02x?}"
+        );
+        assert_eq!(
+            peer.decode(&block).unwrap(),
+            headers_of(&[("x", "0123456789 abcdefghijklmnopqrstuvwxyz")])
+        );
     }
 }
