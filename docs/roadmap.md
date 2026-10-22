@@ -1295,9 +1295,17 @@ T(n+1)".
     existing SLLA/TLLA `addr`. Verified by a full round-trip unit
     (all five grammar items through the real codecs, zero
     anomalies, typed asserts; the echo-type refusal); 78 suites
-    green, man pages regenerated. **Remaining in T17b**: MLD (the
-    v1 triad 130/131/132 + the v2 query/report shapes) and the
-    NS-SLLA byte-identity cross-check against the `wrex-io::ndp`
+    green, man pages regenerated. **MLDv1 delivered in the same
+    tranche (slice 2)**: the RFC 2710 triad — query **130** (the
+    max-response rides the `code` field, 1/10s units), report
+    **131**, done **132** — each carrying the 16-byte
+    `mld.addr` multicast body (all-nodes `ff02::1` craft default),
+    craft + dissect through the real codecs, zero anomalies; the
+    stale "option crafting is a deferral" schema doc swept with it.
+    **Remaining in T17b**: MLDv2 (the length-discriminated query
+    130 with flags/qrv/qqic/sources, the report 143 with the
+    `mcast.N.*` record section and its grammar) and the NS-SLLA
+    byte-identity cross-check against the `wrex-io::ndp`
     hand-roll. The icmpv6 codec grows in place (its
     ADR-3 dep on ip6 landed with T17-0). **MLD**, the `ndp.*`
     conditional-fields pattern keyed on type: MLDv1 (RFC 2710)

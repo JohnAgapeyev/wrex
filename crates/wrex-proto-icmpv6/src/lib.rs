@@ -163,6 +163,17 @@ static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
             required: false,
             doc: "raw option data (other options)",
         },
+        // Tranche 17b: MLDv1 (RFC 2710) — the 16-byte multicast
+        // address body of query/report/done (the v1 query's
+        // max-response rides the `code` field, 1/10s units).
+        FieldSchema {
+            name: "mld.addr",
+            kind: FieldKind::Ipv6,
+            bit_names: &[],
+            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
+            required: false,
+            doc: "MLD multicast address (types 130/131/132; ff02::1 all-nodes, ff02::2 all-routers)",
+        },
         // Tranche 17b: the NDP option list grammar, the write-side of
         // the dissect-only `opt` record section (the dhcp options
         // precedent — a Str field keeps it CLI-reachable).
@@ -204,7 +215,7 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
         wrex_proto_ip6ext::KIND_DSTOPTS,
         wrex_proto_ip6ext::KIND_AH,
     ],
-    doc: "ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) expose echo.id and echo.seq. NDP craft: RS (133, header only), RA (134: ndp.cur_hop_limit, ndp.ra_flags [m,o], ndp.router_lifetime, ndp.reachable_time, ndp.retrans_timer), NS (135: ndp.target), NA (136: ndp.na_flags [r,s,o] + ndp.target). Other types render the 4-byte rest as icmpv6.rest raw bytes. checksum always covers the RFC 8200 §8.1 v6 pseudo-header (proto 58) plus the whole message. NDP options (SLLA/TLLA, …) dissect into the opt record section (opt.0.addr, …; dissect-only — crafting them is a deferral). icmpv6 is terminal (the payload follows).",
+    doc: "ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) expose echo.id and echo.seq. NDP craft: RS (133, header only), RA (134: ndp.cur_hop_limit, ndp.ra_flags [m,o], ndp.router_lifetime, ndp.reachable_time, ndp.retrans_timer), NS (135: ndp.target), NA (136: ndp.na_flags [r,s,o] + ndp.target). Other types render the 4-byte rest as icmpv6.rest raw bytes. checksum always covers the RFC 8200 §8.1 v6 pseudo-header (proto 58) plus the whole message. NDP options dissect into the opt record section (opt.0.addr, …) and CRAFT through the options list grammar (tranche 17b: slla:MAC, tlla:MAC, mtu:N, prefix:…, raw:TYPE:HEX). MLDv1 (tranche 17b): types 130/131/132 carry the mld.addr multicast body (the v1 query's max-response rides the code field). icmpv6 is terminal (the payload follows).",
     fields: FIELDS.as_slice(),
     records: RECORDS.as_slice(),
 });
@@ -229,6 +240,17 @@ pub fn register(r: &mut wrex_core::Registry) {
     wrex_proto_ip6ext::register(r);
 }
 
+/// MLDv1 message types (RFC 2710; tranche 17b): query 130 (the
+/// max-response rides the CODE field, 1/10s units), report 131,
+/// done 132 — a 16-byte multicast-address body each.
+pub const T_MLD_QUERY: u8 = 130;
+pub const T_MLD_REPORT: u8 = 131;
+pub const T_MLD_DONE: u8 = 132;
+
+fn is_mld(t: u8) -> bool {
+    matches!(t, T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE)
+}
+
 fn is_echo(t: u8) -> bool {
     t == T_ECHO_REQ || t == T_ECHO_REPLY
 }
@@ -243,6 +265,7 @@ fn ndp_body_len(t: u8) -> usize {
         T_RS => 0,
         T_RA => 8,
         T_NS | T_NA => 16,
+        T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE => 16,
         _ => 0,
     }
 }
@@ -325,6 +348,15 @@ impl Codec for Icmp6Codec {
                     ctx.buf.extend_from_slice(&rest);
                 }
             }
+        }
+        // MLDv1 bodies (tranche 17b): the 16-byte multicast address.
+        if is_mld(t) {
+            let addr = match spec.fields.get("mld.addr") {
+                Some(Value::Ipv6(a)) => *a,
+                _ if af => "ff02::1".parse().unwrap(), // all-nodes default
+                _ => std::net::Ipv6Addr::UNSPECIFIED,
+            };
+            ctx.buf.extend_from_slice(&addr.octets());
         }
         // Checksum over the whole message (header + body + payload) with
         // the v6 pseudo-header (proto 58) — facts were recorded by ipv6.
@@ -487,6 +519,18 @@ impl Codec for Icmp6Codec {
             }
         }
 
+        // MLDv1 bodies (tranche 17b): the 16-byte multicast address
+        // (the option pass is NDP-only, so MLD bytes were skipped).
+        if is_mld(t) && bytes.len() >= need {
+            fields.insert(
+                "mld.addr".into(),
+                Value::Ipv6(std::net::Ipv6Addr::from([
+                    bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14],
+                    bytes[15], bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21],
+                    bytes[22], bytes[23],
+                ])),
+            );
+        }
         // Body fields per type (after the option pass so echo payloads
         // never masquerade as NDP data).
         if is_echo(t) {
@@ -870,6 +914,50 @@ mod tests {
     /// flags) and the raw escape, order preserved; the PI option
     /// dissects into its typed subpaths; options on echo types are
     /// the pointed error.
+    /// Tranche 17b: the MLDv1 triad (RFC 2710) — query 130 (max_resp
+    /// rides the code field, 1/10s units), report 131, done 132, each
+    /// carrying the 16-byte multicast address body.
+    #[test]
+    fn mldv1_triad_roundtrip() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        for (t, code) in [(130u8, 10u8), (131, 0), (132, 0)] {
+            let mut f = std::collections::BTreeMap::new();
+            f.insert("type".to_string(), Value::Int(t as u128));
+            f.insert("code".to_string(), Value::Int(code as u128));
+            f.insert(
+                "mld.addr".to_string(),
+                Value::Ipv6("ff02::1".parse().unwrap()),
+            );
+            let spec = wrex_core::spec::PacketSpec::new(
+                vec![
+                    wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                    wrex_core::spec::LayerSpec::with_fields(KIND, f),
+                ],
+                None,
+            );
+            let enc = encode(
+                &r,
+                &spec,
+                &wrex_core::encode::EncodeOpts {
+                    autofill: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+            assert!(p.anomalies.is_empty(), "type {t}: {:?}", p.anomalies);
+            let l = &p.layers[1];
+            assert_eq!(l.fields.get("type"), Some(&Value::Int(t as u128)));
+            assert_eq!(l.fields.get("code"), Some(&Value::Int(code as u128)));
+            assert_eq!(
+                l.fields.get("mld.addr"),
+                Some(&Value::Ipv6("ff02::1".parse().unwrap())),
+                "type {t}: the multicast body must round-trip"
+            );
+        }
+    }
+
     #[test]
     fn ndp_options_grammar_roundtrip() {
         let mut r = wrex_core::Registry::empty();
