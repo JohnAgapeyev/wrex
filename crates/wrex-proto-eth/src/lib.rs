@@ -42,8 +42,13 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): children reference
+/// `wrex_proto_eth::KIND` in their `parents` instead of hand-written
+/// strings, so the registry vocabulary is compile-checked.
+pub const KIND: &str = "eth";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "eth",
+    kind: KIND,
     rank: 10,
     parents: &[],
     doc: "Ethernet II (DIX) framing: 14-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 -> ipv4, 0x0806 -> arp, 0x86dd -> ipv6, 0x8100/0x88a8 -> vlan, anything else -> synthesized `unknown` layer holding the remaining bytes.",
@@ -51,10 +56,22 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     records: &[],
 });
 
-/// Ethernet II codec unit. Register as `&wrex_proto_eth::CODEC`.
+/// Ethernet II codec unit. Register via [`register`] (the ADR-3
+/// closure); bespoke registries may use `&wrex_proto_eth::CODEC`
+/// directly.
 pub struct EthCodec;
 
 pub static CODEC: EthCodec = EthCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Eth has no parents;
+/// self-first keeps `standard()`'s fixed registration order
+/// byte-identical — presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+}
 
 /// ethertype → next layer kind (for `read` continuation).
 fn ethertype_to_kind(t: u16) -> &'static str {

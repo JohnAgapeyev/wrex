@@ -1045,11 +1045,210 @@ T(n+1)".
     one frame in the CLI grammar), and cross-queue encoder reuse (one
     connection, one encoder, by construction).
 
+- **T17 — IPv6 codec completion + registry dependency retrofit** — in
+  flight (chartered at the T17 planning pass as four sub-tranches:
+  T17-0 lands the [ADR 3](adr/0003-codec-dependency-direction.md)
+  retrofit that the v6 codec work rides, then the codec tranches
+  follow in order a → b → c, b and c independent of each other; wire
+  behavior of the default build is byte-identical throughout):
+  - **T17-0 — registry dependency-direction retrofit (ADR 3)** — ✅
+    delivered. The registry's two string relations split by their
+    true dependency semantics. **Requires** (parents) became real
+    Cargo deps: every codec crate now depends on the crates
+    implementing its `parents` (vlan→eth; arp/ip/ip6→eth,vlan;
+    icmp→ip; icmpv6→ip6; udp/tcp→ip,ip6; dns/dhcp→udp — a DAG at
+    crate granularity), children's `parents` arrays reference the
+    parent crates' new `pub const KIND` (the kind vocabulary is
+    compile-checked; it can no longer drift), and each crate grew a
+    `register(&mut Registry)` closure — self first (dedup-guarded via
+    `Registry::get`; **no wrex-core change**), then the parents' — so
+    any feature selection is parent-complete by construction.
+    **Enhances** (dispatch-into-children) stays registry strings:
+    that edge cycles (udp⇄dns/dhcp — the tranche-7c in-crate stubs
+    remain for absent-kind tests), and parent-without-child is the
+    *meaningful* lean build (ipv6 without extension headers is
+    exactly the pre-T17 degradation, preserved deliberately).
+    `wrex::standard()` keeps its fixed cfg line order calling the
+    closures — the default build's registration order (and with it
+    `wrex fields`, man pages, completions, the "(registered: …)"
+    errors) is byte-identical — while a lone `--features proto-dns`
+    now registers the whole working stack (dns, udp, ipv4, ipv6,
+    eth, vlan) and `--no-default-features` builds the honest empty
+    registry: the child-without-parent footgun (eleven orthogonal
+    features, no closure — a lone proto-dns build used to register a
+    DNS codec over nothing, half-working chains and pointed errors)
+    is dead at both the graph and the documented seam. The raw
+    `Registry::register(&CODEC)` stays for bespoke/test registries
+    (fuzz targets, wrex-scan's scan-shaped test registries);
+    first-layer-anywhere craft is unchanged (deps guarantee
+    presence, not stacking). Deliberate deferrals: per-parent
+    optional deps (a hypothetical v4-only embedder — the 1.0-event
+    rule), core-level parent-presence validation (presence by
+    construction, not policing). Verification:
+    `tests/registry_composition.rs` — the feature-agnostic
+    no-dangling invariant (every registered kind's parents present,
+    under whatever feature set the build made), per-crate closure
+    tests (all 11: full-chain presence + idempotence — a second
+    `register()` adds nothing), the all-codecs registration-order
+    pin; **new child-side integration tests**, the ADR 3 win — each
+    codec crate dissects a crafted parent→child frame through the
+    real chain (eth→{vlan,arp,ipv4,ipv6}, ipv4→{icmp,udp,tcp},
+    ipv6→{icmpv6,udp,tcp}, udp→{dns,dhcp}; previously impossible
+    without stand-ins, this is the drift-kill for the string
+    dispatch tables; the trailing `unknown` layers in the terminal-
+    parent cases are the engine's honest no-inner-layer behavior,
+    asserted as such); the CI `lean-build` job runs runtime smokes
+    against the genuinely-lean binaries (a lone proto-dns build
+    registers exactly its six-kind closure; the empty build
+    registers nothing — the `wrex-test` dev-dep unifies all codec
+    features on in cargo-test builds, so lean verification is
+    runtime, not cargo-test); the udp crate's stand-in comments
+    rewritten for the ADR 3 reality. Existing suites unchanged —
+    differentials, fuzz-target registries, scan test registries,
+    and man pages + completions byte-identical (`cargo xtask man`
+    diff clean); a pre-existing fuzz-crate warning (unused
+    `SessionAction` import) swept in passing. ADR 2 disposition on
+    the whole tranche: **owned** (byte control over v6 header chains
+    is mutation-central); the oracle lineage rides etherparse (ext
+    headers), tshark, and dhcproto 0.15 in-process — it carries
+    `dhcproto::v6`, so the DHCPv6 differential reuses the in-tree
+    dependency (no MSRV bump).
+  - **T17a — IPv6 extension headers** — chartered, not yet landed.
+    New `wrex-proto-ip6ext` crate, **the first crate shaped by ADR 3
+    from day one** (dep on `wrex-proto-ip6`, parents via KIND consts,
+    a `register()` fn, feature `proto-ip6ext`) — and the **first
+    multi-kind crate, deliberately** (rejected: folding into
+    `wrex-proto-ip6` — churns a delivered T7b contract crate for
+    zero gain, ip6's only edit stays the additive dispatch-map row;
+    and seven crates — chain-shaped tests are inherently cross-kind,
+    and sibling dev-deps cycle, stub-inversion, or a test shell above
+    all seven recreate the family crate worse; five non-terminal
+    kinds also share one private next_header→kind table and
+    hopopts/dstopts are the same header shape). Seven kinds, rank 25,
+    parents `ipv6|hopopts|routing|frag|dstopts|ah` (chains + self-
+    stack, the QinQ precedent; `dstopts` twice per RFC 8200 ordering):
+    `hopopts` (0) / `dstopts` (60) — `next_header` (autofilled, the
+    `eth.type` rule), `len` (hdr_ext_len, 8-octet units), raw
+    `options` region (TLV typing deferred); `routing` (43) —
+    `next_header`, `len`, `type`, `segs_left`, raw `segments` region;
+    `frag` (44) — `next_header`, `offset` (13 bits) + `m` (1 bit) as
+    `Bits` windows (the ipv4 flags/frag_off pattern), `ident`,
+    dissect-only view (no reassembly); `ah` (51) — `next_header`,
+    `len` (4-octet units), `spi`, `seq`, raw `icv` region, **no
+    integrity verification** (the standing TLS rule transposed);
+    `esp` (50) — dissect-only `spi`/`seq`, terminal (encrypted
+    payload stays payload); `nonext` (59) — a zero-extent terminal
+    marker layer (the one engine-risk design point: zero-length
+    spans in the reassemble/coverage invariants — planning decides
+    with the invariant tests in view; fallback is a 59 dispatch note
+    without a kind). `tcp`/`udp`/`icmpv6` grow the ext kinds in
+    their parents additively; `ipv6.next_header` dispatch grows
+    0/43/44/50/51/59/60 (was: → synthesized `unknown`); each ext
+    kind dispatches its own `next_header` identically; Mobility/HIP/
+    Shim6 stay deliberately undispatched. Quantized lengths:
+    `Derived::Length` grows an additive `LengthUnits::{Bytes,
+    Octlets4, Octlets8}` discriminator (the −2/−1 bias, the T14
+    `LengthBase` pattern) and the T14 normalize fixed-point test
+    extends over it. Span-patch: layouts for all seven kinds; raw
+    regions take `wire:HEX`; population gate extends; inserting an
+    ext header is an edit set with `ipv6.next_header` caller-set
+    (the add-a-record workflow). Verification: codec units (goldens
+    per kind, chains, fragment offset/M masking, AH bias, ESP
+    terminal, nonext zero-extent, truncation), differential stacks
+    `eth-ipv6-{hopopts,routing,frag,dstopts,ah}-{tcp,udp,icmpv6}` +
+    `eth-vlan-ipv6-hopopts-*` vs etherparse (Ipv6Extensions/RawExt +
+    Fragment + Auth slices; ESP stops at etherparse — tshark carries
+    that arm) + tshark (the repeated-JSON-key caveat recurs), a
+    handcrafted `ip6ext` golden corpus, `fuzz_dissect_ip6ext` in the
+    fuzz gate, the crate joins the Miri job, a scoped Kani
+    *candidate* on the quantized-length fold (measure first — the T4
+    dns-proof retirement precedent), a child-side integration test
+    through the real ipv6 codec, raw v6 probes with ext chains over
+    the unchanged `RawIpv6Driver`. Deliberate deferrals: fragment
+    reassembly, hopopts/dstopts option typing (Router Alert/Jumbo/
+    PadN sugar — the MLD goldens hand-hex the RA option), routing
+    type-2 typed segments, Mobility/HIP/Shim6, ESP plaintext (crypto,
+    the standing rule), 6LoWPAN/NHC.
+  - **T17b — icmpv6 completion: MLD + NDP option crafting** —
+    chartered, not yet landed. The icmpv6 codec grows in place (its
+    ADR-3 dep on ip6 landed with T17-0). **MLD**, the `ndp.*`
+    conditional-fields pattern keyed on type: MLDv1 (RFC 2710)
+    query **130** (max_resp rides the code field, 1/10s units;
+    `mld.addr`), report **131**, done **132**; MLDv2 (RFC 3810)
+    query = 130 discriminated by body length (grows `mld.flags [s]`,
+    `mld.qrv`, `mld.qqic`, `mld.nsrcs` autofilled over the raw
+    sources region), report **143** with multicast-address records
+    as an indexed record section (`mcast.N.type/addr/nsrcs` + sources
+    — the dns/dhcp/opt pattern). Craft: v1 shapes + the v2 query
+    fully typed; the v2 report rides the same list grammar as the
+    NDP options (`--icmpv6-mld "exclude:ff02::1,…"`) — one grammar
+    architecture instantiated twice. Hop-limit-1/router-alert wire
+    conventions are caller stack work, not codec enforcement. **NDP
+    option crafting** — the T7b/T10b deferral closed: the
+    dissect-only `opt` section grows a write-side list grammar
+    (`--icmpv6-opt`, the dhcp options-grammar architecture):
+    `slla:MAC`, `tlla:MAC`, `mtu:N`, `prefix:LEN,IP[,valid,preferred]
+    [,l][,a]` (the PI option — dissection grows typed `opt.N.*`
+    subpaths), `raw:TYPE:HEX`; craft appends after the NDP body,
+    order preserved. The `wrex-io::ndp` hand-rolled SLLA **stays
+    hand-rolled** (the recorded T10b architecture — the io crate
+    keeps no codec dependencies), and the NS-with-SLLA golden
+    byte-compares the codec's craft against the driver's bytes —
+    two in-tree lineages of the same wire bytes, an internal
+    inversion-rule cross-check. Verification: codec units (v1/v2
+    shapes, record dissection, PI plastering, grammar order/errors,
+    the NS-SLLA byte-identity, checksums unchanged over the v6
+    pseudo-header), the icmpv6 golden corpus grows, `fuzz_dissect_
+    icmpv6` extends. Deliberate deferrals: MLD probing (scan/fuzz
+    mode — the T10b NDP-probe precedent), NDP cache policy changes,
+    `opt` sections on echo messages.
+  - **T17c — DHCPv6** — chartered, not yet landed. New
+    `wrex-proto-dhcp6` crate, ADR-3-shaped (dep on
+    `wrex-proto-udp`, `register()` fn, feature `proto-dhcp6`): kind
+    `dhcp6`, rank 40, parent `udp`; the RFC 8415 fixed header is 4
+    bytes — `msg_type` (1–13; named grammar solicit|advertise|
+    request|reply|release|decline|reconfigure|info_req|renew|rebind|
+    relay_forward|relay_reply + raw) + `trans_id` (3 bytes) —
+    everything else is options. `udp` dispatches 546/547 both sides
+    (the 67/68 pattern; unregistered degradation never fatal). The
+    options region (u16 code, u16 len) is craftable through the
+    list grammar (`--dhcp6-options`, the dhcp/ip/tcp pending-
+    continuation architecture): `client_id:HEX`/`server_id:HEX`
+    (DUIDs raw — structured typing deferred), `ia_na:IAID[,t1,t2]`
+    with `ia_addr:IP[,preferred,valid]` continuation (the fixed-part
+    lifetimes), `oro:N…`, `dns:IP…` (23), `domain:` (24), `elapsed:N`,
+    `rapid` (14), `hex:CODE:HEX`. Dissection renders every option as
+    an indexed `opt.N.*` record section (raw `code/len/value` +
+    typed `ip/num/text` subregions — the v4 mapping) and **nested
+    sub-options render one level deep** (`opt.N.sub.M.*` — IA_NA →
+    IAADDR, the record-section recursion's first nested use; deeper
+    nesting flattens into `value`). Relay shapes (12/13) dissect with
+    their 33-byte header; crafting relay messages is deferred.
+    Verification: codec units (header, grammar records/typing/
+    nesting, truncation, udp dispatch both ports + degradation), a
+    both-direction differential mirroring `tests/dhcp_differential.
+    rs` (wrex craft → dhcproto v6 parse, dhcproto v6 encode → wrex
+    dissect; `dhcp_oracle` grows the v6 arm; order normalized per
+    the v4 precedent), differential stacks `eth-ipv6-udp-dhcp6` +
+    `eth-vlan-ipv6-udp-dhcp6` (`udp_for_dhcp6()` pin) vs etherparse
+    + tshark (the repeated-key caveat again), a handcrafted `dhcp6`
+    golden corpus (the full message-type set + rapid-commit + relay
+    pair dissected), `fuzz_dissect_dhcp6` in the fuzz gate, the
+    crate joins the Miri job, a CLI roundtrip. Deliberate
+    deferrals: DHCPv6 auth (option 11 — crypto-adjacent, the
+    standing rule), relay crafting, reconfigure/keyed surfaces, DUID
+    structured typing, CLI-settable option records (`opt` stays
+    dissect-only on the set side — the v4 decision, same rationale).
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a
-    new feature-gated crate plus one `register` line — no dynamic loading
-    ([ADR 1](adr/0001-compile-time-registry.md) resolved the T7 revisit).
+    new feature-gated crate with parent-crate deps and one `register()`
+    closure — no dynamic loading ([ADR 1](adr/0001-compile-time-registry.md)
+    resolved the T7 revisit; [ADR 3](adr/0003-codec-dependency-direction.md)
+    set the dependency direction at T17-0: children require parents,
+    dispatch-into-children stays registry strings, and every feature
+    selection is parent-complete by closure).
 - **Codec selection follows [ADR 2](adr/0002-protocol-selection.md)**:
     own the wire only where byte control over that protocol is central
     and adapting a library costs as much as the subset; otherwise reuse

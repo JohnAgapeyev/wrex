@@ -227,19 +227,35 @@ static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
     }]
 });
 
+/// The kind string this codec implements (ADR 3): the vocabulary is
+/// compile-checked and symmetric across codecs.
+pub const KIND: &str = "dhcp";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "dhcp",
+    kind: KIND,
     rank: 40,
-    parents: &["udp"],
+    parents: &[wrex_proto_udp::KIND],
     doc: "DHCP (RFC 2131) over UDP 67/68: the 240-byte fixed header (op/htype/hlen/hops, xid, secs, flags [broadcast], ciaddr/yiaddr/siaddr/giaddr, chaddr, sname, file, cookie) plus RFC 2132 option TLVs. Craft: --dhcp-msg_type writes option 53 (discover|…|inform or 1-8; underscore flags follow the codebase convention like --tcp-data_off), --dhcp-options takes the list grammar (type:, mask:, routers:IP…, dns:IP…, host:, domain:, req_ip:, lease:, renew:, rebind:, server:, param_req:N…, max_msg:, client_id:HEX, pad, hex:CODE:HEX) and the end marker is appended automatically. Dissect: every option lands in the dissect-only opt record section (opt.0.code/len/value raw + typed ip/num/text subset); a wrong magic cookie is a never-fatal anomaly and stops the layer at the fixed header (BOOTP legacy — vend fields stay payload). udp dispatches ports 67/68 into this codec. DHCPv6 and CLI-settable option records are tranche-7c deferrals.",
     fields: FIELDS.as_slice(),
     records: RECORDS.as_slice(),
 });
 
-/// DHCP codec unit. Register as `&wrex_proto_dhcp::CODEC`.
+/// DHCP codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_dhcp::CODEC` directly.
 pub struct DhcpCodec;
 
 pub static CODEC: DhcpCodec = DhcpCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_udp::register(r);
+}
 
 /// Options region for a spec: the parsed list grammar (Str) or the
 /// raw bytes (Bytes). The hoisted `msg_type` TLV is separate — the
@@ -721,6 +737,43 @@ mod tests {
             map.insert(k.to_string(), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("dhcp", map)
+    }
+
+    /// ADR 3: udp is a real parent dep, so this registers the actual
+    /// udp codec through the `register()` closure and dissects a
+    /// crafted udp(68→67)→dhcp datagram end to end — the string
+    /// dispatch table can no longer drift from the kinds it names (no
+    /// stand-in; the udp crate's dispatch-out tests still stub dhcp by
+    /// design).
+    #[test]
+    fn udp_dispatches_into_dhcp_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut uf = std::collections::BTreeMap::new();
+        uf.insert("sport".to_string(), wrex_core::Value::Int(68));
+        uf.insert("dport".to_string(), wrex_core::Value::Int(67));
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::with_fields(wrex_proto_udp::KIND, uf),
+                dhcp_spec(&[]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_udp::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_udp::KIND, KIND],
+            "udp ports 67/68 must chain into the real dhcp codec"
+        );
     }
 
     #[test]

@@ -78,19 +78,36 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): the vocabulary is
+/// compile-checked and symmetric across codecs.
+pub const KIND: &str = "tcp";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "tcp",
+    kind: KIND,
     rank: 30,
-    parents: &["ipv4", "ipv6"],
+    parents: &[wrex_proto_ip::KIND, wrex_proto_ip6::KIND],
     doc: "TCP (RFC 9293): 20-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under --strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per-bit subpaths --tcp-flags-syn exist. checksum over the pseudo-header (v4 RFC 9293 / v6 RFC 8200 §8.1, family follows the network-layer parent) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.",
     fields: FIELDS.as_slice(),
     records: &[],
 });
 
-/// TCP codec unit. Register as `&wrex_proto_tcp::CODEC`.
+/// TCP codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_tcp::CODEC` directly.
 pub struct TcpCodec;
 
 pub static CODEC: TcpCodec = TcpCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_ip::register(r);
+    wrex_proto_ip6::register(r);
+}
 
 /// Options bytes for a spec (Str list grammar or raw Bytes), zero-padded.
 fn options_region(spec: &LayerSpec) -> Result<Vec<u8>, EncodeError> {
@@ -384,6 +401,37 @@ mod tests {
                 }),
                 ..Default::default()
             },
+        }
+    }
+
+    /// ADR 3: ipv4/ipv6 are real parent deps, so this registers the
+    /// actual IP codecs through the `register()` closure and dissects
+    /// crafted ip→tcp packets end to end, both families — the string
+    /// dispatch table can no longer drift from the kinds it names.
+    #[test]
+    fn ip_dispatches_into_tcp_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        for parent in [wrex_proto_ip::KIND, wrex_proto_ip6::KIND] {
+            let spec = wrex_core::spec::PacketSpec::new(
+                vec![wrex_core::spec::LayerSpec::new(parent), tcp_spec(&[])],
+                None,
+            );
+            let enc = wrex_core::encode::encode(
+                &r,
+                &spec,
+                &wrex_core::encode::EncodeOpts {
+                    autofill: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let p = wrex_core::dissect::dissect(&r, &enc.bytes, parent);
+            assert_eq!(
+                p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+                vec![parent, KIND],
+                "{parent} proto/next_header 6 must chain into the real tcp codec"
+            );
         }
     }
 

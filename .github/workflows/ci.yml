@@ -32,6 +32,27 @@ jobs:
       # Socket tests auto-skip (WREX_DRIVER_TESTS unset).
       - run: PROPTEST_RNG_SEED=31337 cargo test --workspace --all-features
 
+  lean-build:
+    # ADR 3 (tranche 17-0): the feature graph closes through the codec
+    # dep graph. Runtime smokes against the genuinely-lean binaries
+    # (test builds unify all features on via the wrex-test dev-dep, so
+    # lean verification happens here): a lone proto-dns selection must
+    # register exactly its parent-complete closure, and the no-codecs
+    # build must register nothing (the honest minimal).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - run: |
+          cargo build -p wrex --no-default-features --features proto-dns
+          kinds=$(cargo run -q -p wrex --no-default-features --features proto-dns -- fields | grep -E '^[a-z0-9]+ \(rank' | cut -d' ' -f1 | sort)
+          expected=$(printf '%s\n' dns eth ipv4 ipv6 udp vlan | sort)
+          [ "$kinds" = "$expected" ] || { echo "lean closure mismatch:"; echo "$kinds"; exit 1; }
+      - run: |
+          cargo build -p wrex --no-default-features
+          n=$(cargo run -q -p wrex --no-default-features -- fields | grep -cE '^[a-z0-9]+ \(rank' || true)
+          [ "$n" = "0" ] || { echo "empty build registered $n kinds"; exit 1; }
+
   driver-tests:
     runs-on: ubuntu-latest
     steps:

@@ -99,19 +99,38 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): children (icmp,
+/// udp, tcp) reference `wrex_proto_ip::KIND` in their `parents`
+/// instead of hand-written strings, so the registry vocabulary is
+/// compile-checked.
+pub const KIND: &str = "ipv4";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "ipv4",
+    kind: KIND,
     rank: 20,
-    parents: &["eth", "vlan"],
+    parents: &[wrex_proto_eth::KIND, wrex_proto_vlan::KIND],
     doc: "IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under --strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (--ip-ttl == --ipv4-ttl).",
     fields: FIELDS.as_slice(),
     records: &[],
 });
 
-/// IPv4 codec unit. Register as `&wrex_proto_ip::CODEC`.
+/// IPv4 codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_ip::CODEC` directly.
 pub struct IpCodec;
 
 pub static CODEC: IpCodec = IpCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_eth::register(r);
+    wrex_proto_vlan::register(r);
+}
 
 /// next layer kind → protocol number.
 fn kind_to_proto(kind: Option<&'static str>) -> u8 {
@@ -483,6 +502,42 @@ mod tests {
         let mut r = Registry::empty();
         r.register(&CODEC);
         r
+    }
+
+    /// ADR 3: eth is a real parent dep, so this registers the actual
+    /// eth codec through the `register()` closure and dissects a
+    /// crafted eth→ipv4 frame end to end — the string dispatch table
+    /// can no longer drift from the kinds it names (no stand-in).
+    #[test]
+    fn eth_dispatches_into_ipv4_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_eth::KIND),
+                ip_spec(&[]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_eth::KIND);
+        // The trailing `unknown` is honest engine behavior: nothing
+        // stacks inside ipv4 in this spec (children are the dispatch
+        // direction — not linkable here), so proto autofills to 0 and
+        // the synthetic layer carries the (empty) remainder.
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_eth::KIND, KIND, "unknown"],
+            "eth.type 0x0800 must chain into the real ipv4 codec"
+        );
     }
 
     #[test]

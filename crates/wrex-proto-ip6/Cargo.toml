@@ -9,6 +9,10 @@ description = "wrex IPv6 codec"
 [dependencies]
 wrex-core = { workspace = true }
 bytes = { workspace = true }
+# ADR 3: parents are real Cargo deps — a child codec cannot build
+# without the crates it stacks on.
+wrex-proto-eth = { workspace = true }
+wrex-proto-vlan = { workspace = true }
 
 [dependencies.proptest]
 workspace = true

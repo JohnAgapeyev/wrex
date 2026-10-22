@@ -953,6 +953,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "wrex-core",
+ "wrex-proto-eth",
+ "wrex-proto-vlan",
 ]
 
 [[package]]
@@ -962,6 +964,7 @@ dependencies = [
  "bytes",
  "hex",
  "wrex-core",
+ "wrex-proto-udp",
 ]
 
 [[package]]
@@ -970,6 +973,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "wrex-core",
+ "wrex-proto-udp",
 ]
 
 [[package]]
@@ -988,6 +992,7 @@ dependencies = [
  "bytes",
  "hex",
  "wrex-core",
+ "wrex-proto-ip",
 ]
 
 [[package]]
@@ -997,6 +1002,7 @@ dependencies = [
  "bytes",
  "hex",
  "wrex-core",
+ "wrex-proto-ip6",
 ]
 
 [[package]]
@@ -1006,6 +1012,8 @@ dependencies = [
  "bytes",
  "hex",
  "wrex-core",
+ "wrex-proto-eth",
+ "wrex-proto-vlan",
 ]
 
 [[package]]
@@ -1014,6 +1022,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "wrex-core",
+ "wrex-proto-eth",
+ "wrex-proto-vlan",
 ]
 
 [[package]]
@@ -1023,6 +1033,8 @@ dependencies = [
  "bytes",
  "hex",
  "wrex-core",
+ "wrex-proto-ip",
+ "wrex-proto-ip6",
 ]
 
 [[package]]
@@ -1031,6 +1043,8 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "wrex-core",
+ "wrex-proto-ip",
+ "wrex-proto-ip6",
 ]
 
 [[package]]
@@ -1039,6 +1053,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "wrex-core",
+ "wrex-proto-eth",
 ]
 
 [[package]]

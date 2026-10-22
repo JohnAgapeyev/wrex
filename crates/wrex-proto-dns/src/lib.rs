@@ -206,19 +206,35 @@ static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): the vocabulary is
+/// compile-checked and symmetric across codecs.
+pub const KIND: &str = "dns";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "dns",
+    kind: KIND,
     rank: 40,
-    parents: &["udp"],
+    parents: &[wrex_proto_udp::KIND],
     doc: "DNS (RFC 1035) over UDP/53. Craft carries the 12-byte header plus one question (--dns-name anchors it; --dns-type/--dns-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect-only record sections with indexed paths (an.0.name, an.0.rdata, …). A rdata dissects typed ipv4, AAAA typed ipv6 (tranche 7b). Multi-question craft, settable answer records, typed MX/SOA/SRV rdata and EDNS crafting are tranche-3 deferrals.",
     fields: FIELDS.as_slice(),
     records: RECORDS.as_slice(),
 });
 
-/// DNS codec unit. Register as `&wrex_proto_dns::CODEC`.
+/// DNS codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_dns::CODEC` directly.
 pub struct DnsCodec;
 
 pub static CODEC: DnsCodec = DnsCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_udp::register(r);
+}
 
 /// Aggregate flag bits (MSB-first `[qr,aa,tc,rd,ra]` → 0x10..0x01).
 const AGG_QR: u16 = 0x10;
@@ -820,6 +836,42 @@ mod tests {
             map.insert(k.to_string(), value);
         }
         LayerSpec::with_fields("dns", map)
+    }
+
+    /// ADR 3: udp is a real parent dep, so this registers the actual
+    /// udp codec through the `register()` closure and dissects a
+    /// crafted udp(53)→dns datagram end to end — the string dispatch
+    /// table can no longer drift from the kinds it names (no stand-in;
+    /// the udp crate's dispatch-out tests still stub dns by design).
+    #[test]
+    fn udp_dispatches_into_dns_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let mut uf = std::collections::BTreeMap::new();
+        uf.insert("sport".to_string(), wrex_core::Value::Int(40000));
+        uf.insert("dport".to_string(), wrex_core::Value::Int(53));
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::with_fields(wrex_proto_udp::KIND, uf),
+                spec(&[("qd.0.name", "example.com")]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_udp::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_udp::KIND, KIND],
+            "udp port 53 must chain into the real dns codec"
+        );
     }
 
     #[test]

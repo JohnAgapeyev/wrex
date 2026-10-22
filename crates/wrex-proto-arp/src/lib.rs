@@ -83,19 +83,37 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): nothing references it
+/// as a parent today, but the vocabulary stays compile-checked and
+/// symmetric across codecs.
+pub const KIND: &str = "arp";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "arp",
+    kind: KIND,
     rank: 20,
-    parents: &["eth", "vlan"],
+    parents: &[wrex_proto_eth::KIND, wrex_proto_vlan::KIND],
     doc: "Address Resolution Protocol (RFC 826) for Ethernet: fixed 28-byte request/reply header (htype=1 Ethernet, ptype=0x0800 IPv4, hlen=6, plen=4). oper: 1=request, 2=reply. Terminal layer; carries no next-header chain. Stacks on eth or vlan (802.1Q tag). tpa is required: crafting without it is an Unfillable error.",
     fields: FIELDS.as_slice(),
     records: &[],
 });
 
-/// ARP codec unit. Register as `&wrex_proto_arp::CODEC`.
+/// ARP codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_arp::CODEC` directly.
 pub struct ArpCodec;
 
 pub static CODEC: ArpCodec = ArpCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_eth::register(r);
+    wrex_proto_vlan::register(r);
+}
 
 impl Codec for ArpCodec {
     fn schema(&self) -> &'static LayerSchema {
@@ -250,6 +268,38 @@ mod tests {
         let mut r = Registry::empty();
         r.register(&CODEC);
         r
+    }
+
+    /// ADR 3: eth is a real parent dep, so this registers the actual
+    /// eth codec through the `register()` closure and dissects a
+    /// crafted eth→arp frame end to end — the string dispatch table
+    /// can no longer drift from the kinds it names (no stand-in).
+    #[test]
+    fn eth_dispatches_into_arp_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_eth::KIND),
+                arp_spec(&[("tpa", "10.0.0.1")]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_eth::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_eth::KIND, KIND],
+            "eth.type 0x0806 must chain into the real arp codec"
+        );
     }
 
     #[test]

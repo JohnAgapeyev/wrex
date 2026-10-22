@@ -2486,6 +2486,8 @@ dependencies = [
  "bytes",
  "proptest",
  "wrex-core",
+ "wrex-proto-eth",
+ "wrex-proto-vlan",
 ]
 
 [[package]]
@@ -2496,6 +2498,7 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
+ "wrex-proto-udp",
 ]
 
 [[package]]
@@ -2507,6 +2510,7 @@ dependencies = [
  "proptest",
  "serde_json",
  "wrex-core",
+ "wrex-proto-udp",
 ]
 
 [[package]]
@@ -2527,6 +2531,7 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
+ "wrex-proto-ip",
 ]
 
 [[package]]
@@ -2537,6 +2542,7 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
+ "wrex-proto-ip6",
 ]
 
 [[package]]
@@ -2547,6 +2553,8 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
+ "wrex-proto-eth",
+ "wrex-proto-vlan",
 ]
 
 [[package]]
@@ -2556,6 +2564,8 @@ dependencies = [
  "bytes",
  "proptest",
  "wrex-core",
+ "wrex-proto-eth",
+ "wrex-proto-vlan",
 ]
 
 [[package]]
@@ -2566,6 +2576,8 @@ dependencies = [
  "hex",
  "proptest",
  "wrex-core",
+ "wrex-proto-ip",
+ "wrex-proto-ip6",
 ]
 
 [[package]]
@@ -2575,6 +2587,8 @@ dependencies = [
  "bytes",
  "proptest",
  "wrex-core",
+ "wrex-proto-ip",
+ "wrex-proto-ip6",
 ]
 
 [[package]]
@@ -2584,6 +2598,7 @@ dependencies = [
  "bytes",
  "proptest",
  "wrex-core",
+ "wrex-proto-eth",
 ]
 
 [[package]]

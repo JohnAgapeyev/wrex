@@ -44,19 +44,37 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): children (dns, dhcp)
+/// reference `wrex_proto_udp::KIND` in their `parents` instead of
+/// hand-written strings, so the registry vocabulary is compile-checked.
+pub const KIND: &str = "udp";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "udp",
+    kind: KIND,
     rank: 30,
-    parents: &["ipv4", "ipv6"],
+    parents: &[wrex_proto_ip::KIND, wrex_proto_ip6::KIND],
     doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network-layer parent) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec (tranche-3 dispatch), port-67/68 into the dhcp codec (tranche 7c); other ports are terminal (the payload follows).",
     fields: FIELDS.as_slice(),
     records: &[],
 });
 
-/// UDP codec unit. Register as `&wrex_proto_udp::CODEC`.
+/// UDP codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_udp::CODEC` directly.
 pub struct UdpCodec;
 
 pub static CODEC: UdpCodec = UdpCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_ip::register(r);
+    wrex_proto_ip6::register(r);
+}
 
 impl Codec for UdpCodec {
     fn schema(&self) -> &'static LayerSchema {
@@ -272,6 +290,44 @@ mod tests {
 
     /// The plan's golden L4 numbers, reproduced independently:
     /// IP cksum 0x7ccb, UDP cksum 0x3d27 over the pseudo-header.
+    /// ADR 3: ipv4/ipv6 are real parent deps, so this registers the
+    /// actual IP codecs through the `register()` closure and dissects
+    /// crafted ip→udp packets end to end, both families — the string
+    /// dispatch table can no longer drift from the kinds it names.
+    #[test]
+    fn ip_dispatches_into_udp_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        for parent in [wrex_proto_ip::KIND, wrex_proto_ip6::KIND] {
+            // Non-dispatching ports: 53/67/68 would chain into the
+            // absent dns/dhcp (children — the stub-covered direction in
+            // this crate's own dispatch tests); this test pins the
+            // parent→udp edge only.
+            let spec = wrex_core::spec::PacketSpec::new(
+                vec![
+                    wrex_core::spec::LayerSpec::new(parent),
+                    udp_spec(&[("sport", "40000"), ("dport", "40001")]),
+                ],
+                None,
+            );
+            let enc = wrex_core::encode::encode(
+                &r,
+                &spec,
+                &wrex_core::encode::EncodeOpts {
+                    autofill: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let p = wrex_core::dissect::dissect(&r, &enc.bytes, parent);
+            assert_eq!(
+                p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+                vec![parent, KIND],
+                "{parent} proto/next_header 17 must chain into the real udp codec"
+            );
+        }
+    }
+
     #[test]
     fn golden_udp_checksum_over_pseudo_header() {
         let spec = udp_spec(&[("sport", "4444"), ("dport", "5555")]);
@@ -361,8 +417,11 @@ mod tests {
         ));
     }
 
-    /// A minimal stand-in `dns` codec so the port-53 dispatch test does
-    /// not need a cross-crate dependency (proto crates stay isolated).
+    /// A minimal stand-in `dns` codec: dispatch *targets* stay
+    /// registry strings (ADR 3 — udp⇄dns would cycle as Cargo deps),
+    /// so dispatch-out tests still stub their children. Parents, by
+    /// contrast, are real deps now; the dns crate's own register test
+    /// covers dispatch-in with the real udp.
     mod dns_dispatch {
         use super::*;
         use std::collections::BTreeMap;
@@ -473,9 +532,9 @@ mod tests {
         }
     }
 
-    /// A minimal stand-in `dhcp` codec so the port-67/68 dispatch test
-    /// does not need a cross-crate dependency (proto crates stay
-    /// isolated — the tranche-7c mirror of the dns_dispatch module).
+    /// A minimal stand-in `dhcp` codec (ADR 3: dispatch targets stay
+    /// registry strings — udp⇄dhcp would cycle as deps; the tranche-7c
+    /// mirror of the dns_dispatch module).
     mod dhcp_dispatch {
         use super::*;
         use std::collections::BTreeMap;

@@ -168,19 +168,35 @@ static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
     }]
 });
 
+/// The kind string this codec implements (ADR 3): the vocabulary is
+/// compile-checked and symmetric across codecs.
+pub const KIND: &str = "icmpv6";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "icmpv6",
+    kind: KIND,
     rank: 30,
-    parents: &["ipv6"],
+    parents: &[wrex_proto_ip6::KIND],
     doc: "ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) expose echo.id and echo.seq. NDP craft: RS (133, header only), RA (134: ndp.cur_hop_limit, ndp.ra_flags [m,o], ndp.router_lifetime, ndp.reachable_time, ndp.retrans_timer), NS (135: ndp.target), NA (136: ndp.na_flags [r,s,o] + ndp.target). Other types render the 4-byte rest as icmpv6.rest raw bytes. checksum always covers the RFC 8200 §8.1 v6 pseudo-header (proto 58) plus the whole message. NDP options (SLLA/TLLA, …) dissect into the opt record section (opt.0.addr, …; dissect-only — crafting them is a deferral). icmpv6 is terminal (the payload follows).",
     fields: FIELDS.as_slice(),
     records: RECORDS.as_slice(),
 });
 
-/// ICMPv6 codec unit. Register as `&wrex_proto_icmpv6::CODEC`.
+/// ICMPv6 codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_icmpv6::CODEC` directly.
 pub struct Icmp6Codec;
 
 pub static CODEC: Icmp6Codec = Icmp6Codec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_ip6::register(r);
+}
 
 fn is_echo(t: u8) -> bool {
     t == T_ECHO_REQ || t == T_ECHO_REPLY
@@ -647,6 +663,38 @@ mod tests {
         acc.add_bytes(&[0, 58]);
         acc.add_bytes(msg);
         acc.value()
+    }
+
+    /// ADR 3: ipv6 is a real parent dep, so this registers the actual
+    /// ipv6 codec through the `register()` closure and dissects a
+    /// crafted ipv6→icmpv6 packet end to end — the string dispatch
+    /// table can no longer drift from the kinds it names (no stand-in).
+    #[test]
+    fn ipv6_dispatches_into_icmpv6_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
+                icmp6_spec(&[]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip6::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_ip6::KIND, KIND],
+            "ipv6.next_header 58 must chain into the real icmpv6 codec"
+        );
     }
 
     #[test]

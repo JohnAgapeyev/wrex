@@ -13,29 +13,38 @@ pub mod prelude {
 }
 
 /// The standard registry: every feature-gated protocol codec.
+///
+/// ADR 3: each line pulls the crate's `register()` closure, so any
+/// feature selection is parent-complete — a lone `--features
+/// proto-dns` build registers dns + udp + ipv4/ipv6 + eth/vlan,
+/// computed by cargo from the codec dep graph; with no codec
+/// features the registry is honestly empty. The fixed line order
+/// (self-first closures, dedup-guarded) keeps the registration
+/// order — and with it `wrex fields`, man pages and completions —
+/// byte-identical.
 pub fn standard() -> wrex_core::Registry {
     let mut r = wrex_core::Registry::empty();
     #[cfg(feature = "proto-eth")]
-    r.register(&wrex_proto_eth::CODEC);
+    wrex_proto_eth::register(&mut r);
     #[cfg(feature = "proto-arp")]
-    r.register(&wrex_proto_arp::CODEC);
+    wrex_proto_arp::register(&mut r);
     #[cfg(feature = "proto-vlan")]
-    r.register(&wrex_proto_vlan::CODEC);
+    wrex_proto_vlan::register(&mut r);
     #[cfg(feature = "proto-ip")]
-    r.register(&wrex_proto_ip::CODEC);
+    wrex_proto_ip::register(&mut r);
     #[cfg(feature = "proto-ip6")]
-    r.register(&wrex_proto_ip6::CODEC);
+    wrex_proto_ip6::register(&mut r);
     #[cfg(feature = "proto-icmp")]
-    r.register(&wrex_proto_icmp::CODEC);
+    wrex_proto_icmp::register(&mut r);
     #[cfg(feature = "proto-icmpv6")]
-    r.register(&wrex_proto_icmpv6::CODEC);
+    wrex_proto_icmpv6::register(&mut r);
     #[cfg(feature = "proto-udp")]
-    r.register(&wrex_proto_udp::CODEC);
+    wrex_proto_udp::register(&mut r);
     #[cfg(feature = "proto-tcp")]
-    r.register(&wrex_proto_tcp::CODEC);
+    wrex_proto_tcp::register(&mut r);
     #[cfg(feature = "proto-dns")]
-    r.register(&wrex_proto_dns::CODEC);
+    wrex_proto_dns::register(&mut r);
     #[cfg(feature = "proto-dhcp")]
-    r.register(&wrex_proto_dhcp::CODEC);
+    wrex_proto_dhcp::register(&mut r);
     r
 }

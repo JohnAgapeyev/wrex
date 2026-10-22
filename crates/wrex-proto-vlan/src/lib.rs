@@ -52,19 +52,37 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): children reference
+/// `wrex_proto_vlan::KIND` in their `parents` instead of hand-written
+/// strings, so the registry vocabulary is compile-checked.
+pub const KIND: &str = "vlan";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "vlan",
+    kind: KIND,
     rank: 15,
-    parents: &["eth", "vlan"],
+    parents: &[wrex_proto_eth::KIND, KIND],
     doc: "IEEE 802.1Q VLAN tag: 4-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect-only). type drives the chain like eth.type: 0x0800 -> ipv4, 0x0806 -> arp, 0x86dd -> ipv6, 0x8100/0x88a8 -> vlan, else synthesized `unknown`.",
     fields: FIELDS.as_slice(),
     records: &[],
 });
 
-/// VLAN codec unit. Register as `&wrex_proto_vlan::CODEC`.
+/// VLAN codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_vlan::CODEC` directly.
 pub struct VlanCodec;
 
 pub static CODEC: VlanCodec = VlanCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates' (the in-crate QinQ
+/// self-parent needs no call). Self-first keeps `standard()`'s fixed
+/// registration order byte-identical — presence, not order, is the
+/// guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_eth::register(r);
+}
 
 /// ethertype → next layer kind (for `read` continuation).
 fn ethertype_to_kind(t: u16) -> &'static str {
@@ -247,6 +265,41 @@ mod tests {
             autofill: true,
             ..Default::default()
         }
+    }
+
+    /// ADR 3: eth is a real parent dep, so this registers the actual
+    /// eth codec through the `register()` closure and dissects a
+    /// crafted eth→vlan frame end to end — the string dispatch table
+    /// can no longer drift from the kinds it names (no stand-in).
+    #[test]
+    fn eth_dispatches_into_vlan_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_eth::KIND),
+                vlan_spec(&[("vid", "100")]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_eth::KIND);
+        // The trailing `unknown` is honest engine behavior: nothing
+        // stacks inside vlan in this spec, so vlan.type autofills to 0
+        // and the synthetic layer carries the (empty) remainder.
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_eth::KIND, KIND, "unknown"],
+            "eth.type 0x8100 must chain into the real vlan codec"
+        );
     }
 
     #[test]

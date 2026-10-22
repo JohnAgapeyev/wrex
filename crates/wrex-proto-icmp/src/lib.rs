@@ -62,19 +62,35 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
     ]
 });
 
+/// The kind string this codec implements (ADR 3): the vocabulary is
+/// compile-checked and symmetric across codecs.
+pub const KIND: &str = "icmp";
+
 pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
-    kind: "icmp",
+    kind: KIND,
     rank: 30,
-    parents: &["ipv4"],
+    parents: &[wrex_proto_ip::KIND],
     doc: "ICMP (RFC 792) over IPv4. type 0/8 (echo reply/request) expose echo.id and echo.seq plus payload; every other type renders the 4-byte rest of header as icmp.rest raw bytes. checksum autofilled (explicit wins).",
     fields: FIELDS.as_slice(),
     records: &[],
 });
 
-/// ICMP codec unit. Register as `&wrex_proto_icmp::CODEC`.
+/// ICMP codec unit. Register via [`register`] (the ADR-3 closure);
+/// bespoke registries may use `&wrex_proto_icmp::CODEC` directly.
 pub struct IcmpCodec;
 
 pub static CODEC: IcmpCodec = IcmpCodec;
+
+/// ADR 3 registration closure: register self (dedup-guarded via
+/// [`Registry::get`]), then the parent crates'. Self-first keeps
+/// `standard()`'s fixed registration order byte-identical —
+/// presence, not order, is the guarantee.
+pub fn register(r: &mut wrex_core::Registry) {
+    if r.get(KIND).is_none() {
+        r.register(&CODEC);
+    }
+    wrex_proto_ip::register(r);
+}
 
 fn is_echo(icmp_type: u8) -> bool {
     icmp_type == 0 || icmp_type == 8
@@ -280,6 +296,38 @@ mod tests {
         let mut r = Registry::empty();
         r.register(&CODEC);
         r
+    }
+
+    /// ADR 3: ipv4 is a real parent dep, so this registers the actual
+    /// ipv4 codec through the `register()` closure and dissects a
+    /// crafted ipv4→icmp packet end to end — the string dispatch
+    /// table can no longer drift from the kinds it names (no stand-in).
+    #[test]
+    fn ipv4_dispatches_into_icmp_with_real_codecs() {
+        let mut r = wrex_core::Registry::empty();
+        register(&mut r);
+        let spec = wrex_core::spec::PacketSpec::new(
+            vec![
+                wrex_core::spec::LayerSpec::new(wrex_proto_ip::KIND),
+                icmp_spec(&[]),
+            ],
+            None,
+        );
+        let enc = wrex_core::encode::encode(
+            &r,
+            &spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_ip::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_ip::KIND, KIND],
+            "ipv4.proto 1 must chain into the real icmp codec"
+        );
     }
 
     #[test]

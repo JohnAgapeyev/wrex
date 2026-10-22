@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;
 use wrex_http::{HttpConfig, HttpOutcome, HttpRequestSpec, HttpClientSession};
-use wrex_session::{Session, SessionAction};
+use wrex_session::Session;
 
 /// One scripted event: a chunk of "wire" bytes, a timeout tick, or an
 /// orderly EOF (the stream convention).
