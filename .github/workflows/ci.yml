@@ -75,6 +75,47 @@ jobs:
       - run: cargo check --all-features
         working-directory: fuzz
 
+  fuzz-smoke:
+    # Per-PR fuzz smoke (the cheap cousin of the fuzz.yml release
+    # gate): a few seconds of libFuzzer per target against the
+    # committed seed corpora — bitstream regressions surface here
+    # instead of at release tags. Skipped for PRs touching no codec
+    # sources (docs/CI-only changes stay fast). The full 300s/target
+    # matrix stays on fuzz.yml (tags + on demand).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Skip when no codec sources changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="HEAD^"
+          fi
+          if git diff --name-only "$BASE" HEAD | grep -qE '^(crates/|fuzz/)'; then
+            echo "fuzz_smoke=run" >> "$GITHUB_ENV"
+          else
+            echo "fuzz-smoke: no codec sources changed, skipping"
+          fi
+      - uses: dtolnay/rust-toolchain@nightly
+        if: env.fuzz_smoke == 'run'
+      - uses: Swatinem/rust-cache@v2
+        if: env.fuzz_smoke == 'run'
+        with:
+          key: fuzz-smoke
+      - run: cargo install --locked cargo-fuzz
+        if: env.fuzz_smoke == 'run'
+      # Seed corpora are committed under fuzz/corpus/<target>/.
+      - name: Smoke all targets (5s budget each)
+        if: env.fuzz_smoke == 'run'
+        run: |
+          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_ipv6 fuzz_dissect_ip6ext fuzz_dissect_icmp fuzz_dissect_icmpv6 fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_dissect_dhcp fuzz_dissect_dhcp6 fuzz_dissect_vlan fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session fuzz_app_session fuzz_h2_frame_decoder fuzz_hpack fuzz_h2_session; do
+            cargo +nightly fuzz run "$t" -- -max_total_time=5 -rss_limit_mb=2560
+          done
+
   driver-tests:
     runs-on: ubuntu-latest
     steps:
