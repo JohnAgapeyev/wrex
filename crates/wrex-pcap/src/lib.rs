@@ -45,6 +45,11 @@ const EPB_FIXED: usize = 32;
 const EPB_FIELDS_LEN: usize = 20;
 /// pcapng `if_tsresol` option code.
 const OPT_TSRESOL: u16 = 9;
+/// pcapng `epb_flags` option code (tranche T18b).
+const OPT_EPB_FLAGS: u16 = 2;
+/// Simple Packet Block type (read-only, tranche T18b: no timestamp —
+/// capture needs one, so the writer never emits SPBs).
+const PCAPNG_SPB_TYPE: u32 = 3;
 
 /// Global-header size.
 const GLOBAL_LEN: usize = 24;
@@ -92,6 +97,32 @@ pub enum PcapError {
     },
 }
 
+/// IDB timestamp resolution (tranche T18b): `if_tsresol` value — 6 =
+/// microseconds (the spec default the option-less IDB carries), 9 =
+/// nanoseconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TsResol {
+    Micros,
+    Nanos,
+}
+
+impl TsResol {
+    /// The `if_tsresol` option value.
+    pub const fn option_value(self) -> u8 {
+        match self {
+            TsResol::Micros => 6,
+            TsResol::Nanos => 9,
+        }
+    }
+    /// Timestamp ticks per second.
+    pub const fn per_second(self) -> u64 {
+        match self {
+            TsResol::Micros => 1_000_000,
+            TsResol::Nanos => 1_000_000_000,
+        }
+    }
+}
+
 /// One captured frame with its timestamp.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PcapRecord {
@@ -102,6 +133,8 @@ pub struct PcapRecord {
     /// Original wire length (`orig_len`); may exceed `bytes.len()` when
     /// the file was captured with a snaplen.
     pub orig_len: u32,
+    /// Interface id (pcapng EPB/SPB; 0 for classic files, tranche T18b).
+    pub iface: u32,
 }
 
 impl PcapRecord {
@@ -111,6 +144,18 @@ impl PcapRecord {
             ts,
             bytes,
             orig_len,
+            iface: 0,
+        }
+    }
+
+    /// [`PcapRecord::from_parts`] with an explicit interface id (the
+    /// pcapng reader-side mirror, tranche T18b).
+    pub fn from_parts_iface(ts: SystemTime, bytes: Vec<u8>, orig_len: u32, iface: u32) -> Self {
+        Self {
+            ts,
+            bytes,
+            orig_len,
+            iface,
         }
     }
 }
@@ -147,6 +192,14 @@ fn ts_from_parts(sec: u32, frac: u32, nanosecond: bool) -> SystemTime {
         Duration::from_micros(frac as u64)
     };
     UNIX_EPOCH + Duration::from_secs(sec as u64) + frac
+}
+
+/// `(ts_sec, ns)` of a timestamp; before-EPOCH clamps to zero
+/// (tranche T18b: the ns-resolution EPB path).
+fn ts_parts_ns(ts: SystemTime) -> (u32, u32) {
+    let d = ts.duration_since(UNIX_EPOCH).unwrap_or(Duration::ZERO);
+    let sec = d.as_secs().min(u32::MAX as u64) as u32;
+    (sec, d.subsec_nanos())
 }
 
 /// Encode one record header (little-endian microsecond, the writer path).
@@ -316,6 +369,13 @@ fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
     let mut snaplen = 65535;
     let mut nanosecond = false;
     let mut records = Vec::new();
+    // Per-interface resolutions (tranche T18b): an EPB resolves its
+    // timestamp through its OWN interface's IDB (`if_tsresol`),
+    // falling back to the spec-default µs — the file-level
+    // `nanosecond` stays LAST-IDB-wins (the frozen single-interface
+    // contract). An `idbs` entry also carries the snaplen for SPBs.
+    let mut idbs: std::collections::BTreeMap<u32, bool> = std::collections::BTreeMap::new();
+    let mut last_iface: u32 = 0;
     // The SHB's total length is at offset 4 (the standard slot,
     // before the BOM); it must stay in-file, then the generic block
     // walk takes over past it.
@@ -351,6 +411,11 @@ fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
                 let opts = off + 16;
                 let opt_end = off + blen - 4; // blen >= 20 keeps this >= opts
                 nanosecond = tsresol_is_ns(&bytes[opts..opt_end], big_endian);
+                // Tranche T18b: record this interface (its id is not a
+                // fixed field of the IDB — the id IS the ordinal; the
+                // EPB's own id resolves against the LAST id seen).
+                last_iface = idbs.len() as u32;
+                idbs.insert(last_iface, nanosecond);
             }
             PCAPNG_EPB_TYPE => {
                 if blen < EPB_FIXED {
@@ -359,7 +424,7 @@ fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
                 let fields: [u8; EPB_FIELDS_LEN] = bytes[off + 8..off + 28]
                     .try_into()
                     .expect("blen >= 32 bounds the slice");
-                let (_iface, ts_high, ts_low, cap_len, orig_len) =
+                let (iface, ts_high, ts_low, cap_len, orig_len) =
                     decode_epb_fields(&fields, big_endian);
                 // Packet bytes run to the trailing total length,
                 // padded to 4; cap_len must fit inside.
@@ -368,10 +433,38 @@ fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
                 if off + 28 + cap > data_end {
                     return Err(PcapError::TruncatedBlock { index });
                 }
+                // Tranche T18b: per-interface resolution (own IDB's
+                // if_tsresol, spec-default µs without one).
+                let ns = idbs.get(&iface).copied().unwrap_or(false);
                 records.push(PcapRecord {
-                    ts: pcapng_ts(ts_high, ts_low, nanosecond),
+                    ts: pcapng_ts(ts_high, ts_low, ns),
                     bytes: bytes[off + 28..off + 28 + cap].to_vec(),
                     orig_len,
+                    iface,
+                });
+            }
+            PCAPNG_SPB_TYPE => {
+                // Simple Packet Block (read-only, tranche T18b): no
+                // timestamp (epoch), cap_len = min(orig_len, snaplen of
+                // the current interface), the block may legally be
+                // shorter than the packet (data truncated to it).
+                if blen < 16 {
+                    return Err(PcapError::TruncatedBlock { index });
+                }
+                let orig_len = pick(off + 8);
+                let limit = if snaplen == 0 {
+                    orig_len
+                } else {
+                    snaplen.min(orig_len)
+                } as usize;
+                let data_end = off + blen - 4;
+                let start = off + 12;
+                let cap = limit.min(data_end.saturating_sub(start));
+                records.push(PcapRecord {
+                    ts: UNIX_EPOCH,
+                    bytes: bytes[start..start + cap].to_vec(),
+                    orig_len,
+                    iface: last_iface,
                 });
             }
             // SHB (the section was fixed at the first BOM) and every
@@ -444,6 +537,7 @@ pub fn read(bytes: &[u8]) -> Result<PcapFile, PcapError> {
             ts: ts_from_parts(sec, frac, nanosecond),
             bytes: bytes[off..off + incl].to_vec(),
             orig_len,
+            iface: 0,
         });
         off += incl;
         index += 1;
@@ -536,6 +630,9 @@ impl<W: Write> PcapWriter<W> {
 /// 32-bit words (the classic writer's semantics).
 pub struct PcapngWriter<W: Write> {
     inner: W,
+    /// Timestamp resolution of the (single-section) IDB(s) — every EPB
+    /// carries it (tranche T18b; `new` keeps the option-less µs default).
+    resol: TsResol,
 }
 
 impl<W: Write> PcapngWriter<W> {
@@ -566,7 +663,44 @@ impl<W: Write> PcapngWriter<W> {
         idb[12..16].copy_from_slice(&65535u32.to_le_bytes()); // snaplen
         idb[16..].copy_from_slice(&(IDB_LEN as u32).to_le_bytes());
         inner.write_all(&idb)?;
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            resol: TsResol::Micros,
+        })
+    }
+
+    /// [`PcapngWriter::new`] with an explicit `if_tsresol` option on the
+    /// IDB (tranche T18b): the EPB timestamps follow the resolution
+    /// (µs value 6 / ns value 9), so the file is self-describing.
+    pub fn with_resol(mut inner: W, resol: TsResol) -> std::io::Result<Self> {
+        // Same SHB as `new`.
+        let mut shb = [0u8; SHB_LEN];
+        shb[..4].copy_from_slice(&PCAPNG_SHB_TYPE.to_le_bytes());
+        shb[4..8].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
+        shb[8..12].copy_from_slice(&PCAPNG_BOM.to_le_bytes());
+        shb[12..14].copy_from_slice(&1u16.to_le_bytes());
+        shb[14..16].copy_from_slice(&0u16.to_le_bytes());
+        shb[16..24].fill(0xff);
+        shb[24..].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
+        inner.write_all(&shb)?;
+        // IDB fixed header (16) + if_tsresol (code 9, len 1, value,
+        // 3 pad) + opt_endofopt (4) + trailing total length (4) = 32.
+        let total = IDB_LEN + 8 + 4;
+        let mut idb = vec![0u8; total];
+        idb[..4].copy_from_slice(&PCAPNG_IDB_TYPE.to_le_bytes());
+        idb[4..8].copy_from_slice(&(total as u32).to_le_bytes());
+        idb[8..10].copy_from_slice(&(linktype::EN10MB as u16).to_le_bytes());
+        idb[12..16].copy_from_slice(&65535u32.to_le_bytes());
+        // Options start right after snaplen (offset 16, the fixed
+        // header end); the trailing length moves to the block end.
+        let at = 16; // options start; opt_endofopt lands at 24..28
+        idb[at..at + 2].copy_from_slice(&OPT_TSRESOL.to_le_bytes());
+        idb[at + 2..at + 4].copy_from_slice(&1u16.to_le_bytes());
+        idb[at + 4] = resol.option_value();
+        // 3 pad bytes stay zero; opt_endofopt (code 0, len 0) at 24..28.
+        idb[total - 4..].copy_from_slice(&(total as u32).to_le_bytes());
+        inner.write_all(&idb)?;
+        Ok(Self { inner, resol })
     }
 
     /// Append one Enhanced Packet Block: absolute epoch timestamps
@@ -593,18 +727,68 @@ impl<W: Write> PcapngWriter<W> {
         orig_len: u32,
         snaplen: usize,
     ) -> std::io::Result<()> {
-        let (sec, frac) = ts_parts(ts);
-        // EPB unit: microseconds (the IDB's default resolution).
-        let v = (sec as u64) * 1_000_000 + frac as u64;
+        self.write_record_epb(ts, frame, orig_len, snaplen, 0, None)
+    }
+
+    /// [`PcapngWriter::write_record_orig`] onto an explicit interface
+    /// id (multi-IDB files, tranche T18b).
+    pub fn write_record_orig_on(
+        &mut self,
+        ts: SystemTime,
+        frame: &[u8],
+        orig_len: u32,
+        snaplen: usize,
+        iface: u32,
+    ) -> std::io::Result<()> {
+        self.write_record_epb(ts, frame, orig_len, snaplen, iface, None)
+    }
+
+    /// [`PcapngWriter::write_record_orig`] with an `epb_flags` EPB
+    /// option (tranche T18b): 8 bytes of option (code 2, len 4) +
+    /// `opt_endofopt`, after the padded packet data.
+    pub fn write_record_opts(
+        &mut self,
+        ts: SystemTime,
+        frame: &[u8],
+        orig_len: u32,
+        snaplen: usize,
+        epb_flags: u32,
+    ) -> std::io::Result<()> {
+        self.write_record_epb(ts, frame, orig_len, snaplen, 0, Some(epb_flags))
+    }
+
+    /// The EPB writer core: interface id, resolution-aware timestamp
+    /// unit, optional epb_flags option, optional explicit snaplen
+    /// override is not needed (caller passes it).
+    fn write_record_epb(
+        &mut self,
+        ts: SystemTime,
+        frame: &[u8],
+        orig_len: u32,
+        snaplen: usize,
+        iface: u32,
+        epb_flags: Option<u32>,
+    ) -> std::io::Result<()> {
+        let per = self.resol.per_second();
+        let (sec, frac) = if self.resol == TsResol::Nanos {
+            let (s, f) = ts_parts_ns(ts);
+            (s, f as u64)
+        } else {
+            let (s, f) = ts_parts(ts);
+            (s, f as u64)
+        };
+        let v = (sec as u64).saturating_mul(per).saturating_add(frac);
         let incl = frame.len().min(snaplen);
         let incl = u32::try_from(incl).unwrap_or(u32::MAX);
         let padded = (incl as usize).next_multiple_of(4);
-        let total = (8 + EPB_FIELDS_LEN + padded + 4) as u32;
+        // Options (epb_flags): code 2, len 4 + value; then opt_endofopt.
+        let opts_len = if epb_flags.is_some() { 8 + 4 } else { 0 };
+        let total = (8 + EPB_FIELDS_LEN + padded + opts_len + 4) as u32;
         let mut hdr = [0u8; 8 + EPB_FIELDS_LEN];
         hdr[..4].copy_from_slice(&PCAPNG_EPB_TYPE.to_le_bytes());
         hdr[4..8].copy_from_slice(&total.to_le_bytes());
         hdr[8..].copy_from_slice(&encode_epb_fields(
-            0,
+            iface,
             (v >> 32) as u32,
             v as u32,
             incl,
@@ -613,13 +797,52 @@ impl<W: Write> PcapngWriter<W> {
         self.inner.write_all(&hdr)?;
         self.inner.write_all(&frame[..incl as usize])?;
         // Zero padding to the 4-byte boundary (cap_len stays exact),
-        // then the trailing copy of the total length.
+        // then the options, then the trailing copy of the total length.
         let pad = padded - incl as usize;
         if pad > 0 {
             self.inner.write_all(&[0u8; 4][..pad])?;
         }
+        if let Some(flags) = epb_flags {
+            let mut opt = [0u8; 12];
+            opt[..2].copy_from_slice(&OPT_EPB_FLAGS.to_le_bytes());
+            opt[2..4].copy_from_slice(&4u16.to_le_bytes());
+            opt[4..8].copy_from_slice(&flags.to_le_bytes());
+            // opt_endofopt (code 0, len 0) at 8..12 stays zero.
+            self.inner.write_all(&opt)?;
+        }
         self.inner.write_all(&total.to_le_bytes())?;
         Ok(())
+    }
+
+    /// [`PcapngWriter::new`] over several interfaces (tranche T18b):
+    /// one IDB per `linktype`, in order — the interface id is the
+    /// ordinal. Records land through
+    /// [`PcapngWriter::write_record_orig_on`]. Resolution stays the
+    /// spec-default µs (the `new` semantics).
+    pub fn new_multi(mut inner: W, linktypes: &[u16]) -> std::io::Result<Self> {
+        let mut shb = [0u8; SHB_LEN];
+        shb[..4].copy_from_slice(&PCAPNG_SHB_TYPE.to_le_bytes());
+        shb[4..8].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
+        shb[8..12].copy_from_slice(&PCAPNG_BOM.to_le_bytes());
+        shb[12..14].copy_from_slice(&1u16.to_le_bytes());
+        shb[14..16].copy_from_slice(&0u16.to_le_bytes());
+        shb[16..24].fill(0xff);
+        shb[24..].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
+        inner.write_all(&shb)?;
+        for (i, lt) in linktypes.iter().enumerate() {
+            let mut idb = [0u8; IDB_LEN];
+            idb[..4].copy_from_slice(&PCAPNG_IDB_TYPE.to_le_bytes());
+            idb[4..8].copy_from_slice(&(IDB_LEN as u32).to_le_bytes());
+            idb[8..10].copy_from_slice(&lt.to_le_bytes());
+            idb[12..16].copy_from_slice(&65535u32.to_le_bytes());
+            idb[16..].copy_from_slice(&(IDB_LEN as u32).to_le_bytes());
+            inner.write_all(&idb)?;
+            let _ = i;
+        }
+        Ok(Self {
+            inner,
+            resol: TsResol::Micros,
+        })
     }
 
     /// Flush the underlying writer.
@@ -1210,24 +1433,47 @@ mod tests {
             b.extend_from_slice(&le32(32));
             b
         };
-        let mut ng = {
-            let mut buf = Vec::new();
-            let _ = PcapngWriter::new(&mut buf);
-            buf
-        };
+        // Hand-built SHB (a writer would prepend its own IDB and shift
+        // the interface ordinals — the probe caught exactly that).
+        let mut ng = Vec::new();
+        ng.extend_from_slice(&le32(PCAPNG_SHB_TYPE));
+        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        ng.extend_from_slice(&le32(PCAPNG_BOM));
+        ng.extend_from_slice(&le16(1));
+        ng.extend_from_slice(&le16(0));
+        ng.extend_from_slice(&[0xffu8; 8]);
+        ng.extend_from_slice(&le32(SHB_LEN as u32));
         ng.extend_from_slice(&idb(1, 0xffff, 6)); // µs EN10MB
         ng.extend_from_slice(&idb(linktype::LINUX_SLL as u16, 4096, 9)); // ns SLL
-        ng.extend_from_slice(&le32(PCAPNG_EPB_TYPE));
-        ng.extend_from_slice(&le32(36));
-        ng.extend_from_slice(&encode_epb_fields(0, 0, 1_000_000_002, 1, 1));
-        ng.extend_from_slice(&[7, 0, 0, 0]);
-        ng.extend_from_slice(&le32(36));
+        // Tranche T18b: the FILE-level fields stay LAST-IDB-wins (the
+        // frozen single-interface contract); the RECORD timestamp
+        // resolves through the EPB's OWN interface (iface 0 → IDB#0
+        // µs; iface 1 → IDB#1 ns).
+        let epb = |iface: u32, low: u32| {
+            let mut b = Vec::new();
+            b.extend_from_slice(&le32(PCAPNG_EPB_TYPE));
+            b.extend_from_slice(&le32(36));
+            b.extend_from_slice(&encode_epb_fields(iface, 0, low, 1, 1));
+            b.extend_from_slice(&[7, 0, 0, 0]);
+            b.extend_from_slice(&le32(36));
+            b
+        };
+        ng.extend_from_slice(&epb(0, 1_000_000_002));
+        ng.extend_from_slice(&epb(1, 1_000_000_002));
         let f = read(&ng).unwrap();
+        // File-level: last IDB wins (ns, SLL, snaplen 4096).
         assert!(f.nanosecond);
         assert_eq!(f.linktype, linktype::LINUX_SLL);
         assert_eq!(f.snaplen, 4096);
+        // Records: iface 0 → µs (IDB#0), iface 1 → ns (IDB#1).
+        assert_eq!(f.records[0].iface, 0);
         assert_eq!(
             f.records[0].ts,
+            UNIX_EPOCH + Duration::from_micros(1_000_000_002)
+        );
+        assert_eq!(f.records[1].iface, 1);
+        assert_eq!(
+            f.records[1].ts,
             UNIX_EPOCH + Duration::from_secs(1) + Duration::from_nanos(2)
         );
     }
@@ -1317,6 +1563,247 @@ mod tests {
             assert_eq!(f.records[0].ts, ts);
             assert_eq!(f.records[1].bytes, bytes);
         }
+    }
+
+    /// Two arbitrary records through the ns-resolution pcapng writer
+    /// (`if_tsresol` 9, tranche T18b) read back identically: ns
+    /// timestamps preserved exactly, bytes, orig_len, iface 0.
+    #[test]
+    fn proptest_pcapng_ns_roundtrip() {
+        use proptest::prelude::*;
+        let mut config = ProptestConfig::with_cases(256);
+        config.failure_persistence = None;
+        proptest!(
+            config,
+            |(bytes in proptest::collection::vec(any::<u8>(), 0..64),
+              sec in any::<u32>(),
+              nanos in any::<u32>())| {
+                let ts = UNIX_EPOCH
+                    + Duration::from_secs(sec as u64)
+                    + Duration::from_nanos((nanos % 1_000_000_000) as u64);
+                let mut buf = Vec::new();
+                {
+                    let mut w = PcapngWriter::with_resol(&mut buf, TsResol::Nanos).unwrap();
+                    w.write_record(ts, &bytes, 65535).unwrap();
+                    // A second record exercises the block-offset walk.
+                    w.write_record(ts, &bytes, 65535).unwrap();
+                    w.flush().unwrap();
+                }
+                let f = read(&buf).unwrap();
+                assert!(f.nanosecond);
+                prop_assert_eq!(f.records.len(), 2);
+                prop_assert_eq!(&f.records[0].bytes, &bytes);
+                prop_assert_eq!(f.records[0].ts, ts);
+                prop_assert_eq!(f.records[0].iface, 0);
+                prop_assert_eq!(&f.records[1].bytes, &bytes);
+                prop_assert_eq!(f.records[1].ts, ts);
+            }
+        );
+    }
+
+    // --- tranche T18b: writer completion + reader tolerance -------------------
+
+    #[test]
+    fn pcapng_with_resol_ns_roundtrip() {
+        // The IDB carries if_tsresol=9; EPB timestamps are ns.
+        let ts = UNIX_EPOCH + Duration::from_secs(5) + Duration::from_nanos(123_456_789);
+        let mut buf = Vec::new();
+        {
+            let mut w = PcapngWriter::with_resol(&mut buf, TsResol::Nanos).unwrap();
+            w.write_record(ts, &[1, 2, 3, 4, 5], 65535).unwrap();
+            w.flush().unwrap();
+        }
+        // The IDB option is on the wire (code 9, len 1, value 9),
+        // starting right after the snaplen (fixed header end).
+        let idb_at = 28; // past the SHB
+        assert_eq!(&buf[idb_at + 16..idb_at + 18], &9u16.to_le_bytes());
+        assert_eq!(&buf[idb_at + 18..idb_at + 20], &1u16.to_le_bytes());
+        assert_eq!(buf[idb_at + 20], 9);
+        let f = read(&buf).unwrap();
+        assert!(f.nanosecond);
+        assert_eq!(f.records[0].ts, ts);
+        assert_eq!(f.records[0].bytes, &[1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn pcapng_with_resol_us_is_byte_identical_to_new() {
+        // Explicit µs `if_tsresol` vs the option-less default: the EPB
+        // bytes match (resolution semantics identical), only the IDB
+        // option region differs.
+        let ts = UNIX_EPOCH + Duration::from_secs(7) + Duration::from_micros(9);
+        let mut plain = Vec::new();
+        {
+            let mut w = PcapngWriter::new(&mut plain).unwrap();
+            w.write_record(ts, &[9, 9], 65535).unwrap();
+            w.flush().unwrap();
+        }
+        let mut us = Vec::new();
+        {
+            let mut w = PcapngWriter::with_resol(&mut us, TsResol::Micros).unwrap();
+            w.write_record(ts, &[9, 9], 65535).unwrap();
+            w.flush().unwrap();
+        }
+        // The EPB (from its block type onward) is byte-identical: the
+        // plain IDB is 20 bytes, the option-carrying one 32.
+        assert_eq!(&plain[28 + 20..], &us[28 + 32..]);
+        let f = read(&us).unwrap();
+        assert!(!f.nanosecond);
+        assert_eq!(f.records[0].ts, ts);
+    }
+
+    #[test]
+    fn pcapng_multi_idb_roundtrip() {
+        let a: Vec<u8> = (0..12).collect();
+        let b: Vec<u8> = (12..24).collect();
+        let mut buf = Vec::new();
+        {
+            let mut w = PcapngWriter::new_multi(&mut buf, &[linktype::EN10MB as u16, 113]).unwrap();
+            w.write_record_orig_on(UNIX_EPOCH + Duration::from_secs(1), &a, 12, 65535, 0)
+                .unwrap();
+            w.write_record_orig_on(UNIX_EPOCH + Duration::from_secs(2), &b, 24, 4096, 1)
+                .unwrap();
+            w.flush().unwrap();
+        }
+        let f = read(&buf).unwrap();
+        assert_eq!(f.records.len(), 2);
+        assert_eq!(f.records[0].iface, 0);
+        assert_eq!(f.records[0].bytes, a);
+        assert_eq!(f.records[0].orig_len, 12);
+        assert_eq!(f.records[1].iface, 1);
+        assert_eq!(f.records[1].bytes, b);
+        assert_eq!(f.records[1].orig_len, 24);
+        // File-level stays LAST-IDB-wins; the writer's IDBs are
+        // fixed-shape (snaplen 65535 — the record's snaplen only
+        // truncates cap_len).
+        assert_eq!(f.snaplen, 65535);
+    }
+
+    #[test]
+    fn pcapng_epb_flags_roundtrip() {
+        let frame: Vec<u8> = (0..10).collect();
+        let mut buf = Vec::new();
+        {
+            let mut w = PcapngWriter::new(&mut buf).unwrap();
+            w.write_record_opts(UNIX_EPOCH, &frame, 10, 65535, 0xdead_beef)
+                .unwrap();
+            w.flush().unwrap();
+        }
+        // The option rides after the padded packet data: code 2, len 4,
+        // value LE.
+        let tail = &buf[buf.len() - 16..buf.len() - 4];
+        assert_eq!(&tail[..2], &OPT_EPB_FLAGS.to_le_bytes());
+        assert_eq!(&tail[2..4], &4u16.to_le_bytes());
+        assert_eq!(&tail[4..8], &0xdead_beefu32.to_le_bytes());
+        // The record still reads back whole.
+        let f = read(&buf).unwrap();
+        assert_eq!(f.records[0].bytes, frame);
+        assert_eq!(f.records[0].ts, UNIX_EPOCH);
+    }
+
+    #[test]
+    fn pcapng_spb_reads() {
+        // Simple Packet Block (read-only): orig_len at off+8, data past
+        // off+12 truncated by min(orig_len, snaplen of the current
+        // interface), no timestamp (epoch).
+        let le16 = |v: u16| v.to_le_bytes();
+        let le32 = |v: u32| v.to_le_bytes();
+        let mut ng = Vec::new();
+        ng.extend_from_slice(&le32(PCAPNG_SHB_TYPE));
+        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        ng.extend_from_slice(&le32(PCAPNG_BOM));
+        ng.extend_from_slice(&le16(1));
+        ng.extend_from_slice(&le16(0));
+        ng.extend_from_slice(&[0xffu8; 8]);
+        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        // IDB with snaplen 4.
+        ng.extend_from_slice(&le32(PCAPNG_IDB_TYPE));
+        ng.extend_from_slice(&le32(IDB_LEN as u32));
+        ng.extend_from_slice(&le16(1));
+        ng.extend_from_slice(&le16(0));
+        ng.extend_from_slice(&le32(4));
+        ng.extend_from_slice(&le32(IDB_LEN as u32));
+        // SPB carrying 6 bytes (padded to the 4-grid), orig_len 8 —
+        // snaplen truncates to 4.
+        let data = [1u8, 2, 3, 4, 5, 6, 0, 0];
+        let total = 8 + 4 + 8 + 4;
+        ng.extend_from_slice(&le32(PCAPNG_SPB_TYPE));
+        ng.extend_from_slice(&le32(total as u32));
+        ng.extend_from_slice(&le32(8));
+        ng.extend_from_slice(&data);
+        ng.extend_from_slice(&le32(total as u32));
+        let f = read(&ng).unwrap();
+        assert_eq!(f.records.len(), 1);
+        assert_eq!(f.records[0].bytes, &[1, 2, 3, 4]);
+        assert_eq!(f.records[0].orig_len, 8);
+        assert_eq!(f.records[0].ts, UNIX_EPOCH);
+        assert_eq!(f.records[0].iface, 0);
+    }
+
+    #[test]
+    fn pcapng_spb_snaplen_zero_means_unlimited() {
+        // snaplen 0 in the IDB = no limit: cap_len = orig_len.
+        let le16 = |v: u16| v.to_le_bytes();
+        let le32 = |v: u32| v.to_le_bytes();
+        let mut ng = Vec::new();
+        ng.extend_from_slice(&le32(PCAPNG_SHB_TYPE));
+        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        ng.extend_from_slice(&le32(PCAPNG_BOM));
+        ng.extend_from_slice(&le16(1));
+        ng.extend_from_slice(&le16(0));
+        ng.extend_from_slice(&[0xffu8; 8]);
+        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        ng.extend_from_slice(&le32(PCAPNG_IDB_TYPE));
+        ng.extend_from_slice(&le32(IDB_LEN as u32));
+        ng.extend_from_slice(&le16(1));
+        ng.extend_from_slice(&le16(0));
+        ng.extend_from_slice(&le32(0));
+        ng.extend_from_slice(&le32(IDB_LEN as u32));
+        let data = [1u8, 2, 3, 4];
+        let total = 8 + 4 + 4 + 4;
+        ng.extend_from_slice(&le32(PCAPNG_SPB_TYPE));
+        ng.extend_from_slice(&le32(total as u32));
+        ng.extend_from_slice(&le32(4));
+        ng.extend_from_slice(&data);
+        ng.extend_from_slice(&le32(total as u32));
+        let f = read(&ng).unwrap();
+        assert_eq!(f.records[0].bytes, &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn pcapng_multi_section_reads() {
+        // A second SHB mid-file (multi-section): skipped like any
+        // unknown-to-this-reader block, records on both sides read.
+        let le16 = |v: u16| v.to_le_bytes();
+        let le32 = |v: u32| v.to_le_bytes();
+        let shb = || -> Vec<u8> {
+            let mut b = Vec::new();
+            b.extend_from_slice(&le32(PCAPNG_SHB_TYPE));
+            b.extend_from_slice(&le32(SHB_LEN as u32));
+            b.extend_from_slice(&le32(PCAPNG_BOM));
+            b.extend_from_slice(&le16(1));
+            b.extend_from_slice(&le16(0));
+            b.extend_from_slice(&[0xffu8; 8]);
+            b.extend_from_slice(&le32(SHB_LEN as u32));
+            b
+        };
+        let mut ng = shb();
+        let epb = |byte: u8| -> Vec<u8> {
+            let mut b = Vec::new();
+            let total = 8 + EPB_FIELDS_LEN + 4 + 4;
+            b.extend_from_slice(&le32(PCAPNG_EPB_TYPE));
+            b.extend_from_slice(&le32(total as u32));
+            b.extend_from_slice(&encode_epb_fields(0, 0, 1, 1, 1));
+            b.extend_from_slice(&[byte, 0, 0, 0]);
+            b.extend_from_slice(&le32(total as u32));
+            b
+        };
+        ng.extend(epb(7));
+        ng.extend(shb());
+        ng.extend(epb(8));
+        let f = read(&ng).unwrap();
+        assert_eq!(f.records.len(), 2);
+        assert_eq!(f.records[0].bytes, &[7]);
+        assert_eq!(f.records[1].bytes, &[8]);
     }
 }
 

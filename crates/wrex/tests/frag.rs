@@ -452,3 +452,13 @@ fn generate_frag_corpus() {
     );
     std::fs::write(root.join("manifest.toml"), manifest).expect("write manifest");
 }
+
+#[test]
+fn capture_pcapng_ns_requires_pcapng() {
+    // Tranche T18b: --pcapng-ns without --pcapng is a usage error (2).
+    let out = cmd()
+        .args(["capture", "-w", "/dev/null", "--pcapng-ns"])
+        .output()
+        .expect("spawn wrex");
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+}

@@ -626,6 +626,11 @@ pub struct CaptureArgs {
     /// Write pcapng instead of classic pcap (SHB+IDB+EPB, LE).
     #[arg(long)]
     pub pcapng: bool,
+    /// Write pcapng `if_tsresol` 9 (nanosecond EPB timestamps; the
+    /// option-less IDB default stays microseconds) — tranche T18b.
+    /// Usage error without `--pcapng`.
+    #[arg(long, requires = "pcapng")]
+    pub pcapng_ns: bool,
 }
 
 /// `wrex replay`: offline dissection or re-send of a pcap (classic or

@@ -812,15 +812,20 @@ enum FrameWriter {
 
 impl FrameWriter {
     /// Create the sink: writes the global headers on open (the file is
-    /// valid the moment the writer exists).
-    fn new(pcapng: bool, path: &str) -> Result<FrameWriter, CliError> {
+    /// valid the moment the writer exists). `ns` picks the pcapng
+    /// `if_tsresol` 9 IDB (tranche T18b; ignored without `pcapng`).
+    fn new(pcapng: bool, ns: bool, path: &str) -> Result<FrameWriter, CliError> {
         let file = std::fs::File::create(path)
             .map_err(|e| CliError::Runtime(format!("cannot create `{path}`: {e}")))?;
         let buf = std::io::BufWriter::new(file);
         if pcapng {
-            Ok(FrameWriter::Ng(wrex_pcap::PcapngWriter::new(buf).map_err(
-                |e| CliError::Runtime(format!("`{path}`: {e}")),
-            )?))
+            let writer = if ns {
+                wrex_pcap::PcapngWriter::with_resol(buf, wrex_pcap::TsResol::Nanos)
+            } else {
+                wrex_pcap::PcapngWriter::new(buf)
+            }
+            .map_err(|e| CliError::Runtime(format!("`{path}`: {e}")))?;
+            Ok(FrameWriter::Ng(writer))
         } else {
             Ok(FrameWriter::Classic(
                 wrex_pcap::PcapWriter::new(buf)
@@ -888,7 +893,7 @@ fn capture(
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
     let mut driver = RawEthDriver::open(iface, args.promisc, &table)?;
-    let mut writer = FrameWriter::new(args.pcapng, &args.write)?;
+    let mut writer = FrameWriter::new(args.pcapng, args.pcapng_ns, &args.write)?;
 
     let mut seen: u64 = 0;
     let deadline = timeout.map(|d| Instant::now() + d);
@@ -1419,7 +1424,7 @@ fn patch_verb(
     }
 
     let mut writer = match &args.write {
-        Some(path) => Some(FrameWriter::new(args.pcapng, path)?),
+        Some(path) => Some(FrameWriter::new(args.pcapng, false, path)?),
         None => None,
     };
 
