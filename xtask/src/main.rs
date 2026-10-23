@@ -110,6 +110,7 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
             "wrex-dns",
             "wrex-http",
             "wrex-pcap",
+            "wrex-frag",
         ];
         let mut args = vec!["+nightly", "miri", "test"];
         for p in pkgs {
@@ -225,6 +226,7 @@ fn fuzz_stage(root: &Path) {
         "fuzz_h2_frame_decoder",
         "fuzz_hpack",
         "fuzz_h2_session",
+        "fuzz_frag_reassembly",
     ];
     let nightly = Command::new("cargo")
         .arg("+nightly")

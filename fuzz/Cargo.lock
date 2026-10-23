@@ -1833,6 +1833,7 @@ dependencies = [
  "tracing-subscriber",
  "wrex-core",
  "wrex-dns",
+ "wrex-frag",
  "wrex-fuzz 0.1.0",
  "wrex-h2",
  "wrex-http",
@@ -1880,6 +1881,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-frag"
+version = "0.1.0"
+dependencies = [
+ "wrex-core",
+]
+
+[[package]]
 name = "wrex-fuzz"
 version = "0.0.0"
 dependencies = [
@@ -1888,6 +1896,7 @@ dependencies = [
  "libfuzzer-sys",
  "wrex",
  "wrex-core",
+ "wrex-frag",
  "wrex-fuzz 0.1.0",
  "wrex-h2",
  "wrex-http",
@@ -1991,6 +2000,7 @@ name = "wrex-proto-dhcp6"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "proptest",
  "wrex-core",
  "wrex-proto-udp",
 ]
@@ -2148,6 +2158,7 @@ dependencies = [
  "wrex-pcap",
  "wrex-proto-arp",
  "wrex-proto-dhcp",
+ "wrex-proto-dhcp6",
  "wrex-proto-dns",
  "wrex-proto-eth",
  "wrex-proto-icmp",

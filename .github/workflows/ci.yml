@@ -130,7 +130,7 @@ jobs:
       - name: Smoke all targets (5s budget each)
         if: env.fuzz_smoke == 'run'
         run: |
-          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_ipv6 fuzz_dissect_ip6ext fuzz_dissect_icmp fuzz_dissect_icmpv6 fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_dissect_dhcp fuzz_dissect_dhcp6 fuzz_dissect_vlan fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session fuzz_app_session fuzz_h2_frame_decoder fuzz_hpack fuzz_h2_session fuzz_patch_engine fuzz_filter; do
+          for t in fuzz_dissect_eth fuzz_dissect_arp fuzz_dissect_ipv4 fuzz_dissect_ipv6 fuzz_dissect_ip6ext fuzz_dissect_icmp fuzz_dissect_icmpv6 fuzz_dissect_udp fuzz_dissect_tcp fuzz_dissect_dns fuzz_dissect_dhcp fuzz_dissect_dhcp6 fuzz_dissect_vlan fuzz_craft_roundtrip fuzz_scan_session fuzz_http_session fuzz_pcap_reader fuzz_pcap_roundtrip fuzz_mut_strategies fuzz_prober_session fuzz_app_session fuzz_h2_frame_decoder fuzz_hpack fuzz_h2_session fuzz_patch_engine fuzz_filter fuzz_frag_reassembly; do
             cargo +nightly fuzz run "$t" -- -max_total_time=5 -rss_limit_mb=2560 -dict=fuzz/dict/wrex.dict
           done
 

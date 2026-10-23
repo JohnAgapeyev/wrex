@@ -39,6 +39,9 @@ path = "../crates/wrex-mut"
 [dependencies.wrex-fuzz]
 path = "../crates/wrex-fuzz"
 
+[dependencies.wrex-frag]
+path = "../crates/wrex-frag"
+
 [dependencies.wrex-h2]
 path = "../crates/wrex-h2"
 
@@ -236,3 +239,9 @@ path = "fuzz_targets/fuzz_app_session.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_frag_reassembly"
+path = "fuzz_targets/fuzz_frag_reassembly.rs"
+test = false
+doc = false
