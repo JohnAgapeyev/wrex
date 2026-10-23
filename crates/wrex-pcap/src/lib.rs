@@ -317,11 +317,19 @@ fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
         }
         match btype {
             PCAPNG_IDB_TYPE => {
+                // The fixed IDB fields end at off+16; a block shorter
+                // than that plus the 4-byte trailing length is a pointed
+                // truncation (a 12..19-byte IDB previously panicked the
+                // tsresol slice — the fuzz-smoke crash).
+                if blen < 20 {
+                    return Err(PcapError::TruncatedBlock { index });
+                }
                 // The last IDB wins (single-interface contract).
                 linktype = pick16(off + 8) as u32;
                 snaplen = pick(off + 12);
                 let opts = off + 16;
-                nanosecond = tsresol_is_ns(&bytes[opts..off + blen - 4], big_endian);
+                let opt_end = off + blen - 4; // blen >= 20 keeps this >= opts
+                nanosecond = tsresol_is_ns(&bytes[opts..opt_end], big_endian);
             }
             PCAPNG_EPB_TYPE => {
                 if blen < EPB_FIXED {
