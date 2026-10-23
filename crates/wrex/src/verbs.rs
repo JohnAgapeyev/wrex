@@ -2734,6 +2734,7 @@ fn query_tcp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn durations() {
@@ -2747,5 +2748,321 @@ mod tests {
             Some(Duration::from_secs(2))
         );
         assert!(duration_arg(Some("xx")).is_err());
+    }
+
+    fn common(format: Option<&str>, strict: bool, no_autofill: bool) -> Common {
+        Common {
+            iface: None,
+            format: format.map(str::to_string),
+            verbose: 0,
+            no_autofill,
+            strict,
+        }
+    }
+
+    #[test]
+    fn format_parse_table() {
+        // Default when absent; each spelling; unknown → usage error.
+        assert_eq!(
+            Format::parse(&common(None, false, false), Format::Raw).unwrap(),
+            Format::Raw
+        );
+        assert_eq!(
+            Format::parse(&common(None, false, false), Format::Jsonl).unwrap(),
+            Format::Jsonl
+        );
+        for (spelling, want) in [
+            ("raw", Format::Raw),
+            ("hex", Format::Hex),
+            ("text", Format::Text),
+            ("json", Format::Json),
+            ("jsonl", Format::Jsonl),
+        ] {
+            assert_eq!(
+                Format::parse(&common(Some(spelling), false, false), Format::Raw).unwrap(),
+                want
+            );
+        }
+        assert!(Format::parse(&common(Some("yaml"), false, false), Format::Raw).is_err());
+        // parse_opt: absent → None (the capture tee stays quiet);
+        // present → Some (jsonl default) / the usage error propagates.
+        assert_eq!(
+            Format::parse_opt(&common(None, false, false)).unwrap(),
+            None
+        );
+        assert_eq!(
+            Format::parse_opt(&common(Some("raw"), false, false)).unwrap(),
+            Some(Format::Raw)
+        );
+        assert!(Format::parse_opt(&common(Some("yaml"), false, false)).is_err());
+    }
+
+    #[test]
+    fn hum_duration_boundaries() {
+        assert_eq!(hum_duration(Duration::from_millis(500)), "500ms");
+        assert_eq!(hum_duration(Duration::from_millis(999)), "999ms");
+        // >= 1000ms flips to seconds with one decimal.
+        assert_eq!(hum_duration(Duration::from_millis(1000)), "1.0s");
+        assert_eq!(hum_duration(Duration::from_millis(1500)), "1.5s");
+        assert_eq!(hum_duration(Duration::from_secs(2)), "2.0s");
+    }
+
+    #[test]
+    fn jittered_step_zero_jitter_is_the_base_step() {
+        let mut rng = wrex_io::Rng::new(1);
+        // No jitter: the base step rides through unchanged.
+        assert_eq!(
+            jittered_step(Duration::from_millis(200), Duration::ZERO, &mut rng),
+            Duration::from_millis(200)
+        );
+        // Seeded: a pinned seed gives a deterministic (replayable) step.
+        let a = {
+            let mut rng = wrex_io::Rng::new(0x5eed);
+            jittered_step(Duration::from_secs(1), Duration::from_millis(100), &mut rng)
+        };
+        let b = {
+            let mut rng = wrex_io::Rng::new(0x5eed);
+            jittered_step(Duration::from_secs(1), Duration::from_millis(100), &mut rng)
+        };
+        assert_eq!(a, b);
+        // The jitter magnitude bounds the delta.
+        assert!(
+            a >= Duration::from_millis(900) && a <= Duration::from_millis(1100),
+            "jittered step out of bounds: {a:?}"
+        );
+    }
+
+    #[test]
+    fn render_spec_text_shapes() {
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("src".to_string(), Value::Mac([1, 2, 3, 4, 5, 6]));
+        fields.insert("type".to_string(), Value::Int(2048));
+        let spec = PacketSpec::new(
+            vec![wrex_core::LayerSpec::with_fields("eth", fields)],
+            Some(Value::Bytes(bytes::Bytes::from_static(&[0xde, 0xad]))),
+        );
+        let mut out = String::new();
+        render_spec_text(&spec, &mut out);
+        assert_eq!(
+            out,
+            "eth\n  src: 01:02:03:04:05:06\n  type: 2048\npayload: dead\n"
+        );
+        // No layers/payload: empty render.
+        let mut out = String::new();
+        render_spec_text(&PacketSpec::default(), &mut out);
+        assert_eq!(out, "");
+    }
+
+    #[test]
+    fn http_body_grammar() {
+        assert_eq!(http_body("hello").unwrap().as_ref(), b"hello".as_slice());
+        assert_eq!(
+            http_body("hex:deadbeef").unwrap().as_ref(),
+            [0xde, 0xad, 0xbe, 0xef].as_ref()
+        );
+        // Plain text keeps bytes verbatim (not hex-decoded).
+        assert_eq!(http_body("zz").unwrap().as_ref(), b"zz".as_slice());
+        assert!(http_body("hex:zz").is_err());
+        // `@<path>` reads a file.
+        let dir = std::env::temp_dir().join("wrex-verbs-body-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("body.bin");
+        std::fs::write(&f, [0xaa, 0xbb]).unwrap();
+        assert_eq!(
+            http_body(&format!("@{}", f.display())).unwrap().as_ref(),
+            [0xaa, 0xbb].as_ref()
+        );
+        assert!(http_body("@/no/such/wrex/path").is_err());
+    }
+
+    #[test]
+    fn tcp_peer_resolves_ip_literals_and_scheme_ports() {
+        let uri: wrex_http::http::Uri = "http://127.0.0.1:8080/x".parse().unwrap();
+        assert_eq!(
+            tcp_peer(&uri).unwrap(),
+            std::net::SocketAddr::from(([127, 0, 0, 1], 8080))
+        );
+        // Scheme defaults: https → 443, http → 80 (no explicit port).
+        let uri: wrex_http::http::Uri = "https://127.0.0.1/".parse().unwrap();
+        assert_eq!(
+            tcp_peer(&uri).unwrap(),
+            std::net::SocketAddr::from(([127, 0, 0, 1], 443))
+        );
+        let uri: wrex_http::http::Uri = "http://127.0.0.1/".parse().unwrap();
+        assert_eq!(
+            tcp_peer(&uri).unwrap(),
+            std::net::SocketAddr::from(([127, 0, 0, 1], 80))
+        );
+        // IPv6 literal (bracket-stripped) resolves on its own family.
+        let uri: wrex_http::http::Uri = "http://[::1]:9/".parse().unwrap();
+        assert_eq!(
+            tcp_peer(&uri).unwrap(),
+            std::net::SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], 9))
+        );
+        // No host → usage error.
+        let uri: wrex_http::http::Uri = "not-a-url".parse().unwrap();
+        assert!(tcp_peer(&uri).is_err());
+    }
+
+    fn http_resp() -> wrex_http::HttpResponse {
+        let mut headers = wrex_http::http::HeaderMap::new();
+        headers.append(
+            "X-Wrex",
+            wrex_http::http::HeaderValue::from_str("1").unwrap(),
+        );
+        headers.append(
+            "X-Wrex",
+            wrex_http::http::HeaderValue::from_str("2").unwrap(),
+        );
+        wrex_http::HttpResponse {
+            status: wrex_http::http::StatusCode::NOT_FOUND,
+            reason: "Not Found".to_string(),
+            version: wrex_http::http::Version::HTTP_11,
+            headers,
+            body: "no".into(),
+        }
+    }
+
+    #[test]
+    fn http_response_json_shape() {
+        let v = http_response_json(&http_resp());
+        assert_eq!(v["status"], 404);
+        assert_eq!(v["reason"], "Not Found");
+        assert_eq!(v["version"], "HTTP/1.1");
+        assert_eq!(v["body_hex"], "6e6f");
+        // Duplicate headers merge into one array (order kept).
+        assert_eq!(v["headers"]["x-wrex"], serde_json::json!(["1", "2"]));
+    }
+
+    #[test]
+    fn render_findings_formats() {
+        let finding = wrex_fuzz::Finding {
+            target: wrex_scan::ScanAddr::V4(Ipv4Addr::LOCALHOST),
+            port: Some(22),
+            proto: "tcp",
+            round: None,
+            strategy: "baseline",
+            outcome: wrex_fuzz::Outcome::Silence,
+            attempts: 1,
+            rtt_ms: None,
+            probe_hex: "aa".to_string(),
+            reply_hex: None,
+        };
+        // json: one pretty array + trailing newline.
+        let json = render_findings(std::slice::from_ref(&finding), Format::Json).unwrap();
+        assert!(json.starts_with('[') && json.ends_with("]\n"));
+        assert!(json.contains(r#""outcome": "silence""#), "{json}");
+        // jsonl: one compact line per finding.
+        let jsonl = render_findings(std::slice::from_ref(&finding), Format::Jsonl).unwrap();
+        assert_eq!(jsonl.lines().count(), 1);
+        assert!(jsonl.contains(r#""outcome":"silence""#), "{jsonl}");
+        // text: the text_line() shape.
+        let text = render_findings(&[finding], Format::Text).unwrap();
+        assert!(
+            text.contains("silence") && text.contains("22/tcp"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn patch_error_mappings() {
+        // Grammar problems are usage (exit 2); frame-ordinal runtime
+        // problems carry their position.
+        match patch_usage(crate::edit::EditError::Usage("boom".to_string())) {
+            CliError::Usage(lines) => assert!(lines[0].starts_with("patch: "), "{lines:?}"),
+            other => panic!("usage mapping: {other:?}"),
+        }
+        match patch_runtime(3, crate::edit::EditError::Runtime("boom".to_string())) {
+            CliError::Runtime(msg) => assert!(msg.starts_with("frame 3: "), "{msg}"),
+            other => panic!("runtime mapping: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn encode_opts_and_strict_gate() {
+        let o = encode_opts(&common(None, false, false));
+        assert!((o.autofill, o.strict) == (true, false));
+        let o = encode_opts(&common(None, false, true));
+        assert!((o.autofill, o.strict) == (false, false));
+        let o = encode_opts(&common(None, true, false));
+        assert!((o.autofill, o.strict) == (true, true));
+        // check_strict: violations only fail under --strict, with one
+        // `path: message` line each plus the trailer.
+        let encoded = wrex_core::encode::Encoded {
+            bytes: bytes::Bytes::new(),
+            violations: vec![wrex_core::encode::Violation {
+                path: "ipv4.ttl".into(),
+                message: "is zero".into(),
+            }],
+        };
+        assert!(check_strict(&common(None, false, false), &encoded).is_ok());
+        match check_strict(&common(None, true, false), &encoded) {
+            Err(CliError::Usage(lines)) => {
+                assert_eq!(
+                    lines,
+                    vec![
+                        "ipv4.ttl: is zero".to_string(),
+                        "craft/send --strict: packet failed validation".to_string(),
+                    ]
+                );
+            }
+            other => panic!("strict gate: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn iface_autofill_fills_only_missing_sources() {
+        let entry = wrex_io::IfEntry {
+            name: "lo".into(),
+            mac: [0xaa, 1, 2, 3, 4, 5],
+            mtu: 65536,
+            up: true,
+            ipv4s: vec![Ipv4Addr::LOCALHOST],
+            ipv6s: vec!["::1".parse().unwrap()],
+            ifindex: 1,
+        };
+        let mut spec = PacketSpec::new(
+            vec![
+                wrex_core::LayerSpec::with_fields(
+                    "eth",
+                    [("dst".to_string(), Value::Mac([9; 6]))]
+                        .into_iter()
+                        .collect(),
+                ),
+                wrex_core::LayerSpec::with_fields("ipv4", std::collections::BTreeMap::new()),
+            ],
+            None,
+        );
+        apply_iface_autofill(&mut spec, &entry, true);
+        assert_eq!(
+            spec.layers[0].fields.get("src"),
+            Some(&Value::Mac(entry.mac))
+        );
+        assert_eq!(
+            spec.layers[1].fields.get("src"),
+            Some(&Value::Ipv4(Ipv4Addr::LOCALHOST))
+        );
+        // autofill=false: nothing changes.
+        let mut spec2 = PacketSpec::new(vec![wrex_core::LayerSpec::new("eth")], None);
+        apply_iface_autofill(&mut spec2, &entry, false);
+        assert!(!spec2.layers[0].fields.contains_key("src"));
+        // Existing src values are never overwritten.
+        let mut spec3 = PacketSpec::new(
+            vec![wrex_core::LayerSpec::with_fields(
+                "eth",
+                [("src".to_string(), Value::Mac([7; 6]))]
+                    .into_iter()
+                    .collect(),
+            )],
+            None,
+        );
+        apply_iface_autofill(&mut spec3, &entry, true);
+        assert_eq!(spec3.layers[0].fields.get("src"), Some(&Value::Mac([7; 6])));
+        // No IPv4s on the entry → ipv4.src stays absent.
+        let mut no4 = entry.clone();
+        no4.ipv4s.clear();
+        let mut spec4 = PacketSpec::new(vec![wrex_core::LayerSpec::new("ipv4")], None);
+        apply_iface_autofill(&mut spec4, &no4, true);
+        assert!(!spec4.layers[0].fields.contains_key("src"));
     }
 }

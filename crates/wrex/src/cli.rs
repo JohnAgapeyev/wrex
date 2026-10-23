@@ -1219,3 +1219,159 @@ pub fn init_tracing(verbose: u8) {
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(level));
     tracing_subscriber::fmt().with_env_filter(filter).init();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Cli, Cmd, build_cli, field_args};
+    use clap::Parser;
+    use wrex_core::Registry;
+
+    /// The derive skeleton parses every verb and maps the common flags;
+    /// craft/send's dynamic field args come from `build_cli` (below).
+    #[test]
+    fn subcommand_dispatch_and_common_flags() {
+        let cli = Cli::try_parse_from(["wrex", "fields"]).expect("fields parses");
+        match &cli.cmd {
+            Cmd::Fields(_) => {}
+            other => panic!("expected Fields, got {other:?}"),
+        }
+        // -v is a Count on every verb; verbose_level reads it back.
+        let cli =
+            Cli::try_parse_from(["wrex", "dissect", "-vv", "--start", "eth"]).expect("dissect");
+        let Cmd::Dissect(a) = &cli.cmd else {
+            panic!("expected Dissect");
+        };
+        assert_eq!((a.common.verbose, cli.verbose_level()), (2, 2));
+        assert_eq!(a.start.as_deref(), Some("eth"));
+        // Completions is the one verb with no common flags.
+        let cli = Cli::try_parse_from(["wrex", "completions", "bash"]).expect("completions");
+        assert_eq!(cli.verbose_level(), 0);
+        // Unknown verb is a usage error (exit 2 at dispatch).
+        assert!(Cli::try_parse_from(["wrex", "no-such-verb"]).is_err());
+        // A verb that needs args but got none errors, not defaults.
+        assert!(Cli::try_parse_from(["wrex", "completions"]).is_err());
+    }
+
+    /// The dynamic craft/send grammar: `--layer`, `--payload`, and one
+    /// per-field flag per registry schema field (aliases included).
+    #[test]
+    fn field_args_cover_the_registry_grammar() {
+        let registry: Registry = crate::standard();
+        let args = field_args(&registry);
+        let longs: std::collections::HashSet<String> = args
+            .iter()
+            .filter_map(|a| a.get_long().map(str::to_string))
+            .collect();
+        // The two grammar anchors exist for every registry.
+        assert!(longs.contains("layer"));
+        assert!(longs.contains("payload"));
+        // Per-field flags: dotted paths dashed (`--icmpv6-ra-flags`).
+        assert!(longs.contains("eth-dst"));
+        assert!(longs.contains("ipv4-ttl"));
+        assert!(longs.contains("icmpv6-ndp-ra_flags"));
+        // FlagSet bit flags (`--tcp-flags-syn`).
+        assert!(longs.contains("tcp-flags-syn"));
+        // CLI aliases (pinned): ip-*/ip6-*/v6-* mirror ipv4/ipv6 fields
+        // (aliases are not `get_long`s; collect them separately).
+        let aliases: std::collections::HashSet<String> = args
+            .iter()
+            .filter_map(|a| a.get_aliases())
+            .flatten()
+            .map(str::to_string)
+            .collect();
+        assert!(aliases.contains("ip-ttl"));
+        assert!(aliases.contains("ip-ttl"));
+        assert!(
+            aliases.contains("ip6-hop_limit") || aliases.contains("v6-hop_limit"),
+            "expected the pinned ip6/v6 hop-limit aliases"
+        );
+        // Every field of every registered kind has a flag.
+        for &kind in registry.kinds() {
+            let schema = registry.schema(kind).expect("registered");
+            for field in schema.fields {
+                let want = format!("{kind}-{}", field.name.replace('.', "-"));
+                assert!(longs.contains(&want), "missing flag --{want}");
+            }
+        }
+    }
+
+    /// `build_cli` threads the field args into craft/send only: the
+    /// full command parses a real craft invocation, values and all.
+    #[test]
+    fn build_cli_parses_craft_field_flags() {
+        let cmd = build_cli();
+        let m = cmd
+            .try_get_matches_from([
+                "wrex",
+                "craft",
+                "--layer",
+                "eth",
+                "--layer",
+                "ipv4",
+                "--layer",
+                "udp",
+                "--eth-dst",
+                "ff:ff:ff:ff:ff:ff",
+                "--ipv4-src",
+                "127.0.0.1",
+                "--udp-dport",
+                "53",
+                "--payload",
+                "hex:deadbeef",
+            ])
+            .expect("craft parses");
+        let sub = m.subcommand_matches("craft").expect("craft");
+        assert_eq!(
+            sub.get_many::<String>("layer").unwrap().collect::<Vec<_>>(),
+            vec!["eth", "ipv4", "udp"]
+        );
+        assert_eq!(
+            sub.get_one::<String>("eth-dst").map(String::as_str),
+            Some("ff:ff:ff:ff:ff:ff")
+        );
+        assert_eq!(
+            sub.get_one::<String>("udp-dport").map(String::as_str),
+            Some("53")
+        );
+        assert_eq!(
+            sub.get_one::<String>("payload").map(String::as_str),
+            Some("hex:deadbeef")
+        );
+        // The alias path parses to the same arg (ipv4-ttl ≡ ip-ttl).
+        let m = build_cli()
+            .try_get_matches_from(["wrex", "craft", "--ip-ttl", "63"])
+            .expect("alias parses");
+        let sub = m.subcommand_matches("craft").expect("craft");
+        assert_eq!(
+            sub.get_one::<String>("ipv4-ttl").map(String::as_str),
+            Some("63")
+        );
+        // A field flag on a verb without the grammar is a usage error.
+        assert!(
+            build_cli()
+                .try_get_matches_from(["wrex", "dissect", "--eth-dst", "aa:bb:cc:dd:ee:ff"])
+                .is_err()
+        );
+    }
+
+    /// `--help`/`--version` render (the man pages are generated from this
+    /// command; the drift check lives in ci lint).
+    #[test]
+    fn help_and_version_render() {
+        let err = build_cli()
+            .try_get_matches_from(["wrex", "--version"])
+            .unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+        let err = build_cli()
+            .try_get_matches_from(["wrex", "--help"])
+            .unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayHelp);
+        // And the built command's help mentions the root epilog grammar
+        // sections (one source of truth: help text, man pages, docs).
+        let styled = build_cli().render_help();
+        let text = styled.to_string();
+        for needle in ["VALUE GRAMMAR", "FILTERS", "EXIT CODES"] {
+            assert!(text.contains(needle), "root epilog missing {needle}");
+        }
+    }
+}
