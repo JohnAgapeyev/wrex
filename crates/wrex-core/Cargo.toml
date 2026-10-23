@@ -15,6 +15,16 @@ hex = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Bench tripwires (pass-2): dev-only; `cargo bench -p wrex-core`.
+criterion = "0.7"
+wrex-test = { workspace = true }
+wrex = { workspace = true }
+wrex-pcap = { workspace = true }
+bytes = { workspace = true }
+
+[[bench]]
+name = "hotpaths"
+harness = false
 [lints.rust]
 # Kani proofs live behind cfg(kani); normal builds never see them.
 unexpected_cfgs = { level = "allow", check-cfg = ['cfg(kani)'] }
