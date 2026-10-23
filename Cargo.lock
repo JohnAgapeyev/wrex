@@ -2723,6 +2723,7 @@ name = "wrex-proto-dhcp6"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "proptest",
  "wrex-core",
  "wrex-proto-udp",
 ]

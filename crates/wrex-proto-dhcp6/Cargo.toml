@@ -11,3 +11,9 @@ wrex-core = { workspace = true }
 bytes = { workspace = true }
 # ADR 3: parents are real Cargo deps.
 wrex-proto-udp = { workspace = true }
+proptest = { workspace = true, optional = true }
+
+[features]
+default = []
+# proptest strategies for the differential stacks (wrex-test lineage).
+test-util = ["dep:proptest"]
