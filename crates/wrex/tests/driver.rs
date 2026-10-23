@@ -17,12 +17,35 @@ fn loopback_ready(v6: bool) -> bool {
     wrex_test::loopback_ready(v6)
 }
 
-/// Spawn `wrex recv -i lo --count 1 --format raw` with piped stdout.
-///
-/// The filter is load-bearing: the sibling tests in this binary share
-/// `lo`, and cargo runs them in parallel — an unfiltered `--count 1`
-/// recv happily captures a sibling test's frames (observed in CI).
-fn spawn_recv(filter: &str) -> Child {
+/// Spawn `wrex recv -i lo --count N --timeout T --format hex` with
+/// piped stdout — unfiltered and BOUNDED. The hopopts test classifies
+/// every captured frame after this bounded window (a filtered recv
+/// hung 22+ CI minutes when no matching reply arrived); sibling
+/// traffic is excluded by post-hoc classification, not a filter.
+fn spawn_recv_bounded(count: u64, timeout: &str) -> Child {
+    Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "recv",
+            "-i",
+            "lo",
+            "--count",
+            &count.to_string(),
+            "--timeout",
+            timeout,
+            "--format",
+            "hex",
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn wrex recv")
+}
+
+/// Spawn `wrex recv -i lo --count 1 --format raw --filter F` with piped
+/// stdout — the roundtrip test's byte-compare capture. The filter is
+/// load-bearing (sibling tests share `lo` and cargo runs them in
+/// parallel), and the send's paced repeats guarantee a match within
+/// seconds (verified in CI), so an unbounded recv is safe here.
+fn spawn_recv_filtered(filter: &str) -> Child {
     Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "recv", "-i", "lo", "--count", "1", "--format", "raw", "--filter", filter,
@@ -46,7 +69,10 @@ fn lo_echo_through_hopopts_alive() {
     if !loopback_ready(true) {
         return;
     }
-    let mut recv = spawn_recv("icmpv6.type=129");
+    // Bounded capture (15s): every lo frame in the window, classified
+    // after the window closes — never a blocking filter (the sibling
+    // roundtrip test's udp frames land here too and are ignored below).
+    let mut recv = spawn_recv_bounded(10, "15s");
     std::thread::sleep(Duration::from_millis(300));
 
     let frame_args = [
@@ -95,46 +121,77 @@ fn lo_echo_through_hopopts_alive() {
     }
     let status = recv.wait().expect("wait recv");
     assert!(status.success(), "recv exited {status}");
-    assert!(
-        !out.is_empty(),
-        "recv captured no reply (the kernel should echo through the hopopts chain)"
-    );
-
-    // The captured reply must dissect as an icmpv6 echo REPLY (129)
-    // from ::1 — the ext chain reached the kernel and came back.
-    let mut dissect = Command::new(env!("CARGO_BIN_EXE_wrex"))
-        .args(["dissect", "--format", "json", "--start", "auto"])
-        .stdout(Stdio::piped())
-        .stdin(Stdio::piped())
-        .spawn()
-        .expect("spawn wrex dissect");
-    dissect
-        .stdin
-        .take()
-        .expect("dissect stdin")
-        .write_all(&out)
-        .expect("pipe reply frame");
-    let dis = dissect.wait_with_output().expect("collect dissect");
-    let json: serde_json::Value = serde_json::from_slice(&dis.stdout).expect("dissect json");
-    let kinds: Vec<&str> = json["layers"]
-        .as_array()
-        .expect("layers")
-        .iter()
-        .map(|l| l["kind"].as_str().expect("kind"))
+    let lines: Vec<String> = String::from_utf8_lossy(&out)
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
         .collect();
     assert!(
-        kinds.contains(&"icmpv6"),
-        "expected an icmpv6 reply layer in {kinds:?}"
+        !lines.is_empty(),
+        "recv captured nothing in the 15s window (the kernel should echo \
+         through the hopopts chain)"
     );
-    let icmp = json["layers"]
-        .as_array()
-        .expect("layers")
-        .iter()
-        .find(|l| l["kind"] == "icmpv6")
-        .expect("icmpv6 layer");
-    assert_eq!(
-        icmp["fields"]["type"], 129,
-        "the reply must be an echo reply"
+
+    // Classify every captured frame; at least one must dissect as an
+    // icmpv6 echo REPLY (129) — the ext chain reached the kernel and
+    // came back. The inventory prints on failure so the kernel's
+    // actual behavior is visible in the CI log.
+    let mut saw_reply = false;
+    let mut inventory: Vec<String> = Vec::new();
+    for line in &lines {
+        let bytes = match hex::decode(line) {
+            Ok(b) => b,
+            Err(_) => {
+                inventory.push(format!("unhexable line `{line}`"));
+                continue;
+            }
+        };
+        let mut dissect = Command::new(env!("CARGO_BIN_EXE_wrex"))
+            .args(["dissect", "--format", "json", "--start", "auto"])
+            .stdout(Stdio::piped())
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("spawn wrex dissect");
+        dissect
+            .stdin
+            .take()
+            .expect("dissect stdin")
+            .write_all(&bytes)
+            .expect("pipe reply frame");
+        let dis = dissect.wait_with_output().expect("collect dissect");
+        let json: serde_json::Value = serde_json::from_slice(&dis.stdout).expect("dissect json");
+        let kinds: Vec<&str> = json["layers"]
+            .as_array()
+            .map(|ls| {
+                ls.iter()
+                    .map(|l| l["kind"].as_str().unwrap_or("?"))
+                    .collect()
+            })
+            .unwrap_or_default();
+        inventory.push(format!(
+            "{line} -> {}",
+            if kinds.is_empty() {
+                "(no layers)".to_string()
+            } else {
+                kinds.join(",")
+            }
+        ));
+        if kinds.contains(&"icmpv6")
+            && json["layers"].as_array().and_then(|ls| {
+                ls.iter()
+                    .find(|l| l["kind"] == "icmpv6")
+                    .and_then(|l| l["fields"]["type"].as_u64())
+            }) == Some(129)
+        {
+            saw_reply = true;
+        }
+    }
+    eprintln!("hopopts capture inventory:\n{}", inventory.join("\n"));
+    assert!(
+        saw_reply,
+        "no icmpv6 echo REPLY (type 129) in the window; captured:\n{}",
+        inventory.join("\n")
     );
 }
 
@@ -152,7 +209,7 @@ fn lo_loopback_send_recv_roundtrip() {
     // A loopback eth frame the kernel will reflect back: eth+ipv4+udp.
     // The recv filter (udp.dport=2) keeps the sibling test's icmpv6/scan
     // traffic out of this capture — parallel tests share `lo`.
-    let mut recv = spawn_recv("udp.dport=2");
+    let mut recv = spawn_recv_filtered("udp.dport=2");
     // give recv a moment to bind (paced repeats cover the race anyway)
     std::thread::sleep(Duration::from_millis(300));
 

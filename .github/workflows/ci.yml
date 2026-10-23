@@ -179,11 +179,13 @@ jobs:
       - run: sh -c 'ulimit -v 6291456; exec cargo kani -p wrex-pcap'
 
   coverage:
-    # Gated (was advisory-only): --fail-under-lines 85 + --fail-under-
-    # branches 70 hold the floor (measured baselines after pass-2:
-    # 89.2% lines / 72.3% branches; verbs.rs CLI shims keep branch
-    # coverage modest — the branch number ratchets as those paths gain
-    # units). lcov + html artifacts stay per-commit for inspection.
+    # Gated (was advisory-only): --fail-under-lines 85 +
+    # --fail-under-regions 85 hold the floor (measured baselines after
+    # pass-2: 89.2% lines / 88.2% regions / 72.3% branches). NB: cargo-
+    # llvm-cov 0.9 has no branch-metric gate flag — the branch number is
+    # monitored via the artifacts; a proper branch gate rides the MC/DC
+    # re-landing (the recorded 2026 goal). lcov + html artifacts stay
+    # per-commit for inspection.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -192,7 +194,7 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - uses: Swatinem/rust-cache@v2
-      - run: cargo +nightly llvm-cov --workspace --all-features --branch --lcov --output-path lcov.info --fail-under-lines 85 --fail-under-branches 70
+      - run: cargo +nightly llvm-cov --workspace --all-features --branch --lcov --output-path lcov.info --fail-under-lines 85 --fail-under-regions 85
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov

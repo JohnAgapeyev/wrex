@@ -1,20 +1,41 @@
 # Dependabot (pass-2 supply-chain hygiene): wrex runs under sudo in
 # CI, so the CI supply chain deserves automated updates.
+#
+# Grouping (owner decision): every update batch lands as ONE PR per
+# ecosystem directory, not per-crate — the verification stack (full
+# workspace suite, differentials, fuzz smoke, MSRV, Kani) is the
+# incompatibility net, so the review burden is one approve-click per
+# week rather than a pile of single-crate PRs.
 version: 2
 updates:
-  # Rust crates: weekly lockfile + manifest PRs (workspace + fuzz are
+  # Rust crates: one grouped PR per lockfile (workspace + fuzz are
   # separate lockfiles — cargo audits both).
   - package-ecosystem: cargo
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      cargo-workspace:
+        applies-to: version-updates
+        patterns:
+          - "*"
   - package-ecosystem: cargo
     directory: "/fuzz"
     schedule:
       interval: weekly
-  # GitHub Actions: weekly version PRs (the workflows pin major tags;
-  # dependabot moves them forward, a human approves).
+    groups:
+      cargo-fuzz:
+        applies-to: version-updates
+        patterns:
+          - "*"
+  # GitHub Actions: one grouped PR (the workflows pin major tags; the
+  # group moves them forward together, a human approves).
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
