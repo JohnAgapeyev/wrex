@@ -10,6 +10,7 @@
 #![cfg_attr(miri, ignore = "proptest; not Miri-safe")]
 
 use proptest::prelude::*;
+use proptest::test_runner::FileFailurePersistence;
 
 use wrex_core::Registry;
 use wrex_core::encode::{EncodeOpts, encode};
@@ -26,7 +27,9 @@ fn registry() -> Registry {
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        failure_persistence: None,
+        failure_persistence: Some(Box::new(FileFailurePersistence::WithSource(
+            "proptest-regressions",
+        ))),
         cases: 256,
         ..ProptestConfig::default()
     })]

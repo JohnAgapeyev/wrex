@@ -8,6 +8,7 @@
 #![cfg_attr(miri, ignore = "proptest + subprocess tshark; not Miri-safe")]
 
 use proptest::prelude::*;
+use proptest::test_runner::FileFailurePersistence;
 
 use wrex_core::Registry;
 use wrex_core::encode::{EncodeOpts, encode};
@@ -34,7 +35,9 @@ fn stack_spec() -> impl Strategy<Value = (&'static str, wrex_core::PacketSpec)> 
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        failure_persistence: None,
+        failure_persistence: Some(Box::new(FileFailurePersistence::WithSource(
+            "proptest-regressions",
+        ))),
         cases: 256,
         ..ProptestConfig::default()
     })]

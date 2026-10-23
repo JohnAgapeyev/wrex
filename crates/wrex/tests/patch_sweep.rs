@@ -23,6 +23,7 @@ use std::sync::LazyLock;
 
 use bytes::Bytes;
 use proptest::prelude::*;
+use proptest::test_runner::FileFailurePersistence;
 use wrex_core::dissect::{FieldSpan, dissect};
 use wrex_core::encode::{EncodeOpts, encode};
 use wrex_core::patch::{Edit, Scope, patch};
@@ -197,7 +198,9 @@ fn zero_edit_scope_all_normalize_is_a_consistent_fixed_point() {
 
 proptest! {
     #![proptest_config(ProptestConfig {
-        failure_persistence: None,
+        failure_persistence: Some(Box::new(FileFailurePersistence::WithSource(
+            "proptest-regressions",
+        ))),
         cases: 256,
         ..ProptestConfig::default()
     })]

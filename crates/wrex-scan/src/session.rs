@@ -1462,10 +1462,13 @@ mod tests {
     // --- reference-model differential (proptest) ------------------------------
 
     use proptest::prelude::{ProptestConfig, any, prop_assert, prop_assert_eq, proptest};
+    use proptest::test_runner::FileFailurePersistence;
 
     proptest! {
         #![proptest_config(ProptestConfig {
-            failure_persistence: None,
+            failure_persistence: Some(Box::new(FileFailurePersistence::WithSource(
+                "proptest-regressions",
+            ))),
             cases: 64,
             ..ProptestConfig::default()
         })]
