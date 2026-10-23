@@ -201,3 +201,38 @@ path = "fuzz_targets/fuzz_filter.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_dissect_ipv6"
+path = "fuzz_targets/fuzz_dissect_ipv6.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_icmpv6"
+path = "fuzz_targets/fuzz_dissect_icmpv6.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_dhcp"
+path = "fuzz_targets/fuzz_dissect_dhcp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_dhcp6"
+path = "fuzz_targets/fuzz_dissect_dhcp6.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_app_session"
+path = "fuzz_targets/fuzz_app_session.rs"
+test = false
+doc = false
+bench = false

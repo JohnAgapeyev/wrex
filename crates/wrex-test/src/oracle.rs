@@ -500,6 +500,9 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
     let Some(first) = frames.first() else { return };
     let layers = &first["_source"]["layers"];
     let by_kind = |k: &str| actual.layers.iter().find(|l| l.kind == k);
+    let all_of_kind = |k: &str| -> Vec<&wrex_core::dissect::LayerView> {
+        actual.layers.iter().filter(|l| l.kind == k).collect()
+    };
 
     // eth
     if let Some(eth_json) = layers.get("eth")
@@ -576,43 +579,69 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
     // the differential pins (offset 0 / M 0: the header is dropped,
     // not rendered), so frag stays with the etherparse arm; esp has no
     // stack (etherparse stops at it).
+    //
+    // Chained same-kind ext headers (dstopts,dstopts chains) collapse
+    // into ONE repeated tshark JSON key (the vlan-tag problem: serde
+    // keeps the LAST value), so these comparisons match by value
+    // across ALL our layers of the kind, not positionally on the
+    // first (cmp_int_str_any).
     if let Some(v6) = layers.get("ipv6")
         && let Some(j) = v6.get("ipv6.hopopts")
-        && let Some(ours) = by_kind("hopopts")
+        && !all_of_kind("hopopts").is_empty()
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
-        cmp_int_str(report, "hopopts.next_header", ours, get("ipv6.hopopts.nxt"));
-        cmp_int_str(report, "hopopts.len", ours, get("ipv6.hopopts.len"));
+        let ours = all_of_kind("hopopts");
+        cmp_int_str_any(
+            report,
+            "hopopts.next_header",
+            &ours,
+            get("ipv6.hopopts.nxt"),
+        );
+        cmp_int_str_any(report, "hopopts.len", &ours, get("ipv6.hopopts.len"));
     }
     if let Some(j) = layers.get("ipv6.dstopts")
-        && let Some(ours) = by_kind("dstopts")
+        && !all_of_kind("dstopts").is_empty()
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
-        cmp_int_str(report, "dstopts.next_header", ours, get("ipv6.dstopts.nxt"));
-        cmp_int_str(report, "dstopts.len", ours, get("ipv6.dstopts.len"));
+        let ours = all_of_kind("dstopts");
+        cmp_int_str_any(
+            report,
+            "dstopts.next_header",
+            &ours,
+            get("ipv6.dstopts.nxt"),
+        );
+        cmp_int_str_any(report, "dstopts.len", &ours, get("ipv6.dstopts.len"));
     }
     if let Some(v6) = layers.get("ipv6")
         && let Some(j) = v6.get("ipv6.routing")
-        && let Some(ours) = by_kind("routing")
+        && !all_of_kind("routing").is_empty()
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
-        cmp_int_str(report, "routing.next_header", ours, get("ipv6.routing.nxt"));
-        cmp_int_str(
+        let ours = all_of_kind("routing");
+        cmp_int_str_any(
+            report,
+            "routing.next_header",
+            &ours,
+            get("ipv6.routing.nxt"),
+        );
+        cmp_int_str_any(
             report,
             "routing.segs_left",
-            ours,
+            &ours,
             get("ipv6.routing.segleft"),
         );
     }
     if let Some(v6) = layers.get("ipv6")
         && let Some(j) = v6.get("ah")
-        && let Some(ours) = by_kind("ah")
+        && !all_of_kind("ah").is_empty()
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
-        cmp_int_str(report, "ah.next_header", ours, get("ah.next_header"));
-        cmp_int_str(report, "ah.spi", ours, get("ah.spi"));
-        cmp_int_str(report, "ah.seq", ours, get("ah.sequence"));
+        let ours = all_of_kind("ah");
+        cmp_int_str_any(report, "ah.next_header", &ours, get("ah.next_header"));
+        cmp_int_str_any(report, "ah.spi", &ours, get("ah.spi"));
+        cmp_int_str_any(report, "ah.seq", &ours, get("ah.sequence"));
     }
+
     // icmpv6 (tranche 7b): type/code parity (echo/NDP bodies are ours
     // alone — no etherparse surface for them).
     if let Some(icmp6_json) = layers.get("icmpv6")
@@ -767,6 +796,33 @@ fn cmp_str(
         if ours_norm != theirs_norm {
             report.push(path, ours_norm, theirs_norm);
         }
+    }
+}
+
+/// `cmp_int_str` across ALL our layers of a kind (the repeated-key
+/// collapse fix): tshark emits one JSON key per protocol name even for
+/// chained same-kind ext headers (serde keeps the LAST), so a
+/// positional comparison against our first layer false-mismatches
+/// (observed: dstopts,dstopts chains). Match-by-value: a mismatch is
+/// pushed only when NO layer of ours carries the oracle value.
+fn cmp_int_str_any(
+    report: &mut DiffReport,
+    path: &str,
+    ours: &[&wrex_core::dissect::LayerView],
+    theirs: Option<String>,
+) {
+    let Some(theirs) = theirs else { return };
+    let name = path.rsplit('.').next().unwrap_or(path);
+    let theirs_int: u128 = parse_int_value(&theirs);
+    let hit = ours
+        .iter()
+        .any(|l| matches!(l.fields.get(name), Some(Value::Int(v)) if *v == theirs_int));
+    if !hit {
+        report.push(
+            path,
+            format!("none of {} layers matched", ours.len()),
+            theirs,
+        );
     }
 }
 

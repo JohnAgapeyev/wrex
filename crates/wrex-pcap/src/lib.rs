@@ -35,7 +35,7 @@ const PCAPNG_BOM_SWAPPED: u32 = 0x4d3c_2b1a;
 /// SHB total length: type + bom + version + section length (the block
 /// type is byte-order agnostic, so the BOM takes the block-length
 /// slot; the SHB's own total length sits at offset 20).
-const SHB_LEN: usize = 24;
+const SHB_LEN: usize = 28;
 /// IDB total length (linktype + reserved + snaplen, no options).
 const IDB_LEN: usize = 20;
 /// EPB fixed size: header + 20 field bytes + 4-byte trailer; packet
@@ -264,7 +264,10 @@ fn tsresol_is_ns(opts: &[u8], big_endian: bool) -> bool {
 /// before any IDB gets the spec defaults (µs). A block that overruns
 /// the file (or undercuts its own header) is `TruncatedBlock`.
 fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
-    let bom = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+    // Spec SHB layout (pass-2 foreign-fixture fix): the BOM sits at
+    // offset 8, AFTER the block total length. A pre-read as LE covers
+    // both byte orders (the two constants are byte-swaps).
+    let bom = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
     let big_endian = match bom {
         PCAPNG_BOM => false,
         PCAPNG_BOM_SWAPPED => true,
@@ -292,10 +295,10 @@ fn read_pcapng(bytes: &[u8]) -> Result<PcapFile, PcapError> {
     let mut snaplen = 65535;
     let mut nanosecond = false;
     let mut records = Vec::new();
-    // The SHB's total length is at offset 20 (the BOM sits in the
-    // block-length slot); it must stay in-file, then the generic block
+    // The SHB's total length is at offset 4 (the standard slot,
+    // before the BOM); it must stay in-file, then the generic block
     // walk takes over past it.
-    let shb_len = pick(20) as usize;
+    let shb_len = pick(4) as usize;
     if shb_len < SHB_LEN || shb_len > bytes.len() {
         return Err(PcapError::TruncatedBlock { index: 0 });
     }
@@ -510,13 +513,20 @@ impl<W: Write> PcapngWriter<W> {
     /// Write the SHB (byte-order magic 0x1A2B3C4D, version 1.0,
     /// unspecified section length) + IDB (EN10MB, snaplen 65535).
     pub fn new(mut inner: W) -> std::io::Result<Self> {
+        // Spec SHB layout (pcapng §3.2 / tranches: the BOM sits at
+        // offset 8, AFTER the block total length — the pass-2
+        // foreign-fixture fix: wrex previously wrote BOM at 4 (self-
+        // consistent roundtrip, unreadable by Wireshark/text2pcap).
+        // type(4) + total len(4) + BOM(4) + major(2) + minor(2) +
+        // section length u64(-1) + trailing total len(4) = 28.
         let mut shb = [0u8; SHB_LEN];
         shb[..4].copy_from_slice(&PCAPNG_SHB_TYPE.to_le_bytes());
-        shb[4..8].copy_from_slice(&PCAPNG_BOM.to_le_bytes());
-        shb[8..10].copy_from_slice(&1u16.to_le_bytes()); // version major
-        shb[10..12].copy_from_slice(&0u16.to_le_bytes()); // version minor
-        shb[12..20].fill(0xff); // section length: -1 (unspecified)
-        shb[20..].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
+        shb[4..8].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
+        shb[8..12].copy_from_slice(&PCAPNG_BOM.to_le_bytes());
+        shb[12..14].copy_from_slice(&1u16.to_le_bytes()); // version major
+        shb[14..16].copy_from_slice(&0u16.to_le_bytes()); // version minor
+        shb[16..24].fill(0xff); // section length: -1 (unspecified)
+        shb[24..].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
         inner.write_all(&shb)?;
 
         let mut idb = [0u8; IDB_LEN];
@@ -964,10 +974,11 @@ mod tests {
         let be32 = |v: u32| v.to_be_bytes();
         let mut be = Vec::new();
         be.extend_from_slice(&be32(PCAPNG_SHB_TYPE)); // byte-order agnostic
+        be.extend_from_slice(&be32(SHB_LEN as u32)); // block total length
         be.extend_from_slice(&be32(PCAPNG_BOM));
         be.extend_from_slice(&[0x00, 0x01, 0x00, 0x00]); // version 1.0
         be.extend_from_slice(&[0xff; 8]); // section length: unspecified
-        be.extend_from_slice(&be32(SHB_LEN as u32));
+        be.extend_from_slice(&be32(SHB_LEN as u32)); // trailing total length
         be.extend_from_slice(&be32(PCAPNG_IDB_TYPE));
         be.extend_from_slice(&be32(IDB_LEN as u32));
         be.extend_from_slice(&[0x00, 0x01]); // linktype EN10MB
@@ -1005,10 +1016,11 @@ mod tests {
         let le32 = |v: u32| v.to_le_bytes();
         let mut ng = Vec::new();
         ng.extend_from_slice(&le32(PCAPNG_SHB_TYPE));
+        ng.extend_from_slice(&le32(SHB_LEN as u32)); // block total length
         ng.extend_from_slice(&le32(PCAPNG_BOM));
         ng.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]); // version 1.0
-        ng.extend_from_slice(&[0xff; 8]);
-        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        ng.extend_from_slice(&[0xff; 8]); // section length: unspecified
+        ng.extend_from_slice(&le32(SHB_LEN as u32)); // trailing total length
         ng.extend_from_slice(&le32(PCAPNG_IDB_TYPE));
         ng.extend_from_slice(&le32(32)); // 20 + tsresol option + endofopt
         ng.extend_from_slice(&le16(linktype::EN10MB as u16));
@@ -1116,10 +1128,11 @@ mod tests {
         let le32 = |v: u32| v.to_le_bytes();
         let mut ng = Vec::new();
         ng.extend_from_slice(&le32(PCAPNG_SHB_TYPE));
+        ng.extend_from_slice(&le32(SHB_LEN as u32)); // block total length
         ng.extend_from_slice(&le32(PCAPNG_BOM));
-        ng.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
-        ng.extend_from_slice(&[0xff; 8]);
-        ng.extend_from_slice(&le32(SHB_LEN as u32));
+        ng.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]); // version 1.0
+        ng.extend_from_slice(&[0xff; 8]); // section length: unspecified
+        ng.extend_from_slice(&le32(SHB_LEN as u32)); // trailing total length
         ng.extend_from_slice(&le32(PCAPNG_EPB_TYPE));
         ng.extend_from_slice(&le32(36));
         ng.extend_from_slice(&encode_epb_fields(0, 0, 1_000_002, 1, 1));
@@ -1186,22 +1199,23 @@ mod tests {
         ));
         // A bad byte-order magic: BadMagic (the SHB type matched).
         let mut bad_bom = vec![0x0a, 0x0d, 0x0d, 0x0a];
-        bad_bom.extend_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
+        bad_bom.extend_from_slice(&28u32.to_le_bytes()); // total length
+        bad_bom.extend_from_slice(&[0xde, 0xad, 0xbe, 0xef]); // bad BOM
         bad_bom.extend_from_slice(&[0u8; 16]);
         assert!(matches!(read(&bad_bom), Err(PcapError::BadMagic { .. })));
         // SHB total length overruns the file: TruncatedBlock.
         let mut cut_shb = vec![0x0a, 0x0d, 0x0d, 0x0a];
+        cut_shb.extend_from_slice(&100u32.to_le_bytes()); // len > remaining
         cut_shb.extend_from_slice(&PCAPNG_BOM.to_le_bytes());
         cut_shb.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]);
         cut_shb.extend_from_slice(&[0xff; 8]);
-        cut_shb.extend_from_slice(&100u32.to_le_bytes()); // len > remaining
         assert!(matches!(
             read(&cut_shb),
             Err(PcapError::TruncatedBlock { index: 0 })
         ));
         // A block length below the header + trailer floor.
         let mut tiny = cut_shb;
-        tiny[20..24].copy_from_slice(&8u32.to_le_bytes());
+        tiny[4..8].copy_from_slice(&8u32.to_le_bytes());
         assert!(matches!(
             read(&tiny),
             Err(PcapError::TruncatedBlock { index: 0 })
