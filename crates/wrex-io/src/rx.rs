@@ -22,7 +22,6 @@ const RX_BUF: usize = 16 * 1024;
 /// `htons(ETH_P_ALL)` or `htons(ETH_P_IP)`).
 ///
 /// SAFETY: caller owns the returned descriptor; `close` releases it.
-#[cfg(target_os = "linux")]
 pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::Result<i32> {
     // SAFETY: `socket` is a simple libc syscall with integer args.
     let fd = unsafe { libc::socket(libc::AF_PACKET, libc::SOCK_RAW, protocol_be as i32) };
@@ -57,7 +56,6 @@ pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::R
 }
 
 /// One received frame's bytes plus its `sll_pkttype`.
-#[cfg(target_os = "linux")]
 #[derive(Debug)]
 pub(crate) struct RxFrame {
     pub bytes: Vec<u8>,
@@ -70,7 +68,6 @@ pub(crate) struct RxFrame {
 ///
 /// Does NOT skip outgoing copies; callers decide (both current drivers
 /// skip them — kept explicit so the eth driver could someday opt out).
-#[cfg(target_os = "linux")]
 pub(crate) fn recv_raw(fd: i32, deadline: Instant) -> io::Result<Option<RxFrame>> {
     loop {
         let now = Instant::now();
@@ -149,7 +146,6 @@ mod tests {
     /// recv_raw is the raw-syscall core both drivers sit on; these tests
     /// exercise its loop logic (poll/recv, truncation, deadline) without
     /// CAP_NET_RAW by using a plain UDP socket as the descriptor.
-    #[cfg(target_os = "linux")]
     #[cfg_attr(miri, ignore = "libc socket syscalls; not Miri-safe")]
     #[test]
     fn recv_raw_reads_and_truncates_a_datagram() {
@@ -170,7 +166,6 @@ mod tests {
         assert_eq!(frame.pkttype, 0);
     }
 
-    #[cfg(target_os = "linux")]
     #[cfg_attr(miri, ignore = "libc socket syscalls; not Miri-safe")]
     #[test]
     fn recv_raw_times_out_cleanly_at_the_deadline() {
@@ -186,7 +181,6 @@ mod tests {
         assert!(got.is_none(), "past deadline must not read: {got:?}");
     }
 
-    #[cfg(target_os = "linux")]
     #[cfg_attr(miri, ignore = "libc socket syscalls; not Miri-safe")]
     #[test]
     fn open_packet_socket_rejects_a_bogus_ifindex() {

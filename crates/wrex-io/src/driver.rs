@@ -30,8 +30,6 @@ pub enum DriverError {
     PermissionDenied { hint: String },
     #[error("interface `{wanted}` not found (available: {available})")]
     IfaceNotFound { wanted: String, available: String },
-    #[error("raw sockets unsupported on this platform")]
-    UnsupportedPlatform,
     #[error("io error: {source}")]
     Io { source: io::Error },
 }
@@ -82,18 +80,13 @@ fn resolve_iface<'t>(
 /// htons(ETH_P_ALL))` bound to `iface`, optional promiscuous mode.
 ///
 /// Non-Linux builds compile this type (so callers can name it) but `open`
-/// returns [`DriverError::UnsupportedPlatform`].
+/// requires CAP_NET_RAW (Linux AF_PACKET).
 pub struct RawEthDriver {
-    #[cfg(target_os = "linux")]
     fd: i32,
-    #[cfg(target_os = "linux")]
     iface: String,
-    #[cfg(not(target_os = "linux"))]
-    _unsupported: (),
 }
 
 impl RawEthDriver {
-    #[cfg(target_os = "linux")]
     pub fn open(iface: &str, promisc: bool, iftable: &IfTable) -> Result<Self, DriverError> {
         use std::ffi::CString;
         let _iface_c = CString::new(iface).map_err(|e| DriverError::Io {
@@ -141,14 +134,8 @@ impl RawEthDriver {
             iface: iface.to_string(),
         })
     }
-
-    #[cfg(not(target_os = "linux"))]
-    pub fn open(_iface: &str, _promisc: bool, _iftable: &IfTable) -> Result<Self, DriverError> {
-        Err(DriverError::UnsupportedPlatform)
-    }
 }
 
-#[cfg(target_os = "linux")]
 impl Driver for RawEthDriver {
     fn send(&mut self, frame: &[u8]) -> io::Result<()> {
         // SAFETY: `sendto` reads only `frame`'s bytes for `frame.len()`;
@@ -209,7 +196,6 @@ impl Driver for RawEthDriver {
     }
 }
 
-#[cfg(target_os = "linux")]
 impl Drop for RawEthDriver {
     fn drop(&mut self) {
         // SAFETY: `self.fd` is a valid descriptor uniquely owned by `Self`;
@@ -234,23 +220,17 @@ impl Drop for RawEthDriver {
 ///   outgoing copies skipped).
 ///
 /// Non-Linux builds compile this type but `open` returns
-/// [`DriverError::UnsupportedPlatform`].
+/// requires CAP_NET_RAW (Linux AF_PACKET).
 pub struct RawIpDriver {
-    #[cfg(target_os = "linux")]
     tx_fd: i32,
-    #[cfg(target_os = "linux")]
     rx_fd: i32,
-    #[cfg(target_os = "linux")]
     iface: String,
-    #[cfg(not(target_os = "linux"))]
-    _unsupported: (),
 }
 
 /// EtherType for IPv4 (Ethernet II).
 const ETHERTYPE_IPV4: u16 = 0x0800;
 
 impl RawIpDriver {
-    #[cfg(target_os = "linux")]
     pub fn open(iface: &str, iftable: &IfTable) -> Result<Self, DriverError> {
         use std::ffi::CString;
         let _iface_c = CString::new(iface).map_err(|e| DriverError::Io {
@@ -302,14 +282,8 @@ impl RawIpDriver {
             iface: iface.to_string(),
         })
     }
-
-    #[cfg(not(target_os = "linux"))]
-    pub fn open(_iface: &str, _iftable: &IfTable) -> Result<Self, DriverError> {
-        Err(DriverError::UnsupportedPlatform)
-    }
 }
 
-#[cfg(target_os = "linux")]
 impl Driver for RawIpDriver {
     fn send(&mut self, frame: &[u8]) -> io::Result<()> {
         if frame.len() < 20 {
@@ -376,7 +350,6 @@ impl Driver for RawIpDriver {
     }
 }
 
-#[cfg(target_os = "linux")]
 impl Drop for RawIpDriver {
     fn drop(&mut self) {
         // SAFETY: both descriptors are valid and uniquely owned by `Self`;
@@ -416,31 +389,22 @@ const ETHERTYPE_IPV6: u16 = 0x86dd;
 ///   ethertype verified, outgoing copies skipped).
 ///
 /// Non-Linux builds compile this type but `open` returns
-/// [`DriverError::UnsupportedPlatform`].
+/// requires CAP_NET_RAW (Linux AF_PACKET).
 pub struct RawIpv6Driver {
-    #[cfg(target_os = "linux")]
     fd: i32,
-    #[cfg(target_os = "linux")]
     iface: String,
-    #[cfg(target_os = "linux")]
     mac: [u8; 6],
     /// Kernel routes for this iface (read once at open; a re-read on
     /// drift is a deferral).
-    #[cfg(target_os = "linux")]
     routes: Vec<crate::ndp::Route>,
     /// NDP resolution state (tranche 10b).
-    #[cfg(target_os = "linux")]
     ndp: crate::ndp::NdpCache,
     /// Source address the NS carries (link-local preferred; `::` in
     /// DAD form when the iface has none).
-    #[cfg(target_os = "linux")]
     ns_source: std::net::Ipv6Addr,
-    #[cfg(not(target_os = "linux"))]
-    _unsupported: (),
 }
 
 impl RawIpv6Driver {
-    #[cfg(target_os = "linux")]
     pub fn open(iface: &str, iftable: &IfTable) -> Result<Self, DriverError> {
         use std::ffi::CString;
         let _iface_c = CString::new(iface).map_err(|e| DriverError::Io {
@@ -478,14 +442,8 @@ impl RawIpv6Driver {
             ns_source,
         })
     }
-
-    #[cfg(not(target_os = "linux"))]
-    pub fn open(_iface: &str, _iftable: &IfTable) -> Result<Self, DriverError> {
-        Err(DriverError::UnsupportedPlatform)
-    }
 }
 
-#[cfg(target_os = "linux")]
 impl Driver for RawIpv6Driver {
     fn send(&mut self, datagram: &[u8]) -> io::Result<()> {
         if datagram.len() < 40 {
@@ -589,7 +547,6 @@ impl Driver for RawIpv6Driver {
     }
 }
 
-#[cfg(target_os = "linux")]
 impl Drop for RawIpv6Driver {
     fn drop(&mut self) {
         // SAFETY: the descriptor is valid and uniquely owned by `Self`;
@@ -598,7 +555,6 @@ impl Drop for RawIpv6Driver {
     }
 }
 
-#[cfg(target_os = "linux")]
 pub fn poll_timeout_for(deadline: Instant) -> u32 {
     let remaining = deadline.saturating_duration_since(Instant::now());
     remaining.as_millis().min(u32::MAX as u128) as u32
@@ -626,27 +582,8 @@ mod tests {
         assert!(e.to_string().contains("lo, eth0"), "{e}");
     }
 
-    #[cfg(not(target_os = "linux"))]
-    #[test]
-    fn unsupported_platform() {
-        let t = IfTable::from_sysfs(std::path::Path::new("/nonexistent")).unwrap_or_default();
-        assert!(matches!(
-            RawEthDriver::open("lo", false, &t),
-            Err(DriverError::UnsupportedPlatform)
-        ));
-        assert!(matches!(
-            RawIpDriver::open("lo", &t),
-            Err(DriverError::UnsupportedPlatform)
-        ));
-        assert!(matches!(
-            RawIpv6Driver::open("lo", &t),
-            Err(DriverError::UnsupportedPlatform)
-        ));
-    }
-
     // Real-socket behavior is exercised by env-gated integration tests
     // (`WREX_DRIVER_TESTS=1`) in crates/wrex/tests.
-    #[cfg(target_os = "linux")]
     #[test]
     fn iface_not_found_maps_error() {
         let t = IfTable::from_sysfs(std::path::Path::new("/nonexistent")).unwrap_or_default();
