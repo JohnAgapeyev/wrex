@@ -1,0 +1,64 @@
+name: mutants
+
+# Pass-2: scheduled mutation testing (cargo-mutants) — the meta-test
+# the .gitignore already anticipated. Measures test-suite kill
+# strength: which source mutations survive every test we have.
+# Weekly (not per-PR — a full mutants run on wrex-core alone takes
+# tens of minutes); NO gate initially: the artifacts are the product,
+# a scoring threshold on wrex-core comes after the first few weekly
+# baselines establish the variance.
+
+on:
+  schedule:
+    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  workflow_dispatch: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  mutants-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      # Scoped to wrex-core (the engine crate: encode/dissect/patch/
+      # filter/checksum/schema — the highest-leverage kill-strength
+      # signal). Expand to the proto crates after the first baselines.
+      # mutants.json + mutants.out land in the log + artifacts.
+      - run: cargo mutants -p wrex-core --no-shuffle --in-place -- --all-features
+        env:
+          # Deterministic: the weekly runs stay comparable week over week.
+          PROPTEST_RNG_SEED: "31337"
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## cargo-mutants: wrex-core"
+            echo
+            echo '```'
+            cargo mutants --list 2>/dev/null | head -5 >/dev/null || true
+            if [ -f mutants.out ]; then
+              grep -cE '^killed' mutants.out 2>/dev/null | awk '{print "killed:  "$1}'
+              grep -cE '^survived' mutants.out 2>/dev/null | awk '{print "survived: "$1}'
+              grep -cE '^timeout' mutants.out 2>/dev/null | awk '{print "timeout:  "$1}'
+              grep -cE '^missed' mutants.out 2>/dev/null | awk '{print "missed:  "$1}'
+            else
+              echo "mutants.out missing (see artifacts/log)"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-core
+          path: |
+            mutants.out
+            mutants.json
+            mutants-*.log
