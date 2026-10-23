@@ -8,6 +8,7 @@
 #![cfg_attr(miri, ignore = "spawns the wrex binary; engine units cover Miri")]
 use assert_cmd::Command;
 use predicates::str::contains;
+use wrex_core::Value;
 
 fn wrex() -> assert_cmd::Command {
     Command::new(env!("CARGO_BIN_EXE_wrex"))
@@ -515,6 +516,176 @@ fn dhcp_craft_dissect_roundtrip() {
     assert!(p.anomalies.iter().any(|a| a.path == "dhcp.cookie"));
     assert!(!p.payload.is_empty());
     assert!(!p.layers[0].fields.contains_key("msg_type"));
+}
+
+/// Tranche 17c: the dhcp6 codec flows through the registry end to end —
+/// udp 546/547 dispatch, craft (named msg_type + options grammar with
+/// IA_NA/IAADDR nesting), dissect records, fields, filters, and the
+/// pointed relay-crafting deferral.
+#[test]
+fn dhcp6_craft_dissect_roundtrip() {
+    // full SOLICIT: eth -> ipv6 -> udp(546→547) -> dhcp6
+    let bytes = wrex()
+        .args([
+            "craft",
+            "--format",
+            "raw",
+            "--layer",
+            "eth",
+            "--layer",
+            "ipv6",
+            "--layer",
+            "udp",
+            "--layer",
+            "dhcp6",
+            "--eth-dst=33:33:00:00:00:01",
+            "--eth-src=52:54:00:12:34:56",
+            "--ipv6-src=fe80::1",
+            "--ipv6-dst=ff02::1:2",
+            "--udp-sport=546",
+            "--udp-dport=547",
+            "--dhcp6-msg_type=solicit",
+            "--dhcp6-trans_id=0x112233",
+            "--dhcp6-options=client_id:hex:000102030405,elapsed:100,ia_na:7,300,600,ia_addr:2001:db8::10,3600,7200,oro:23,24,dns:2001:db8::53,domain:wrex.example",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(
+        &wrex()
+            .args(["dissect", "--format", "json"])
+            .write_stdin(bytes.clone())
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    // the udp 546/547 dispatch chained into dhcp6
+    let kinds: Vec<&str> = json["layers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["kind"].as_str().unwrap())
+        .collect();
+    assert_eq!(kinds, vec!["eth", "ipv6", "udp", "dhcp6"]);
+    assert_eq!(json["anomalies"].as_array().unwrap().len(), 0);
+    let dhcp6 = &json["layers"][3]["fields"];
+    assert_eq!(dhcp6["msg_type"], "solicit");
+    assert_eq!(dhcp6["trans_id"], 0x112233);
+    // the grammar order is preserved
+    assert_eq!(dhcp6["opt.0.code"], 1); // client_id
+    assert_eq!(dhcp6["opt.1.code"], 8); // elapsed
+    assert_eq!(dhcp6["opt.1.num"], 100);
+    assert_eq!(dhcp6["opt.2.code"], 3); // ia_na
+    // the nested IAADDR sub-record
+    assert_eq!(dhcp6["opt.2.sub.0.code"], 5);
+    assert_eq!(dhcp6["opt.2.sub.0.ip"], "2001:db8::10");
+    assert_eq!(dhcp6["opt.2.sub.0.preferred"], 3600);
+    assert_eq!(dhcp6["opt.2.sub.0.valid"], 7200);
+    assert_eq!(dhcp6["opt.3.code"], 6); // oro
+    assert_eq!(dhcp6["opt.3.value"], "00170018");
+    assert_eq!(dhcp6["opt.4.code"], 23); // dns
+    assert_eq!(dhcp6["opt.4.ip"], "2001:db8::53");
+    assert_eq!(dhcp6["opt.5.code"], 24); // domain
+    assert_eq!(dhcp6["opt.5.text"], "wrex.example");
+    assert_eq!(dhcp6["opt.5.value"], "0477726578076578616d706c6500");
+
+    // fields enumerates the schema + the opt/sub record sections
+    let fields = String::from_utf8(
+        wrex()
+            .args(["fields", "dhcp6"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(fields.contains("msg_type"), "{fields}");
+    assert!(fields.contains("record opt (dissect-only)"), "{fields}");
+    assert!(fields.contains("record sub (dissect-only)"), "{fields}");
+    assert!(fields.contains("opt.0"), "{fields}");
+
+    // filters speak the named flat field and the typed record fields
+    use wrex_core::filter::Filter;
+    let reg = wrex::standard();
+    let p = wrex_core::dissect::dissect(&reg, &bytes, "eth");
+    assert!(
+        Filter::parse(&reg, "dhcp6.msg_type=solicit")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(
+        !Filter::parse(&reg, "dhcp6.msg_type=advertise")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(
+        Filter::parse(&reg, "dhcp6.trans_id=0x112233")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(
+        Filter::parse(&reg, "dhcp6.opt.1.num=100")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(
+        Filter::parse(&reg, "dhcp6.opt.4.ip=2001:db8::53")
+            .unwrap()
+            .matches(&p)
+    );
+    // a record path the schema knows parses; opt.0 (code 1) has no
+    // num value, so it just does not match
+    assert!(
+        !Filter::parse(&reg, "dhcp6.opt.0.num=100")
+            .unwrap()
+            .matches(&p)
+    );
+    assert!(Filter::parse(&reg, "dhcp6.opt.0.nope=1").is_err()); // unknown record field
+
+    // the pointed relay-crafting deferral: 12/13 are exit-2 usage
+    // errors on the craft side (the 34-byte header is dissect-only)
+    wrex()
+        .args([
+            "craft",
+            "--layer",
+            "dhcp6",
+            "--dhcp6-msg_type=relay_forward",
+        ])
+        .assert()
+        .failure()
+        .code(2);
+
+    // the relay dissect path: corpus frame 11 dissects its extended
+    // header end to end
+    let corpora = wrex_test::corpus::Corpus::load_all();
+    let relay = corpora
+        .iter()
+        .find(|c| c.name == "dhcp6")
+        .and_then(|c| c.frames.iter().find(|f| f.name == "11"))
+        .expect("dhcp6 corpus frame 11 (relay_forward)");
+    let p = wrex_core::dissect::dissect(&reg, &relay.bytes, "auto");
+    let layer = p.layers.last().unwrap();
+    assert_eq!(layer.kind, "dhcp6");
+    assert_eq!(
+        layer.fields.get("msg_type"),
+        Some(&Value::Str("relay_forward".into()))
+    );
+    assert_eq!(layer.fields.get("hop_count"), Some(&Value::Int(1)));
+    assert_eq!(
+        layer.fields.get("link_addr"),
+        Some(&Value::Ipv6("fe80::1".parse().unwrap()))
+    );
+    assert_eq!(
+        layer.fields.get("peer_addr"),
+        Some(&Value::Ipv6("fe80::2".parse().unwrap()))
+    );
+    assert!(!layer.fields.contains_key("trans_id"));
 }
 
 #[test]

@@ -1045,8 +1045,8 @@ T(n+1)".
     one frame in the CLI grammar), and cross-queue encoder reuse (one
     connection, one encoder, by construction).
 
-- **T17 — IPv6 codec completion + registry dependency retrofit** — in
-  flight (chartered at the T17 planning pass as four sub-tranches:
+- **T17 — IPv6 codec completion + registry dependency retrofit** — ✅
+  delivered (chartered at the T17 planning pass as four sub-tranches:
   T17-0 lands the [ADR 3](adr/0003-codec-dependency-direction.md)
   retrofit that the v6 codec work rides, then the codec tranches
   follow in order a → b → c, b and c independent of each other; wire
@@ -1370,63 +1370,91 @@ T(n+1)".
     icmpv6` extends. Deliberate deferrals: MLD probing (scan/fuzz
     mode — the T10b NDP-probe precedent), NDP cache policy changes,
     `opt` sections on echo messages.
-  - **T17c — DHCPv6** — in flight, **slice 1 delivered**: the
+  - **T17c — DHCPv6** — ✅ delivered (four slices: the crate + udp
+    dispatch; the fuzz target + Miri membership; the relay-header
+    dissection; the options grammar + record sections + the
+    verification tail — **T17 closes with it**). The
     `wrex-proto-dhcp6` crate, ADR-3-shaped (dep on udp, KIND const,
     `register()` closure, feature `proto-dhcp6`) — kind `dhcp6`,
     rank 40, parent `udp`, the RFC 8415 4-byte fixed header
     (`msg_type` 1–13 named/raw + the 3-byte `trans_id`, over-wide
     masked), udp dispatch on 546/547 both sides (the 67/68
-    pattern), terminal for the slice (options stay payload), the
-    composition closure + order pin grown, a header round-trip +
-    dispatch unit through the real udp codec. **Remaining in
-    T17c**: the options list grammar (u16 TLVs, the pending
-    architecture), the `opt.N.*` record section with one-level
-    nested `opt.N.sub.M.*` (IA_NA → IAADDR), the dhcproto-v6
-    both-direction differential and the differential stacks +
-    corpus (the fuzz target + Miri membership landed in slice 2;
-    **slice 3 delivered the relay-header dissection**: msg-type
+    pattern), the composition closure + order pin grown, a header
+    round-trip + dispatch unit through the real udp codec. The
+    **slice-4 catch**: the slice-1 doc's msg-type numbering was
+    off-charter (it named "4 reply, 5 release…"); the named grammar
+    landed with the RFC 8415 §7.3 registry (solicit 1, advertise 2,
+    request 3, confirm 4, renew 5, rebind 6, reply 7, release 8,
+    decline 9, reconfigure 10, info_req 11, relay_forward 12,
+    relay_reply 13) — `msg_type` is a `FieldKind::Str` field (names
+    reachable through the CLI value grammar), dissect renders the
+    canonical name, layouts span the 4-byte header (a Str-over-raw
+    span — the T14 rule: typed patches refuse pointedly, `wire:XX`
+    speaks the byte).
+    **Slice 3 delivered the relay-header dissection**: msg-type
     12/13 carry the RFC 8415 §7.1 extended fixed header —
     hop-count(1) + link-address(16) + peer-address(16), 34 bytes
-    total, dissect-only fields, the nested relay-message option
-    staying payload with the options region — crafting relay
-    messages stays deferred per the charter; the index catch: the
-    hop-count sits at byte 1, not the trans_id slot). New
-    `wrex-proto-dhcp6` crate, ADR-3-shaped (dep on
-    `wrex-proto-udp`, `register()` fn, feature `proto-dhcp6`): kind
-    `dhcp6`, rank 40, parent `udp`; the RFC 8415 fixed header is 4
-    bytes — `msg_type` (1–13; named grammar solicit|advertise|
-    request|reply|release|decline|reconfigure|info_req|renew|rebind|
-    relay_forward|relay_reply + raw) + `trans_id` (3 bytes) —
-    everything else is options. `udp` dispatches 546/547 both sides
-    (the 67/68 pattern; unregistered degradation never fatal). The
-    options region (u16 code, u16 len) is craftable through the
-    list grammar (`--dhcp6-options`, the dhcp/ip/tcp pending-
-    continuation architecture): `client_id:HEX`/`server_id:HEX`
-    (DUIDs raw — structured typing deferred), `ia_na:IAID[,t1,t2]`
-    with `ia_addr:IP[,preferred,valid]` continuation (the fixed-part
-    lifetimes), `oro:N…`, `dns:IP…` (23), `domain:` (24), `elapsed:N`,
-    `rapid` (14), `hex:CODE:HEX`. Dissection renders every option as
-    an indexed `opt.N.*` record section (raw `code/len/value` +
-    typed `ip/num/text` subregions — the v4 mapping) and **nested
+    total, dissect-only fields (no trans_id — a relay message has
+    none; the options region starts at 34), the nested relay-message
+    option staying payload with the options region; **crafting relay
+    messages is a pointed write-side deferral error** (the exit-2
+    craft path), the dissect side keeps them. A short (<34-byte)
+    relay frame degrades to the plain 4-byte header (never fatal).
+    **Slice 4 delivered the options layer**: the options region
+    (u16 code, u16 len) is craftable through the list grammar
+    (`--dhcp6-options`, a `FieldKind::Str` field — the dhcp/ip/tcp
+    pending-continuation architecture): `client_id:HEX`/
+    `server_id:HEX` (DUIDs raw — structured typing deferred),
+    `ia_na:IAID[,t1,t2]` with `ia_addr:IP[,preferred,valid]`
+    continuations (the lifetimes are bare-u32 continuations routed
+    by pending state — the open IAADDR takes precedence; IAADDR
+    nests inside the IA_NA payload per RFC 8415 §21.21, the record
+    grammar's first nested use), `oro:N…`, `dns:IP…` (23),
+    `domain:NAME` (24, RFC 1035 label form), `elapsed:N`, `rapid`
+    (14), `hex:CODE:HEX`. The known-name filter fixes the
+    bare-continuation-with-colon IPv6 gotcha (the icmpv6 slice-1
+    precedent). Dissection renders every option as an indexed
+    `opt.N.*` record section (raw `code/len/value` + typed
+    `ip/num/text` subregions — the v4 mapping) and **nested
     sub-options render one level deep** (`opt.N.sub.M.*` — IA_NA →
-    IAADDR, the record-section recursion's first nested use; deeper
-    nesting flattens into `value`). Relay shapes (12/13) dissect with
-    their 33-byte header; crafting relay messages is deferred.
-    Verification: codec units (header, grammar records/typing/
-    nesting, truncation, udp dispatch both ports + degradation), a
-    both-direction differential mirroring `tests/dhcp_differential.
-    rs` (wrex craft → dhcproto v6 parse, dhcproto v6 encode → wrex
-    dissect; `dhcp_oracle` grows the v6 arm; order normalized per
-    the v4 precedent), differential stacks `eth-ipv6-udp-dhcp6` +
-    `eth-vlan-ipv6-udp-dhcp6` (`udp_for_dhcp6()` pin) vs etherparse
-    + tshark (the repeated-key caveat again), a handcrafted `dhcp6`
-    golden corpus (the full message-type set + rapid-commit + relay
-    pair dissected), `fuzz_dissect_dhcp6` in the fuzz gate, the
-    crate joins the Miri job, a CLI roundtrip. Deliberate
-    deferrals: DHCPv6 auth (option 11 — crypto-adjacent, the
-    standing rule), relay crafting, reconfigure/keyed surfaces, DUID
-    structured typing, CLI-settable option records (`opt` stays
-    dissect-only on the set side — the v4 decision, same rationale).
+    IAADDR with `ip`/`preferred`/`valid`; deeper nesting flattens
+    into `value`); an overrunning option stops with a never-fatal
+    anomaly, a dangling <4-byte tail stops silently (the dhcp
+    lenient-stop precedent), and v6 has no end marker — a random
+    tail payload would read as garbage TLVs, so the differential
+    stacks carry none (dhcp6 is the terminal layer).
+    Verification: codec units (header goldens, msg-type grammar +
+    relay deferral, trans_id masking, grammar singles/continuations/
+    nesting/errors, domain label roundtrips, records + typed
+    subregions, relay dissection, truncation/overrun/dangling), a
+    both-direction differential `tests/dhcp6_differential.rs`
+    (wrex craft → dhcproto v6 parse, dhcproto v6 encode → wrex
+    dissect; `dhcp_oracle` grew the `dhcp6_diff` v6 arm — order
+    normalized per the v4 precedent, IA_NA/IAADDR nesting compared,
+    hickory `Name` trailing-dot normalized), differential stacks
+    `eth-ipv6-udp-dhcp6` + `eth-vlan-ipv6-udp-dhcp6`
+    (`udp_for_dhcp6()` pins 546→547) vs etherparse + tshark (the
+    tshark map grew the `dhcpv6` block: `dhcpv6.msgtype` mapped
+    through the RFC registry + `dhcpv6.xid`; repeated
+    `dhcpv6.option` keys collapse — the vlan-tag caveat again), the
+    tshark drift fixtures + liveness probes grown (dhcp6 family +
+    trans_id), a handcrafted `dhcp6` golden corpus (12 frames: the
+    full message-type set + rapid commit + IA_NA/IAADDR nesting +
+    dns/domain + the relay pair over udp 547, CLI-generated
+    expected.json, zero anomalies — the population gate, identity
+    sweep, and normalize fixed point extend over it), `fuzz_dissect_
+    dhcp6` in the fuzz gate (landed slice 2), the crate in the Miri
+    job, a CLI roundtrip (`wrex fields` enumerates the schema + the
+    opt/sub record sections, filters speak the named msg_type and
+    the typed record fields, the pointed relay-crafting exit 2), and
+    man pages + completions regenerated. Deliberate deferrals:
+    DHCPv6 auth (option 11 — crypto-adjacent, the standing rule),
+    relay crafting (the pointed write error), reconfigure/keyed
+    surfaces, DUID structured typing, CLI-settable option records
+    (`opt` stays dissect-only on the set side — the v4 decision,
+    same rationale), filter typing for the nested `sub` paths
+    (display-rendered only; the schema `resolve` walks one record
+    index).
 
 ## Standing rules (carried from the tranche-1 plan)
 

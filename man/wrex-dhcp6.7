@@ -7,7 +7,7 @@ wrex-dhcp6 \- dhcp6 layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIdhcp6\fR
 
 .SH DESCRIPTION
-DHCPv6 (RFC 8415) over UDP 546/547: the 4\-byte fixed header (msg_type 1\-13 + the 3\-byte trans_id) — everything else is options (u16 code, u16 len TLVs; the options grammar with nested sub\-options is the recorded tranche\-17c tail). udp dispatches ports 546/547 into this codec.
+DHCPv6 (RFC 8415) over UDP 546/547: the 4\-byte fixed header (msg_type 1\-13 + the 3\-byte trans_id) — everything else is options (u16 code, u16 len TLVs). Craft: \-\-dhcp6\-msg_type takes the named grammar (solicit|…|relay_reply or 1\-13; relay 12/13 crafting is deferred — a pointed write error), \-\-dhcp6\-options takes the list grammar (client_id:HEX, server_id:HEX, ia_na:IAID[,t1,t2], ia_addr:IP[,preferred,valid] — IAADDR nests inside IA_NA, oro:N…, dns:IP…, domain:NAME, elapsed:N, rapid, hex:CODE:HEX). Dissect: every option lands in the dissect\-only opt record section (opt.0.code/len/value raw + typed ip/num/text subset); IA_NA payloads render one level of sub\-options as opt.N.sub.M.* records (deeper nesting flattens into value); relay shapes (12/13) dissect their 34\-byte extended header (hop_count, link_addr, peer_addr — dissect\-only). udp dispatches ports 546/547 into this codec. Deferrals: DHCPv6 auth (option 11), relay crafting, reconfigure/keyed surfaces, DUID structured typing, CLI\-settable option records.
 .
 
 .SH ENCAPSULATION
@@ -19,10 +19,35 @@ Explicit values always win over autofill and are kept
 unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
 .TP
 \fB\-\-dhcp6\-msg_type=\fIINT\fR\fR
-message type (1 solicit, 2 advertise, 3 request, 4 reply, 5 release, 6 decline, 8 info_req, 9 renew, 10 rebind, 12 relay_forward, 13 relay_reply; raw numbers kept) Type u8. Default: 1.
+message type: solicit|advertise|request|confirm|renew|rebind|reply|release|decline|reconfigure|info_req|relay_forward|relay_reply or 1\-13 (relay crafting deferred: 12/13 are pointed write errors) Type str. Default: solicit.
 .TP
 \fB\-\-dhcp6\-trans_id=\fIINT\fR\fR
 transaction id (3 bytes on the wire; over\-wide values mask) Type u32. Default: 0.
+.TP
+\fB\-\-dhcp6\-options=\fIINT\fR\fR
+options list grammar: client_id:HEX, server_id:HEX, ia_na:IAID[,t1,t2], ia_addr:IP[,preferred,valid], oro:N…, dns:IP…, domain:NAME, elapsed:N, rapid, hex:CODE:HEX Type str. Default: .
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (opt.0.field).
+
+.TP
+\fBopt\fR (dissect\-only)
+DHCPv6 option TLVs after the 4\-byte header (dissect\-only; indexed paths opt.0.code, opt.0.value, …)
+  code (u16; default 0). option code (RFC 8415 §21; 3 = ia_na, 23 = dns servers)
+  len (u16; default 0). option data length in bytes
+  value (bytes; default ). raw option data hex (the wire truth)
+  ip (ipv6; default ::). typed address: first dns server (23), IAADDR address (5)
+  num (u32; default 0). typed number: first oro code (6), elapsed time (8)
+  text (str; default ). typed string: domain search list (24, names joined by `,`)
+.TP
+\fBsub\fR (dissect\-only)
+ONE level of nested sub\-options inside an IA_NA record (dissect\-only; indexed paths opt.0.sub.0.*, … — deeper nesting flattens into value)
+  code (u16; default 0). sub\-option code (IA_NA payload; 5 = ia_addr)
+  len (u16; default 0). sub\-option data length in bytes
+  value (bytes; default ). raw sub\-option data hex (the wire truth)
+  ip (ipv6; default ::). typed IAADDR address (sub\-option 5)
+  preferred (u32; default 0). typed IAADDR preferred lifetime (sub\-option 5)
+  valid (u32; default 0). typed IAADDR valid lifetime (sub\-option 5)
 
 .SH EXAMPLES
 wrex fields dhcp6
