@@ -1,7 +1,6 @@
 //! Verb implementations: craft / dissect / send / recv / iface / fields,
 //! plus the exit-code mapping (0 success, 1 runtime, 2 usage).
 
-use std::io::Write;
 use std::time::{Duration, Instant};
 
 use clap::ArgMatches;
@@ -186,6 +185,13 @@ fn check_strict(common: &Common, encoded: &wrex_core::encode::Encoded) -> Result
 
 fn write_stdout(bytes: &[u8]) -> Result<(), CliError> {
     let mut out = std::io::stdout().lock();
+    write_all_flush(&mut out, bytes)
+}
+
+/// The write-and-flush core of [`write_stdout`] (factored for fault
+/// testing): any writer error — EPIPE on a closed stdout included —
+/// maps to `CliError::Runtime` (exit 1), never a panic.
+fn write_all_flush<W: std::io::Write>(out: &mut W, bytes: &[u8]) -> Result<(), CliError> {
     out.write_all(bytes)
         .map_err(|e| CliError::Runtime(format!("stdout: {e}")))?;
     out.flush()
@@ -2734,7 +2740,53 @@ fn query_tcp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::net::Ipv4Addr;
+
+    /// A failing writer (EPIPE-class) maps to CliError::Runtime, and a
+    /// succeeding one round-trips (pass-2 fault injection).
+    #[test]
+    fn write_all_flush_maps_writer_faults_to_runtime() {
+        struct Broken;
+        impl Write for Broken {
+            fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "pump closed",
+                ))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        match write_all_flush(&mut Broken, b"data") {
+            Err(CliError::Runtime(msg)) => {
+                assert!(msg.starts_with("stdout: "), "{msg}");
+            }
+            other => panic!("broken writer must be a Runtime error: {other:?}"),
+        }
+        // A partial writer (writes half, then EPIPE): same mapping.
+        struct Half;
+        impl Write for Half {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                Ok(b.len() / 2)
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "closed",
+                ))
+            }
+        }
+        assert!(matches!(
+            write_all_flush(&mut Half, b"abcd"),
+            Err(CliError::Runtime(_))
+        ));
+        // Healthy path: bytes land, flush called.
+        let mut sink = Vec::new();
+        write_all_flush(&mut sink, b"ok").unwrap();
+        assert_eq!(sink, b"ok");
+    }
 
     #[test]
     fn durations() {

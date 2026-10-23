@@ -598,6 +598,115 @@ impl<W: Write> PcapngWriter<W> {
 mod tests {
     use super::*;
 
+    /// Fault-injection writer (pass-2): fails on the Nth write_all,
+    /// succeeding (and recording) before that.
+    struct FaultAt {
+        writes: Vec<u8>,
+        fail_on: usize,
+        count: usize,
+    }
+    impl FaultAt {
+        fn new(fail_on: usize) -> Self {
+            Self {
+                writes: Vec::new(),
+                fail_on,
+                count: 0,
+            }
+        }
+    }
+    impl Write for FaultAt {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.count += 1;
+            if self.count == self.fail_on {
+                return Err(std::io::Error::other("injected: disk full"));
+            }
+            self.writes.extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// A writer fault mid-record PROPAGATES (Err) — never truncates
+    /// silently — for both the classic and pcapng writers, at every
+    /// write_all seam (header, record header, frame bytes).
+    #[test]
+    fn writer_faults_propagate_classic() {
+        // new(): the global header write fails.
+        let mut f = FaultAt::new(1);
+        assert!(PcapWriter::new(&mut f).is_err());
+        // write_record: record-header write fails.
+        let mut f = FaultAt::new(2);
+        let mut w = PcapWriter::new(&mut f).unwrap();
+        assert!(w.write_record(UNIX_EPOCH, &[0xaa; 40], 65535).is_err());
+        // frame write fails (partial record left in the sink — the
+        // reader must reject it: see faulted_file_is_unreadable).
+        let mut f = FaultAt::new(3);
+        let mut w = PcapWriter::new(&mut f).unwrap();
+        assert!(w.write_record(UNIX_EPOCH, &[0xaa; 40], 65535).is_err());
+    }
+
+    #[test]
+    fn writer_faults_propagate_pcapng() {
+        // new(): SHB write fails; then IDB.
+        let mut f = FaultAt::new(1);
+        assert!(PcapngWriter::new(&mut f).is_err());
+        let mut f = FaultAt::new(2);
+        assert!(PcapngWriter::new(&mut f).is_err());
+        // write_record: EPB header / frame / trailing-length seams.
+        for fail_on in 3..=5 {
+            let mut f = FaultAt::new(fail_on);
+            let mut w = PcapngWriter::new(&mut f).unwrap();
+            assert!(
+                w.write_record(UNIX_EPOCH, &[0xbb; 40], 65535).is_err(),
+                "EPB seam {fail_on}"
+            );
+        }
+    }
+
+    /// A faulted (partial) file must NOT read back as a clean capture:
+    /// the reader rejects the truncated tail record instead of
+    /// returning the partial file as if it were complete.
+    #[test]
+    fn faulted_file_is_unreadable() {
+        // Classic: one full record, then a tail cut mid-frame of the
+        // second record (the shape a FaultAt(3) writer leaves behind).
+        let mut buf = Vec::new();
+        {
+            let mut w = PcapWriter::new(&mut buf).unwrap();
+            w.write_record(UNIX_EPOCH, &[0x11; 20], 65535).unwrap();
+            w.write_record(UNIX_EPOCH + Duration::from_secs(9), &[0x22; 60], 65535)
+                .unwrap();
+        }
+        assert_eq!(read(&buf).unwrap().records.len(), 2);
+        // Cut inside the second record's frame bytes.
+        let rec1_end = GLOBAL_LEN + 16 + 20;
+        let faulted = &buf[..rec1_end + 16 + 30];
+        match read(faulted) {
+            Ok(f) => panic!("faulted file read back clean: {} records", f.records.len()),
+            Err(e) => assert!(e.to_string().contains("truncated"), "{e}"),
+        }
+        // pcapng: a tail cut mid-frame of an EPB is rejected too.
+        let mut ng = Vec::new();
+        {
+            let mut w = PcapngWriter::new(&mut ng).unwrap();
+            w.write_record(UNIX_EPOCH, &[0x33; 40], 65535).unwrap();
+        }
+        assert_eq!(read(&ng).unwrap().records.len(), 1);
+        let faulted_ng = &ng[..ng.len() - 30]; // cut mid-frame+pad+tail
+        match read(faulted_ng) {
+            Ok(f) => panic!(
+                "faulted pcapng read back clean: {} records",
+                f.records.len()
+            ),
+            Err(e) => assert!(
+                e.to_string().contains("truncated") || e.to_string().contains("block"),
+                "{e}"
+            ),
+        }
+    }
+
     #[test]
     fn writer_reader_roundtrip() {
         let frames: Vec<(&[u8], SystemTime)> = vec![
