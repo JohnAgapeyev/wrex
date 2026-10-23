@@ -39,3 +39,11 @@ updates:
         applies-to: version-updates
         patterns:
           - "*"
+    # dtolnay/rust-toolchain tags track Rust releases, not action
+    # versions: the msrv job pins the workspace MSRV floor (1.99) and
+    # must not drift to whatever release dependabot last saw
+    # (a 1.120 bump 404s — the toolchain does not exist). The other
+    # pins (nightly) are not versioned tags and never bump.
+    ignore:
+      - dependency-name: "dtolnay/rust-toolchain"
+        versions: ["**"]

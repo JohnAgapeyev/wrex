@@ -1456,6 +1456,124 @@ T(n+1)".
     (display-rendered only; the schema `resolve` walks one record
     index).
 
+- **T18 — fragment reassembly + pcapng write completion** — ✅ delivered
+  (chartered at the T18 planning pass as two sub-tranches, both
+  additive; T18a landed first — T18b's verification tail rides the
+  same gate pattern. ADR 2 disposition: reassembly byte control over
+  the splice is the point — the engine is owned; etherparse/tshark
+  stay oracles where they carry an arm):
+  - **T18a — fragment reassembly** — ✅ delivered. New `wrex-frag`
+    crate (ADR-3-shaped from day one: dep on `wrex-core` only — the
+    engine registers nothing, the feature question is moot; the kind
+    literals mirror the codec `KIND`s, pinned by the integration
+    suite): a sans-IO keyed table on `(src, dst, proto, ident)` —
+    v4 `id` / v6 `ident` widened over one shape — with a
+    caller-supplied `now` (µs, the pcap record timestamp on the CLI
+    path), a per-key byte budget (default 1 MiB; breach → eviction,
+    never fatal) and TTL expiry. Offsets convert to bytes at the
+    classify boundary (v6 8-octet units); completion requires an
+    offset-0 carrier (the unfragmentable prefix), a terminal piece
+    and full coverage of `[0, terminal)`; **overlaps splice in push
+    order — last write wins** — recording never-fatal notes
+    (overlap, duplicate offset-0, conflicting terminals, overhang
+    clipping) surfaced at flush as data (exit 0, the scan precedent).
+    **Header synthesis** takes the unfragmentable part from the
+    offset-0 fragment (v4: header incl. options, `total_len`
+    recomputed, `mf` cleared; v6: fixed header + pre-frag ext headers
+    per RFC 8200 §4.5, `payload_len` recomputed over everything past
+    the fixed header, the byte that pointed at the frag header
+    rewritten to the terminal upper protocol — located through the
+    field-span map so any supported pre-frag chain works) and never
+    re-derives the L4 bytes (the T11a preserve contract on the data
+    path: the reassembled segment re-dissects anomaly-free with the
+    original checksums). `wrex replay --reassemble`: the offline
+    dissection loop feeds the stream (file order) through
+    classify → push — complete datagrams re-dissect and print in
+    stream order, non-fragments pass through, residual incomplete
+    datagrams report as notes; `-i IFACE` with `--reassemble` is a
+    pointed usage error (send mode sends fragments verbatim). The
+    **oracle is the fixed point**: carve an unfragmented packet into
+    wire-honest fragments, reassemble, compare —
+    `reassemble(carve(original)) == original` (the realistic carving
+    direction: a real frag0's L4 checksum was folded over the whole
+    original segment). **Pre-existing T1-era ipv4 codec bug the
+    tranche sweep caught**: the `flags` aggregate mapped `mf` onto
+    the reserved bit 13 (`[df,mf]` names over a 3-bit window anchor
+    at the window bottom) — real fragmented captures dissected with
+    no `mf` at all, and craft emitted reserved-bit packets; the ip
+    proptest strategy never set flags, the differential blind spot.
+    The schema is now `[mf,df,res]` MSB-first over the full 3-bit
+    window (mf=bit 15, df=bit 14, `res` exposed additively; `--ipv4-
+    flags-res` enumerates). **A second convention discovery,
+    recorded as a deliberate deferral**: the v6 L4 pseudo-header
+    length under ext chains folds from `upper_start` (region length,
+    ext headers included) rather than RFC 8200 §8.1's upper-layer
+    length — self-consistent inside wrex (encode == verify, the
+    differentials compare found bytes), but a *foreign* fragment
+    stream's frag0 dissects with a pointed `udp.checksum` anomaly
+    under the convention. Fixing it touches the frozen L4 checksum
+    seam (encode + verify + every ext-chain differential fixture);
+    it gets its own pass if a foreign-fragment corpus demands it.
+    Verification: in-crate engine units (two-fragment + out-of-order
+    completion, gap-at-end incomplete notes, overlap/dup/conflict
+    notes, overhang clipping, budget eviction, TTL expiry,
+    cross-talk between keys, v4/v6 synthesis, a never-panic
+    proptest), `tests/frag.rs` against the real registry (the kind
+    pins; v4 fixed-point round-trip + re-dissection anomaly-free;
+    v6 direct and through a pre-frag hopopts chain — the §4.5
+    unfragmentable part, the hopopts next-header rewrite pinned; T11a
+    byte-identity on the fragment frames themselves; a random
+    split/order proptest; the CLI door over a pcap: default replay
+    prints both fragment dissections, `--reassemble` consumes them
+    into one reassembled jsonl line, `-i` exit 2), a handcrafted
+    golden `frag` corpus (v4 pair + v6 pair, dev-time generator the
+    `corpus-import` pattern — the population/reassemble/identity/
+    normalize gates sweep it automatically), `fuzz_frag_reassembly`
+    in the fuzz gate (release workflow + ci fuzz-smoke + xtask
+    smoke; structured pieces so the state machine's coverage — not
+    just the bytes — randomizes, classify ridden through the real
+    registry), wrex-frag in the Miri job (fuzz.yml + the xtask
+    `verify --with-miri` list), man pages + completions regenerated.
+    Deliberate deferrals: pathological-fragment hardening beyond the
+    byte budget, the v6 atomic-fragments rule (RFC 6946 §4), fragment
+    *emission* (wrex never fragments on send — MTU is the kernel's),
+    `dissect --reassemble` (dissect is a single-frame verb; streams
+    live in replay), a dedicated foreign-fragment corpus, and the
+    udp/tcp pseudo-length convention revisit above.
+  - **T18b — pcapng write completion** — ✅ delivered (the T8b
+    deferral list, closed): `PcapngWriter::with_resol(TsResol)` —
+    the IDB carries `if_tsresol` (value 6/9), EPB timestamps follow
+    the resolution (µs default byte-identical with `new`;
+    `wrex capture --pcapng-ns`, a pointed `requires --pcapng` usage
+    gate); `PcapngWriter::new_multi(linktypes)` — one IDB per
+    interface (ordinal ids), records via `write_record_orig_on(
+    iface, …)`; `write_record_opts(…, epb_flags)` — the EPB flags
+    option (code 2, len 4 + opt_endofopt) after the padded packet
+    data. Reader: `PcapRecord` grows `iface` (the EPB's id; 0 for
+    classic files) and resolves each record's timestamp through its
+    OWN interface's IDB (`if_tsresol`), falling back to the
+    spec-default µs — the file-level `linktype`/`snaplen`/
+    `nanosecond` stay LAST-IDB-wins (the frozen T8b contract,
+    re-pinned); the Simple Packet Block **reads** (no timestamp —
+    epoch; `cap_len` = min(orig_len, snaplen), snaplen 0 =
+    unlimited; block-short data truncates leniently); a mid-file SHB
+    (multi-section) skips like any unknown block. Verification:
+    ns-resolution roundtrip units + a 256-case proptest, the
+    explicit-µs EPB byte-identity vs `new` (only the IDB option
+    region differs), a multi-IDB roundtrip (iface ids, file-level
+    last-wins), epb_flags wire bytes + roundtrip, SPB vectors
+    (snaplen truncation + unlimited), a multi-section vector, the
+    CLI usage gate, man/wrex-capture(1) regenerated. Deliberate
+    deferrals: SPB *write* (no timestamp — capture needs one),
+    per-interface resolutions under `new_multi`, `epb_flags` on the
+    CLI (no caller yet), a new Kani harness (the EPB timestamp split
+    is u64 arithmetic on the existing `epb_fields_roundtrip` proofs'
+    territory — the const-eval roundtrip pins it).
+  - CI hygiene swept in the same pass: the dependabot
+    `dtolnay/rust-toolchain` group is ignored (its tags track Rust
+    releases, not action versions — a proposed 1.120 msrv bump
+    404s; the floor stays 1.99, the pinned toolchain's own job).
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a
