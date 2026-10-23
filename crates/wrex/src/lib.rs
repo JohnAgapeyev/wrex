@@ -22,6 +22,32 @@ pub mod prelude {
 /// (self-first closures, dedup-guarded) keeps the registration
 /// order — and with it `wrex fields`, man pages and completions —
 /// byte-identical.
+///
+/// ```
+/// use wrex::prelude::*;
+/// use wrex_core::filter::Filter;
+///
+/// let reg = wrex::standard();
+/// // ADR 3 closure: with all codec features on, the parent-complete
+/// // kinds are registered.
+/// assert!(reg.kinds().contains(&"eth"));
+/// assert!(reg.kinds().contains(&"udp"));
+///
+/// // A captured frame (eth+ipv4+udp) dissects through the registry,
+/// // and `--filter` expressions validate against its schema upfront.
+/// let frame = hex::decode(
+///     "ffffffffffff0000000000000800\
+///      450000200000000040117ccb\
+///      7f0000017f000001115c15b3000c3d27deadbeef".replace(' ', "").as_str(),
+/// ).unwrap();
+/// let packet = wrex_core::dissect::dissect(&reg, &frame, "eth");
+/// assert_eq!(
+///     packet.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+///     vec!["eth", "ipv4", "udp"],
+/// );
+/// assert!(Filter::parse(&reg, "udp.dport=5555").unwrap().matches(&packet));
+/// assert!(!Filter::parse(&reg, "udp.dport=53").unwrap().matches(&packet));
+/// ```
 pub fn standard() -> wrex_core::Registry {
     let mut r = wrex_core::Registry::empty();
     #[cfg(feature = "proto-eth")]

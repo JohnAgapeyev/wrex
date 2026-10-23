@@ -91,6 +91,23 @@ impl Value {
 /// (`,`/`+` separated) or a raw integer; `Bool` as `true|false|1|0`; `Str` raw
 /// or `text:`-prefixed. `List` accumulates only via repeated CLI flags — no
 /// inline list syntax.
+///
+/// ```
+/// use wrex_core::schema::{FieldKind, FieldSchema};
+/// use wrex_core::value::{Value, parse_value};
+///
+/// let field = FieldSchema {
+///     name: "ttl",
+///     kind: FieldKind::U8,
+///     bit_names: &[],
+///     default: Value::Int(64),
+///     required: false,
+///     doc: "",
+/// };
+/// assert_eq!(parse_value(&field, "0x40").unwrap(), Value::Int(64));
+/// // Range-checked against the field width: 256 does not fit a U8.
+/// assert!(parse_value(&field, "256").is_err());
+/// ```
 pub fn parse_value(field: &FieldSchema, raw: &str) -> Result<Value, SpecError> {
     let bad = |reason: String| {
         Err(SpecError::BadValue {

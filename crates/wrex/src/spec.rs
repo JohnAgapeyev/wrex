@@ -41,6 +41,20 @@ fn payload_field() -> FieldSchema {
 }
 
 /// Flat single-line rendering of a [`Value`] (text/fields output).
+///
+/// ```
+/// use wrex_core::value::Value;
+///
+/// assert_eq!(wrex::spec::render_value_flat(&Value::Int(42)), "42");
+/// assert_eq!(
+///     wrex::spec::render_value_flat(&Value::Mac([0x11, 0x22, 0, 0, 0, 0])),
+///     "11:22:00:00:00:00",
+/// );
+/// assert_eq!(
+///     wrex::spec::render_value_flat(&Value::Bytes("ab".into())),
+///     "6162",
+/// );
+/// ```
 pub fn render_value_flat(v: &Value) -> String {
     match v {
         Value::Bool(b) => b.to_string(),
