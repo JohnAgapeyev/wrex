@@ -564,26 +564,35 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
     }
     // v6 extension headers (tranche 17a): the reachable tshark arms —
     // hop-by-hop under `ipv6.hopopts`, destination options under
-    // `ipv6.opts`, routing under `ipv6.routing`, AH under `ah`.
+    // `ipv6.dstopts`, routing under `ipv6.routing`, AH under `ah`.
+    // NB the actual tshark JSON shapes (verified against 4.7.4, pinned
+    // by the drift-guard test): dstopts renders as a TOP-LEVEL
+    // `ipv6.dstopts` layer, while hopopts/routing/AH fields nest inside
+    // the `ipv6` dict (`ipv6["ipv6.hopopts"]`, `ipv6["ipv6.routing"]`,
+    // `ipv6["ah"]`) — the original map read all four as top-level
+    // layer keys and those arms never fired (silently dead until the
+    // pass-2 drift guard).
     // tshark NEVER emits a fragment layer for the unfragmented shapes
-    // the differential pins (offset 0 / M 0 — verified against 4.7.4:
-    // the header is dropped, not rendered), so frag stays with the
-    // etherparse arm; esp has no stack (etherparse stops at it).
-    if let Some(j) = layers.get("ipv6.hopopts")
+    // the differential pins (offset 0 / M 0: the header is dropped,
+    // not rendered), so frag stays with the etherparse arm; esp has no
+    // stack (etherparse stops at it).
+    if let Some(v6) = layers.get("ipv6")
+        && let Some(j) = v6.get("ipv6.hopopts")
         && let Some(ours) = by_kind("hopopts")
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
         cmp_int_str(report, "hopopts.next_header", ours, get("ipv6.hopopts.nxt"));
         cmp_int_str(report, "hopopts.len", ours, get("ipv6.hopopts.len"));
     }
-    if let Some(j) = layers.get("ipv6.opts")
+    if let Some(j) = layers.get("ipv6.dstopts")
         && let Some(ours) = by_kind("dstopts")
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
-        cmp_int_str(report, "dstopts.next_header", ours, get("ipv6.opts.nxt"));
-        cmp_int_str(report, "dstopts.len", ours, get("ipv6.opts.len"));
+        cmp_int_str(report, "dstopts.next_header", ours, get("ipv6.dstopts.nxt"));
+        cmp_int_str(report, "dstopts.len", ours, get("ipv6.dstopts.len"));
     }
-    if let Some(j) = layers.get("ipv6.routing")
+    if let Some(v6) = layers.get("ipv6")
+        && let Some(j) = v6.get("ipv6.routing")
         && let Some(ours) = by_kind("routing")
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
@@ -595,7 +604,8 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
             get("ipv6.routing.segleft"),
         );
     }
-    if let Some(j) = layers.get("ah")
+    if let Some(v6) = layers.get("ipv6")
+        && let Some(j) = v6.get("ah")
         && let Some(ours) = by_kind("ah")
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
