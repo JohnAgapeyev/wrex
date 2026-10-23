@@ -136,16 +136,19 @@ pub(crate) fn parse_ndp_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
 /// One 8-octet-unit TLV: pad the region up to the grid (the craft
 /// rule; lengths count 8-byte units).
 fn push_raw(out: &mut Vec<u8>, otype: u8, bytes: &[u8]) -> Result<(), EncodeError> {
-    let total = bytes.len().div_ceil(8) * 8;
+    // RFC 4861 §4.6: Length counts 8-octet units of the WHOLE option
+    // (type + length + data) — the region, not the payload, sits on
+    // the grid. The read side agrees (`olen * 8` spans the header).
+    let total = (bytes.len() + 2).div_ceil(8) * 8;
     let units = total / 8;
-    if units == 0 || units > 255 {
+    if units > 255 {
         return Err(bad(format!(
             "option {otype} region does not fit TLV lengths"
         )));
     }
     out.extend_from_slice(&[otype, units as u8]);
     out.extend_from_slice(bytes);
-    out.resize(out.len() + (total - bytes.len()), 0);
+    out.resize(out.len() + (total - 2 - bytes.len()), 0);
     Ok(())
 }
 
@@ -241,4 +244,145 @@ pub(crate) fn parse_mld_records(raw: &str) -> Result<Vec<u8>, EncodeError> {
     }
     flush(&mut pending, &mut out)?;
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `prefix:LEN,ADDR,VALID,PREFERRED,l,a` → one RFC 4861 §4.6.2 TLV.
+    fn prefix_tlv(
+        plen: u8,
+        flags: u8,
+        addr: std::net::Ipv6Addr,
+        valid: u32,
+        preferred: u32,
+    ) -> Vec<u8> {
+        let mut v = vec![3, 4, plen, flags, 0, 0, 0, 0];
+        v.extend_from_slice(&addr.octets());
+        v.extend_from_slice(&valid.to_be_bytes());
+        v.extend_from_slice(&preferred.to_be_bytes());
+        v
+    }
+
+    #[test]
+    fn ndp_options_slla_tlla_mtu() {
+        let out = parse_ndp_options("slla:00:11:22:33:44:55").expect("slla");
+        assert_eq!(out, [1, 1, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55]);
+        let out = parse_ndp_options("tlla:aa:bb:cc:dd:ee:ff").expect("tlla");
+        assert_eq!(out, [2, 1, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff]);
+        // Order preserved across commas; empty tokens skipped.
+        let out = parse_ndp_options("slla:00:11:22:33:44:55, ,mtu:1500").expect("slla+mtu");
+        assert_eq!(
+            out,
+            vec![
+                1, 1, 0, 0x11, 0x22, 0x33, 0x44, 0x55, // slla
+                5, 1, 0, 0, 0, 0, 0x05, 0xdc, // mtu 1500 BE
+            ]
+        );
+    }
+
+    #[test]
+    fn ndp_options_prefix_continuations() {
+        let addr: std::net::Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let out =
+            parse_ndp_options("prefix:64,2001:db8::1,2592000,604800,l,a").expect("full prefix");
+        assert_eq!(out, prefix_tlv(64, 0b1100_0000, addr, 2_592_000, 604_800));
+        // Lifetimes optional (default 0); flags optional; bare `a` only.
+        let out = parse_ndp_options("prefix:64,2001:db8::1,a").expect("bare a");
+        assert_eq!(out, prefix_tlv(64, 0b0100_0000, addr, 0, 0));
+        // Address-less lifetimes are fine (addr still required).
+        let out = parse_ndp_options("prefix:56,2001:db8::2,100").expect("one lifetime");
+        let addr2: std::net::Ipv6Addr = "2001:db8::2".parse().unwrap();
+        assert_eq!(out, prefix_tlv(56, 0, addr2, 100, 0));
+    }
+
+    #[test]
+    fn ndp_options_raw_escape_pads_to_the_grid() {
+        // 4 payload bytes: whole region (2 hdr + payload) pads to 8.
+        let out = parse_ndp_options("raw:7:00112233").expect("raw pads");
+        assert_eq!(out, [7, 1, 0x00, 0x11, 0x22, 0x33, 0, 0]);
+        // 8 payload bytes: the region is 10, so it rounds to 16 (units=2).
+        let out = parse_ndp_options("raw:1:aabbccddeeff0011").expect("raw grows");
+        assert_eq!(
+            out,
+            [
+                1, 2, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x00, 0x11, 0, 0, 0, 0, 0, 0
+            ]
+        );
+        // A large escape that cannot fit any TLV length errors out.
+        assert!(parse_ndp_options(&format!("raw:7:{}", "00".repeat(2048))).is_err());
+    }
+
+    #[test]
+    fn ndp_options_errors() {
+        // Dangling continuation with no open option (also the unknown-
+        // name path: `foo:1` is not a known option, so it lands here).
+        assert!(parse_ndp_options("2001:db8::1").is_err());
+        assert!(parse_ndp_options("foo:1").is_err());
+        // Prefix without an address.
+        assert!(parse_ndp_options("prefix:64").is_err());
+        // Two addresses on one prefix.
+        assert!(parse_ndp_options("prefix:64,2001:db8::1,2001:db8::2").is_err());
+        // A third lifetime.
+        assert!(parse_ndp_options("prefix:64,2001:db8::1,1,2,3").is_err());
+        // Bad continuations.
+        assert!(parse_ndp_options("prefix:64,2001:db8::1,nonsense").is_err());
+        // Bad mtu / bad prefix length / bad raw forms.
+        assert!(parse_ndp_options("mtu:big").is_err());
+        assert!(parse_ndp_options("prefix:big").is_err());
+        assert!(parse_ndp_options("raw:7").is_err());
+        assert!(parse_ndp_options("raw:zz:00").is_err());
+        assert!(parse_ndp_options("raw:7:zz").is_err());
+        // Bad MAC.
+        assert!(parse_ndp_options("slla:zz").is_err());
+    }
+
+    #[test]
+    fn mld_records_grammar() {
+        let a: std::net::Ipv6Addr = "ff02::1".parse().unwrap();
+        // One record, no sources: mode, auxlen, srclen(0), addr.
+        let mut want = vec![1, 0, 0, 0];
+        want.extend_from_slice(&a.octets());
+        assert_eq!(parse_mld_records("include:ff02::1").expect("include"), want);
+        // Sources as bare continuations; second record flushes the first.
+        let s1: std::net::Ipv6Addr = "2001:db8::1".parse().unwrap();
+        let s2: std::net::Ipv6Addr = "2001:db8::2".parse().unwrap();
+        let b: std::net::Ipv6Addr = "ff02::2".parse().unwrap();
+        let mut want = vec![4, 0, 0, 2]; // to_exclude
+        want.extend_from_slice(&a.octets());
+        want.extend_from_slice(&s1.octets());
+        want.extend_from_slice(&s2.octets());
+        let mut tail = vec![6, 0, 0, 0]; // block
+        tail.extend_from_slice(&b.octets());
+        want.extend_from_slice(&tail);
+        assert_eq!(
+            parse_mld_records("to_exclude:ff02::1,2001:db8::1,2001:db8::2,block:ff02::2")
+                .expect("two records"),
+            want
+        );
+        // All six modes take their RFC 3810 §5.2 wire values.
+        for (name, mode) in [
+            ("include", 1u8),
+            ("exclude", 2),
+            ("to_include", 3),
+            ("to_exclude", 4),
+            ("allow", 5),
+            ("block", 6),
+        ] {
+            let expr = format!("{name}:ff02::1");
+            let got = parse_mld_records(&expr).expect("mode");
+            assert_eq!(got[0], mode, "{name} must encode mode {mode}");
+        }
+    }
+
+    #[test]
+    fn mld_records_errors() {
+        // Dangling source with no open record.
+        assert!(parse_mld_records("2001:db8::1").is_err());
+        // Unknown record name → bare token → not an address.
+        assert!(parse_mld_records("hello").is_err());
+        // Bad address in a known record.
+        assert!(parse_mld_records("include:not-an-addr").is_err());
+    }
 }
