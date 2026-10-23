@@ -6,6 +6,17 @@ contract, and nothing here breaks the contracts of the delivered
 tranches. Numbers are landing order, not priority beyond "T(n) before
 T(n+1)".
 
+The **2026-10-23 extension pass** added the mission scoreboard and the
+planned T19+ tranches in the
+[extension plan](#extension-plan-2026-10-23-pass-t19-and-beyond)
+section below (after the delivered history), and moved four recurring
+planning views into standing documents: the [use-case
+catalog](usecases.md) (the job view), the [verification
+doctrine](verification.md) (how correctness is enforced), the
+[deferral ledger](deferred.md) (what is consciously out of scope,
+with owners and triggers), and the [backlog](backlog.md) (unchartered
+candidates).
+
 ## Tranches
 
 - **T1 — Foundation + L2–L4** — ✅ delivered. Cargo workspace + core
@@ -1574,6 +1585,430 @@ T(n+1)".
     releases, not action versions — a proposed 1.120 msrv bump
     404s; the floor stays 1.99, the pinned toolchain's own job).
 
+## Extension plan (2026-10-23 pass): T19 and beyond
+
+Everything in this section is **planned, not delivered** — charter
+sketches recorded at the 2026-10 extension pass. Each tranche is
+frozen into an execution plan at its own planning pass before any
+implementation (the standing discipline); ADR-2 dispositions marked
+"confirm at planning" are advisory until recorded there. **Waves
+express priority** (wave 1 before wave 2 before wave 3); tranche
+numbers inside a wave are landing order, as always. Priority tags
+used across the planning documents: **P0** = HP3 + waves 1–2
+(chartered next), **P1** = wave 3 + high-value wave-4 items, **P2** =
+charter when adjacent work touches the area, **P3** = parking lot.
+
+### Mission scoreboard
+
+The long-term fusion claim (curl/nmap/dig/scapy/tshark), audited at
+this pass against the delivered surface — the steering instrument
+for wave selection:
+
+| Pillar | Delivered | Remaining for credible parity |
+|--------|-----------|-------------------------------|
+| curl | http/1.1 + h2 + h2c + TLS + recipes + queues | redirects, cookies, auth, content-decoding, proxies, timing output; HTTP/3 |
+| dig | UDP/TCP/TLS query, v4/v6, records dissection, compression | EDNS0 crafting, typed SOA/MX/SRV rdata, reverse sugar, DoH, mDNS |
+| nmap | SYN/connect/UDP/ICMP scan, v4/v6, seeded pacing, top-100 defaults | scan variants (FIN/NULL/XMAS/ACK), ARP/NDP discovery, traceroute, service/version, OS fingerprint |
+| scapy | craft/dissect/send/recv/mut/patch across 20+ codecs, lossless dissection, span patching, fragment reassembly | read-side TCP/IPv4 options typing, tunnel/encapsulation recursion, most L2/app protocols, scripted conversations |
+| tshark | pcap/pcapng read+write, replay, diff, fragment reassembly | non-Ethernet linktypes, BPF, TCP stream follow, conversations/stats, name resolution |
+
+The curl row holds the most user-visible small holes; the tshark row
+is the weakest pillar (why it gets a dedicated wave); the scapy
+row's surgery/fuzz legs are nearly complete but undocumented as
+workflows — the [use-case catalog](usecases.md) fixes
+discoverability for free. **T29 adds a sixth pillar no fusion target
+covers — kernel datapath integration — differentiating work, not
+parity work.**
+
+### Sequencing principles
+
+1. **Depth before breadth** — close parity gaps in the five claimed
+   fusions before opening new fusion fronts (adjacent fusions —
+   traceroute, ping, banner-grab, cert inspection, nc-like listen,
+   p0f-style fingerprints — are earned adjacency, not new pillars).
+2. **Prefer tranches that compound** — everything in waves 1–2
+   rides delivered contracts (`Session`, `Driver`, registry, patch
+   engine, oracle lineage); no new architecture until wave 3.
+3. **Lift the weakest pillar early** — the analysis plane gets its
+   wave second because every other verb improves when capture and
+   analysis do.
+4. **Big bets get their own planning passes** — h3/QUIC, BGP,
+   userspace TCP stay advisory until their ADR-2 dispositions are
+   recorded there (the T7b/T8 pattern).
+5. **Keep the deferral discipline** — every tranche sweeps cheap
+   predecessors' deferrals; the [ledger](deferred.md) tracks the
+   rest with owners and triggers.
+6. **Doctrine before features** — HP3 lands first so every tranche
+   after it is born with the field-coverage gates wired.
+
+### Wave overview
+
+| Wave | Tranches | Theme | Entry dependencies |
+|------|-----------|-------|--------------------|
+| HP3 | (hardening pass 3) | testing doctrine + consolidation | delivered machinery only |
+| 1 | T19–T22 | verb parity | T2–T17 machinery (delivered) |
+| 2 | T23–T25 | the analysis plane | T5/T8b/T18 pcap; filter engine |
+| 3 | T26–T29 | transport, tunnels, kernel datapath | T15/T16 lineage; T25 filter AST; T11 layouts |
+| 4 | T30–T35 | specialized capabilities | T22 (→T30); trigger (→T31); T34 (→T35); otherwise flexible |
+| 5 | T36–T39 | scale + the 1.0 event | HP3 (→T36); T37 precedes T39 |
+
+### Hardening pass 3 — verification doctrine + consolidation
+
+Lands before T19. Full policy, rationale and case studies in
+[verification.md](verification.md); charter summary:
+
+- **3a — field-coverage gates** (the mf-bug class): strategy
+  completeness audit (schema-driven, per codec — the mechanical
+  gate that would have caught the ipv4-flags bug at its first
+  run), bit-toggle sweep feeding the differential, mandatory RFC
+  position vectors per bit aggregate, differential key-completeness.
+  Retroactive sweep over every existing codec.
+- **3b — oracle-captured corpora**: one declarative scenario harness
+  (foreign server × foreign client × tcpdump on lo/veth in the
+  `unshare -Urn` sandbox) committing pcap + manifest + tshark-reviewed
+  expectations; generation on demand + release-gate freshness diff;
+  first-wave scenarios per the verification doc (delivers the
+  recorded foreign-fragment corpus deferral and pre-stages T20
+  EDNS, T22 options, T26 QUIC, T30 signatures).
+- **3c — executable golden workflows**: every use-case catalog
+  `Today:` line becomes a `WF-n` CLI test (offline per-commit,
+  driver-dependent env-gated).
+- **3d — grammar consolidation**: the five `options.rs` list-grammar
+  implementations (~1,674 lines: dhcp 375, dhcp6 571, icmpv6 388,
+  ip 187, tcp 153) extract their common skeleton to `wrex-core`
+  (ADR-3-legal); codec-specific value encoders stay codec-side —
+  over-generalizing dhcp6's nesting and icmpv6's plastering costs
+  more than the duplication saves.
+- **3e — maintainability rails**: API surface ratchet (advisory
+  per-crate public-API snapshots), suite-time ratchet, mutation
+  kill-list extended to codec crates (advisory scores first).
+- Verification: the gates verify the verifiers — mutation-kill
+  checks on seeded codec mutants, a drift-review dry run of the
+  scenario freshness job, census delta (net LOC retired).
+
+### Wave 1 — verb parity
+
+- **T19 — HTTP client parity (curl closure)** — wave 1; rides the
+  delivered T4/T8a/T9/T15 machinery. Closes UC-26/27.
+
+  - **19a — core UX**: `--follow` redirects (`--max-redirs`,
+    method-preservation rules, redirect chain in json); a cookie
+    engine (`-b/-c` Netscape jar, own RFC 6265 Set-Cookie parser);
+    `--user` basic/bearer + the RFC 7616 digest 401-dance (MD5/SHA
+    via reused crypto crates — challenge-response is not wire
+    control); gzip/deflate content-decoding (`--compressed`,
+    flate2 reused); `-o/-O/-T/--head/-i` sugar; curl `-w` timing
+    fields in json. Small sugar in the same pass: `-r` Range,
+    `--resolve` host pinning, retry-by-status-class.
+  - **19b — proxies**: HTTP CONNECT tunneling + absolute-form
+    forwarding; SOCKS5 (no-auth + user/pass) as a `TcpDriver`
+    target layer.
+  - Recipe JSON grows additively (redirect/cookie/auth knobs; old
+    recipes parse byte-identically). No owned codecs.
+  - Verification: stub suites + the curl subprocess differential
+    extended (`-L -b --compressed` shapes); redirect/cookie/digest
+    unit vectors; T9a queue semantics preserved across redirects
+    (one connection when the server allows) pinned by a keep-alive
+    stub.
+
+- **T20 — DNS completeness (dig closure)** — wave 1; rides the T3
+  codec, T15 ALPN (DoH), and the T10b io multicast lineage (mDNS
+  v6). Closes UC-28/29/30. ADR-2: own (dns is owned; byte control
+  is central).
+
+  - **20a — EDNS0 + typing**: craftable OPT pseudo-record
+    (udp-size, ext-rcode, DO, version, z) with option TLVs (NSID,
+    cookie, ECS subset, `raw:` escape) — closes the recorded
+    tranche-3 deferral; typed rdata record sections for
+    SOA/MX/NS/PTR/SRV/TXT/CAA (`an.N.mx.preference` …); settable
+    answer records (craft side); `--reverse` PTR sugar; `--short`.
+  - **20b — transports**: DoH (RFC 8484 via `wrex-http`, ALPN h2 —
+    pure composition); mDNS (udp 5353 dispatch → dns, multicast
+    query verb); LLMNR 5355 dissect.
+  - Verification: hickory differential extended (it carries
+    EDNS), dig stub, EDNS goldens, `fuzz_dissect_dns` extended,
+    HP3 gates (bit-toggle on DO/z) + the hickory-server/dig
+    capture scenario.
+
+- **T21 — scan breadth + discovery + traceroute (nmap closure)** —
+  wave 1; rides the T2 scan session, T7b icmpv6, and the arp
+  codec. Closes UC-1/3/4.
+
+  - **21a — modes**: FIN/NULL/XMAS/ACK variants (a new `unfiltered`
+    outcome state — RST-ack vs silence classification);
+    `--mode arp` host discovery (ARP-ping sweep, gratuitous
+    option); `--mode ndp` v6 ping (NS-based); timing templates
+    `-T0..-T5` as sugar over the T2 vocabulary.
+  - **21b — `wrex trace`**: the traceroute verb — TTL-walk
+    orchestration (icmp/udp/tcp modes), per-hop latency + ICMP
+    attribution (TTL-exceeded quotes = the unreachable-quote
+    machinery transposed), `--backoff`.
+  - Verification: ScriptedDriver state-machine walkthroughs for
+    every new mode/outcome; env-gated `lo` ground truth; veth-pair
+    lab for trace; outcome-reachability per the doctrine's
+    state-machine analog. Open decision: absorb the
+    service/version probe engine (backlog P1) here or charter it
+    separately.
+
+- **T22 — L3/L4 options read-side typing** — wave 1; rides T11
+  spans/layouts; feeds T30 (fingerprint signatures), HP3-b (kernel
+  TCP captures) and T29-a (kernel filter offsets). Closes the
+  last T11 dynamic regions.
+
+  - Scope: TCP options (`eol,nop,mss,ws,sackok,sack,ts` craft
+    grammar exists) and IPv4 options (`rr/ssrr/lsrr/ts`) gain
+    typed read-side record sections (`opt.N.*`, the dhcp
+    pattern), span-patch layouts, and `wrex-mut` field-strategy
+    coverage (the population gate extends); DSCP/ECN name
+    rendering; TFO/MPTCP dissect-only options.
+  - ADR-2: own (mutation-central). Verification: goldens from
+    real-stack captures (the HP3-b kernel-TCP scenario feeds
+    them), tshark option arms, fuzz extended, RFC position
+    vectors for the option encodings.
+
+### Wave 2 — the analysis plane (tshark closure)
+
+- **T23 — linktypes + capture performance** — wave 2; rides
+  T5/T8b.
+
+  - **23a — linktypes**: SLL/SLL2 write + `capture -i any` (Linux
+    cooked; the read-side constants exist); RAW/NULL/LOOPBACK
+    read with start-layer dispatch; `--snaplen` on write (the T14
+    deferral). **802.11 scope decision recorded here**
+    (recommended: management-frame dissect-only, linktype 105;
+    monitor-mode injection out).
+  - **23b — performance**: TPACKET_V3 mmap RX ring (wrex-io, the
+    SAFETY gate applies); ring-buffer rotation (size/time/count
+    chunks). The deletion budget is explicit: T29-b's AF_XDP may
+    obsolete TPACKET_V3 — chartered with that exit recorded.
+  - Verification: per-linktype capture↔replay roundtrips, real
+    `tcpdump -i any` foreign fixtures, PPS tripwire benches.
+
+- **T24 — conversation analysis** — wave 2; rides the T18a
+  keyed-table pattern (wrex-frag) and committed generated tables
+  (the top-100 ports precedent). Closes UC-8/9/10/13.
+
+  - **24a — streams**: TCP stream reassembly engine
+    (segment-granularity keyed table, overlap policy
+    last-write-wins per the frag precedent, FIN/RST end
+    semantics) + `replay --follow` with hexl/ascii
+    direction-marked output. Oracle: the carve-then-follow fixed
+    point (T18's reassembly pattern).
+  - **24b — names + stats**: name resolution from committed
+    generated tables (IANA services, IEEE OUI, ethertype/proto
+    names) with an xtask regeneration story (the man-page
+    pattern); `wrex stats` (endpoints, conversations, protocol
+    hierarchy, IO timeline as json); export-objects (HTTP file
+    carve from followed streams).
+  - Verification: real corpus conversations; tshark `-z conv`
+    differential where shapes align.
+
+- **T25 — BPF (the cBPF rung)** — wave 2; rides the filter engine
+  (Kani-proved, fuzzed since hardening pass 2); feeds T29-a's
+  filter AST.
+
+  - Scope: own a tcpdump-grammar subset → classic BPF compiler;
+    `SO_ATTACH_FILTER` for recv/capture (kernel-side prefilter);
+    filter-language extensions in the userspace engine
+    (`contains/matches/len()`/arithmetic).
+  - ADR-2 (confirm at planning): **own** — no mature in-Rust
+    compiler exists and kernel-side filtering multiplies capture
+    performance; the rare own-by-default.
+  - Verification: differential vs libpcap/tcpdump behavior on
+    the corpora (the inversion rule), compiler fuzz target, Kani
+    on codegen bounds. Note: the kernel internally translates
+    cBPF to eBPF — the filter-AST-as-compiler investment doubles
+    for T29.
+
+### Wave 3 — modern transport, tunnels, kernel datapath
+
+- **T26 — HTTP/3 + QUIC** — wave 3; rides the T15/T16 lineage +
+  T8a rustls. quinn-proto is sans-IO — it fits the frozen
+  `Session` contract exactly the way the hickory/dhcproto/
+  reqwest oracle lineage did.
+
+  - Scope: `wrex http --http-version 3`; DoQ (RFC 9250) for
+    `query`; the h3 frame layer owned (the h2 precedent); qpack
+    own-vs-reuse at planning (the in-tree hpack lineage makes
+    own plausible); QUIC dissect-only follow-on (initials
+    decrypt with the RFC 9001 DCID-derived keys — the tshark
+    trick).
+  - Verification: an in-test h3 stub hand-rolled from fixed bytes
+    (never the wrex encoder — the inversion rule), quinn as
+    engine with an independent oracle, qpack RFC vectors, and
+    the HP3-b pre-staged QUIC captures as golden material.
+
+- **T27 — WebSocket** — wave 3; rides T4/T9a (h1) and T15d (h2).
+
+  - Scope: own RFC 6455 (masking, opcodes, close codes — small +
+    mutation-central); `wrex ws` verb (send/recv/follow); the h1
+    `Upgrade:` 101 door (the T16 no-Upgrade decision reversed
+    deliberately for ws — a pointed planning decision) + h2
+    extended CONNECT (closes that T15/T16 deferral);
+    `fuzz --mode ws`.
+  - Verification: Autobahn testsuite subprocess differential (the
+    dig pattern), own stub, RFC vectors.
+
+- **T28 — encapsulation + tunnels** — wave 3. The engine piece is
+  the real design work: recursive/re-entrant dissection (GRE→eth,
+  IP-in-IP — the Enhances edges cycle; the dispatch model must
+  re-enter parent kinds).
+
+  - Codecs (each follows the tranche-1 contract + doctrine
+    gates): GRE (+KRT/seq), VXLAN, Geneve, MPLS, PPPoE,
+    4in6/6in4/IP-in-IP, Teredo; the cheap-L3 pack: VRRP v2/v3,
+    LLDP, IGMP v1/2/3 (MLD exists).
+  - Span-patch layouts for all — recursive span addressing is a
+    patch-engine exercise.
+  - Verification: etherparse GRE/MPLS arms where present, tshark
+    arms, goldens, fuzz, nested-stack differentials
+    (`eth-gre-eth-ipv4-udp-…`).
+
+- **T29 — kernel datapath (eBPF/XDP/AF_XDP)** — wave 3; the sixth
+  pillar. Depends on T25's filter AST, T11 layouts (delivered),
+  T23-b as comparison baseline, T14 as translator oracle. Charter
+  principle: **eBPF programs are compiled artifacts of the schema,
+  never hand-written** — a protocol becomes kernel-filterable by
+  landing layouts, not by writing BPF (a standing rule).
+
+  - **29a — filter AST → eBPF (XDP)**: a `wrex-ebpf` no_std crate
+    (feature `ebpf`); codegen emitting bounds-checked field loads
+    from the span layout tables + verifier-safe skip logic for
+    variable headers (IPv4 options, IPv6 ext chains, VLAN
+    stacking). Contracts: *verifier-clean or pointed compile
+    error* (never a load-time surprise — the never-fatal
+    discipline transposed) and the *sound fallback* (unwalkable
+    headers → `XDP_PASS` to userspace, never silent drop). ADR-2
+    (confirm at planning): **reuse aya** for loader/management
+    (the rustls precedent — pure Rust), **own the schema→codegen**
+    (the differentiator).
+  - **29b — AF_XDP capture/send**: the XSK driver in wrex-io
+    (UMEM/ring management — the SAFETY gate); `capture --xdp`
+    (kernel-side filter, zero-copy RX), `send/replay --xdp` (TX
+    ring — line-rate replay, the fuzz-prober's high-rate
+    substrate). May obsolete T23-b TPACKET_V3 (the deletion
+    budget).
+  - **29c — XDP translator**: a patch-grammar subset (`--set`
+    fields + checksum rederive — the const-eval'd, Kani-proven
+    fold already exists) compiled to XDP; use cases: transparent
+    port rewrite, lab middleboxes, decap experiments. Oracle: T14
+    engine byte-identity + tshark on the outputs.
+  - **29d — extension surface (charter-later candidates)**:
+    BPF-map flow tables keyed by the scan/fuzz 4-tuple → live
+    `wrex stats`; ACL/drop lists from wrex filters; an XDP_TX
+    responder arm for T33's `listen`; the TC egress arm (XDP is
+    RX-only — TX-side rewriting needs cls_bpf); tracepoint
+    telemetry.
+  - Verification: per-commit **userspace eBPF VM** verdict
+    differential vs the filter engine over the golden corpora (no
+    kernel needed; the filter engine's Kani/fuzz backing makes it
+    the spec); env-gated live attach — privilege honesty: the
+    bpf() syscall checks capabilities against the initial user
+    namespace, so the `unshare -Urn` trick does not unlock eBPF —
+    the sudo CI path carries it, capability-probed
+    (skip-with-notice per the hardening-pass-2 pattern);
+    AF_PACKET↔AF_XDP parity ground truth on veth; generic XDP
+    mode for CI (lo/veth), native mode documented as the perf
+    path; Mpps tripwires on the release gate. Kernel floor
+    measured at planning (bpf_loop ≥ 5.17 etc.).
+
+### Wave 4 — specialized capabilities (order flexible)
+
+- **T30 — OS fingerprinting** — depends on T22 (options typing)
+  and HP3-b (kernel-TCP captures across a few stacks). Passive
+  (p0f-style signatures over stream dissection) + active probes
+  (crafted SYN option/MSS/window variations over the RawIpDriver —
+  raw is sufficient, no userspace TCP needed). Committed curated
+  signature table, generated + reviewed; differential vs p0f
+  where available.
+- **T31 — userspace TCP + TCP-level fuzz** — the standing rule's
+  trigger is formally met (mutate TCP state itself *and* continue
+  the exchange). smoltcp behind the frozen `Driver` contract
+  (ADR-2 reuse-first); TCP-level fuzz modes (seq/RST/window
+  injection with continuation). Transport-capability honesty
+  stays: kernel `TcpDriver` (byte-stream control) and a userspace
+  stack (segment control) are distinct, never equivalent.
+- **T32 — TLS depth** — mTLS (client certificates), session
+  resumption/0-RTT, `--tls-show-certs` (chain/expiry/SAN report
+  over rustls — an openssl-s_client-ish door). TLS-protocol
+  fuzzing stays a separate parked capability.
+- **T33 — lab verbs** — `wrex listen` (echo/record/scripted
+  responder — the wrex-test stub promoted to a verb; fuzz baseline
+  loops become self-sufficient); `wrex dhcp` rogue-server survey;
+  RA announce + rogue-RA detector (rides the T17b option
+  crafting); `wrex ping` sugar; the XDP_TX line-rate arm (T29-d)
+  as the optional fast path.
+- **T34 — `wrex converse`** — deterministic scripted multi-step
+  exchanges with expect/match rules over any Session
+  (ScriptedDriver inverted); recipe-shaped JSON; the substrate for
+  T35 and pentest-style automations; doubles as user-defined
+  use-case codification (absorbs the recorded T14 "JSON edit-list
+  files" deferral if it chars there).
+- **T35 — control-plane probing** — BGP per the recorded ADR-2
+  disposition (reuse the wire codec — NetGauze `bgp-pkt`-class
+  crates evaluated at planning; test whether their type-safe
+  representations can express malformed variants *before*
+  committing; own only the minimal session driver: OPEN handshake
+  to established, inject crafted messages, capture replies; no
+  speaker, no RIB, no route selection). SMB2/3 maturity-eval
+  tranche second (reuse message definitions *and* session
+  machinery; never reimplement signing/encryption/auth).
+
+### Wave 5 — scale and the 1.0 event
+
+- **T36 — verification maturity** — mutation gate promotion
+  (advisory → gating decision, per-crate scores), OSS-Fuzz
+  integration, perf-regression suite growth, the foreign-capture
+  fixture program, coverage gate 85→90.
+- **T37 — packaging & distribution** — cargo-binstall artifacts,
+  distro packaging, reproducible builds, release-process
+  automation. Precedes T39.
+- **T38 — UX polish + docs** — `--color`, verbosity levels, progress
+  meters, JSON schema for the jsonl output contracts, the docs
+  site whose cookbook TOC *is* the [use-case catalog](usecases.md).
+- **T39 — SDK/1.0** — docs.rs, semver + API review (the ratchet
+  makes it a diff), deprecation policy, crates.io publish.
+  **Trigger-gated per the standing rule** (first external embedder
+  or first publish, whichever comes first).
+
+### Open decisions recorded at this pass
+
+Each settles at the owning planning pass; recommendations are
+advisory:
+
+1. **Wave-3 internal order** — h3/QUIC first (web parity flagship)
+   or tunnels first (lab-native)? Rec: as chartered; swap T28
+   earlier if lab users dominate.
+2. **802.11 scope** (T23) — rec: dissect-only management frames;
+   monitor-mode injection out.
+3. **BPF own-vs-reuse** (T25, ADR) — rec: own the cBPF subset.
+4. **Service/version detection scope** (T21 planning) — rec: a
+   probe/match DSL with a committed probe table; absorb into T21
+   or charter separately.
+5. **aya vs libbpf-rs** (T29, ADR) — rec: aya (the no-C-deps
+   ethos; libbpf-rs buys maturity for exotic attach types).
+6. **TC egress arm** (T29) — rec: stays a 29-d charter-later
+   candidate until an egress use case lands.
+7. **`ebpf` feature posture** (T29) — rec: opt-in first,
+   default-on after soak.
+8. **eBPF CI** (T29) — rec: same sudo driver job, capability-probed;
+   the userspace-VM differential does all per-commit semantic work.
+9. **Scenario regeneration review** (HP3-b) — rec: advisory first,
+   promote to blocking once regeneration diffs prove reviewable.
+10. **Workflow-test placement** (HP3-c) — rec: offline workflows
+    per-commit; driver-dependent ones env-gated.
+11. **Recipe generalization timing** (T34) — rec: fold the T14
+    JSON-edit-list deferral into T34 if it chars, else it stays a
+    ledger P2.
+
+### Beyond the ladder
+
+Unchartered candidates live in [backlog.md](backlog.md) (app
+protocol packs, scan deep cuts, DNS extras) with the recorded
+non-goals; consciously-deferred items with owners and triggers live
+in [deferred.md](deferred.md). Both documents are mined when a
+tranche is chartered; neither obligates anything.
+
 ## Standing rules (carried from the tranche-1 plan)
 
 - Protocol extension stays a compile-time registry: a new protocol is a
@@ -1624,3 +2059,44 @@ T(n+1)".
     keeps fmt/clippy, the unit + proptest + reference-model suites,
     the differentials, Kani, coverage, audit, and the env-gated
     driver tests.
+
+Standing rules added at the 2026-10-23 extension pass:
+
+- **Field-coverage doctrine** ([verification.md](verification.md)) —
+    every codec/verb tranche lands with the gates wired (strategy
+    completeness audit, bit-toggle sweep into the differential, RFC
+    position vectors per bit aggregate, differential
+    key-completeness; outcome-reachability in ground truth for verb
+    tranches). Chartered at HP3, mandatory from T19 on.
+- **Rule of three** — the third instance of a pattern is extracted
+    to the shared layer (wrex-core for codecs, wrex-test for
+    verification machinery) or the charter records why not (the HP3-d
+    grammar consolidation is the first application).
+- **Deletion budget** — every planning pass answers "what does this
+    tranche delete or retire?" (the non-Linux removal and the dns
+    Kani-proof retirement are the precedents; T23-b → T29-b is the
+    first planned one).
+- **API surface ratchet** — advisory per-crate public-API snapshots
+    in CI; "would we freeze this?" stays the pre-1.0 tie-breaker,
+    now with a diff, so the 1.0 API review is a diff instead of an
+    excavation.
+- **Crate-count discipline** — new crates only via chartered
+    tranche; prefer growing existing crates (the T17 ip6ext
+    multi-kind decision).
+- **eBPF programs are compiled artifacts of the schema, never
+    hand-written** (T29) — a protocol becomes kernel-filterable by
+    landing layouts, not by writing BPF.
+- **Use-case citations** — every charter names the
+    [use cases](usecases.md) it closes; a new UC needs a champion
+    tranche or a recorded won't-do.
+- **Oracle-capture scenario** — every new protocol tranche adds a
+    [capture scenario](verification.md#oracle-captured-corpora-hp3-b)
+    row (HP3-b delivers the framework).
+- **Tripwire-before-optimization** — hot paths get a bench before
+    they get optimized; regressions fail the recorded budget (the
+    const-eval pass-5 precedent: passes 1–4 silently regressed the
+    checksum fast path and the tripwire caught it). Suite wall-clock
+    is ratcheted the same way (the Miri move is the precedent).
+- New ADRs to record at the owning planning passes: BPF own-vs-reuse
+    (T25), quinn-proto/qpack (T26), aya loader (T29), name-table
+    provenance/regeneration (T24-b), 802.11 scope (T23).

@@ -8,6 +8,22 @@ tranche.
 
 ## [Unreleased]
 
+### Added — 2026-10-23 extension planning pass (docs only)
+
+- Roadmap extension: mission scoreboard (fusion-parity audit),
+  hardening pass 3 charter (field-coverage doctrine + grammar
+  consolidation + oracle-captured corpora + executable use-cases),
+  planned tranches T19–T39 in priority waves (verb parity → analysis
+  plane → transport/tunnels/eBPF kernel datapath → specialized
+  capabilities → scale/1.0), open-decision register, and new standing
+  rules (rule of three, deletion budget, API ratchet, eBPF
+  compiled-artifacts).
+- New companion planning documents: the use-case catalog
+  (`docs/usecases.md`), the verification doctrine
+  (`docs/verification.md`, incl. the IPv4-flags post-mortem),
+  the deferral ledger (`docs/deferred.md`), and the backlog
+  (`docs/backlog.md`).
+
 ### Added — hardening pass 2
 
 - Formal + fuzz coverage for the two highest-risk modules: the

@@ -423,6 +423,26 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
   `-Zcoverage-options=mcdc` in late 2025; `cargo xtask coverage
   --mcdc-probe` reports nightly availability until the 2026 re-land.
 
+## Planning documents
+
+The [roadmap](docs/roadmap.md) is the master charter document — the
+delivered tranche history (T1–T18), and the **2026-10-23 extension
+pass**: mission scoreboard, hardening pass 3, and the planned tranches
+(T19–T39, organized in priority waves). Four companion documents share
+the recurring planning views:
+
+- [docs/usecases.md](docs/usecases.md) — the use-case catalog: the job
+  view (what a human sits down to *do* with wrex), each entry a working
+  CLI composition, a gap with an owner tranche, or a won't-do.
+- [docs/verification.md](docs/verification.md) — the verification
+  doctrine: why the mf bug survived every gate, the field-coverage
+  gates that prevent its class, oracle-captured corpora, executable
+  golden workflows, and the maintainability rails.
+- [docs/deferred.md](docs/deferred.md) — the deferral ledger: every
+  consciously-deferred item with status, owner, and trigger.
+- [docs/backlog.md](docs/backlog.md) — unchartered candidates with
+  priorities, plus the recorded non-goals.
+
 ## License
 
 MIT OR Apache-2.0.
