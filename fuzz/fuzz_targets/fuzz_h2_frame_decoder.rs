@@ -18,10 +18,18 @@ fuzz_target!(|data: Vec<u8>| {
             // the stream id keeps the reserved bit masked off
             assert_eq!(header.stream_id & 0x8000_0000, 0);
             // re-encode: the header is a lossless function of its bytes
+            // EXCEPT the RFC 9113 reserved bit — decode masks it off
+            // (the spec says ignore it), so an input that sets it cannot
+            // round-trip byte-identically. Expect the input with the R
+            // bit cleared (the fuzz-smoke catch: this previously
+            // asserted raw byte-identity and crashed on 0x97xxxxxx
+            // stream ids).
+            let mut expected = data[..consumed].to_vec();
+            expected[5] &= 0x7f;
             let mut out = bytes::BytesMut::with_capacity(consumed);
             header.encode(payload.len() as u32, &mut out);
             out.extend_from_slice(&payload);
-            assert_eq!(&out[..], &data[..consumed]);
+            assert_eq!(&out[..], &expected[..]);
             // and the first `consumed` bytes decode to the same frame
             match decode_frame(&out) {
                 FrameStep::Have {
