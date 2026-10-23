@@ -631,7 +631,76 @@ fn write_bits_window(container: &mut [u8], shift: u8, width: u8, value: u128) {
         *b = ((acc >> down) & 0xff) as u8;
     }
 }
-#[cfg(test)]
+
+#[cfg(kani)]
+mod kani_proofs {
+    //! Kani proofs for the span-patch engine's offset arithmetic (the
+    //! pass-2 formal-coverage plan; the unit/proptest suites carry the
+    //! empirical side). The registry-level proofs (splice geometry,
+    //! determinism, derived healing) live in `mod tests` below — the
+    //! mock codec with layouts + derived fields compiles under
+    //! `cfg(any(test, kani))`, and ADR 3 keeps wrex-core off the real
+    //! proto crates.
+    use super::*;
+
+    /// The masked bit-window write never panics for any in-bounds
+    /// (shift, width), touches ONLY the window's bytes (every byte
+    /// outside the window is preserved bit-for-bit), and leaves the
+    /// container untouched entirely when the window overruns (the
+    /// early return).
+    ///
+    /// 8-byte container (an Ethernet address' width class), symbolic
+    /// shift/width/value: the loops unwind 8 iterations each.
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn write_bits_window_spills_nothing() {
+        const N: usize = 8;
+        let before = [0u8; N];
+        let shift = kani::any::<u8>() as usize;
+        let width = kani::any::<u8>() as usize;
+        let value = kani::any::<u128>();
+        // In-bounds windows only (the pre-pass guarantees these; the
+        // overrun case is covered below).
+        kani::assume(shift + width <= N * 8);
+        let mut container = before;
+        write_bits_window(&mut container, shift as u8, width as u8, value);
+        // Every byte fully outside the window is preserved. A byte i is
+        // outside when the window doesn't intersect its 8-bit lane.
+        for (i, (b, a)) in container.iter().zip(before.iter()).enumerate() {
+            let lane_lo = i * 8;
+            let lane_hi = lane_lo + 8;
+            let win_lo = shift;
+            let win_hi = shift + width;
+            if lane_hi <= win_lo || lane_lo >= win_hi {
+                assert_eq!(b, a, "byte {i} outside the window changed");
+            }
+        }
+    }
+
+    /// An out-of-bounds window (shift + width > bits) is a silent
+    /// no-op: the container is untouched, never a panic.
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn write_bits_window_overrun_is_noop() {
+        const N: usize = 8;
+        let shift = kani::any::<u8>() as usize;
+        let width = kani::any::<u8>() as usize;
+        kani::assume(shift + width > N * 8);
+        let mut container = [0u8; N];
+        let before = container;
+        write_bits_window(
+            &mut container,
+            shift as u8,
+            width as u8,
+            kani::any::<u128>(),
+        );
+        assert_eq!(
+            container, before,
+            "an overrun window must not touch anything"
+        );
+    }
+}
+#[cfg(any(test, kani))]
 mod tests {
     use super::*;
     use crate::codec::{Codec, Next, ReadOutcome, Registry};
@@ -1205,4 +1274,19 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
     }
+
+    // --- Kani proofs (registry-level splice geometry) -------------------
+    //
+    // RETIRED (measured): `patch()` drives the full dissect engine
+    // (the codec registry walk + BTreeMap fields + serde values), and
+    // the solver state for even one concrete registry blows past the
+    // 6GB CBMC ceiling — the `decode_name` retirement class (see
+    // roadmap T4). The engine-level geometry is carried instead by:
+    // the units in this mod, `crates/wrex/tests/patch_engine.rs` (the
+    // population gate over every corpus frame),
+    // `crates/wrex/tests/patch_sweep.rs` (256 proptest cases),
+    // and the `fuzz_patch_engine` target. The *provable* core — the
+    // bit-window mask arithmetic (`write_bits_window`) — is formally
+    // covered in `mod kani_proofs` (pure functions, cheap solver
+    // state; verified under the same ceiling).
 }

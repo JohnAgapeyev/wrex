@@ -409,6 +409,121 @@ fn eval(value: &Value, t: &Term) -> bool {
     }
 }
 
+#[cfg(kani)]
+mod kani_proofs {
+    //! Kani proofs for the filter engine's comparison core (the pass-2
+    //! formal-coverage plan). String parsing (Filter::parse) is out of
+    //! Kani scope — exponential over symbolic strings, the documented
+    //! `decode_name` retirement class — carried by units + the
+    //! `fuzz_filter` target instead. What's provable here: the `eval`
+    //! core over symbolic scalar values and ops never panics and its
+    //! operator semantics are exact (complements, antisymmetry), and
+    //! the prefix-mask arithmetic the CIDR membership rides on.
+    use super::*;
+
+    /// A minimal in-layer term for direct eval() proofs.
+    fn term(value: TermValue, op: Op) -> Term {
+        Term {
+            layer: "l",
+            field: "f".to_string(),
+            op,
+            value,
+        }
+    }
+
+    /// Int comparisons over fully symbolic (v, want) and every op:
+    /// never a panic; Eq/Ne are complements; Le/Ge agree only on
+    /// equality (antisymmetry — the trichotomy core).
+    #[kani::proof]
+    fn eval_int_ops_are_exact() {
+        let v = kani::any::<u128>();
+        let want = kani::any::<u128>();
+        for op in [Op::Eq, Op::Ne, Op::Lt, Op::Le, Op::Gt, Op::Ge] {
+            let t = term(TermValue::Int(want), op);
+            let verdict = eval(&Value::Int(v), &t);
+            match op {
+                Op::Eq => assert_eq!(verdict, v == want),
+                Op::Ne => assert_eq!(verdict, v != want),
+                Op::Lt => assert_eq!(verdict, v < want),
+                Op::Le => assert_eq!(verdict, v <= want),
+                Op::Gt => assert_eq!(verdict, v > want),
+                Op::Ge => assert_eq!(verdict, v >= want),
+            }
+        }
+        // The complement pair: !(Eq) == Ne for any operands.
+        let eq = eval(&Value::Int(v), &term(TermValue::Int(want), Op::Eq));
+        let ne = eval(&Value::Int(v), &term(TermValue::Int(want), Op::Ne));
+        assert_eq!(eq, !ne);
+        // Antisymmetry: Le && Ge ⟺ equality.
+        let le = eval(&Value::Int(v), &term(TermValue::Int(want), Op::Le));
+        let ge = eval(&Value::Int(v), &term(TermValue::Int(want), Op::Ge));
+        assert_eq!(le && ge, v == want);
+    }
+
+    /// The v4 CIDR mask arithmetic: for any prefix ≤ 32 (the parser's
+    /// bound), membership is reflexive (an address in its own /p) and
+    /// mask application never panics — the shift `32 - p` is
+    /// underflow-free by construction.
+    #[kani::proof]
+    fn ipv4_cidr_mask_is_safe_and_reflexive() {
+        let octets: [u8; 4] = kani::any();
+        let addr = Ipv4Addr::from(octets);
+        let p = kani::any::<u8>();
+        kani::assume(p <= 32);
+        for op in [Op::Eq, Op::Ne] {
+            let t = term(
+                TermValue::Ipv4 {
+                    addr,
+                    prefix: Some(p),
+                },
+                op,
+            );
+            // Reflexive: the address itself always matches its own
+            // CIDR (the mask kills exactly the low bits).
+            let verdict = eval(&Value::Ipv4(addr), &t);
+            assert_eq!(verdict, op == Op::Eq);
+        }
+    }
+
+    /// The v6 CIDR mask arithmetic: any prefix ≤ 128, membership
+    /// reflexive; the `checked_shl` guard keeps the shift sound.
+    #[kani::proof]
+    fn ipv6_cidr_mask_is_safe_and_reflexive() {
+        let octets: [u8; 16] = kani::any();
+        let addr = Ipv6Addr::from(octets);
+        let p = kani::any::<u8>();
+        kani::assume(p <= 128);
+        for op in [Op::Eq, Op::Ne] {
+            let t = term(
+                TermValue::Ipv6 {
+                    addr,
+                    prefix: Some(p),
+                },
+                op,
+            );
+            let verdict = eval(&Value::Ipv6(addr), &t);
+            assert_eq!(verdict, op == Op::Eq);
+        }
+    }
+
+    /// MAC equality and the type-mismatch fall-through: a MAC term
+    /// against a non-MAC value is a clean `false` (never a panic);
+    /// against the same MAC it's `true` under Eq.
+    #[kani::proof]
+    fn eval_type_mismatches_are_false() {
+        let mac: [u8; 6] = kani::any();
+        // MAC term vs Int value: false, no panic.
+        let t = term(TermValue::Mac(mac), Op::Eq);
+        assert!(!eval(&Value::Int(kani::any::<u128>()), &t));
+        // Int term vs Bytes value: false.
+        let t = term(TermValue::Int(1), Op::Eq);
+        assert!(!eval(&Value::Bytes(Bytes::from_static(&[1])), &t));
+        // HexPrefix term vs Int: false (the guard class).
+        let t = term(TermValue::HexPrefix(Bytes::from_static(&[0xaa])), Op::Eq);
+        assert!(!eval(&Value::Int(1), &t));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

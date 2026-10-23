@@ -42,6 +42,9 @@ path = "../crates/wrex-fuzz"
 [dependencies.wrex-h2]
 path = "../crates/wrex-h2"
 
+[dependencies.wrex-test]
+path = "../crates/wrex-test"
+
 [[bin]]
 name = "fuzz_dissect_eth"
 path = "fuzz_targets/fuzz_dissect_eth.rs"
@@ -181,6 +184,20 @@ bench = false
 [[bin]]
 name = "fuzz_h2_session"
 path = "fuzz_targets/fuzz_h2_session.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_patch_engine"
+path = "fuzz_targets/fuzz_patch_engine.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_filter"
+path = "fuzz_targets/fuzz_filter.rs"
 test = false
 doc = false
 bench = false
