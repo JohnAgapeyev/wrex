@@ -229,12 +229,6 @@ fn resolve_patches(buf: &mut BytesMut, patches: &[Patch], strict: bool) -> Vec<V
                 path,
             } => {
                 let region_end = region_end.unwrap_or(end).min(end);
-                if std::env::var("WREX_DEBUG_CK").is_ok() {
-                    eprintln!(
-                        "CKDEBUG at={at} start={start} region_end={region_end} pseudo={:?}",
-                        pseudo
-                    );
-                }
                 let mut acc = ChecksumAccumulator::new();
                 if let Some(pseudo) = pseudo {
                     pseudo.accumulate_into(&mut acc, region_end - start);
