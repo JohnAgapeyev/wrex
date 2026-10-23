@@ -553,12 +553,12 @@ mod prop {
         }
     }
 
-    /// Arbitrary two-piece splits of a frame stream reassemble: feeding
-    /// [prefix, rest] must accumulate (via the caller's buffer model —
-    /// here: decode_frame over concat) to the same step as the whole
-    /// buffer, and iterating split-by-split reaches every frame in
-    /// order (the session's chunked-feed invariant, driven at the
-    /// frame layer).
+    // Arbitrary two-piece splits of a frame stream reassemble: feeding
+    // [prefix, rest] must accumulate (via the caller's buffer model —
+    // here: decode_frame over concat) to the same step as the whole
+    // buffer, and iterating split-by-split reaches every frame in
+    // order (the session's chunked-feed invariant, driven at the
+    // frame layer).
     proptest! {
         #![proptest_config(ProptestConfig {
             failure_persistence: Some(Box::new(proptest::test_runner::FileFailurePersistence::WithSource(
@@ -569,7 +569,7 @@ mod prop {
         })]
 
         #[test]
-        fn arbitrary_splits_never_desync(f_idx in 0u8..7, cut in 0usize..64, junk in proptest::collection::vec(proptest::num::u8::ANY, 0..16)) {
+        fn arbitrary_splits_never_desync(f_idx in 0u8..7, _cut in 0usize..64, junk in proptest::collection::vec(proptest::num::u8::ANY, 0..16)) {
             let fixtures = fixtures();
             let f = &fixtures[f_idx as usize % fixtures.len()];
             // A junk prefix frame (Malformed/Need/Hav — never a panic),

@@ -1330,10 +1330,10 @@ mod prop {
         outs
     }
 
-    /// Arbitrary SPLIT FEEDS of one server byte stream: feeding the
-    /// stream in random chunks (any split, any chunk count) must
-    /// yield the same outcomes as one whole on_frame — the session
-    /// accumulates, it never resyncs on chunk boundaries.
+    // Arbitrary SPLIT FEEDS of one server byte stream: feeding the
+    // stream in random chunks (any split, any chunk count) must
+    // yield the same outcomes as one whole on_frame — the session
+    // accumulates, it never resyncs on chunk boundaries.
     proptest! {
         #![proptest_config(ProptestConfig {
             failure_persistence: Some(Box::new(proptest::test_runner::FileFailurePersistence::WithSource(
@@ -1405,10 +1405,10 @@ mod prop {
         }
     }
 
-    /// Random INTERLEAVINGS of independent server frames (PING,
-    /// WINDOW_UPDATE, SETTINGS) around the response frames: the
-    /// per-request outcomes must be unaffected — ordering of
-    /// connection-housekeeping frames is free.
+    // Random INTERLEAVINGS of independent server frames (PING,
+    // WINDOW_UPDATE, SETTINGS) around the response frames: the
+    // per-request outcomes must be unaffected — ordering of
+    // connection-housekeeping frames is free.
     proptest! {
         #![proptest_config(ProptestConfig {
             failure_persistence: Some(Box::new(proptest::test_runner::FileFailurePersistence::WithSource(
