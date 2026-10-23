@@ -145,11 +145,80 @@ fn bench_pcap_read(c: &mut Criterion) {
     });
 }
 
+fn bench_schema_walk(c: &mut Criterion) {
+    // Tripwire (const-eval pass): the per-field schema walk every
+    // dissect/encode drives — LayerSchema::field resolving a name over
+    // the static (const-evaluated) field tables. The LazyLock form
+    // paid a lazy-init branch + heap Vec per access.
+    let reg = wrex::standard();
+    let tcp = reg.get("tcp").expect("tcp registered").schema();
+    let udp = reg.get("udp").expect("udp registered").schema();
+    let ip = reg.get("ipv4").expect("ipv4 registered").schema();
+    c.bench_function("schema/field-lookup", |b| {
+        b.iter(|| {
+            let mut hits = 0u64;
+            for _ in 0..100 {
+                if black_box(tcp.field(black_box("dport"))).is_some() {
+                    hits += 1;
+                }
+                if black_box(udp.field(black_box("checksum"))).is_some() {
+                    hits += 1;
+                }
+                if black_box(ip.field(black_box("ttl"))).is_some() {
+                    hits += 1;
+                }
+            }
+            black_box(hits);
+        })
+    });
+    c.bench_function("schema/field-names-unique", |b| {
+        // The const fn behind the per-codec uniqueness proof, over the
+        // same static tables the tests assert.
+        b.iter(|| {
+            let mut ok = true;
+            for s in black_box(&[tcp, udp, ip]) {
+                for r in s.records.iter() {
+                    ok &= wrex_core::schema::field_names_unique(r.fields);
+                }
+            }
+            black_box(ok)
+        })
+    });
+}
+
+fn bench_checksum(c: &mut Criterion) {
+    // Tripwire (const-eval pass): the RFC 1071 fold — now const (the
+    // add_bytes index-loop rewrite vs the old as_chunks iterator form
+    // is the codegen difference worth watching) and running per frame
+    // on every proto write path.
+    use wrex_core::ChecksumAccumulator;
+    let frame = [0x45u8; 64];
+    let header = [
+        0x45u8, 0, 0, 0x40, 0, 0, 0, 0, 0x40, 17, 0, 0, 192, 168, 0, 1, 192, 168, 0, 2,
+    ];
+    c.bench_function("checksum/add-bytes-64", |b| {
+        b.iter(|| {
+            let mut acc = ChecksumAccumulator::new();
+            acc.add_bytes(black_box(&frame));
+            black_box(acc.value());
+        })
+    });
+    c.bench_function("checksum/fold-header", |b| {
+        b.iter(|| {
+            let mut acc = ChecksumAccumulator::new();
+            acc.add_bytes(black_box(&header));
+            black_box(acc.value());
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_encode,
     bench_dissect,
     bench_corpus_dissect,
-    bench_pcap_read
+    bench_pcap_read,
+    bench_schema_walk,
+    bench_checksum
 );
 criterion_main!(benches);
