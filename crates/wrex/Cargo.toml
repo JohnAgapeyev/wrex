@@ -25,6 +25,7 @@ wrex-tls = { workspace = true }
 wrex-pcap = { workspace = true }
 wrex-mut = { workspace = true }
 wrex-fuzz = { workspace = true }
+wrex-frag = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }

@@ -1,0 +1,4 @@
+source_url = "handcrafted (wrex tests/frag.rs generator, tranche T18a)"
+imported = "2026-10-23"
+start = "auto"
+frames = ["01", "02", "03", "04"]

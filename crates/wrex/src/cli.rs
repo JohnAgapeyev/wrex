@@ -656,6 +656,12 @@ pub struct ReplayArgs {
     /// RNG seed (default: time-derived; pins the jitter schedule).
     #[arg(long)]
     pub seed: Option<u64>,
+    /// Reassemble IP fragments (offline mode only, tranche T18a):
+    /// complete datagrams are re-dissected and printed in stream
+    /// order; non-fragment frames pass through; residual incomplete
+    /// datagrams report as notes (data, exit 0).
+    #[arg(long)]
+    pub reassemble: bool,
 }
 
 /// Epilog for query: the DNS ask verb (tranche 3; DoT at 8a; v6 at 10a).

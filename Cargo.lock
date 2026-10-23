@@ -2560,6 +2560,7 @@ dependencies = [
  "tracing-subscriber",
  "wrex-core",
  "wrex-dns",
+ "wrex-frag",
  "wrex-fuzz",
  "wrex-h2",
  "wrex-http",
@@ -2617,6 +2618,14 @@ dependencies = [
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-session",
+]
+
+[[package]]
+name = "wrex-frag"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "wrex-core",
 ]
 
 [[package]]

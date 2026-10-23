@@ -334,7 +334,9 @@ fn synthesize(prefix: &[u8], rewrites: &[PrefixRewrite], payload: &[u8]) -> Vec<
                 out[pos + 1] = v as u8;
             }
             PrefixRewrite::PayloadLen(pos) => {
-                let v = payload.len() as u16;
+                // Everything past the fixed 40-byte ipv6 header rides in
+                // the prefix (pre-frag ext headers) + the payload.
+                let v = (prefix.len() - 40 + payload.len()) as u16;
                 out[pos] = (v >> 8) as u8;
                 out[pos + 1] = v as u8;
             }

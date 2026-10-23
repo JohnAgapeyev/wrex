@@ -4,7 +4,7 @@
 .SH NAME
 replay \- Read a pcap (dissect to stdout) or re\-send it on an interface
 .SH SYNOPSIS
-\fBreplay\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-filter\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIFILE\fR> 
+\fBreplay\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-count\fR] [\fB\-\-filter\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-\-reassemble\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fIFILE\fR> 
 .SH DESCRIPTION
 Read a pcap (dissect to stdout) or re\-send it on an interface
 .SH OPTIONS
@@ -41,6 +41,9 @@ Seeded jitter magnitude (+/\-) on the pacing step
 .TP
 \fB\-\-seed\fR \fI<SEED>\fR
 RNG seed (default: time\-derived; pins the jitter schedule)
+.TP
+\fB\-\-reassemble\fR
+Reassemble IP fragments (offline mode only, tranche T18a): complete datagrams are re\-dissected and printed in stream order; non\-fragment frames pass through; residual incomplete datagrams report as notes (data, exit 0)
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

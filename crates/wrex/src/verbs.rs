@@ -969,6 +969,11 @@ fn replay(
     if args.interval.is_some() && common.iface.is_none() {
         return Err(usage("replay: --interval is send-mode pacing (-i IFACE)"));
     }
+    if args.reassemble && common.iface.is_some() {
+        return Err(usage(
+            "replay: --reassemble is offline dissection (-i IFACE sends fragments verbatim)",
+        ));
+    }
 
     // Read + dissect: filter/count apply to both modes identically so
     // the offline print and the wire send see the same frames.
@@ -1001,6 +1006,38 @@ fn replay(
     let Some(iface) = common.iface.as_deref() else {
         // Offline mode: dissect-and-print (jsonl default, like recv).
         let format = Format::parse(common, Format::Jsonl)?;
+        if args.reassemble {
+            // Tranche T18a: feed the fragment stream (file order) through
+            // the reassembler — complete datagrams re-dissect and print
+            // in stream order, non-fragments pass through, residual
+            // incomplete datagrams report as notes (data, exit 0).
+            let mut re = wrex_frag::Reassembler::default();
+            for f in &frames {
+                match wrex_frag::classify(&f.packet) {
+                    Some(frag) => {
+                        let now =
+                            f.ts.duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_micros() as u64)
+                                .unwrap_or(0);
+                        match re.push(frag, now) {
+                            wrex_frag::Push::Complete(bytes) => {
+                                let packet = dissect(registry, &bytes, "auto");
+                                print_frame(format, &packet, &bytes)?;
+                            }
+                            wrex_frag::Push::Overrun => {
+                                eprintln!("! reassembly: budget overrun, datagram dropped")
+                            }
+                            wrex_frag::Push::Pending => {}
+                        }
+                    }
+                    None => print_frame(format, &f.packet, &f.bytes)?,
+                }
+            }
+            for note in re.incomplete() {
+                eprintln!("! reassembly: {note}");
+            }
+            return Ok(());
+        }
         for f in &frames {
             print_frame(format, &f.packet, &f.bytes)?;
         }

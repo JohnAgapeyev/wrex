@@ -1,0 +1,67 @@
+{
+  "anomalies": [
+    {
+      "message": "mismatch (computed 0xe488, found 0xe481)",
+      "path": "ipv4.checksum"
+    },
+    {
+      "message": "mismatch (expected 1029 (0x0405), found 24 bytes)",
+      "path": "udp.length"
+    },
+    {
+      "message": "mismatch (computed 0xfd48, found 0x0607)",
+      "path": "udp.checksum"
+    }
+  ],
+  "layers": [
+    {
+      "fields": {
+        "dst": "aa:01:02:03:04:05",
+        "src": "bb:06:07:08:09:0a",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 58497,
+        "dst": "192.0.2.2",
+        "flags": [],
+        "frag_off": 1,
+        "id": 4660,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "192.0.2.1",
+        "tos": 0,
+        "total_len": 44,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 1543,
+        "dport": 515,
+        "length": 1029,
+        "sport": 1
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    }
+  ],
+  "payload_hex": "08090a0b0c0d0e0f1011121314151617",
+  "start": "eth"
+}

@@ -55,10 +55,16 @@ static FIELDS: [FieldSchema; 13] = [
     FieldSchema {
         name: "flags",
         kind: FieldKind::FlagSet,
-        bit_names: &["df", "mf"],
+        // RFC 791 §3.1: the 3-bit field is [res, df, mf] at word bits
+        // 13/14/15 — `mf` is bit 15 (the T18a sweep caught the original
+        // [df, mf] mapping putting mf on the reserved bit 13: real
+        // fragmented captures dissected with no mf at all, and craft
+        // emitted reserved-bit packets). MSB-first over the full
+        // 3-bit window: mf = top bit.
+        bit_names: &["mf", "df", "res"],
         default: Value::Int(0),
         required: false,
-        doc: "flags aggregate [df,mf]; per-bit subpaths flags.df / flags.mf",
+        doc: "flags aggregate [mf,df,res] (RFC 791: mf=bit 15, df=bit 14); per-bit subpaths flags.mf / flags.df / flags.res",
     },
     d("frag_off", FieldKind::U16, "fragment offset", Value::Int(0)),
     d(
@@ -340,13 +346,14 @@ impl Codec for IpCodec {
             ));
         }
 
-        // Flag names for the 2-bit aggregate (MSB-first: df=bit1, mf=bit0).
-        let agg = (flags_frag >> 13) & 0x3;
+        // Flag names for the 3-bit field (RFC 791: res=13, df=14, mf=15).
+        // Names render df-then-mf (the tshark order).
+        let agg = (flags_frag >> 13) & 0x7;
         let mut names: Vec<Value> = Vec::new();
-        if agg & 0b10 != 0 {
+        if agg & 0b010 != 0 {
             names.push(Value::Str(Cow::Borrowed("df")));
         }
-        if agg & 0b01 != 0 {
+        if agg & 0b100 != 0 {
             names.push(Value::Str(Cow::Borrowed("mf")));
         }
 
