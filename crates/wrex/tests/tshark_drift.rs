@@ -42,7 +42,9 @@ fn tshark_version() -> String {
 /// and the required tshark JSON keys, each of which must appear in at
 /// least ONE frame's JSON. Keys are listed ONLY where the field map
 /// actually reads them (see `wrex_test::oracle::tshark_map`).
-fn fixtures() -> Vec<(&'static str, Vec<Vec<u8>>, Vec<&'static str>)> {
+type Fixture = (&'static str, Vec<Vec<u8>>, Vec<&'static str>);
+
+fn fixtures() -> Vec<Fixture> {
     let corpora = wrex_test::corpus::Corpus::load_all();
     let mut out = Vec::new();
     let frames_of = |c: &wrex_test::corpus::Corpus| -> Vec<Vec<u8>> {
