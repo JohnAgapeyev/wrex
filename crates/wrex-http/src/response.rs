@@ -252,8 +252,15 @@ pub(crate) fn parse_trailers(buf: &[u8]) -> TrailersStep {
     }
 }
 
-fn find_double_crlf(buf: &[u8]) -> Option<usize> {
-    buf.windows(4).position(|w| w == b"\r\n\r\n")
+const fn find_double_crlf(buf: &[u8]) -> Option<usize> {
+    let mut i = 0;
+    while i + 4 <= buf.len() {
+        if buf[i] == b'\r' && buf[i + 1] == b'\n' && buf[i + 2] == b'\r' && buf[i + 3] == b'\n' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
 }
 
 #[cfg(test)]

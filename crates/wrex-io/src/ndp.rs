@@ -97,7 +97,7 @@ pub(crate) fn lookup(routes: &[Route], dst: Ipv6Addr) -> Option<&Route> {
 }
 
 /// Mask an address to its prefix length.
-fn mask_addr(a: Ipv6Addr, prefix: u32) -> Ipv6Addr {
+const fn mask_addr(a: Ipv6Addr, prefix: u32) -> Ipv6Addr {
     if prefix == 0 {
         return Ipv6Addr::UNSPECIFIED;
     }
@@ -106,15 +106,44 @@ fn mask_addr(a: Ipv6Addr, prefix: u32) -> Ipv6Addr {
     }
     let mut oct = a.octets();
     let mut left = prefix;
-    for b in oct.iter_mut() {
-        match left {
-            0 => *b = 0,
-            8.. => {}
-            _ => *b &= !(0xffu8 >> left),
+    let mut i = 0;
+    while i < oct.len() {
+        if left == 0 {
+            oct[i] = 0;
+        } else if left < 8 {
+            oct[i] &= !(0xffu8 >> left);
         }
         left = left.saturating_sub(8);
+        i += 1;
     }
-    Ipv6Addr::from(oct)
+    let [
+        o0,
+        o1,
+        o2,
+        o3,
+        o4,
+        o5,
+        o6,
+        o7,
+        o8,
+        o9,
+        o10,
+        o11,
+        o12,
+        o13,
+        o14,
+        o15,
+    ] = oct;
+    Ipv6Addr::new(
+        u16::from_be_bytes([o0, o1]),
+        u16::from_be_bytes([o2, o3]),
+        u16::from_be_bytes([o4, o5]),
+        u16::from_be_bytes([o6, o7]),
+        u16::from_be_bytes([o8, o9]),
+        u16::from_be_bytes([o10, o11]),
+        u16::from_be_bytes([o12, o13]),
+        u16::from_be_bytes([o14, o15]),
+    )
 }
 
 /// Parse 32 hex chars as a network-order v6 address.
@@ -133,13 +162,13 @@ fn parse_hex_ipv6(raw: &str) -> Option<Ipv6Addr> {
 }
 
 /// Is this a multicast destination (`ff00::/8`)?
-fn is_multicast(a: Ipv6Addr) -> bool {
+const fn is_multicast(a: Ipv6Addr) -> bool {
     a.octets()[0] == 0xff
 }
 
 /// Solicited-node multicast address (RFC 4861 §4.3): `ff02::1:ffXX:XXXX`
 /// from the low 24 bits of `target`.
-pub fn solicited_node(target: Ipv6Addr) -> Ipv6Addr {
+pub const fn solicited_node(target: Ipv6Addr) -> Ipv6Addr {
     let t = target.octets();
     let mut a = [0u8; 16];
     a[0] = 0xff;
@@ -149,12 +178,39 @@ pub fn solicited_node(target: Ipv6Addr) -> Ipv6Addr {
     a[13] = t[13];
     a[14] = t[14];
     a[15] = t[15];
-    Ipv6Addr::from(a)
+    let [
+        o0,
+        o1,
+        o2,
+        o3,
+        o4,
+        o5,
+        o6,
+        o7,
+        o8,
+        o9,
+        o10,
+        o11,
+        o12,
+        o13,
+        o14,
+        o15,
+    ] = a;
+    Ipv6Addr::new(
+        u16::from_be_bytes([o0, o1]),
+        u16::from_be_bytes([o2, o3]),
+        u16::from_be_bytes([o4, o5]),
+        u16::from_be_bytes([o6, o7]),
+        u16::from_be_bytes([o8, o9]),
+        u16::from_be_bytes([o10, o11]),
+        u16::from_be_bytes([o12, o13]),
+        u16::from_be_bytes([o14, o15]),
+    )
 }
 
 /// Ethernet multicast MAC for a v6 multicast address (RFC 2464:
 /// `33:33:` + the address's low 32 bits).
-pub fn multicast_mac(a: Ipv6Addr) -> [u8; 6] {
+pub const fn multicast_mac(a: Ipv6Addr) -> [u8; 6] {
     let o = a.octets();
     [0x33, 0x33, o[12], o[13], o[14], o[15]]
 }

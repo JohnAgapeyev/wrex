@@ -26,8 +26,13 @@ use bytes::{BufMut as _, Bytes, BytesMut};
 use crate::huffman::{huffman_decode, huffman_encode, huffman_encoded_len};
 
 /// One static-table entry (RFC 7541 appendix A). Index = position + 1.
-pub fn static_entry(idx: usize) -> Option<(&'static str, &'static str)> {
-    STATIC_TABLE.get(idx).copied()
+pub const fn static_entry(idx: usize) -> Option<(&'static str, &'static str)> {
+    // (const: slice get() is not const-callable — bounds-checked index.)
+    if idx < STATIC_TABLE.len() {
+        Some(STATIC_TABLE[idx])
+    } else {
+        None
+    }
 }
 
 /// The static table (RFC 7541 appendix A, 61 entries).
@@ -212,19 +217,45 @@ fn decode_string(buf: &[u8]) -> Result<(Vec<u8>, usize), String> {
 pub const MAX_STRING: usize = 64 * 1024;
 
 /// Find a full static-table match (name+value) → its 1-based index.
-fn static_full(name: &[u8], value: &[u8]) -> Option<u8> {
-    STATIC_TABLE
-        .iter()
-        .position(|&(n, v)| n.as_bytes() == name && v.as_bytes() == value)
-        .map(|i| i as u8 + 1)
+const fn static_full(name: &[u8], value: &[u8]) -> Option<u8> {
+    let mut i = 0;
+    while i < STATIC_TABLE.len() {
+        if bytes_eq(STATIC_TABLE[i].0.as_bytes(), name)
+            && bytes_eq(STATIC_TABLE[i].1.as_bytes(), value)
+        {
+            return Some(i as u8 + 1);
+        }
+        i += 1;
+    }
+    None
 }
 
 /// Find the first static-table name match → its 1-based index.
-fn static_name(name: &[u8]) -> Option<u8> {
-    STATIC_TABLE
-        .iter()
-        .position(|&(n, _)| n.as_bytes() == name)
-        .map(|i| i as u8 + 1)
+const fn static_name(name: &[u8]) -> Option<u8> {
+    let mut i = 0;
+    while i < STATIC_TABLE.len() {
+        if bytes_eq(STATIC_TABLE[i].0.as_bytes(), name) {
+            return Some(i as u8 + 1);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Const byte-slice equality (== on slices is PartialEq trait
+/// dispatch — not const-callable).
+const fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 /// Encode one header list as a deterministic literal block: indexed

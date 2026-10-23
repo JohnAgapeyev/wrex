@@ -175,7 +175,7 @@ pub fn fake_frame(iface: &str, bytes: &[u8]) -> Frame {
     }
 }
 
-pub fn epoch_ts() -> SystemTime {
+pub const fn epoch_ts() -> SystemTime {
     UNIX_EPOCH
 }
 

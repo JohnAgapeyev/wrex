@@ -342,11 +342,15 @@ pub fn huffman_encode(data: &[u8]) -> Vec<u8> {
 }
 
 /// Encoded length of `data` (the [`huffman_encode`] output length).
-pub fn huffman_encoded_len(data: &[u8]) -> usize {
-    let bits: usize = data
-        .iter()
-        .map(|&b| HUFFMAN_TABLE[b as usize].2 as usize)
-        .sum();
+/// (const: index loop — the iter().map().sum() closure chain is not
+/// const-callable.)
+pub const fn huffman_encoded_len(data: &[u8]) -> usize {
+    let mut bits: usize = 0;
+    let mut i = 0;
+    while i < data.len() {
+        bits += HUFFMAN_TABLE[data[i] as usize].2 as usize;
+        i += 1;
+    }
     bits.div_ceil(8)
 }
 

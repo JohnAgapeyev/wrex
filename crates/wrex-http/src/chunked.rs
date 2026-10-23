@@ -32,16 +32,20 @@ pub(crate) fn parse_chunk_header(buf: &[u8]) -> ChunkHeader {
         return ChunkHeader::NeedMore;
     };
     let line = &buf[..crlf];
-    // Strip chunk extensions.
-    let size_part = match line.iter().position(|&b| b == b';') {
-        Some(semi) => &line[..semi],
+    // Strip chunk extensions (index loop — iter().position closures
+    // are not const-callable; keeps find_crlf/find_byte const-usable).
+    let semi = find_byte(line, b';');
+    let size_part = match semi {
+        Some(i) => &line[..i],
         None => line,
     };
     if size_part.is_empty() || size_part.len() > 16 {
         return ChunkHeader::Invalid;
     }
     let mut size: u64 = 0;
-    for &b in size_part {
+    let mut i = 0;
+    while i < size_part.len() {
+        let b = size_part[i];
         let digit = match b {
             b'0'..=b'9' => u64::from(b - b'0'),
             b'a'..=b'f' => u64::from(b - b'a' + 10),
@@ -57,6 +61,7 @@ pub(crate) fn parse_chunk_header(buf: &[u8]) -> ChunkHeader {
             return ChunkHeader::Invalid;
         }
         size = summed;
+        i += 1;
     }
     let len = crlf + 2;
     if size == 0 {
@@ -66,8 +71,28 @@ pub(crate) fn parse_chunk_header(buf: &[u8]) -> ChunkHeader {
     }
 }
 
-fn find_crlf(buf: &[u8]) -> Option<usize> {
-    buf.windows(2).position(|w| w == b"\r\n")
+const fn find_crlf(buf: &[u8]) -> Option<usize> {
+    let mut i = 0;
+    while i + 2 <= buf.len() {
+        if buf[i] == b'\r' && buf[i + 1] == b'\n' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// First index of `needle` (const: the iter().position closure form
+/// is not const-callable).
+const fn find_byte(buf: &[u8], needle: u8) -> Option<usize> {
+    let mut i = 0;
+    while i < buf.len() {
+        if buf[i] == needle {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
 }
 
 #[cfg(test)]
