@@ -146,8 +146,11 @@ proptest! {
         if let Err(report) = dhcp_diff(&bytes, dhcp) {
             prop_assert!(report.mismatches.is_empty(), "our dissection disagrees: {report:?}");
         }
-        // sname/file survive dhcproto's NUL padding
-        prop_assert_eq!(dhcp.fields.get("sname"), Some(&Value::Str("wrex-server".into())));
-        prop_assert_eq!(dhcp.fields.get("file"), Some(&Value::Str("boot.img".into())));
+        // sname/file survive dhcproto's NUL padding (bind the values
+        // first: MSRV 1.88 doesn't extend match-scrutinee temporaries)
+        let want_sname = Value::Str("wrex-server".into());
+        let want_file = Value::Str("boot.img".into());
+        prop_assert_eq!(dhcp.fields.get("sname"), Some(&want_sname));
+        prop_assert_eq!(dhcp.fields.get("file"), Some(&want_file));
     }
 }
