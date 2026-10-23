@@ -43,3 +43,50 @@ impl PacketSpec {
         Self { layers, payload }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn layer_spec_constructors_and_defaults() {
+        let bare = LayerSpec::new("eth");
+        assert_eq!(bare.kind, "eth");
+        assert!(bare.fields.is_empty());
+        let mut fields = BTreeMap::new();
+        fields.insert("dst".to_string(), Value::Int(1));
+        let with = LayerSpec::with_fields("eth", fields.clone());
+        assert_eq!(with.kind, "eth");
+        assert_eq!(with.fields.len(), 1);
+        // Clone is distinct (derive smoke).
+        let cloned = with.clone();
+        assert_eq!(cloned.fields, fields);
+    }
+
+    #[test]
+    fn packet_spec_default_and_new() {
+        let d = PacketSpec::default();
+        assert!(d.layers.is_empty());
+        assert!(d.payload.is_none());
+        let p = PacketSpec::new(vec![LayerSpec::new("eth")], Some(Value::Int(7)));
+        assert_eq!(p.layers.len(), 1);
+        assert_eq!(p.layers[0].kind, "eth");
+        assert_eq!(p.payload, Some(Value::Int(7)));
+    }
+
+    /// The specs Serialize (jsonl lines carry them); shape smoke so a
+    /// serde rename can't slip through unnoticed.
+    #[test]
+    fn packet_spec_serializes() {
+        let mut fields = BTreeMap::new();
+        fields.insert("type".to_string(), Value::Int(2048));
+        let p = PacketSpec::new(
+            vec![LayerSpec::with_fields("eth", fields)],
+            Some(Value::Int(1)),
+        );
+        let j = serde_json::to_string(&p).expect("serialize");
+        assert!(j.contains(r#""kind":"eth""#), "kind field: {j}");
+        assert!(j.contains(r#""layers""#), "layers field: {j}");
+        assert!(j.contains(r#""payload""#), "payload field: {j}");
+    }
+}

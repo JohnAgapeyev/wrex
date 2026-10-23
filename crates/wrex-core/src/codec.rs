@@ -132,3 +132,85 @@ impl core::fmt::Debug for Registry {
         f.debug_set().entries(self.kinds.iter().copied()).finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{FieldKind, FieldSchema, LayerSchema};
+    use crate::value::Value;
+
+    /// Minimal fixed-schema codec for registry semantics.
+    struct Mock {
+        schema: &'static LayerSchema,
+    }
+    impl Mock {
+        fn new(kind: &'static str) -> &'static Self {
+            let fields: Vec<FieldSchema> = vec![FieldSchema {
+                name: "x",
+                kind: FieldKind::U8,
+                bit_names: &[],
+                default: Value::Int(0),
+                required: false,
+                doc: "",
+            }];
+            let schema = LayerSchema {
+                kind,
+                rank: 1,
+                parents: &[],
+                doc: "",
+                fields: Box::leak(fields.into_boxed_slice()),
+                records: &[],
+            };
+            let this = Self {
+                schema: Box::leak(Box::new(schema)),
+            };
+            Box::leak(Box::new(this))
+        }
+    }
+    impl Codec for Mock {
+        fn schema(&self) -> &'static LayerSchema {
+            self.schema
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(0)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'a>(&self, _bytes: &'a [u8], _ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+            ReadOutcome::Empty
+        }
+    }
+
+    #[test]
+    fn registry_register_get_and_collision() {
+        let mut r = Registry::empty();
+        assert!(r.get("a").is_none());
+        assert!(r.kinds().is_empty());
+        r.register(Mock::new("a"));
+        r.register(Mock::new("b"));
+        assert_eq!(r.kinds(), ["a", "b"]);
+        assert_eq!(r.get("a").unwrap().schema().kind, "a");
+        assert_eq!(r.get("b").unwrap().schema().kind, "b");
+        assert_eq!(r.schema("b").map(|s| s.kind), Some("b"));
+        // Last registration wins on kind collisions.
+        r.register(Mock::new("a"));
+        assert_eq!(r.kinds(), ["a", "b", "a"]);
+        assert_eq!(
+            r.get("a").map(|c| c.schema().rank),
+            Some(1),
+            "get must resolve the LAST `a`"
+        );
+        // Case-sensitive kinds; unknown misses.
+        assert!(r.get("A").is_none());
+        assert!(r.get("nope").is_none());
+    }
+
+    #[test]
+    fn registry_debug_lists_kinds() {
+        let mut r = Registry::empty();
+        r.register(Mock::new("eth"));
+        r.register(Mock::new("ipv4"));
+        assert_eq!(format!("{r:?}"), r#"{"eth", "ipv4"}"#);
+    }
+}

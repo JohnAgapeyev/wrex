@@ -90,3 +90,82 @@ impl Finding {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn finding(outcome: Outcome, rtt_ms: Option<u64>, reply: Option<&str>) -> Finding {
+        Finding {
+            target: wrex_scan::ScanAddr::V4("127.0.0.1".parse().unwrap()),
+            port: Some(22),
+            proto: "tcp",
+            round: None,
+            strategy: "baseline",
+            outcome,
+            attempts: 1,
+            rtt_ms,
+            probe_hex: "aa".to_string(),
+            reply_hex: reply.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn outcome_as_str_and_serde() {
+        assert_eq!(Outcome::Reply.as_str(), "reply");
+        assert_eq!(Outcome::Silence.as_str(), "silence");
+        assert_eq!(Outcome::Unreachable(3).as_str(), "unreachable");
+        // Wire names: snake_case discriminants; Unreachable renames its
+        // code field.
+        assert_eq!(
+            serde_json::to_string(&Outcome::Reply).unwrap(),
+            r#""reply""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Outcome::Unreachable(3)).unwrap(),
+            r#"{"unreachable":3}"#
+        );
+        assert_eq!(
+            serde_json::from_str::<Outcome>(r#"{"unreachable":3}"#).unwrap(),
+            Outcome::Unreachable(3)
+        );
+    }
+
+    #[test]
+    fn text_line_shapes() {
+        let f = finding(Outcome::Reply, Some(12), Some("bb"));
+        let line = f.text_line();
+        assert!(line.contains("22/tcp"), "proto-qualified port: {line}");
+        assert!(line.contains("reply"), "outcome: {line}");
+        assert!(
+            line.contains("(baseline)"),
+            "round-less finds are baseline: {line}"
+        );
+        assert!(line.contains("12ms"), "rtt: {line}");
+        assert!(line.contains("probe=aa"), "probe bytes: {line}");
+        assert!(line.ends_with("reply=bb"), "trailing reply: {line}");
+        // No rtt/reply: neither token appears.
+        let f = finding(Outcome::Silence, None, None);
+        let line = f.text_line();
+        assert!(!line.contains("ms"), "no rtt: {line}");
+        assert!(!line.contains("reply="), "no reply token: {line}");
+        assert!(line.contains("silence"), "outcome: {line}");
+        // icmp finds carry no port; the proto stands alone.
+        let mut f = finding(Outcome::Unreachable(3), None, None);
+        f.port = None;
+        f.proto = "icmp";
+        let line = f.text_line();
+        assert!(
+            line.contains("icmp  unreachable:3"),
+            "bare proto + code: {line}"
+        );
+        // A mutated round prints `round N` + its strategy, not `baseline`.
+        f.round = Some(2);
+        f.strategy = "flip";
+        assert!(
+            f.text_line().contains("(round 2)  flip"),
+            "round label: {}",
+            f.text_line()
+        );
+    }
+}

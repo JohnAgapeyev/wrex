@@ -255,3 +255,203 @@ pub(crate) fn parse_trailers(buf: &[u8]) -> TrailersStep {
 fn find_double_crlf(buf: &[u8]) -> Option<usize> {
     buf.windows(4).position(|w| w == b"\r\n\r\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn resp(status: u16, headers: &[(&str, &str)]) -> HttpResponse {
+        let mut map = http::HeaderMap::new();
+        for (n, v) in headers {
+            map.append(
+                http::HeaderName::from_bytes(n.as_bytes()).unwrap(),
+                http::HeaderValue::from_str(v).unwrap(),
+            );
+        }
+        HttpResponse {
+            status: http::StatusCode::from_u16(status).unwrap(),
+            reason: String::new(),
+            version: http::Version::HTTP_11,
+            headers: map,
+            body: Bytes::new(),
+        }
+    }
+
+    #[test]
+    fn framing_table() {
+        use crate::BodyFraming;
+        let get = http::Method::GET;
+        let head = http::Method::HEAD;
+        // Informational: no body regardless of headers.
+        assert_eq!(
+            resp(100, &[("content-length", "5")]).framing(&get),
+            BodyFraming::None
+        );
+        // HEAD / 204 / 304: no body regardless of framing headers.
+        assert_eq!(
+            resp(200, &[("content-length", "5")]).framing(&head),
+            BodyFraming::None
+        );
+        assert_eq!(
+            resp(204, &[("content-length", "5")]).framing(&get),
+            BodyFraming::None
+        );
+        assert_eq!(
+            resp(304, &[("transfer-encoding", "chunked")]).framing(&get),
+            BodyFraming::None
+        );
+        // chunked beats content-length (case-insensitive TE value).
+        assert_eq!(
+            resp(
+                200,
+                &[("Transfer-Encoding", "Chunked"), ("content-length", "5")]
+            )
+            .framing(&get),
+            BodyFraming::Chunked
+        );
+        // A non-chunked TE falls through to content-length.
+        assert_eq!(
+            resp(
+                200,
+                &[("transfer-encoding", "gzip"), ("content-length", "5")]
+            )
+            .framing(&get),
+            BodyFraming::ContentLength
+        );
+        assert_eq!(
+            resp(200, &[("content-length", "0")]).framing(&get),
+            BodyFraming::ContentLength
+        );
+        // No framing hints: read until close.
+        assert_eq!(resp(200, &[]).framing(&get), BodyFraming::UntilClose);
+        // 200-with-HEAD has no body but 200-with-GET-with-TE-chunked does.
+        assert_eq!(
+            resp(200, &[("transfer-encoding", "chunked")]).framing(&head),
+            BodyFraming::None
+        );
+    }
+
+    #[test]
+    fn content_length_parsing() {
+        assert_eq!(
+            resp(200, &[("content-length", "42")]).content_length(),
+            Some(Ok(42))
+        );
+        // Whitespace trims; absent → None; empty and junk are Errs.
+        assert_eq!(
+            resp(200, &[("content-length", " 7 ")]).content_length(),
+            Some(Ok(7))
+        );
+        assert_eq!(resp(200, &[]).content_length(), None);
+        assert_eq!(
+            resp(200, &[("content-length", "")])
+                .content_length()
+                .map(|r| r.is_err()),
+            Some(true)
+        );
+        assert_eq!(
+            resp(200, &[("content-length", "big")])
+                .content_length()
+                .map(|r| r.is_err()),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn parse_head_steps() {
+        // Partial input → NeedMore (httparse Partial).
+        assert!(matches!(parse_head(b"HTTP/1.1 20"), HeadStep::NeedMore));
+        // A full head: consumed counts status line + headers, fields copy out.
+        let head = b"HTTP/1.1 404 Not Found\r\nX-Wrex: yes\r\n\r\nbody";
+        let HeadStep::Head {
+            consumed,
+            code,
+            reason,
+            version,
+            headers,
+        } = parse_head(head)
+        else {
+            panic!("expected a complete head");
+        };
+        assert_eq!(consumed, head.len() - 4);
+        assert_eq!(code, 404);
+        assert_eq!(reason, "Not Found");
+        assert_eq!(version, http::Version::HTTP_11);
+        assert_eq!(headers.get("x-wrex").unwrap(), "yes");
+        // HTTP/1.0 rides through; junk is malformed.
+        match parse_head(b"HTTP/1.0 200 OK\r\n\r\n") {
+            HeadStep::Head { version, .. } => assert_eq!(version, http::Version::HTTP_10),
+            other => panic!("expected a v1.0 head, got {other:?}"),
+        }
+        assert!(matches!(
+            parse_head(b"garbage\r\n\r\n"),
+            HeadStep::Malformed(_)
+        ));
+    }
+
+    #[test]
+    fn parse_chunk_data_steps() {
+        // A full data chunk: header + payload + CRLF.
+        let ChunkStep::Data { consumed, size } = parse_chunk_data(b"3\r\nabc\r\nnext") else {
+            panic!("expected a data chunk");
+        };
+        assert_eq!((size, consumed), (3, 8));
+        // Payload not fully buffered → NeedMore.
+        assert!(matches!(parse_chunk_data(b"3\r\nab"), ChunkStep::NeedMore));
+        // The terminating chunk (its trailer section follows).
+        let ChunkStep::Last { consumed } = parse_chunk_data(b"0\r\n\r\n") else {
+            panic!("expected the last chunk");
+        };
+        assert_eq!(consumed, 3);
+        // Lying CRLF after the payload → Malformed, never a panic.
+        assert!(matches!(
+            parse_chunk_data(b"3\r\nabcXX"),
+            ChunkStep::Malformed(_)
+        ));
+    }
+
+    #[test]
+    fn parse_trailers_steps() {
+        // Zero trailers: just the final CRLF.
+        let TrailersStep::Done { consumed, headers } = parse_trailers(b"\r\n") else {
+            panic!("empty trailer section");
+        };
+        assert_eq!((consumed, headers.len()), (2, 0));
+        // One trailer: name/value trim, consumed spans lines + final CRLF.
+        let TrailersStep::Done { consumed, headers } =
+            parse_trailers(b"X-Checksum: abc\r\n\r\nafter")
+        else {
+            panic!("trailer section");
+        };
+        assert_eq!(consumed, 19);
+        assert_eq!(headers, vec![("X-Checksum".to_string(), "abc".to_string())]);
+        // Two trailers; interior CRLF handling; payload after is untouched.
+        let TrailersStep::Done { headers, .. } = parse_trailers(b"A: 1\r\nB:  2 \r\n\r\n") else {
+            panic!("two trailers");
+        };
+        assert_eq!(
+            headers,
+            vec![
+                ("A".to_string(), "1".to_string()),
+                ("B".to_string(), "2".to_string()),
+            ]
+        );
+        // Incomplete → NeedMore; hostile length → Malformed (not NeedMore).
+        assert!(matches!(
+            parse_trailers(b"A: 1\r\n"),
+            TrailersStep::NeedMore
+        ));
+        let big = vec![b'x'; MAX_TRAILERS_BYTES + 1];
+        assert!(matches!(parse_trailers(&big), TrailersStep::Malformed(_)));
+        // A colon-less line is malformed.
+        assert!(matches!(
+            parse_trailers(b"junk\r\n\r\n"),
+            TrailersStep::Malformed(_)
+        ));
+        // An empty name is malformed.
+        assert!(matches!(
+            parse_trailers(b": v\r\n\r\n"),
+            TrailersStep::Malformed(_)
+        ));
+    }
+}

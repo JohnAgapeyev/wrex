@@ -210,4 +210,73 @@ mod tests {
         let p = wrex_core::dissect::dissect(&r, &plain, KIND);
         assert_eq!(p.layers[0].span, 0..4);
     }
+
+    #[test]
+    fn trans_id_masks_and_roundtrips() {
+        let mut r = Registry::empty();
+        register(&mut r);
+        // Over-wide trans_id (u32) writes only its low 3 bytes.
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("msg_type".to_string(), Value::Int(1));
+        fields.insert("trans_id".to_string(), Value::Int(0xaa_112233));
+        let spec = PacketSpec::new(
+            vec![wrex_core::spec::LayerSpec::with_fields(KIND, fields)],
+            None,
+        );
+        let enc = encode(&r, &spec, &Default::default()).unwrap();
+        assert_eq!(&enc.bytes[..], &[1, 0x11, 0x22, 0x33]);
+        // And dissects back as the masked value.
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, KIND);
+        assert_eq!(
+            p.layers[0].fields.get("trans_id"),
+            Some(&Value::Int(0x112233))
+        );
+    }
+
+    #[test]
+    fn truncated_and_empty_inputs_are_anomalies() {
+        let mut r = Registry::empty();
+        register(&mut r);
+        // 1-3 bytes: truncated → anomaly; the rest lands in the synthetic
+        // `unknown` layer as partial data (never fatal).
+        let p = wrex_core::dissect::dissect(&r, &[1, 0x11], KIND);
+        assert_eq!(p.layers.len(), 1);
+        assert_eq!(p.layers[0].kind, "unknown", "partial data is synthetic");
+        assert_eq!(
+            p.anomalies.len(),
+            1,
+            "one truncation anomaly: {:?}",
+            p.anomalies
+        );
+        // Empty: the Empty outcome, no anomaly.
+        let p = wrex_core::dissect::dissect(&r, &[], KIND);
+        assert!(p.layers.is_empty() && p.anomalies.is_empty());
+        // A relay type on a short (<34-byte) frame keeps the plain header.
+        let p = wrex_core::dissect::dissect(&r, &[12, 1, 0, 0, 0, 0], KIND);
+        assert_eq!(p.layers[0].span, 0..4);
+        assert_eq!(p.layers[0].fields.get("hop_count"), None);
+    }
+
+    #[test]
+    fn udp_dispatch_is_port_keyed() {
+        let mut r = Registry::empty();
+        register(&mut r);
+        let mut uf = std::collections::BTreeMap::new();
+        uf.insert("sport".to_string(), Value::Int(546));
+        uf.insert("dport".to_string(), Value::Int(9999)); // not 546/547
+        let spec = PacketSpec::new(
+            vec![wrex_core::spec::LayerSpec::with_fields(
+                wrex_proto_udp::KIND,
+                uf,
+            )],
+            None,
+        );
+        let enc = encode(&r, &spec, &Default::default()).unwrap();
+        let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_udp::KIND);
+        assert_eq!(
+            p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
+            vec![wrex_proto_udp::KIND],
+            "a non-546/547 port must not chain into dhcp6"
+        );
+    }
 }
