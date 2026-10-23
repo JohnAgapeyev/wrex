@@ -48,7 +48,7 @@ libc = "0.2"
 hex = "0.4"
 clap = { version = "4", features = ["derive", "string"] }
 clap_complete = "4"
-if-addrs = "0.13"
+if-addrs = "0.15"
 toml = "0.8"
 proptest = "1"
 etherparse = "0.21"
