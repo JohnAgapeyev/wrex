@@ -39,7 +39,6 @@
 
 use std::collections::BTreeMap;
 use std::ops::Range;
-use std::sync::LazyLock;
 
 use bytes::BufMut;
 use wrex_core::dissect::{DecodeCtx, FieldSpan, LayerView};
@@ -125,7 +124,7 @@ const fn pad_to_grid(len: usize, unit: usize) -> usize {
     len.div_ceil(unit) * unit
 }
 
-fn ext_field(
+const fn ext_field(
     name: &'static str,
     kind: FieldKind,
     doc: &'static str,
@@ -142,33 +141,31 @@ fn ext_field(
 }
 
 /// Schemas for the three options-style headers share this field list.
-fn opts_fields() -> &'static [FieldSchema] {
-    static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-        vec![
-            ext_field(
-                "next_header",
-                FieldKind::U8,
-                "next header protocol (autofill: derived from the next layer; 59 = no next header)",
-                Value::Int(59),
-            ),
-            ext_field(
-                "len",
-                FieldKind::U8,
-                "hdr_ext_len: header length in 8-octet units minus 1 (autofill: exact over the padded region)",
-                Value::Int(0),
-            ),
-            ext_field(
-                "options",
-                FieldKind::Bytes,
-                "raw TLV region after the 2-byte prefix, zero-padded to the 8-octet grid on craft (hex on the CLI)",
-                Value::Bytes(bytes::Bytes::new()),
-            ),
-        ]
-    });
-    FIELDS.as_slice()
+const fn opts_fields() -> &'static [FieldSchema] {
+    static FIELDS: [FieldSchema; 3] = [
+        ext_field(
+            "next_header",
+            FieldKind::U8,
+            "next header protocol (autofill: derived from the next layer; 59 = no next header)",
+            Value::Int(59),
+        ),
+        ext_field(
+            "len",
+            FieldKind::U8,
+            "hdr_ext_len: header length in 8-octet units minus 1 (autofill: exact over the padded region)",
+            Value::Int(0),
+        ),
+        ext_field(
+            "options",
+            FieldKind::Bytes,
+            "raw TLV region after the 2-byte prefix, zero-padded to the 8-octet grid on craft (hex on the CLI)",
+            Value::Bytes(bytes::Bytes::new()),
+        ),
+    ];
+    &FIELDS
 }
 
-static HOPOPTS_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static HOPOPTS_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_HOPOPTS,
     rank: 25,
     parents: &[
@@ -182,9 +179,9 @@ static HOPOPTS_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     doc: "IPv6 hop-by-hop options header (RFC 8200 §4.3, next-header 0): next_header + hdr_ext_len + the raw options TLV region (zero-padded to the 8-octet grid on craft, verbatim on dissection). Options must be examined by every node on the path; the wrex codec dissects and re-emits the region verbatim — TLV typing (Router Alert, Jumbo Payload, PadN) is a tranche-17a deferral, the raw region covers. len autofills (octets/8)-1; explicit wins and is kept.",
     fields: opts_fields(),
     records: &[],
-});
+};
 
-static DSTOPTS_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static DSTOPTS_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_DSTOPTS,
     rank: 25,
     parents: &[
@@ -198,9 +195,9 @@ static DSTOPTS_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     doc: "IPv6 destination options header (RFC 8200 §4.6, next-header 60): the hop-by-hop shape examined only by the destination — next_header + hdr_ext_len + the raw options TLV region (zero-padded to the 8-octet grid on craft, verbatim on dissection; TLV typing is a deferral). May appear twice in one chain (before routing and before the upper layer) — dstopts-on-dstopts is legal per RFC 8200 §4.2 ordering. len autofills (octets/8)-1; explicit wins and is kept.",
     fields: opts_fields(),
     records: &[],
-});
+};
 
-static ROUTING_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static ROUTING_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_ROUTING,
     rank: 25,
     parents: &[
@@ -213,46 +210,44 @@ static ROUTING_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     ],
     doc: "IPv6 routing header (RFC 8200 §4.4, next-header 43): next_header + hdr_ext_len + routing type + segments left + the raw type-specific region (zero-padded to the 8-octet grid on craft; the caller embeds the per-type reserved prefix + 16-byte addresses — e.g. RH0's 4 reserved bytes — verbatim on the wire). Dissection renders type/segs_left and the region raw; segs_left is NOT validated against the segment count (deliberate invalid packets are a feature). Typed per-type decoding (type-2 home address) is a deferral. len autofills (octets/8)-1; explicit wins and is kept.",
     fields: {
-        static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-            vec![
-                ext_field(
-                    "next_header",
-                    FieldKind::U8,
-                    "next header protocol (autofill: derived from the next layer; 59 = no next header)",
-                    Value::Int(59),
-                ),
-                ext_field(
-                    "len",
-                    FieldKind::U8,
-                    "hdr_ext_len: header length in 8-octet units minus 1 (autofill: exact over the padded region)",
-                    Value::Int(0),
-                ),
-                ext_field(
-                    "type",
-                    FieldKind::U8,
-                    "routing type (0 = the deprecated RH0, 2 = home address)",
-                    Value::Int(0),
-                ),
-                ext_field(
-                    "segs_left",
-                    FieldKind::U8,
-                    "segments left (not validated against the segment count)",
-                    Value::Int(0),
-                ),
-                ext_field(
-                    "segments",
-                    FieldKind::Bytes,
-                    "raw type-specific region after the 4-byte prefix (reserved bytes + 16-byte addresses, hand-built; hex on the CLI)",
-                    Value::Bytes(bytes::Bytes::new()),
-                ),
-            ]
-        });
-        FIELDS.as_slice()
+        static FIELDS: [FieldSchema; 5] = [
+            ext_field(
+                "next_header",
+                FieldKind::U8,
+                "next header protocol (autofill: derived from the next layer; 59 = no next header)",
+                Value::Int(59),
+            ),
+            ext_field(
+                "len",
+                FieldKind::U8,
+                "hdr_ext_len: header length in 8-octet units minus 1 (autofill: exact over the padded region)",
+                Value::Int(0),
+            ),
+            ext_field(
+                "type",
+                FieldKind::U8,
+                "routing type (0 = the deprecated RH0, 2 = home address)",
+                Value::Int(0),
+            ),
+            ext_field(
+                "segs_left",
+                FieldKind::U8,
+                "segments left (not validated against the segment count)",
+                Value::Int(0),
+            ),
+            ext_field(
+                "segments",
+                FieldKind::Bytes,
+                "raw type-specific region after the 4-byte prefix (reserved bytes + 16-byte addresses, hand-built; hex on the CLI)",
+                Value::Bytes(bytes::Bytes::new()),
+            ),
+        ];
+        &FIELDS
     },
     records: &[],
-});
+};
 
-static FRAG_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static FRAG_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_FRAG,
     rank: 25,
     parents: &[
@@ -265,40 +260,38 @@ static FRAG_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     ],
     doc: "IPv6 fragment header (RFC 8200 §4.5, next-header 44): fixed 8 bytes — next_header, reserved, the packed u16 (13-bit offset | 2 reserved bits | M flag) and the 32-bit ident. offset and m are bit windows over the packed u16 (the ipv4 flags/frag_off pattern; over-wide offset values mask to 13 bits). The header chains into next_header ONLY at offset 0 — a non-initial fragment carries no upper-layer header, so offset > 0 is terminal with the fragment bytes as payload. Dissect-only view: reassembly is a deferral (analyzer work).",
     fields: {
-        static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-            vec![
-                ext_field(
-                    "next_header",
-                    FieldKind::U8,
-                    "next header protocol of the fragmentable part (autofill: derived from the next layer)",
-                    Value::Int(59),
-                ),
-                ext_field(
-                    "offset",
-                    FieldKind::U16,
-                    "fragment offset in 8-octet units (13 bits; over-wide values mask)",
-                    Value::Int(0),
-                ),
-                ext_field(
-                    "m",
-                    FieldKind::U8,
-                    "more-fragments flag (1 bit: 0 = last fragment)",
-                    Value::Int(0),
-                ),
-                ext_field(
-                    "ident",
-                    FieldKind::U32,
-                    "fragment identification (matches fragments of one packet)",
-                    Value::Int(0),
-                ),
-            ]
-        });
-        FIELDS.as_slice()
+        static FIELDS: [FieldSchema; 4] = [
+            ext_field(
+                "next_header",
+                FieldKind::U8,
+                "next header protocol of the fragmentable part (autofill: derived from the next layer)",
+                Value::Int(59),
+            ),
+            ext_field(
+                "offset",
+                FieldKind::U16,
+                "fragment offset in 8-octet units (13 bits; over-wide values mask)",
+                Value::Int(0),
+            ),
+            ext_field(
+                "m",
+                FieldKind::U8,
+                "more-fragments flag (1 bit: 0 = last fragment)",
+                Value::Int(0),
+            ),
+            ext_field(
+                "ident",
+                FieldKind::U32,
+                "fragment identification (matches fragments of one packet)",
+                Value::Int(0),
+            ),
+        ];
+        &FIELDS
     },
     records: &[],
-});
+};
 
-static AH_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static AH_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_AH,
     rank: 25,
     parents: &[
@@ -311,70 +304,66 @@ static AH_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
     ],
     doc: "IP authentication header (RFC 4302 §2.2, next-header 51): next_header + payload_len (AH length in 4-octet units minus 2 — autofills (octets/4)-2, explicit wins) + reserved (2 bytes) + spi + seq + the raw ICV region (verbatim, never padded — it is the actual integrity check value; len autofill truncates over non-multiple regions, kept). NO integrity verification: wrex carves headers, never touches crypto (the standing TLS rule transposed).",
     fields: {
-        static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-            vec![
-                ext_field(
-                    "next_header",
-                    FieldKind::U8,
-                    "next header protocol (autofill: derived from the next layer; 59 = no next header)",
-                    Value::Int(59),
-                ),
-                ext_field(
-                    "len",
-                    FieldKind::U8,
-                    "payload_len: AH length in 4-octet units minus 2 (autofill: (octets/4)-2, truncating — kept)",
-                    Value::Int(1),
-                ),
-                ext_field(
-                    "spi",
-                    FieldKind::U32,
-                    "security parameters index",
-                    Value::Int(0),
-                ),
-                ext_field("seq", FieldKind::U32, "sequence number", Value::Int(0)),
-                ext_field(
-                    "icv",
-                    FieldKind::Bytes,
-                    "integrity check value (raw, verbatim — never verified; hex on the CLI)",
-                    Value::Bytes(bytes::Bytes::new()),
-                ),
-            ]
-        });
-        FIELDS.as_slice()
+        static FIELDS: [FieldSchema; 5] = [
+            ext_field(
+                "next_header",
+                FieldKind::U8,
+                "next header protocol (autofill: derived from the next layer; 59 = no next header)",
+                Value::Int(59),
+            ),
+            ext_field(
+                "len",
+                FieldKind::U8,
+                "payload_len: AH length in 4-octet units minus 2 (autofill: (octets/4)-2, truncating — kept)",
+                Value::Int(1),
+            ),
+            ext_field(
+                "spi",
+                FieldKind::U32,
+                "security parameters index",
+                Value::Int(0),
+            ),
+            ext_field("seq", FieldKind::U32, "sequence number", Value::Int(0)),
+            ext_field(
+                "icv",
+                FieldKind::Bytes,
+                "integrity check value (raw, verbatim — never verified; hex on the CLI)",
+                Value::Bytes(bytes::Bytes::new()),
+            ),
+        ];
+        &FIELDS
     },
     records: &[],
-});
+};
 
-static ESP_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static ESP_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_ESP,
     rank: 25,
     parents: &[wrex_proto_ip6::KIND],
     doc: "IP encapsulating security payload (RFC 4303, next-header 50): the 8-byte fixed header — spi + seq — then everything after is opaque ciphertext (IV, payload, padding, pad length, next header). Craftable as the header + caller-supplied payload; TERMINAL both ways: the encrypted payload stays payload, and nothing stacks on esp (the payload's next-header byte is inside the ciphertext). NO decryption or integrity check — the standing crypto rule.",
     fields: {
-        static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-            vec![
-                ext_field(
-                    "spi",
-                    FieldKind::U32,
-                    "security parameters index",
-                    Value::Int(0),
-                ),
-                ext_field("seq", FieldKind::U32, "sequence number", Value::Int(0)),
-            ]
-        });
-        FIELDS.as_slice()
+        static FIELDS: [FieldSchema; 2] = [
+            ext_field(
+                "spi",
+                FieldKind::U32,
+                "security parameters index",
+                Value::Int(0),
+            ),
+            ext_field("seq", FieldKind::U32, "sequence number", Value::Int(0)),
+        ];
+        &FIELDS
     },
     records: &[],
-});
+};
 
-static NONEXT_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+static NONEXT_SCHEMA: LayerSchema = LayerSchema {
     kind: KIND_NONEXT,
     rank: 25,
     parents: &[wrex_proto_ip6::KIND],
     doc: "IPv6 no-next-header sentinel (RFC 8200 §4.6, next-header 59): a zero-extent terminal marker layer — it consumes no bytes and carries no fields, but materializes as a real layer so filters can speak `nonext` presence and craft can terminate a stack (`--layer ipv6 --layer nonext`; the ipv6 next_header autofills 59). Zero-length spans are safe through the reassemble/coverage invariants (verified by the tranche-17a units).",
     fields: &[],
     records: &[],
-});
+};
 
 /// hop-by-hop / destination options codec unit (one struct, two
 /// statics — the schema picks on `kind`; a `&LazyLock` cannot live in
@@ -1229,6 +1218,16 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): the shared options-style
+    /// field table carries no duplicate names (the per-kind schemas
+    /// all reuse it). `field_names_unique` is a const fn, but the
+    /// tables are statics (`Bytes` interior mutability blocks const
+    /// eval), so the proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(crate::opts_fields()));
+    }
+
     use super::*;
     use wrex_core::Registry;
     use wrex_core::encode::encode;

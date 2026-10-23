@@ -298,9 +298,15 @@ pub fn build_tcp_query(
     if cfg.rd {
         dns_fields.insert("flags.rd".to_string(), Value::Bool(true));
     }
-    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone()));
-    dns_fields.insert("qd.0.type".to_string(), Value::Str(cfg.qtype.clone()));
-    dns_fields.insert("qd.0.class".to_string(), Value::Str(cfg.qclass.clone()));
+    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone().into()));
+    dns_fields.insert(
+        "qd.0.type".to_string(),
+        Value::Str(cfg.qtype.clone().into()),
+    );
+    dns_fields.insert(
+        "qd.0.class".to_string(),
+        Value::Str(cfg.qclass.clone().into()),
+    );
     let spec = PacketSpec::new(vec![LayerSpec::with_fields("dns", dns_fields)], None);
     let encoded = encode(
         registry,
@@ -352,9 +358,15 @@ fn build_query(
     if cfg.rd {
         dns_fields.insert("flags.rd".to_string(), Value::Bool(true));
     }
-    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone()));
-    dns_fields.insert("qd.0.type".to_string(), Value::Str(cfg.qtype.clone()));
-    dns_fields.insert("qd.0.class".to_string(), Value::Str(cfg.qclass.clone()));
+    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone().into()));
+    dns_fields.insert(
+        "qd.0.type".to_string(),
+        Value::Str(cfg.qtype.clone().into()),
+    );
+    dns_fields.insert(
+        "qd.0.class".to_string(),
+        Value::Str(cfg.qclass.clone().into()),
+    );
 
     let spec = PacketSpec::new(
         vec![

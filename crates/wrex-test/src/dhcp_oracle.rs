@@ -30,7 +30,7 @@ fn our_int(layer: &LayerView, key: &str) -> Option<u128> {
     }
 }
 
-fn our_str<'v>(layer: &'v LayerView, key: &str) -> Option<&'v String> {
+fn our_str<'v>(layer: &'v LayerView, key: &str) -> Option<&'v str> {
     match layer.fields.get(key) {
         Some(Value::Str(s)) => Some(s),
         _ => None,
@@ -113,7 +113,7 @@ fn our_record_text(layer: &LayerView, code: u8) -> Option<String> {
     loop {
         match layer.fields.get(&format!("opt.{i}.code")) {
             Some(Value::Int(c)) if *c == code as u128 => {
-                return our_str(layer, &format!("opt.{i}.text")).cloned();
+                return our_str(layer, &format!("opt.{i}.text")).map(str::to_string);
             }
             Some(_) => i += 1,
             None => return None,
@@ -235,13 +235,13 @@ pub fn dhcp_diff(input: &[u8], dhcp: &LayerView) -> Result<(), DiffReport> {
     cmp_str(
         &mut report,
         "dhcp.sname",
-        our_str(dhcp, "sname").cloned(),
+        our_str(dhcp, "sname").map(str::to_string),
         &nul_trim(message.sname_str()),
     );
     cmp_str(
         &mut report,
         "dhcp.file",
-        our_str(dhcp, "file").cloned(),
+        our_str(dhcp, "file").map(str::to_string),
         &nul_trim(message.fname_str()),
     );
 
@@ -253,7 +253,7 @@ pub fn dhcp_diff(input: &[u8], dhcp: &LayerView) -> Result<(), DiffReport> {
         cmp_str(
             &mut report,
             "dhcp.msg_type",
-            our_str(dhcp, "msg_type").cloned(),
+            our_str(dhcp, "msg_type").map(str::to_string),
             &theirs,
         );
     }

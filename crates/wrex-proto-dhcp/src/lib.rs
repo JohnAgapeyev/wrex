@@ -32,9 +32,10 @@
 pub mod options;
 
 use std::net::Ipv4Addr;
-use std::sync::LazyLock;
 
 use bytes::{BufMut, Bytes};
+use std::borrow::Cow;
+
 use wrex_core::dissect::{FieldSpan, LayerView};
 use wrex_core::encode::{EncodeCtx, flagset_or_default, int_or_default, ipv4_or_default};
 use wrex_core::error::DecodeError;
@@ -56,7 +57,7 @@ pub const HEADER_LEN: usize = 240;
 /// The DHCP magic cookie (RFC 2131 §3.1: 99.130.83.99).
 pub const MAGIC_COOKIE: u32 = 0x6382_5363;
 
-fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
     FieldSchema {
         name,
         kind,
@@ -67,178 +68,172 @@ fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> 
     }
 }
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        d(
-            "op",
-            FieldKind::U8,
-            "message op: 1 BOOTREQUEST (client), 2 BOOTREPLY (server) (autofill: 1)",
-            Value::Int(1),
-        ),
-        d(
-            "htype",
-            FieldKind::U8,
-            "hardware address type (autofill: 1 ethernet)",
-            Value::Int(1),
-        ),
-        d(
-            "hlen",
-            FieldKind::U8,
-            "hardware address length (autofill: 6)",
-            Value::Int(6),
-        ),
-        d(
-            "hops",
-            FieldKind::U8,
-            "relay hop count (autofill: 0)",
-            Value::Int(0),
-        ),
-        d(
-            "xid",
-            FieldKind::U32,
-            "transaction id (autofill: 0, deterministic)",
-            Value::Int(0),
-        ),
-        d(
-            "secs",
-            FieldKind::U16,
-            "seconds since client boot",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "flags",
-            kind: FieldKind::FlagSet,
-            bit_names: &["broadcast"],
-            default: Value::Int(0),
-            required: false,
-            doc: "flag aggregate [broadcast] (0x8000); subpath flags.broadcast",
-        },
-        d(
-            "ciaddr",
-            FieldKind::Ipv4,
-            "client IP address",
-            Value::Ipv4(Ipv4Addr::UNSPECIFIED),
-        ),
-        d(
-            "yiaddr",
-            FieldKind::Ipv4,
-            "your (client) IP address",
-            Value::Ipv4(Ipv4Addr::UNSPECIFIED),
-        ),
-        d(
-            "siaddr",
-            FieldKind::Ipv4,
-            "server IP address",
-            Value::Ipv4(Ipv4Addr::UNSPECIFIED),
-        ),
-        d(
-            "giaddr",
-            FieldKind::Ipv4,
-            "gateway/relay IP address",
-            Value::Ipv4(Ipv4Addr::UNSPECIFIED),
-        ),
-        d(
-            "chaddr",
-            FieldKind::Bytes,
-            "client hardware address (up to 16 bytes, zero-padded)",
-            Value::Bytes(Bytes::new()),
-        ),
-        d(
-            "sname",
-            FieldKind::Str,
-            "server host name (NUL-padded to 64; dissection trims at the first NUL)",
-            Value::Str(String::new()),
-        ),
-        d(
-            "file",
-            FieldKind::Str,
-            "boot file name (NUL-padded to 128; dissection trims at the first NUL)",
-            Value::Str(String::new()),
-        ),
-        d(
-            "cookie",
-            FieldKind::U32,
-            "magic cookie (autofill: 0x63825363)",
-            Value::Int(MAGIC_COOKIE as u128),
-        ),
-        d(
-            "msg_type",
-            FieldKind::Str,
-            "DHCP message type, the hoisted option 53: discover|offer|request|decline|ack|nak|release|inform or 1-8 (mutually exclusive with type: in --dhcp-options)",
-            Value::Str(String::new()),
-        ),
-        d(
-            "options",
-            FieldKind::Str,
-            "options list grammar: type:N, mask:IP, routers:IP…, dns:IP…, host:NAME, domain:NAME, req_ip:IP, lease:SECS, renew:SECS, rebind:SECS, server:IP, param_req:N…, max_msg:N, client_id:HEX, pad, hex:CODE:HEX (end marker appended automatically)",
-            Value::Str(String::new()),
-        ),
-    ]
-});
+static FIELDS: [FieldSchema; 17] = [
+    d(
+        "op",
+        FieldKind::U8,
+        "message op: 1 BOOTREQUEST (client), 2 BOOTREPLY (server) (autofill: 1)",
+        Value::Int(1),
+    ),
+    d(
+        "htype",
+        FieldKind::U8,
+        "hardware address type (autofill: 1 ethernet)",
+        Value::Int(1),
+    ),
+    d(
+        "hlen",
+        FieldKind::U8,
+        "hardware address length (autofill: 6)",
+        Value::Int(6),
+    ),
+    d(
+        "hops",
+        FieldKind::U8,
+        "relay hop count (autofill: 0)",
+        Value::Int(0),
+    ),
+    d(
+        "xid",
+        FieldKind::U32,
+        "transaction id (autofill: 0, deterministic)",
+        Value::Int(0),
+    ),
+    d(
+        "secs",
+        FieldKind::U16,
+        "seconds since client boot",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "flags",
+        kind: FieldKind::FlagSet,
+        bit_names: &["broadcast"],
+        default: Value::Int(0),
+        required: false,
+        doc: "flag aggregate [broadcast] (0x8000); subpath flags.broadcast",
+    },
+    d(
+        "ciaddr",
+        FieldKind::Ipv4,
+        "client IP address",
+        Value::Ipv4(Ipv4Addr::UNSPECIFIED),
+    ),
+    d(
+        "yiaddr",
+        FieldKind::Ipv4,
+        "your (client) IP address",
+        Value::Ipv4(Ipv4Addr::UNSPECIFIED),
+    ),
+    d(
+        "siaddr",
+        FieldKind::Ipv4,
+        "server IP address",
+        Value::Ipv4(Ipv4Addr::UNSPECIFIED),
+    ),
+    d(
+        "giaddr",
+        FieldKind::Ipv4,
+        "gateway/relay IP address",
+        Value::Ipv4(Ipv4Addr::UNSPECIFIED),
+    ),
+    d(
+        "chaddr",
+        FieldKind::Bytes,
+        "client hardware address (up to 16 bytes, zero-padded)",
+        Value::Bytes(Bytes::new()),
+    ),
+    d(
+        "sname",
+        FieldKind::Str,
+        "server host name (NUL-padded to 64; dissection trims at the first NUL)",
+        Value::Str(Cow::Borrowed("")),
+    ),
+    d(
+        "file",
+        FieldKind::Str,
+        "boot file name (NUL-padded to 128; dissection trims at the first NUL)",
+        Value::Str(Cow::Borrowed("")),
+    ),
+    d(
+        "cookie",
+        FieldKind::U32,
+        "magic cookie (autofill: 0x63825363)",
+        Value::Int(MAGIC_COOKIE as u128),
+    ),
+    d(
+        "msg_type",
+        FieldKind::Str,
+        "DHCP message type, the hoisted option 53: discover|offer|request|decline|ack|nak|release|inform or 1-8 (mutually exclusive with type: in --dhcp-options)",
+        Value::Str(Cow::Borrowed("")),
+    ),
+    d(
+        "options",
+        FieldKind::Str,
+        "options list grammar: type:N, mask:IP, routers:IP…, dns:IP…, host:NAME, domain:NAME, req_ip:IP, lease:SECS, renew:SECS, rebind:SECS, server:IP, param_req:N…, max_msg:N, client_id:HEX, pad, hex:CODE:HEX (end marker appended automatically)",
+        Value::Str(Cow::Borrowed("")),
+    ),
+];
 
-static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        d(
-            "code",
-            FieldKind::U8,
-            "option code (RFC 2132; 53 = message type)",
-            Value::Int(0),
-        ),
-        d(
-            "len",
-            FieldKind::U8,
-            "option data length in bytes",
-            Value::Int(0),
-        ),
-        d(
-            "value",
-            FieldKind::Bytes,
-            "raw option data hex (the wire truth)",
-            Value::Bytes(Bytes::new()),
-        ),
-        d(
-            "ip",
-            FieldKind::Ipv4,
-            "typed address: subnet mask (1), requested ip (50), server id (54); first address of routers (3) / dns servers (6)",
-            Value::Ipv4(Ipv4Addr::UNSPECIFIED),
-        ),
-        d(
-            "num",
-            FieldKind::U32,
-            "typed number: message type (53), lease (51), renewal (58), rebinding (59), max message size (57)",
-            Value::Int(0),
-        ),
-        d(
-            "text",
-            FieldKind::Str,
-            "typed string: host name (12), domain name (15)",
-            Value::Str(String::new()),
-        ),
-    ]
-});
+static OPT_FIELDS: [FieldSchema; 6] = [
+    d(
+        "code",
+        FieldKind::U8,
+        "option code (RFC 2132; 53 = message type)",
+        Value::Int(0),
+    ),
+    d(
+        "len",
+        FieldKind::U8,
+        "option data length in bytes",
+        Value::Int(0),
+    ),
+    d(
+        "value",
+        FieldKind::Bytes,
+        "raw option data hex (the wire truth)",
+        Value::Bytes(Bytes::new()),
+    ),
+    d(
+        "ip",
+        FieldKind::Ipv4,
+        "typed address: subnet mask (1), requested ip (50), server id (54); first address of routers (3) / dns servers (6)",
+        Value::Ipv4(Ipv4Addr::UNSPECIFIED),
+    ),
+    d(
+        "num",
+        FieldKind::U32,
+        "typed number: message type (53), lease (51), renewal (58), rebinding (59), max message size (57)",
+        Value::Int(0),
+    ),
+    d(
+        "text",
+        FieldKind::Str,
+        "typed string: host name (12), domain name (15)",
+        Value::Str(Cow::Borrowed("")),
+    ),
+];
 
-static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
-    vec![RecordSchema {
-        name: "opt",
-        fields: OPT_FIELDS.as_slice(),
-        settable: false,
-        max: None,
-        doc: "DHCP option TLVs after the magic cookie (dissect-only; indexed paths opt.0.code, opt.0.value, …)",
-    }]
-});
+static RECORDS: [RecordSchema; 1] = [RecordSchema {
+    name: "opt",
+    fields: &OPT_FIELDS,
+    settable: false,
+    max: None,
+    doc: "DHCP option TLVs after the magic cookie (dissect-only; indexed paths opt.0.code, opt.0.value, …)",
+}];
 
 /// The kind string this codec implements (ADR 3): the vocabulary is
 /// compile-checked and symmetric across codecs.
 pub const KIND: &str = "dhcp";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 40,
     parents: &[wrex_proto_udp::KIND],
     doc: "DHCP (RFC 2131) over UDP 67/68: the 240-byte fixed header (op/htype/hlen/hops, xid, secs, flags [broadcast], ciaddr/yiaddr/siaddr/giaddr, chaddr, sname, file, cookie) plus RFC 2132 option TLVs. Craft: --dhcp-msg_type writes option 53 (discover|…|inform or 1-8; underscore flags follow the codebase convention like --tcp-data_off), --dhcp-options takes the list grammar (type:, mask:, routers:IP…, dns:IP…, host:, domain:, req_ip:, lease:, renew:, rebind:, server:, param_req:N…, max_msg:, client_id:HEX, pad, hex:CODE:HEX) and the end marker is appended automatically. Dissect: every option lands in the dissect-only opt record section (opt.0.code/len/value raw + typed ip/num/text subset); a wrong magic cookie is a never-fatal anomaly and stops the layer at the fixed header (BOOTP legacy — vend fields stay payload). udp dispatches ports 67/68 into this codec. DHCPv6 and CLI-settable option records are tranche-7c deferrals.",
-    fields: FIELDS.as_slice(),
-    records: RECORDS.as_slice(),
-});
+    fields: &FIELDS,
+    records: &RECORDS,
+};
 
 /// DHCP codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_dhcp::CODEC` directly.
@@ -398,7 +393,7 @@ impl Codec for DhcpCodec {
         let flags = u16::from_be_bytes([bytes[10], bytes[11]]);
         let mut names: Vec<Value> = Vec::new();
         if flags & 0x8000 != 0 {
-            names.push(Value::Str("broadcast".into()));
+            names.push(Value::Str(Cow::Borrowed("broadcast")));
         }
         fields.insert("flags".into(), Value::List(names));
         for (i, name) in ["ciaddr", "yiaddr", "siaddr", "giaddr"].iter().enumerate() {
@@ -417,8 +412,14 @@ impl Codec for DhcpCodec {
             "chaddr".into(),
             Value::Bytes(Bytes::copy_from_slice(&bytes[28..44])),
         );
-        fields.insert("sname".into(), Value::Str(str_until_nul(&bytes[44..108])));
-        fields.insert("file".into(), Value::Str(str_until_nul(&bytes[108..236])));
+        fields.insert(
+            "sname".into(),
+            Value::Str(str_until_nul(&bytes[44..108]).into()),
+        );
+        fields.insert(
+            "file".into(),
+            Value::Str(str_until_nul(&bytes[108..236]).into()),
+        );
         let cookie = u32::from_be_bytes([bytes[236], bytes[237], bytes[238], bytes[239]]);
         fields.insert("cookie".into(), Value::Int(cookie as u128));
 
@@ -499,7 +500,10 @@ impl Codec for DhcpCodec {
                         // option-53 value byte): patching `msg_type`
                         // writes the right TLV.
                         spans.insert("msg_type".to_string(), FieldSpan::Bytes(dat..dat + olen));
-                        fields.insert("msg_type".into(), Value::Str(render_msg_type(data[0])));
+                        fields.insert(
+                            "msg_type".into(),
+                            Value::Str(render_msg_type(data[0]).into()),
+                        );
                     }
                 }
                 OPT_SUBNET_MASK | OPT_REQUESTED_IP | OPT_SERVER_ID if olen == 4 => {
@@ -536,7 +540,7 @@ impl Codec for DhcpCodec {
                     spans.insert(format!("opt.{i}.text"), FieldSpan::Bytes(dat..dat + olen));
                     fields.insert(
                         format!("opt.{i}.text"),
-                        Value::Str(String::from_utf8_lossy(data).into_owned()),
+                        Value::Str(String::from_utf8_lossy(data).into_owned().into()),
                     );
                 }
                 _ => {}
@@ -638,14 +642,16 @@ pub mod strategy {
         let msg_type = proptest::sample::select(
             MSG_TYPES
                 .iter()
-                .map(|(n, _)| Value::Str(n.to_string()))
+                .map(|(n, _)| Value::Str(n.to_string().into()))
                 .collect::<Vec<_>>(),
         );
         let sname = proptest::option::of(
-            proptest::sample::select(vec!["wrex-server".to_string()]).prop_map(Value::Str),
+            proptest::sample::select(vec!["wrex-server".to_string()])
+                .prop_map(|s| Value::Str(s.into())),
         );
         let file = proptest::option::of(
-            proptest::sample::select(vec!["boot.img".to_string()]).prop_map(Value::Str),
+            proptest::sample::select(vec!["boot.img".to_string()])
+                .prop_map(|s| Value::Str(s.into())),
         );
         let opts = proptest::option::of(
             proptest::sample::select(vec![
@@ -658,7 +664,7 @@ pub mod strategy {
                 "hex:82:0105dc,pad".to_string(),
                 "".to_string(),
             ])
-            .prop_map(Value::Str),
+            .prop_map(|s| Value::Str(s.into())),
         );
         (
             any::<u32>(), // xid
@@ -707,6 +713,22 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table. `field_names_unique` is a const fn, but the tables are
+    /// statics (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+        for r in super::SCHEMA.records.iter() {
+            assert!(wrex_core::schema::field_names_unique(r.fields));
+        }
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
@@ -819,11 +841,11 @@ mod tests {
         let p = wrex_core::dissect::dissect(&registry(), &enc.bytes, "dhcp");
         assert_eq!(
             p.layers[0].fields.get("sname"),
-            Some(&Value::Str("wrex-server".into()))
+            Some(&Value::Str(Cow::Borrowed("wrex-server")))
         );
         assert_eq!(
             p.layers[0].fields.get("file"),
-            Some(&Value::Str("boot.img".into()))
+            Some(&Value::Str(Cow::Borrowed("boot.img")))
         );
         // golden fixed header elsewhere: all-NUL regions dissect to ""
         let spec = dhcp_spec(&[]);
@@ -831,11 +853,11 @@ mod tests {
         let p = wrex_core::dissect::dissect(&registry(), &enc.bytes, "dhcp");
         assert_eq!(
             p.layers[0].fields.get("sname"),
-            Some(&Value::Str(String::new()))
+            Some(&Value::Str(Cow::Borrowed("")))
         );
         assert_eq!(
             p.layers[0].fields.get("file"),
-            Some(&Value::Str(String::new()))
+            Some(&Value::Str(Cow::Borrowed("")))
         );
     }
 
@@ -849,7 +871,7 @@ mod tests {
         assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
         assert_eq!(
             p.layers[0].fields.get("msg_type"),
-            Some(&Value::Str("discover".into()))
+            Some(&Value::Str(Cow::Borrowed("discover")))
         );
         assert_eq!(p.layers[0].fields.get("opt.0.code"), Some(&Value::Int(53)));
         assert_eq!(p.layers[0].fields.get("opt.0.num"), Some(&Value::Int(1)));
@@ -860,7 +882,7 @@ mod tests {
         let p = wrex_core::dissect::dissect(&registry(), &enc.bytes, "dhcp");
         assert_eq!(
             p.layers[0].fields.get("msg_type"),
-            Some(&Value::Str("ack".into()))
+            Some(&Value::Str(Cow::Borrowed("ack")))
         );
     }
 
@@ -906,7 +928,10 @@ mod tests {
             Some(Value::Bytes(b)) => assert_eq!(&b[..], &[10, 0, 0, 1, 10, 0, 0, 2]),
             other => panic!("value: {other:?}"),
         }
-        assert_eq!(fl.get("opt.5.text"), Some(&Value::Str("wrex".into())));
+        assert_eq!(
+            fl.get("opt.5.text"),
+            Some(&Value::Str(Cow::Borrowed("wrex")))
+        );
         assert_eq!(fl.get("opt.6.code"), Some(&Value::Int(55)));
         match fl.get("opt.6.value") {
             Some(Value::Bytes(b)) => assert_eq!(&b[..], &[1, 3, 6]),
@@ -1004,7 +1029,7 @@ mod tests {
         let p = wrex_core::dissect::dissect(&registry(), &enc.bytes, "dhcp");
         assert_eq!(
             p.layers[0].fields.get("flags"),
-            Some(&Value::List(vec![Value::Str("broadcast".into())]))
+            Some(&Value::List(vec![Value::Str(Cow::Borrowed("broadcast"))]))
         );
     }
 

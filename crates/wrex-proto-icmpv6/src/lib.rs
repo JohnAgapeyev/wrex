@@ -9,8 +9,8 @@
 //! pseudo-header (proto 58) — that is why this is its own codec, not
 //! the tranche-1 icmp crate (whose `pseudo: None` cannot express it).
 
+use std::borrow::Cow;
 use std::net::Ipv6Addr;
-use std::sync::LazyLock;
 
 use bytes::{BufMut, Bytes};
 
@@ -46,265 +46,260 @@ pub const OPT_PI: u8 = 3;
 /// MTU option (RFC 4861 §4.6.4) — tranche 17b.
 pub const OPT_MTU: u8 = 5;
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d(
-            "type",
-            FieldKind::U8,
-            "type (autofill: 128 echo request)",
-            Value::Int(T_ECHO_REQ as u128),
-        ),
-        d("code", FieldKind::U8, "code (autofill: 0)", Value::Int(0)),
-        d(
-            "checksum",
-            FieldKind::U16,
-            "checksum over v6 pseudo-header+message (autofill: computed)",
-            Value::Int(0),
-        ),
-        d(
-            "echo.id",
-            FieldKind::U16,
-            "echo identifier (types 128/129)",
-            Value::Int(0),
-        ),
-        d(
-            "echo.seq",
-            FieldKind::U16,
-            "echo sequence (types 128/129)",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "rest",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "raw 4-byte rest of header (non-echo non-NDP types)",
-        },
-        d(
-            "ndp.cur_hop_limit",
-            FieldKind::U8,
-            "router advertisement: current hop limit",
-            Value::Int(64),
-        ),
-        FieldSchema {
-            name: "ndp.ra_flags",
-            kind: FieldKind::FlagSet,
-            bit_names: &["m", "o"],
-            default: Value::Int(0),
-            required: false,
-            doc: "router advertisement flags [m,o]; subpaths ndp.ra_flags.m / ndp.ra_flags.o",
-        },
-        d(
-            "ndp.router_lifetime",
-            FieldKind::U16,
-            "router advertisement: router lifetime (seconds)",
-            Value::Int(0),
-        ),
-        d(
-            "ndp.reachable_time",
-            FieldKind::U32,
-            "router advertisement: reachable time (ms)",
-            Value::Int(0),
-        ),
-        d(
-            "ndp.retrans_timer",
-            FieldKind::U32,
-            "router advertisement: retransmit timer (ms)",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "ndp.na_flags",
-            kind: FieldKind::FlagSet,
-            bit_names: &["r", "s", "o"],
-            default: Value::Int(0),
-            required: false,
-            doc: "neighbor advertisement flags [r,s,o]; subpaths ndp.na_flags.r / .s / .o",
-        },
-        d(
-            "ndp.target",
-            FieldKind::Ipv6,
-            "neighbor solicitation/advertisement: target address",
-            Value::Ipv6(Ipv6Addr::UNSPECIFIED),
-        ),
-        // Tranche 17b: MLDv1 (RFC 2710) — the 16-byte multicast
-        // address body of query/report/done (the v1 query's
-        // max-response rides the `code` field, 1/10s units).
-        FieldSchema {
-            name: "mld.addr",
-            kind: FieldKind::Ipv6,
-            bit_names: &[],
-            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
-            required: false,
-            doc: "MLD multicast address (types 130/131/132; ff02::1 all-nodes, ff02::2 all-routers)",
-        },
-        // Tranche 17b: MLDv2 query (RFC 3810) — type 130 with an
-        // extended body (>= 20 bytes), discriminated from the v1
-        // query by body length: flags [s], qrv, qqic, and the raw
-        // sources region (nsrcs autofilled over it).
-        FieldSchema {
-            name: "mld.flags",
-            kind: FieldKind::FlagSet,
-            bit_names: &["s"],
-            default: Value::Int(0),
-            required: false,
-            doc: "MLDv2 query flags [s] (suppress router-side processing)",
-        },
-        FieldSchema {
-            name: "mld.qrv",
-            kind: FieldKind::U8,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "MLDv2 querier's robustness variable (3 bits)",
-        },
-        FieldSchema {
-            name: "mld.qqic",
-            kind: FieldKind::U8,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "MLDv2 querier's query interval code",
-        },
-        FieldSchema {
-            name: "mld.nsrcs",
-            kind: FieldKind::U16,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "MLDv2 query source count (autofilled over mld.sources)",
-        },
-        FieldSchema {
-            name: "mld.sources",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "MLDv2 query sources region (16-byte addresses; hex on the CLI)",
-        },
-        // Tranche 17b: the MLDv2 report record grammar (RFC 3810
-        // §5.2): include:/exclude:/to_include:/to_exclude:/allow:/
-        // block:ADDR with bare IPv6 source continuations.
-        FieldSchema {
-            name: "mld",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "MLDv2 report (type 143) record grammar: include:ADDR, exclude:ADDR, to_include:ADDR, to_exclude:ADDR, allow:ADDR, block:ADDR, bare IPv6 tokens continue the previous record as sources",
-        },
-        // Tranche 17b: the NDP option list grammar, the write-side of
-        // the dissect-only `opt` record section (the dhcp options
-        // precedent — a Str field keeps it CLI-reachable).
-        FieldSchema {
-            name: "options",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma-continued), raw:TYPE:HEX",
-        },
-    ]
-});
+    }
+}
 
-static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        FieldSchema {
-            name: "type",
-            kind: FieldKind::U8,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "option type (1 slla, 2 tlla)",
-        },
-        FieldSchema {
-            name: "addr",
-            kind: FieldKind::Mac,
-            bit_names: &[],
-            default: Value::Mac([0; 6]),
-            required: false,
-            doc: "link-layer address (slla/tlla options)",
-        },
-        FieldSchema {
-            name: "data",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "raw option data (other options)",
-        },
-    ]
-});
+static FIELDS: [FieldSchema; 21] = [
+    d(
+        "type",
+        FieldKind::U8,
+        "type (autofill: 128 echo request)",
+        Value::Int(T_ECHO_REQ as u128),
+    ),
+    d("code", FieldKind::U8, "code (autofill: 0)", Value::Int(0)),
+    d(
+        "checksum",
+        FieldKind::U16,
+        "checksum over v6 pseudo-header+message (autofill: computed)",
+        Value::Int(0),
+    ),
+    d(
+        "echo.id",
+        FieldKind::U16,
+        "echo identifier (types 128/129)",
+        Value::Int(0),
+    ),
+    d(
+        "echo.seq",
+        FieldKind::U16,
+        "echo sequence (types 128/129)",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "rest",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "raw 4-byte rest of header (non-echo non-NDP types)",
+    },
+    d(
+        "ndp.cur_hop_limit",
+        FieldKind::U8,
+        "router advertisement: current hop limit",
+        Value::Int(64),
+    ),
+    FieldSchema {
+        name: "ndp.ra_flags",
+        kind: FieldKind::FlagSet,
+        bit_names: &["m", "o"],
+        default: Value::Int(0),
+        required: false,
+        doc: "router advertisement flags [m,o]; subpaths ndp.ra_flags.m / ndp.ra_flags.o",
+    },
+    d(
+        "ndp.router_lifetime",
+        FieldKind::U16,
+        "router advertisement: router lifetime (seconds)",
+        Value::Int(0),
+    ),
+    d(
+        "ndp.reachable_time",
+        FieldKind::U32,
+        "router advertisement: reachable time (ms)",
+        Value::Int(0),
+    ),
+    d(
+        "ndp.retrans_timer",
+        FieldKind::U32,
+        "router advertisement: retransmit timer (ms)",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "ndp.na_flags",
+        kind: FieldKind::FlagSet,
+        bit_names: &["r", "s", "o"],
+        default: Value::Int(0),
+        required: false,
+        doc: "neighbor advertisement flags [r,s,o]; subpaths ndp.na_flags.r / .s / .o",
+    },
+    d(
+        "ndp.target",
+        FieldKind::Ipv6,
+        "neighbor solicitation/advertisement: target address",
+        Value::Ipv6(Ipv6Addr::UNSPECIFIED),
+    ),
+    // Tranche 17b: MLDv1 (RFC 2710) — the 16-byte multicast
+    // address body of query/report/done (the v1 query's
+    // max-response rides the `code` field, 1/10s units).
+    FieldSchema {
+        name: "mld.addr",
+        kind: FieldKind::Ipv6,
+        bit_names: &[],
+        default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
+        required: false,
+        doc: "MLD multicast address (types 130/131/132; ff02::1 all-nodes, ff02::2 all-routers)",
+    },
+    // Tranche 17b: MLDv2 query (RFC 3810) — type 130 with an
+    // extended body (>= 20 bytes), discriminated from the v1
+    // query by body length: flags [s], qrv, qqic, and the raw
+    // sources region (nsrcs autofilled over it).
+    FieldSchema {
+        name: "mld.flags",
+        kind: FieldKind::FlagSet,
+        bit_names: &["s"],
+        default: Value::Int(0),
+        required: false,
+        doc: "MLDv2 query flags [s] (suppress router-side processing)",
+    },
+    FieldSchema {
+        name: "mld.qrv",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "MLDv2 querier's robustness variable (3 bits)",
+    },
+    FieldSchema {
+        name: "mld.qqic",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "MLDv2 querier's query interval code",
+    },
+    FieldSchema {
+        name: "mld.nsrcs",
+        kind: FieldKind::U16,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "MLDv2 query source count (autofilled over mld.sources)",
+    },
+    FieldSchema {
+        name: "mld.sources",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "MLDv2 query sources region (16-byte addresses; hex on the CLI)",
+    },
+    // Tranche 17b: the MLDv2 report record grammar (RFC 3810
+    // §5.2): include:/exclude:/to_include:/to_exclude:/allow:/
+    // block:ADDR with bare IPv6 source continuations.
+    FieldSchema {
+        name: "mld",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("")),
+        required: false,
+        doc: "MLDv2 report (type 143) record grammar: include:ADDR, exclude:ADDR, to_include:ADDR, to_exclude:ADDR, allow:ADDR, block:ADDR, bare IPv6 tokens continue the previous record as sources",
+    },
+    // Tranche 17b: the NDP option list grammar, the write-side of
+    // the dissect-only `opt` record section (the dhcp options
+    // precedent — a Str field keeps it CLI-reachable).
+    FieldSchema {
+        name: "options",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("")),
+        required: false,
+        doc: "NDP option TLV grammar, appended after the NDP body in order: slla:MAC, tlla:MAC, mtu:N, prefix:LEN,IP[,valid,preferred][,l][,a] (comma-continued), raw:TYPE:HEX",
+    },
+];
 
-static MCAST_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        FieldSchema {
-            name: "type",
-            kind: FieldKind::U8,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "record type (1 include, 2 exclude, 3 change-to-include, 4 change-to-exclude, 5 allow, 6 block)",
-        },
-        FieldSchema {
-            name: "nsrcs",
-            kind: FieldKind::U16,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "source count",
-        },
-        FieldSchema {
-            name: "addr",
-            kind: FieldKind::Ipv6,
-            bit_names: &[],
-            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
-            required: false,
-            doc: "multicast address",
-        },
-        FieldSchema {
-            name: "sources",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "raw source addresses (16 bytes each)",
-        },
-    ]
-});
+static OPT_FIELDS: [FieldSchema; 3] = [
+    FieldSchema {
+        name: "type",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "option type (1 slla, 2 tlla)",
+    },
+    FieldSchema {
+        name: "addr",
+        kind: FieldKind::Mac,
+        bit_names: &[],
+        default: Value::Mac([0; 6]),
+        required: false,
+        doc: "link-layer address (slla/tlla options)",
+    },
+    FieldSchema {
+        name: "data",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "raw option data (other options)",
+    },
+];
 
-static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
-    vec![
-        RecordSchema {
-            name: "opt",
-            fields: OPT_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "NDP option TLVs after the NDP body (dissect-only; indexed paths opt.0.addr, …)",
-        },
-        RecordSchema {
-            name: "mcast",
-            fields: MCAST_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "MLDv2 multicast-address records (dissect-only; indexed paths mcast.0.*, …)",
-        },
-    ]
-});
+static MCAST_FIELDS: [FieldSchema; 4] = [
+    FieldSchema {
+        name: "type",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "record type (1 include, 2 exclude, 3 change-to-include, 4 change-to-exclude, 5 allow, 6 block)",
+    },
+    FieldSchema {
+        name: "nsrcs",
+        kind: FieldKind::U16,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "source count",
+    },
+    FieldSchema {
+        name: "addr",
+        kind: FieldKind::Ipv6,
+        bit_names: &[],
+        default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
+        required: false,
+        doc: "multicast address",
+    },
+    FieldSchema {
+        name: "sources",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "raw source addresses (16 bytes each)",
+    },
+];
+
+static RECORDS: [RecordSchema; 2] = [
+    RecordSchema {
+        name: "opt",
+        fields: &OPT_FIELDS,
+        settable: false,
+        max: None,
+        doc: "NDP option TLVs after the NDP body (dissect-only; indexed paths opt.0.addr, …)",
+    },
+    RecordSchema {
+        name: "mcast",
+        fields: &MCAST_FIELDS,
+        settable: false,
+        max: None,
+        doc: "MLDv2 multicast-address records (dissect-only; indexed paths mcast.0.*, …)",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): the vocabulary is
 /// compile-checked and symmetric across codecs.
 pub const KIND: &str = "icmpv6";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 30,
     parents: &[
@@ -318,9 +313,9 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
         wrex_proto_ip6ext::KIND_AH,
     ],
     doc: "ICMPv6 (RFC 4443) + NDP (RFC 4861) over IPv6. type 128/129 (echo request/reply) expose echo.id and echo.seq. NDP craft: RS (133, header only), RA (134: ndp.cur_hop_limit, ndp.ra_flags [m,o], ndp.router_lifetime, ndp.reachable_time, ndp.retrans_timer), NS (135: ndp.target), NA (136: ndp.na_flags [r,s,o] + ndp.target). Other types render the 4-byte rest as icmpv6.rest raw bytes. checksum always covers the RFC 8200 §8.1 v6 pseudo-header (proto 58) plus the whole message. NDP options dissect into the opt record section (opt.0.addr, …) and CRAFT through the options list grammar (tranche 17b: slla:MAC, tlla:MAC, mtu:N, prefix:…, raw:TYPE:HEX). MLDv1 (tranche 17b): types 130/131/132 carry the mld.addr multicast body (the v1 query's max-response rides the code field). icmpv6 is terminal (the payload follows).",
-    fields: FIELDS.as_slice(),
-    records: RECORDS.as_slice(),
-});
+    fields: &FIELDS,
+    records: &RECORDS,
+};
 
 /// ICMPv6 codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_icmpv6::CODEC` directly.
@@ -658,10 +653,10 @@ impl Codec for Icmp6Codec {
                         let fl = bytes[cursor + 3];
                         let mut names = Vec::new();
                         if fl & 0x80 != 0 {
-                            names.push(Value::Str("l".into()));
+                            names.push(Value::Str(Cow::Borrowed("l")));
                         }
                         if fl & 0x40 != 0 {
-                            names.push(Value::Str("a".into()));
+                            names.push(Value::Str(Cow::Borrowed("a")));
                         }
                         fields.insert(format!("opt.{i}.flags"), Value::List(names));
                         // Wire after the TLV prefix: plen, flags,
@@ -735,7 +730,7 @@ impl Codec for Icmp6Codec {
             fields.insert(
                 "mld.flags".into(),
                 Value::List(if flags_qrv & 0x08 != 0 {
-                    vec![Value::Str("s".into())]
+                    vec![Value::Str(Cow::Borrowed("s"))]
                 } else {
                     Default::default()
                 }),
@@ -780,10 +775,10 @@ impl Codec for Icmp6Codec {
                     let agg = bytes[5] & 0xc0;
                     let mut names: Vec<Value> = Vec::new();
                     if agg & 0b1000_0000 != 0 {
-                        names.push(Value::Str("m".into()));
+                        names.push(Value::Str(Cow::Borrowed("m")));
                     }
                     if agg & 0b0100_0000 != 0 {
-                        names.push(Value::Str("o".into()));
+                        names.push(Value::Str(Cow::Borrowed("o")));
                     }
                     fields.insert("ndp.ra_flags".into(), Value::List(names));
                     fields.insert(
@@ -809,13 +804,13 @@ impl Codec for Icmp6Codec {
                         let agg = bytes[4] & 0xe0;
                         let mut names: Vec<Value> = Vec::new();
                         if agg & 0b1000_0000 != 0 {
-                            names.push(Value::Str("r".into()));
+                            names.push(Value::Str(Cow::Borrowed("r")));
                         }
                         if agg & 0b0100_0000 != 0 {
-                            names.push(Value::Str("s".into()));
+                            names.push(Value::Str(Cow::Borrowed("s")));
                         }
                         if agg & 0b0010_0000 != 0 {
-                            names.push(Value::Str("o".into()));
+                            names.push(Value::Str(Cow::Borrowed("o")));
                         }
                         fields.insert("ndp.na_flags".into(), Value::List(names));
                     }
@@ -1001,6 +996,22 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table. `field_names_unique` is a const fn, but the tables are
+    /// statics (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+        for r in super::SCHEMA.records.iter() {
+            assert!(wrex_core::schema::field_names_unique(r.fields));
+        }
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
@@ -1253,7 +1264,7 @@ mod tests {
         assert_eq!(l.fields.get("mld.qqic"), Some(&Value::Int(125)));
         assert_eq!(
             l.fields.get("mld.flags"),
-            Some(&Value::List(vec![Value::Str("s".into())]))
+            Some(&Value::List(vec![Value::Str(Cow::Borrowed("s"))]))
         );
         let Value::Bytes(sources) = l.fields.get("mld.sources").expect("sources") else {
             panic!("sources must be bytes");
@@ -1291,7 +1302,9 @@ mod tests {
         f.insert("type".to_string(), Value::Int(143));
         f.insert(
             "mld".to_string(),
-            Value::Str("exclude:ff02::1, 2001:db8::1, include:ff02::2, allow:ff05::1".into()),
+            Value::Str(Cow::Borrowed(
+                "exclude:ff02::1, 2001:db8::1, include:ff02::2, allow:ff05::1",
+            )),
         );
         let spec = wrex_core::spec::PacketSpec::new(
             vec![
@@ -1354,7 +1367,7 @@ mod tests {
         nf.insert("ndp.target".to_string(), Value::Ipv6(target));
         nf.insert(
             "options".to_string(),
-            Value::Str(format!("slla:{}", mac_str(slla))),
+            Value::Str(format!("slla:{}", mac_str(slla)).into()),
         );
         let spec = wrex_core::spec::PacketSpec::new(
             vec![
@@ -1440,8 +1453,8 @@ mod tests {
         assert_eq!(
             f.get("opt.3.flags"),
             Some(&Value::List(vec![
-                Value::Str("l".into()),
-                Value::Str("a".into())
+                Value::Str(Cow::Borrowed("l")),
+                Value::Str(Cow::Borrowed("a"))
             ]))
         );
         assert_eq!(f.get("opt.4.type"), Some(&Value::Int(9)));
@@ -1450,7 +1463,7 @@ mod tests {
         echo.insert("type".to_string(), Value::Int(128));
         echo.insert(
             "options".to_string(),
-            Value::Str("slla:00:11:22:33:44:55".into()),
+            Value::Str(Cow::Borrowed("slla:00:11:22:33:44:55")),
         );
         let bad = encode(
             &r,
@@ -1526,8 +1539,8 @@ mod tests {
         assert_eq!(
             p.layers[0].fields.get("ndp.ra_flags"),
             Some(&Value::List(vec![
-                Value::Str("m".into()),
-                Value::Str("o".into())
+                Value::Str(Cow::Borrowed("m")),
+                Value::Str(Cow::Borrowed("o"))
             ]))
         );
         // NS: 24 bytes, target + slla option dissects into opt.0.addr
@@ -1579,7 +1592,7 @@ mod tests {
         assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
         assert_eq!(
             p.layers[0].fields.get("ndp.na_flags"),
-            Some(&Value::List(vec![Value::Str("r".into())]))
+            Some(&Value::List(vec![Value::Str(Cow::Borrowed("r"))]))
         );
     }
 

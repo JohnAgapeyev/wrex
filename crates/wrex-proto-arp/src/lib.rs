@@ -2,8 +2,6 @@
 //! wrex ARP codec (Ethernet II hardware form: htype/ptype/hlen/plen/oper/
 //! sha/spa/tha/tpa; rank 20, parent eth). `tpa` is required.
 
-use std::sync::LazyLock;
-
 use bytes::BufMut;
 
 use wrex_core::dissect::LayerView;
@@ -14,88 +12,89 @@ use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d(
-            "htype",
-            FieldKind::U16,
-            "hardware type (autofill: 1 ethernet)",
-            Value::Int(1),
-        ),
-        d(
-            "ptype",
-            FieldKind::U16,
-            "protocol type (autofill: 0x0800 ipv4)",
-            Value::Int(0x0800),
-        ),
-        d(
-            "hlen",
-            FieldKind::U8,
-            "hardware address length (autofill: 6)",
-            Value::Int(6),
-        ),
-        d(
-            "plen",
-            FieldKind::U8,
-            "protocol address length (autofill: 4)",
-            Value::Int(4),
-        ),
-        d(
-            "oper",
-            FieldKind::U16,
-            "operation (autofill: 1 request)",
-            Value::Int(1),
-        ),
-        d(
-            "sha",
-            FieldKind::Mac,
-            "sender hardware address (autofill: 00:00:00:00:00:00)",
-            Value::Mac([0; 6]),
-        ),
-        d(
-            "spa",
-            FieldKind::Ipv4,
-            "sender protocol address",
-            Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
-        ),
-        d(
-            "tha",
-            FieldKind::Mac,
-            "target hardware address (autofill: 00:00:00:00:00:00)",
-            Value::Mac([0; 6]),
-        ),
-        FieldSchema {
-            name: "tpa",
-            kind: FieldKind::Ipv4,
-            bit_names: &[],
-            default: Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
-            required: true,
-            doc: "target protocol address (required)",
-        },
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 9] = [
+    d(
+        "htype",
+        FieldKind::U16,
+        "hardware type (autofill: 1 ethernet)",
+        Value::Int(1),
+    ),
+    d(
+        "ptype",
+        FieldKind::U16,
+        "protocol type (autofill: 0x0800 ipv4)",
+        Value::Int(0x0800),
+    ),
+    d(
+        "hlen",
+        FieldKind::U8,
+        "hardware address length (autofill: 6)",
+        Value::Int(6),
+    ),
+    d(
+        "plen",
+        FieldKind::U8,
+        "protocol address length (autofill: 4)",
+        Value::Int(4),
+    ),
+    d(
+        "oper",
+        FieldKind::U16,
+        "operation (autofill: 1 request)",
+        Value::Int(1),
+    ),
+    d(
+        "sha",
+        FieldKind::Mac,
+        "sender hardware address (autofill: 00:00:00:00:00:00)",
+        Value::Mac([0; 6]),
+    ),
+    d(
+        "spa",
+        FieldKind::Ipv4,
+        "sender protocol address",
+        Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
+    ),
+    d(
+        "tha",
+        FieldKind::Mac,
+        "target hardware address (autofill: 00:00:00:00:00:00)",
+        Value::Mac([0; 6]),
+    ),
+    FieldSchema {
+        name: "tpa",
+        kind: FieldKind::Ipv4,
+        bit_names: &[],
+        default: Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
+        required: true,
+        doc: "target protocol address (required)",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): nothing references it
 /// as a parent today, but the vocabulary stays compile-checked and
 /// symmetric across codecs.
 pub const KIND: &str = "arp";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 20,
     parents: &[wrex_proto_eth::KIND, wrex_proto_vlan::KIND],
     doc: "Address Resolution Protocol (RFC 826) for Ethernet: fixed 28-byte request/reply header (htype=1 Ethernet, ptype=0x0800 IPv4, hlen=6, plen=4). oper: 1=request, 2=reply. Terminal layer; carries no next-header chain. Stacks on eth or vlan (802.1Q tag). tpa is required: crafting without it is an Unfillable error.",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// ARP codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_arp::CODEC` directly.
@@ -244,6 +243,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::dissect::DecodeCtx;

@@ -101,7 +101,7 @@ proptest! {
                         Some(Value::List(items)) => items
                             .iter()
                             .filter_map(|v| match v {
-                                Value::Str(s) => Some(s.clone()),
+                                Value::Str(s) => Some(s.to_string()),
                                 _ => None,
                             })
                             .collect(),

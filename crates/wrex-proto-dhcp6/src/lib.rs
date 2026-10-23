@@ -31,9 +31,10 @@
 pub mod options;
 
 use std::net::Ipv6Addr;
-use std::sync::LazyLock;
 
 use bytes::{BufMut, Bytes};
+use std::borrow::Cow;
+
 use wrex_core::dissect::{FieldSpan, LayerView};
 use wrex_core::encode::EncodeCtx;
 use wrex_core::error::DecodeError;
@@ -57,7 +58,7 @@ pub const HEADER_LEN: usize = 4;
 /// hop-count(1) + link-address(16) + peer-address(16).
 pub const RELAY_HEADER_LEN: usize = 34;
 
-fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
     FieldSchema {
         name,
         kind,
@@ -68,138 +69,130 @@ fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> 
     }
 }
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        d(
-            "msg_type",
-            FieldKind::Str,
-            "message type: solicit|advertise|request|confirm|renew|rebind|reply|release|decline|reconfigure|info_req|relay_forward|relay_reply or 1-13 (relay crafting deferred: 12/13 are pointed write errors)",
-            Value::Str("solicit".into()),
-        ),
-        d(
-            "trans_id",
-            FieldKind::U32,
-            "transaction id (3 bytes on the wire; over-wide values mask)",
-            Value::Int(0),
-        ),
-        d(
-            "options",
-            FieldKind::Str,
-            "options list grammar: client_id:HEX, server_id:HEX, ia_na:IAID[,t1,t2], ia_addr:IP[,preferred,valid], oro:N…, dns:IP…, domain:NAME, elapsed:N, rapid, hex:CODE:HEX",
-            Value::Str(String::new()),
-        ),
-    ]
-});
+static FIELDS: [FieldSchema; 3] = [
+    d(
+        "msg_type",
+        FieldKind::Str,
+        "message type: solicit|advertise|request|confirm|renew|rebind|reply|release|decline|reconfigure|info_req|relay_forward|relay_reply or 1-13 (relay crafting deferred: 12/13 are pointed write errors)",
+        Value::Str(Cow::Borrowed("solicit")),
+    ),
+    d(
+        "trans_id",
+        FieldKind::U32,
+        "transaction id (3 bytes on the wire; over-wide values mask)",
+        Value::Int(0),
+    ),
+    d(
+        "options",
+        FieldKind::Str,
+        "options list grammar: client_id:HEX, server_id:HEX, ia_na:IAID[,t1,t2], ia_addr:IP[,preferred,valid], oro:N…, dns:IP…, domain:NAME, elapsed:N, rapid, hex:CODE:HEX",
+        Value::Str(Cow::Borrowed("")),
+    ),
+];
 
-static OPT_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        d(
-            "code",
-            FieldKind::U16,
-            "option code (RFC 8415 §21; 3 = ia_na, 23 = dns servers)",
-            Value::Int(0),
-        ),
-        d(
-            "len",
-            FieldKind::U16,
-            "option data length in bytes",
-            Value::Int(0),
-        ),
-        d(
-            "value",
-            FieldKind::Bytes,
-            "raw option data hex (the wire truth)",
-            Value::Bytes(Bytes::new()),
-        ),
-        d(
-            "ip",
-            FieldKind::Ipv6,
-            "typed address: first dns server (23), IAADDR address (5)",
-            Value::Ipv6(Ipv6Addr::UNSPECIFIED),
-        ),
-        d(
-            "num",
-            FieldKind::U32,
-            "typed number: first oro code (6), elapsed time (8)",
-            Value::Int(0),
-        ),
-        d(
-            "text",
-            FieldKind::Str,
-            "typed string: domain search list (24, names joined by `,`)",
-            Value::Str(String::new()),
-        ),
-    ]
-});
+static OPT_FIELDS: [FieldSchema; 6] = [
+    d(
+        "code",
+        FieldKind::U16,
+        "option code (RFC 8415 §21; 3 = ia_na, 23 = dns servers)",
+        Value::Int(0),
+    ),
+    d(
+        "len",
+        FieldKind::U16,
+        "option data length in bytes",
+        Value::Int(0),
+    ),
+    d(
+        "value",
+        FieldKind::Bytes,
+        "raw option data hex (the wire truth)",
+        Value::Bytes(Bytes::new()),
+    ),
+    d(
+        "ip",
+        FieldKind::Ipv6,
+        "typed address: first dns server (23), IAADDR address (5)",
+        Value::Ipv6(Ipv6Addr::UNSPECIFIED),
+    ),
+    d(
+        "num",
+        FieldKind::U32,
+        "typed number: first oro code (6), elapsed time (8)",
+        Value::Int(0),
+    ),
+    d(
+        "text",
+        FieldKind::Str,
+        "typed string: domain search list (24, names joined by `,`)",
+        Value::Str(Cow::Borrowed("")),
+    ),
+];
 
-static SUB_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        d(
-            "code",
-            FieldKind::U16,
-            "sub-option code (IA_NA payload; 5 = ia_addr)",
-            Value::Int(0),
-        ),
-        d(
-            "len",
-            FieldKind::U16,
-            "sub-option data length in bytes",
-            Value::Int(0),
-        ),
-        d(
-            "value",
-            FieldKind::Bytes,
-            "raw sub-option data hex (the wire truth)",
-            Value::Bytes(Bytes::new()),
-        ),
-        d(
-            "ip",
-            FieldKind::Ipv6,
-            "typed IAADDR address (sub-option 5)",
-            Value::Ipv6(Ipv6Addr::UNSPECIFIED),
-        ),
-        d(
-            "preferred",
-            FieldKind::U32,
-            "typed IAADDR preferred lifetime (sub-option 5)",
-            Value::Int(0),
-        ),
-        d(
-            "valid",
-            FieldKind::U32,
-            "typed IAADDR valid lifetime (sub-option 5)",
-            Value::Int(0),
-        ),
-    ]
-});
+static SUB_FIELDS: [FieldSchema; 6] = [
+    d(
+        "code",
+        FieldKind::U16,
+        "sub-option code (IA_NA payload; 5 = ia_addr)",
+        Value::Int(0),
+    ),
+    d(
+        "len",
+        FieldKind::U16,
+        "sub-option data length in bytes",
+        Value::Int(0),
+    ),
+    d(
+        "value",
+        FieldKind::Bytes,
+        "raw sub-option data hex (the wire truth)",
+        Value::Bytes(Bytes::new()),
+    ),
+    d(
+        "ip",
+        FieldKind::Ipv6,
+        "typed IAADDR address (sub-option 5)",
+        Value::Ipv6(Ipv6Addr::UNSPECIFIED),
+    ),
+    d(
+        "preferred",
+        FieldKind::U32,
+        "typed IAADDR preferred lifetime (sub-option 5)",
+        Value::Int(0),
+    ),
+    d(
+        "valid",
+        FieldKind::U32,
+        "typed IAADDR valid lifetime (sub-option 5)",
+        Value::Int(0),
+    ),
+];
 
-static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
-    vec![
-        RecordSchema {
-            name: "opt",
-            fields: OPT_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "DHCPv6 option TLVs after the 4-byte header (dissect-only; indexed paths opt.0.code, opt.0.value, …)",
-        },
-        RecordSchema {
-            name: "sub",
-            fields: SUB_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "ONE level of nested sub-options inside an IA_NA record (dissect-only; indexed paths opt.0.sub.0.*, … — deeper nesting flattens into value)",
-        },
-    ]
-});
+static RECORDS: [RecordSchema; 2] = [
+    RecordSchema {
+        name: "opt",
+        fields: &OPT_FIELDS,
+        settable: false,
+        max: None,
+        doc: "DHCPv6 option TLVs after the 4-byte header (dissect-only; indexed paths opt.0.code, opt.0.value, …)",
+    },
+    RecordSchema {
+        name: "sub",
+        fields: &SUB_FIELDS,
+        settable: false,
+        max: None,
+        doc: "ONE level of nested sub-options inside an IA_NA record (dissect-only; indexed paths opt.0.sub.0.*, … — deeper nesting flattens into value)",
+    },
+];
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 40,
     parents: &[wrex_proto_udp::KIND],
     doc: "DHCPv6 (RFC 8415) over UDP 546/547: the 4-byte fixed header (msg_type 1-13 + the 3-byte trans_id) — everything else is options (u16 code, u16 len TLVs). Craft: --dhcp6-msg_type takes the named grammar (solicit|…|relay_reply or 1-13; relay 12/13 crafting is deferred — a pointed write error), --dhcp6-options takes the list grammar (client_id:HEX, server_id:HEX, ia_na:IAID[,t1,t2], ia_addr:IP[,preferred,valid] — IAADDR nests inside IA_NA, oro:N…, dns:IP…, domain:NAME, elapsed:N, rapid, hex:CODE:HEX). Dissect: every option lands in the dissect-only opt record section (opt.0.code/len/value raw + typed ip/num/text subset); IA_NA payloads render one level of sub-options as opt.N.sub.M.* records (deeper nesting flattens into value); relay shapes (12/13) dissect their 34-byte extended header (hop_count, link_addr, peer_addr — dissect-only). udp dispatches ports 546/547 into this codec. Deferrals: DHCPv6 auth (option 11), relay crafting, reconfigure/keyed surfaces, DUID structured typing, CLI-settable option records.",
-    fields: FIELDS.as_slice(),
-    records: RECORDS.as_slice(),
-});
+    fields: &FIELDS,
+    records: &RECORDS,
+};
 
 pub struct Dhcp6Codec;
 pub static CODEC: Dhcp6Codec = Dhcp6Codec;
@@ -363,7 +356,10 @@ impl Codec for Dhcp6Codec {
         let mut spans: std::collections::BTreeMap<String, FieldSpan> =
             std::collections::BTreeMap::new();
         let msg_type = bytes[0];
-        fields.insert("msg_type".into(), Value::Str(render_msg_type(msg_type)));
+        fields.insert(
+            "msg_type".into(),
+            Value::Str(render_msg_type(msg_type).into()),
+        );
 
         // Relay shapes (tranche 17c, RFC 8415 §7.1): msg-type 12/13
         // carry the 34-byte extended fixed header — hop-count,
@@ -453,7 +449,7 @@ impl Codec for Dhcp6Codec {
                 OPT_DOMAIN_LIST => {
                     if let Some(names) = decode_domain_names(data) {
                         spans.insert(format!("opt.{i}.text"), FieldSpan::Bytes(dat..dat + olen));
-                        fields.insert(format!("opt.{i}.text"), Value::Str(names));
+                        fields.insert(format!("opt.{i}.text"), Value::Str(names.into()));
                     }
                 }
                 OPT_IA_NA => {
@@ -515,7 +511,7 @@ pub mod strategy {
             MSG_TYPES
                 .iter()
                 .filter(|(_, n)| *n != 12 && *n != 13)
-                .map(|(n, _)| Value::Str(n.to_string()))
+                .map(|(n, _)| Value::Str(n.to_string().into()))
                 .collect::<Vec<_>>(),
         );
         let opts = proptest::option::of(
@@ -531,7 +527,7 @@ pub mod strategy {
                 "hex:40:0102".to_string(),
                 "".to_string(),
             ])
-            .prop_map(Value::Str),
+            .prop_map(|s| Value::Str(s.into())),
         );
         // trans_id fits the 3-byte wire field (over-wide masks — the
         // in-crate unit covers that; the differential roundtrips the
@@ -556,6 +552,22 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table. `field_names_unique` is a const fn, but the tables are
+    /// statics (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+        for r in super::SCHEMA.records.iter() {
+            assert!(wrex_core::schema::field_names_unique(r.fields));
+        }
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use wrex_core::Registry;
     use wrex_core::encode::{EncodeOpts, encode};
@@ -671,7 +683,7 @@ mod tests {
                 vec![LayerSpec::with_fields(
                     KIND,
                     [
-                        ("msg_type".to_string(), Value::Str("solicit".into())),
+                        ("msg_type".to_string(), Value::Str(Cow::Borrowed("solicit"))),
                         ("trans_id".to_string(), Value::Int(0xaa_112233)),
                     ]
                     .into_iter()
@@ -690,7 +702,7 @@ mod tests {
         );
         assert_eq!(
             p.layers[0].fields.get("msg_type"),
-            Some(&Value::Str("solicit".into()))
+            Some(&Value::Str(Cow::Borrowed("solicit")))
         );
     }
 
@@ -731,7 +743,7 @@ mod tests {
         assert_eq!(fl.get("opt.4.code"), Some(&Value::Int(24))); // domain
         assert_eq!(
             fl.get("opt.4.text"),
-            Some(&Value::Str("wrex.example".into()))
+            Some(&Value::Str(Cow::Borrowed("wrex.example")))
         );
         // raw value is always present
         assert!(matches!(fl.get("opt.4.value"), Some(Value::Bytes(_))));
@@ -755,7 +767,7 @@ mod tests {
         );
         assert_eq!(
             p.layers[0].fields.get("msg_type"),
-            Some(&Value::Str("relay_forward".into()))
+            Some(&Value::Str(Cow::Borrowed("relay_forward")))
         );
         // the TLV tail dissects as opt.0 (the options region starts
         // at 34 for relay shapes)

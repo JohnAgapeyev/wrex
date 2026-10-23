@@ -654,7 +654,7 @@ fn flag_names(value: Option<&Value>) -> Vec<&'static str> {
         Some(Value::List(items)) => items
             .iter()
             .filter_map(|v| match v {
-                Value::Str(s) => NAMES.iter().copied().find(|&n| n == s.as_str()),
+                Value::Str(s) => NAMES.iter().copied().find(|&n| n == &**s),
                 _ => None,
             })
             .collect(),

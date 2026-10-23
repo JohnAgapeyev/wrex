@@ -1,8 +1,6 @@
 #![forbid(unsafe_code)]
 //! wrex Ethernet II codec (dst/src/type, rank 10, no parents).
 
-use std::sync::LazyLock;
-
 use bytes::BufMut;
 
 use wrex_core::dissect::LayerView;
@@ -14,48 +12,46 @@ use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        FieldSchema {
-            name: "dst",
-            kind: FieldKind::Mac,
-            bit_names: &[],
-            default: Value::Mac([0xff; 6]),
-            required: false,
-            doc: "destination MAC (autofill: ff:ff:ff:ff:ff:ff)",
-        },
-        FieldSchema {
-            name: "src",
-            kind: FieldKind::Mac,
-            bit_names: &[],
-            default: Value::Mac([0; 6]),
-            required: false,
-            doc: "source MAC (autofill: interface MAC on send)",
-        },
-        FieldSchema {
-            name: "type",
-            kind: FieldKind::U16,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "ethertype (autofill: derived from next layer)",
-        },
-    ]
-});
+static FIELDS: &[FieldSchema] = &[
+    FieldSchema {
+        name: "dst",
+        kind: FieldKind::Mac,
+        bit_names: &[],
+        default: Value::Mac([0xff; 6]),
+        required: false,
+        doc: "destination MAC (autofill: ff:ff:ff:ff:ff:ff)",
+    },
+    FieldSchema {
+        name: "src",
+        kind: FieldKind::Mac,
+        bit_names: &[],
+        default: Value::Mac([0; 6]),
+        required: false,
+        doc: "source MAC (autofill: interface MAC on send)",
+    },
+    FieldSchema {
+        name: "type",
+        kind: FieldKind::U16,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "ethertype (autofill: derived from next layer)",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): children reference
 /// `wrex_proto_eth::KIND` in their `parents` instead of hand-written
 /// strings, so the registry vocabulary is compile-checked.
 pub const KIND: &str = "eth";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 10,
     parents: &[],
     doc: "Ethernet II (DIX) framing: 14-byte header (destination MAC, source MAC, EtherType). Valid stack start (rank 10). EtherType drives the chain: 0x0800 -> ipv4, 0x0806 -> arp, 0x86dd -> ipv6, 0x8100/0x88a8 -> vlan, anything else -> synthesized `unknown` layer holding the remaining bytes.",
-    fields: FIELDS.as_slice(),
+    fields: FIELDS,
     records: &[],
-});
+};
 
 /// Ethernet II codec unit. Register via [`register`] (the ADR-3
 /// closure); bespoke registries may use `&wrex_proto_eth::CODEC`
@@ -212,6 +208,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::dissect::DecodeCtx;
@@ -280,24 +289,22 @@ mod tests {
     /// A schema-only ipv4 codec so eth tests can exercise next-kind
     /// derivation without cross-crate proto dependencies.
     struct MockIp;
-    static MOCK_IP_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-        vec![FieldSchema {
-            name: "ttl",
-            kind: FieldKind::U8,
-            bit_names: &[],
-            default: Value::Int(64),
-            required: false,
-            doc: "",
-        }]
-    });
-    static MOCK_IP_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+    static MOCK_IP_FIELDS: &[FieldSchema] = &[FieldSchema {
+        name: "ttl",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(64),
+        required: false,
+        doc: "",
+    }];
+    static MOCK_IP_SCHEMA: LayerSchema = LayerSchema {
         kind: "ipv4",
         rank: 20,
         parents: &["eth"],
         doc: "test stand-in",
-        fields: MOCK_IP_FIELDS.as_slice(),
+        fields: MOCK_IP_FIELDS,
         records: &[],
-    });
+    };
     impl Codec for MockIp {
         fn schema(&self) -> &'static LayerSchema {
             &MOCK_IP_SCHEMA

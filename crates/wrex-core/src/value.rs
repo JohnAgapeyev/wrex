@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use bytes::Bytes;
@@ -8,12 +9,14 @@ use crate::schema::{FieldKind, FieldSchema};
 /// A typed field value in a [`crate::spec::LayerSpec`] or a dissected layer.
 ///
 /// `Bytes` is cheap-to-clone (`bytes::Bytes`), so `Value` is `Clone` throughout.
+/// `Str` is a `Cow<'static, str>`: borrowed for the const-evaluated schema
+/// default tables (string literals), owned for dissected/ parsed values.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Value {
     Bool(bool),
     Int(u128),
     Bytes(Bytes),
-    Str(String),
+    Str(Cow<'static, str>),
     Ipv4(std::net::Ipv4Addr),
     Ipv6(std::net::Ipv6Addr),
     Mac([u8; 6]),
@@ -52,7 +55,8 @@ impl serde::Serialize for Value {
 
 impl Value {
     /// The zero/default value for a field kind, independent of any schema default.
-    pub fn zero_for(kind: FieldKind) -> Value {
+    /// (const: every zero is const-constructible now that `Str` borrows.)
+    pub const fn zero_for(kind: FieldKind) -> Value {
         match kind {
             FieldKind::U8
             | FieldKind::U16
@@ -61,7 +65,7 @@ impl Value {
             | FieldKind::U128
             | FieldKind::FlagSet => Value::Int(0),
             FieldKind::Bytes | FieldKind::ByteList => Value::Bytes(Bytes::new()),
-            FieldKind::Str => Value::Str(String::new()),
+            FieldKind::Str => Value::Str(Cow::Borrowed("")),
             FieldKind::Ipv4 => Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
             FieldKind::Ipv6 => Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
             FieldKind::Mac => Value::Mac([0; 6]),
@@ -197,7 +201,7 @@ pub fn parse_value(field: &FieldSchema, raw: &str) -> Result<Value, SpecError> {
         }
         FieldKind::Bytes | FieldKind::ByteList => parse_bytes_value(field, raw),
         FieldKind::Str => Ok(Value::Str(
-            raw.strip_prefix("text:").unwrap_or(raw).to_string(),
+            raw.strip_prefix("text:").unwrap_or(raw).to_string().into(),
         )),
     }
 }

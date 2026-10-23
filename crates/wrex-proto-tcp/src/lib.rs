@@ -5,8 +5,6 @@
 
 mod options;
 
-use std::sync::LazyLock;
-
 use bytes::{BufMut, Bytes};
 
 use wrex_core::dissect::LayerView;
@@ -21,68 +19,69 @@ use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
 static FLAGS: &[&str] = &["cwr", "ece", "urg", "ack", "psh", "rst", "syn", "fin"];
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d("sport", FieldKind::U16, "source port", Value::Int(0)),
-        d("dport", FieldKind::U16, "destination port", Value::Int(0)),
-        d("seq", FieldKind::U32, "sequence number", Value::Int(0)),
-        d(
-            "ack",
-            FieldKind::U32,
-            "acknowledgment number",
-            Value::Int(0),
-        ),
-        d(
-            "data_off",
-            FieldKind::U8,
-            "data offset in 32-bit words (autofill: derived)",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "flags",
-            kind: FieldKind::FlagSet,
-            bit_names: FLAGS,
-            default: Value::Int(0),
-            required: false,
-            doc: "flag aggregate [cwr,ece,urg,ack,psh,rst,syn,fin]; subpaths flags.<bit>",
-        },
-        d(
-            "window",
-            FieldKind::U16,
-            "window (autofill: 64240)",
-            Value::Int(64240),
-        ),
-        d(
-            "checksum",
-            FieldKind::U16,
-            "checksum over pseudo-header+segment (autofill: computed)",
-            Value::Int(0),
-        ),
-        d("urgent", FieldKind::U16, "urgent pointer", Value::Int(0)),
-        FieldSchema {
-            name: "options",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:…",
-        },
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 10] = [
+    d("sport", FieldKind::U16, "source port", Value::Int(0)),
+    d("dport", FieldKind::U16, "destination port", Value::Int(0)),
+    d("seq", FieldKind::U32, "sequence number", Value::Int(0)),
+    d(
+        "ack",
+        FieldKind::U32,
+        "acknowledgment number",
+        Value::Int(0),
+    ),
+    d(
+        "data_off",
+        FieldKind::U8,
+        "data offset in 32-bit words (autofill: derived)",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "flags",
+        kind: FieldKind::FlagSet,
+        bit_names: FLAGS,
+        default: Value::Int(0),
+        required: false,
+        doc: "flag aggregate [cwr,ece,urg,ack,psh,rst,syn,fin]; subpaths flags.<bit>",
+    },
+    d(
+        "window",
+        FieldKind::U16,
+        "window (autofill: 64240)",
+        Value::Int(64240),
+    ),
+    d(
+        "checksum",
+        FieldKind::U16,
+        "checksum over pseudo-header+segment (autofill: computed)",
+        Value::Int(0),
+    ),
+    d("urgent", FieldKind::U16, "urgent pointer", Value::Int(0)),
+    FieldSchema {
+        name: "options",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:…",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): the vocabulary is
 /// compile-checked and symmetric across codecs.
 pub const KIND: &str = "tcp";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 30,
     parents: &[
@@ -97,9 +96,9 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
         wrex_proto_ip6ext::KIND_AH,
     ],
     doc: "TCP (RFC 9293): 20-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under --strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per-bit subpaths --tcp-flags-syn exist. checksum over the pseudo-header (v4 RFC 9293 / v6 RFC 8200 §8.1, family follows the network-layer parent) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// TCP codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_tcp::CODEC` directly.
@@ -377,7 +376,7 @@ pub mod strategy {
                 fields.insert("window".to_string(), Value::Int(window as u128));
                 fields.insert("urgent".to_string(), Value::Int(urgent as u128));
                 if let Some(o) = opts {
-                    fields.insert("options".to_string(), Value::Str(o));
+                    fields.insert("options".to_string(), Value::Str(o.into()));
                 }
                 LayerSpec::with_fields("tcp", fields)
             })
@@ -387,6 +386,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
@@ -399,7 +411,7 @@ mod tests {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
             if *k == "options" {
-                map.insert(k.to_string(), Value::Str((*v).to_string()));
+                map.insert(k.to_string(), Value::Str((*v).to_string().into()));
                 continue;
             }
             let value = match SCHEMA.resolve(k) {
@@ -594,7 +606,7 @@ mod tests {
                 let got: Vec<&str> = names
                     .iter()
                     .filter_map(|v| match v {
-                        Value::Str(s) => Some(s.as_str()),
+                        Value::Str(s) => Some(&**s),
                         _ => None,
                     })
                     .collect();

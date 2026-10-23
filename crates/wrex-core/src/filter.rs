@@ -391,7 +391,7 @@ fn eval(value: &Value, t: &Term) -> bool {
             let names: Vec<&str> = items
                 .iter()
                 .filter_map(|v| match v {
-                    Value::Str(s) => Some(s.as_str()),
+                    Value::Str(s) => Some(&**s),
                     _ => None,
                 })
                 .collect();
@@ -401,20 +401,23 @@ fn eval(value: &Value, t: &Term) -> bool {
             let names: Vec<&str> = items
                 .iter()
                 .filter_map(|v| match v {
-                    Value::Str(s) => Some(s.as_str()),
+                    Value::Str(s) => Some(&**s),
                     _ => None,
                 })
                 .collect();
             eq(names.contains(&name.as_str()) == *set)
         }
-        (TermValue::Str(want), Value::Str(v)) => match t.op {
-            Op::Eq => v == want,
-            Op::Ne => v != want,
-            Op::Lt => v < want,
-            Op::Le => v <= want,
-            Op::Gt => v > want,
-            Op::Ge => v >= want,
-        },
+        (TermValue::Str(want), Value::Str(v)) => {
+            let (v, want) = (&**v, &**want);
+            match t.op {
+                Op::Eq => v == want,
+                Op::Ne => v != want,
+                Op::Lt => v < want,
+                Op::Le => v <= want,
+                Op::Gt => v > want,
+                Op::Ge => v >= want,
+            }
+        }
         _ => false,
     }
 }
@@ -582,7 +585,7 @@ mod tests {
             name: "name",
             kind: FieldKind::Str,
             bit_names: &[],
-            default: Value::Str(String::new()),
+            default: Value::Str(std::borrow::Cow::Borrowed("")),
             required: false,
             doc: "",
         },

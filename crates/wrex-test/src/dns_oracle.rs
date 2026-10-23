@@ -24,7 +24,7 @@ fn name_str(hickory: &str) -> String {
     hickory.strip_suffix('.').unwrap_or(hickory).to_string()
 }
 
-fn our_str<'v>(layer: &'v LayerView, key: &str) -> Option<&'v String> {
+fn our_str<'v>(layer: &'v LayerView, key: &str) -> Option<&'v str> {
     match layer.fields.get(key) {
         Some(Value::Str(s)) => Some(s),
         _ => None,
@@ -46,7 +46,7 @@ fn our_flag(layer: &LayerView, bit: &str) -> bool {
 }
 
 fn type_num(layer: &LayerView, key: &str) -> Option<u16> {
-    our_str(layer, key).and_then(|s| parse_type(s))
+    our_str(layer, key).and_then(parse_type)
 }
 
 /// Compare our dns-layer dissection against hickory's parse of the same
@@ -220,7 +220,7 @@ pub fn dns_diff(input: &[u8], dns: &LayerView) -> Result<(), DiffReport> {
 
 fn type_class_num(layer: &LayerView, key: &str) -> Option<u128> {
     our_str(layer, key)
-        .and_then(|s| wrex_proto_dns::types::parse_class(s))
+        .and_then(wrex_proto_dns::types::parse_class)
         .map(u128::from)
 }
 
@@ -230,8 +230,8 @@ fn cmp_int(report: &mut DiffReport, path: &str, ours: Option<u128>, theirs: u128
     }
 }
 
-fn cmp_str(report: &mut DiffReport, path: &str, ours: Option<&String>, theirs: String) {
-    if ours.map(|o| o.as_str()) != Some(theirs.as_str()) {
+fn cmp_str(report: &mut DiffReport, path: &str, ours: Option<&str>, theirs: String) {
+    if ours != Some(theirs.as_str()) {
         report.push(path, format!("{ours:?}"), format!("{theirs:?}"));
     }
 }

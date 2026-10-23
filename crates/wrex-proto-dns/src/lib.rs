@@ -17,7 +17,6 @@ pub mod name;
 pub mod types;
 
 use std::collections::BTreeMap;
-use std::sync::LazyLock;
 
 use bytes::{BufMut, Bytes};
 use wrex_core::dissect::{FieldSpan, LayerView};
@@ -28,12 +27,14 @@ use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
+use std::borrow::Cow;
+
 use crate::name::{decode_name, encode_name, name_wire_len};
 use crate::types::{TYPE_A, TYPE_AAAA, parse_class, parse_type, render_class, render_type};
 
 static FLAGS: &[&str] = &["qr", "aa", "tc", "rd", "ra"];
 
-fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
     FieldSchema {
         name,
         kind,
@@ -44,180 +45,172 @@ fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> 
     }
 }
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        d(
-            "id",
-            FieldKind::U16,
-            "message id (craft: seeded by wrex query)",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "flags",
-            kind: FieldKind::FlagSet,
-            bit_names: FLAGS,
-            default: Value::Int(0),
-            required: false,
-            doc: "flag aggregate [qr,aa,tc,rd,ra]; subpaths flags.<bit>",
-        },
-        d(
-            "opcode",
-            FieldKind::U8,
-            "operation code (4 bits; 0 = QUERY)",
-            Value::Int(0),
-        ),
-        d(
-            "rcode",
-            FieldKind::U8,
-            "response code (4 bits; 0 = NOERROR)",
-            Value::Int(0),
-        ),
-        d(
-            "qdcount",
-            FieldKind::U16,
-            "question count (autofill: derived from the question)",
-            Value::Int(0),
-        ),
-        d(
-            "ancount",
-            FieldKind::U16,
-            "answer count (autofill: 0)",
-            Value::Int(0),
-        ),
-        d(
-            "nscount",
-            FieldKind::U16,
-            "authority count (autofill: 0)",
-            Value::Int(0),
-        ),
-        d(
-            "arcount",
-            FieldKind::U16,
-            "additional count (autofill: 0)",
-            Value::Int(0),
-        ),
-    ]
-});
+static FIELDS: [FieldSchema; 8] = [
+    d(
+        "id",
+        FieldKind::U16,
+        "message id (craft: seeded by wrex query)",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "flags",
+        kind: FieldKind::FlagSet,
+        bit_names: FLAGS,
+        default: Value::Int(0),
+        required: false,
+        doc: "flag aggregate [qr,aa,tc,rd,ra]; subpaths flags.<bit>",
+    },
+    d(
+        "opcode",
+        FieldKind::U8,
+        "operation code (4 bits; 0 = QUERY)",
+        Value::Int(0),
+    ),
+    d(
+        "rcode",
+        FieldKind::U8,
+        "response code (4 bits; 0 = NOERROR)",
+        Value::Int(0),
+    ),
+    d(
+        "qdcount",
+        FieldKind::U16,
+        "question count (autofill: derived from the question)",
+        Value::Int(0),
+    ),
+    d(
+        "ancount",
+        FieldKind::U16,
+        "answer count (autofill: 0)",
+        Value::Int(0),
+    ),
+    d(
+        "nscount",
+        FieldKind::U16,
+        "authority count (autofill: 0)",
+        Value::Int(0),
+    ),
+    d(
+        "arcount",
+        FieldKind::U16,
+        "additional count (autofill: 0)",
+        Value::Int(0),
+    ),
+];
 
-static QD_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        FieldSchema {
-            name: "name",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "question name, dotted presentation form (example.com)",
-        },
-        FieldSchema {
-            name: "type",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str("A".to_string()),
-            required: false,
-            doc: "question type: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, SRV, OPT, ANY, TYPE<n> or a number",
-        },
-        FieldSchema {
-            name: "class",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str("IN".to_string()),
-            required: false,
-            doc: "question class: IN, CH, HS, ANY, CLASS<n> or a number",
-        },
-    ]
-});
+static QD_FIELDS: [FieldSchema; 3] = [
+    FieldSchema {
+        name: "name",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("")),
+        required: false,
+        doc: "question name, dotted presentation form (example.com)",
+    },
+    FieldSchema {
+        name: "type",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("A")),
+        required: false,
+        doc: "question type: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, SRV, OPT, ANY, TYPE<n> or a number",
+    },
+    FieldSchema {
+        name: "class",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("IN")),
+        required: false,
+        doc: "question class: IN, CH, HS, ANY, CLASS<n> or a number",
+    },
+];
 
-static RR_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    vec![
-        FieldSchema {
-            name: "name",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "record owner name (compression pointers resolved)",
-        },
-        FieldSchema {
-            name: "type",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "record type (A, CNAME, MX, …; TYPE<n> otherwise)",
-        },
-        FieldSchema {
-            name: "class",
-            kind: FieldKind::Str,
-            bit_names: &[],
-            default: Value::Str(String::new()),
-            required: false,
-            doc: "record class (IN, …; CLASS<n> otherwise)",
-        },
-        FieldSchema {
-            name: "ttl",
-            kind: FieldKind::U32,
-            bit_names: &[],
-            default: Value::Int(0),
-            required: false,
-            doc: "record TTL in seconds",
-        },
-        FieldSchema {
-            name: "rdata",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "record data: A -> typed ipv4 value, AAAA -> typed ipv6 value (tranche 7b), CNAME/NS/PTR -> resolved name string, TXT -> raw bytes, others -> raw bytes hex (typed MX/SOA/SRV wait for later tranches)",
-        },
-    ]
-});
+static RR_FIELDS: [FieldSchema; 5] = [
+    FieldSchema {
+        name: "name",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("")),
+        required: false,
+        doc: "record owner name (compression pointers resolved)",
+    },
+    FieldSchema {
+        name: "type",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("")),
+        required: false,
+        doc: "record type (A, CNAME, MX, …; TYPE<n> otherwise)",
+    },
+    FieldSchema {
+        name: "class",
+        kind: FieldKind::Str,
+        bit_names: &[],
+        default: Value::Str(Cow::Borrowed("")),
+        required: false,
+        doc: "record class (IN, …; CLASS<n> otherwise)",
+    },
+    FieldSchema {
+        name: "ttl",
+        kind: FieldKind::U32,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "record TTL in seconds",
+    },
+    FieldSchema {
+        name: "rdata",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "record data: A -> typed ipv4 value, AAAA -> typed ipv6 value (tranche 7b), CNAME/NS/PTR -> resolved name string, TXT -> raw bytes, others -> raw bytes hex (typed MX/SOA/SRV wait for later tranches)",
+    },
+];
 
-static RECORDS: LazyLock<Vec<RecordSchema>> = LazyLock::new(|| {
-    vec![
-        RecordSchema {
-            name: "qd",
-            fields: QD_FIELDS.as_slice(),
-            settable: true,
-            max: Some(1),
-            doc: "the question section (one question craftable at tranche 3)",
-        },
-        RecordSchema {
-            name: "an",
-            fields: RR_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "answer records (dissect-only; indexed an.0.*, an.1.*, …)",
-        },
-        RecordSchema {
-            name: "ns",
-            fields: RR_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "authority records (dissect-only; indexed ns.0.*, …)",
-        },
-        RecordSchema {
-            name: "ar",
-            fields: RR_FIELDS.as_slice(),
-            settable: false,
-            max: None,
-            doc: "additional records (dissect-only; indexed ar.0.*, …; EDNS OPT lands here)",
-        },
-    ]
-});
+static RECORDS: [RecordSchema; 4] = [
+    RecordSchema {
+        name: "qd",
+        fields: &QD_FIELDS,
+        settable: true,
+        max: Some(1),
+        doc: "the question section (one question craftable at tranche 3)",
+    },
+    RecordSchema {
+        name: "an",
+        fields: &RR_FIELDS,
+        settable: false,
+        max: None,
+        doc: "answer records (dissect-only; indexed an.0.*, an.1.*, …)",
+    },
+    RecordSchema {
+        name: "ns",
+        fields: &RR_FIELDS,
+        settable: false,
+        max: None,
+        doc: "authority records (dissect-only; indexed ns.0.*, …)",
+    },
+    RecordSchema {
+        name: "ar",
+        fields: &RR_FIELDS,
+        settable: false,
+        max: None,
+        doc: "additional records (dissect-only; indexed ar.0.*, …; EDNS OPT lands here)",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): the vocabulary is
 /// compile-checked and symmetric across codecs.
 pub const KIND: &str = "dns";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 40,
     parents: &[wrex_proto_udp::KIND],
     doc: "DNS (RFC 1035) over UDP/53. Craft carries the 12-byte header plus one question (--dns-name anchors it; --dns-type/--dns-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect-only record sections with indexed paths (an.0.name, an.0.rdata, …). A rdata dissects typed ipv4, AAAA typed ipv6 (tranche 7b). Multi-question craft, settable answer records, typed MX/SOA/SRV rdata and EDNS crafting are tranche-3 deferrals.",
-    fields: FIELDS.as_slice(),
-    records: RECORDS.as_slice(),
-});
+    fields: &FIELDS,
+    records: &RECORDS,
+};
 
 /// DNS codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_dns::CODEC` directly.
@@ -250,7 +243,7 @@ const QD_CLASS: &str = "qd.0.class";
 
 fn str_or(spec: &LayerSpec, key: &str, fallback: &str) -> String {
     match spec.fields.get(key) {
-        Some(Value::Str(s)) => s.clone(),
+        Some(Value::Str(s)) => s.to_string(),
         _ => fallback.to_string(),
     }
 }
@@ -391,19 +384,19 @@ impl Codec for DnsCodec {
         // Single-bit flags at word bits 15,10,9,8,7, in bit_names order.
         let mut names: Vec<Value> = Vec::new();
         if word & 0x8000 != 0 {
-            names.push(Value::Str("qr".into()));
+            names.push(Value::Str(Cow::Borrowed("qr")));
         }
         if word & 0x0400 != 0 {
-            names.push(Value::Str("aa".into()));
+            names.push(Value::Str(Cow::Borrowed("aa")));
         }
         if word & 0x0200 != 0 {
-            names.push(Value::Str("tc".into()));
+            names.push(Value::Str(Cow::Borrowed("tc")));
         }
         if word & 0x0100 != 0 {
-            names.push(Value::Str("rd".into()));
+            names.push(Value::Str(Cow::Borrowed("rd")));
         }
         if word & 0x0080 != 0 {
-            names.push(Value::Str("ra".into()));
+            names.push(Value::Str(Cow::Borrowed("ra")));
         }
         fields.insert("flags".into(), Value::List(names));
         fields.insert("opcode".into(), Value::Int(opcode as u128));
@@ -426,9 +419,15 @@ impl Codec for DnsCodec {
                     let at = base + cursor + q.name_used;
                     spans.insert(format!("qd.{i}.type"), FieldSpan::Bytes(at..at + 2));
                     spans.insert(format!("qd.{i}.class"), FieldSpan::Bytes(at + 2..at + 4));
-                    fields.insert(format!("qd.{i}.name"), Value::Str(q.name));
-                    fields.insert(format!("qd.{i}.type"), Value::Str(render_type(q.qtype)));
-                    fields.insert(format!("qd.{i}.class"), Value::Str(render_class(q.qclass)));
+                    fields.insert(format!("qd.{i}.name"), Value::Str(q.name.into()));
+                    fields.insert(
+                        format!("qd.{i}.type"),
+                        Value::Str(render_type(q.qtype).into()),
+                    );
+                    fields.insert(
+                        format!("qd.{i}.class"),
+                        Value::Str(render_class(q.qclass).into()),
+                    );
                     cursor = next;
                 }
                 Err(e) => {
@@ -461,14 +460,14 @@ impl Codec for DnsCodec {
                             format!("{section}.{i}.rdata"),
                             FieldSpan::Bytes(base + r.rdata_at..base + r.rdata_at + r.rdata.len()),
                         );
-                        fields.insert(format!("{section}.{i}.name"), Value::Str(r.name));
+                        fields.insert(format!("{section}.{i}.name"), Value::Str(r.name.into()));
                         fields.insert(
                             format!("{section}.{i}.type"),
-                            Value::Str(render_type(r.rtype)),
+                            Value::Str(render_type(r.rtype).into()),
                         );
                         fields.insert(
                             format!("{section}.{i}.class"),
-                            Value::Str(render_class(r.rclass)),
+                            Value::Str(render_class(r.rclass).into()),
                         );
                         fields.insert(format!("{section}.{i}.ttl"), Value::Int(r.ttl as u128));
                         fields.insert(
@@ -745,7 +744,7 @@ fn typed_rdata(
         TYPE_CNAME | TYPE_NS | TYPE_PTR => {
             // A name, possibly compressed (pointers are message-relative).
             match decode_name(message, rdata_at) {
-                Ok((name, _, _, _)) => Value::Str(name),
+                Ok((name, _, _, _)) => Value::Str(name.into()),
                 Err(e) => {
                     ctx.anomalies.push(Anomaly::new(
                         format!("{section}.{index}.rdata"),
@@ -788,14 +787,14 @@ pub mod strategy {
                 let mut fields = std::collections::BTreeMap::new();
                 fields.insert("id".to_string(), Value::Int(id as u128));
                 fields.insert("flags".to_string(), Value::Int(mask as u128));
-                fields.insert("qd.0.name".to_string(), Value::Str(name));
+                fields.insert("qd.0.name".to_string(), Value::Str(name.into()));
                 fields.insert(
                     "qd.0.type".to_string(),
-                    Value::Str(render_type(parse_type(qtype).unwrap())),
+                    Value::Str(render_type(parse_type(qtype).unwrap()).into()),
                 );
                 fields.insert(
                     "qd.0.class".to_string(),
-                    Value::Str(render_class(parse_class(qclass).unwrap())),
+                    Value::Str(render_class(parse_class(qclass).unwrap()).into()),
                 );
                 LayerSpec::with_fields("dns", fields)
             })
@@ -805,6 +804,22 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table. `field_names_unique` is a const fn, but the tables are
+    /// statics (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+        for r in super::SCHEMA.records.iter() {
+            assert!(wrex_core::schema::field_names_unique(r.fields));
+        }
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use wrex_core::Registry;
     use wrex_core::encode::{EncodeOpts, encode};
@@ -827,7 +842,7 @@ mod tests {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
             let value = match *k {
-                "qd.0.name" | "qd.0.type" | "qd.0.class" => Value::Str((*v).to_string()),
+                "qd.0.name" | "qd.0.type" | "qd.0.class" => Value::Str((*v).to_string().into()),
                 k if k.starts_with("flags.") => {
                     Value::Bool(v.parse::<bool>().map_err(|_| ()).unwrap_or(true))
                 }
@@ -998,19 +1013,22 @@ mod tests {
         assert!(matches!(
             l.fields.get("flags"),
             Some(Value::List(items)) if items == &vec![
-                Value::Str("qr".into()),
-                Value::Str("rd".into()),
-                Value::Str("ra".into()),
+                Value::Str(Cow::Borrowed("qr")),
+                Value::Str(Cow::Borrowed("rd")),
+                Value::Str(Cow::Borrowed("ra")),
             ]
         ));
         assert_eq!(
             l.fields.get("qd.0.name"),
-            Some(&Value::Str("example.com".into()))
+            Some(&Value::Str(Cow::Borrowed("example.com")))
         );
-        assert_eq!(l.fields.get("qd.0.type"), Some(&Value::Str("A".into())));
+        assert_eq!(
+            l.fields.get("qd.0.type"),
+            Some(&Value::Str(Cow::Borrowed("A")))
+        );
         assert_eq!(
             l.fields.get("an.0.name"),
-            Some(&Value::Str("example.com".into()))
+            Some(&Value::Str(Cow::Borrowed("example.com")))
         );
         assert_eq!(l.fields.get("an.0.ttl"), Some(&Value::Int(300)));
         assert_eq!(
@@ -1052,7 +1070,10 @@ mod tests {
         let p = wrex_core::dissect::dissect(&registry(), &msg, "dns");
         assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
         let l = &p.layers[0];
-        assert_eq!(l.fields.get("ar.0.type"), Some(&Value::Str("OPT".into())));
+        assert_eq!(
+            l.fields.get("ar.0.type"),
+            Some(&Value::Str(Cow::Borrowed("OPT")))
+        );
         assert!(matches!(l.fields.get("ar.0.rdata"), Some(Value::Bytes(_))));
     }
 

@@ -319,7 +319,7 @@ impl<'a> Mutator<'a> {
                 }
             }
             Value::Str(s) => {
-                let mut out = s.clone();
+                let mut out = s.to_string();
                 let c = (b'a' + (self.rng.next_u64() % 26) as u8) as char;
                 if out.is_empty() {
                     out.push(c);
@@ -327,7 +327,7 @@ impl<'a> Mutator<'a> {
                     let i = (self.rng.next_u64() as usize) % out.len();
                     out.replace_range(i..i + 1, &c.to_string());
                 }
-                Value::Str(out)
+                Value::Str(out.into())
             }
             Value::List(items) => {
                 // Flagset: toggle one present/absent member.

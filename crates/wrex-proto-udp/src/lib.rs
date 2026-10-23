@@ -3,8 +3,6 @@
 //! Checksum covers the IPv4 pseudo-header (RFC 768) + segment + payload;
 //! `--udp-checksum=0` gives the scapy-style zero.
 
-use std::sync::LazyLock;
-
 use bytes::BufMut;
 
 use wrex_core::dissect::LayerView;
@@ -18,39 +16,40 @@ use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d("sport", FieldKind::U16, "source port", Value::Int(0)),
-        d("dport", FieldKind::U16, "destination port", Value::Int(0)),
-        d(
-            "length",
-            FieldKind::U16,
-            "length incl. header (autofill: computed)",
-            Value::Int(0),
-        ),
-        d(
-            "checksum",
-            FieldKind::U16,
-            "checksum over pseudo-header+segment (autofill: computed)",
-            Value::Int(0),
-        ),
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 4] = [
+    d("sport", FieldKind::U16, "source port", Value::Int(0)),
+    d("dport", FieldKind::U16, "destination port", Value::Int(0)),
+    d(
+        "length",
+        FieldKind::U16,
+        "length incl. header (autofill: computed)",
+        Value::Int(0),
+    ),
+    d(
+        "checksum",
+        FieldKind::U16,
+        "checksum over pseudo-header+segment (autofill: computed)",
+        Value::Int(0),
+    ),
+];
 
 /// The kind string this codec implements (ADR 3): children (dns, dhcp)
 /// reference `wrex_proto_udp::KIND` in their `parents` instead of
 /// hand-written strings, so the registry vocabulary is compile-checked.
 pub const KIND: &str = "udp";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 30,
     parents: &[
@@ -65,9 +64,9 @@ pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
         wrex_proto_ip6ext::KIND_AH,
     ],
     doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network-layer parent) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec (tranche-3 dispatch), port-67/68 into the dhcp codec (tranche 7c); other ports are terminal (the payload follows).",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// UDP codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_udp::CODEC` directly.
@@ -289,6 +288,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
@@ -536,17 +548,16 @@ mod tests {
     mod dns_dispatch {
         use super::*;
         use std::collections::BTreeMap;
-        use std::sync::LazyLock;
 
-        static DNS_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(Vec::new);
-        static DNS_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+        static DNS_FIELDS: &[FieldSchema] = &[];
+        static DNS_SCHEMA: LayerSchema = LayerSchema {
             kind: "dns",
             rank: 40,
             parents: &["udp"],
             doc: "dispatch stand-in",
-            fields: DNS_FIELDS.as_slice(),
+            fields: DNS_FIELDS,
             records: &[],
-        });
+        };
 
         struct DnsStub;
         impl Codec for DnsStub {
@@ -649,17 +660,16 @@ mod tests {
     mod dhcp_dispatch {
         use super::*;
         use std::collections::BTreeMap;
-        use std::sync::LazyLock;
 
-        static DHCP_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(Vec::new);
-        static DHCP_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+        static DHCP_FIELDS: &[FieldSchema] = &[];
+        static DHCP_SCHEMA: LayerSchema = LayerSchema {
             kind: "dhcp",
             rank: 40,
             parents: &["udp"],
             doc: "dispatch stand-in",
-            fields: DHCP_FIELDS.as_slice(),
+            fields: DHCP_FIELDS,
             records: &[],
-        });
+        };
 
         struct DhcpStub;
         impl Codec for DhcpStub {

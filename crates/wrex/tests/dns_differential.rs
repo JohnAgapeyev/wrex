@@ -65,7 +65,7 @@ proptest! {
                         Some(Value::List(items)) => items
                             .iter()
                             .filter_map(|v| match v {
-                                Value::Str(s) => Some(s.clone()),
+                                Value::Str(s) => Some(s.to_string()),
                                 _ => None,
                             })
                             .collect(),
@@ -127,9 +127,9 @@ proptest! {
         if rd {
             fields.insert("flags.rd".to_string(), Value::Bool(true));
         }
-        fields.insert("qd.0.name".to_string(), Value::Str(name.to_string()));
-        fields.insert("qd.0.type".to_string(), Value::Str(qtype.to_string()));
-        fields.insert("qd.0.class".to_string(), Value::Str("IN".to_string()));
+        fields.insert("qd.0.name".to_string(), Value::Str(name.to_string().into()));
+        fields.insert("qd.0.type".to_string(), Value::Str(qtype.to_string().into()));
+        fields.insert("qd.0.class".to_string(), Value::Str("IN".into()));
         let spec = wrex_core::LayerSpec::with_fields("dns", fields);
         let encoded = encode(
             &reg,

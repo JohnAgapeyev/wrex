@@ -10,7 +10,6 @@
 //! layers cover it, over the v6 pseudo-header).
 
 use std::net::Ipv6Addr;
-use std::sync::LazyLock;
 
 use bytes::BufMut;
 
@@ -28,61 +27,62 @@ use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 /// Fixed header size (RFC 8200): no options on the base header.
 pub const HEADER_LEN: usize = 40;
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d("ver", FieldKind::U8, "version (autofill: 6)", Value::Int(6)),
-        d(
-            "traffic_class",
-            FieldKind::U8,
-            "traffic class (top byte of the flow word)",
-            Value::Int(0),
-        ),
-        d(
-            "flow_label",
-            FieldKind::U32,
-            "flow label (low 20 bits of the flow word)",
-            Value::Int(0),
-        ),
-        d(
-            "payload_len",
-            FieldKind::U16,
-            "payload length in bytes (autofill: computed)",
-            Value::Int(0),
-        ),
-        d(
-            "next_header",
-            FieldKind::U8,
-            "next header (autofill: derived from next layer)",
-            Value::Int(0),
-        ),
-        d(
-            "hop_limit",
-            FieldKind::U8,
-            "hop limit (autofill: 64)",
-            Value::Int(64),
-        ),
-        d(
-            "src",
-            FieldKind::Ipv6,
-            "source address (autofill: ::1)",
-            Value::Ipv6(Ipv6Addr::LOCALHOST),
-        ),
-        d(
-            "dst",
-            FieldKind::Ipv6,
-            "destination address (autofill: ::1)",
-            Value::Ipv6(Ipv6Addr::LOCALHOST),
-        ),
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 8] = [
+    d("ver", FieldKind::U8, "version (autofill: 6)", Value::Int(6)),
+    d(
+        "traffic_class",
+        FieldKind::U8,
+        "traffic class (top byte of the flow word)",
+        Value::Int(0),
+    ),
+    d(
+        "flow_label",
+        FieldKind::U32,
+        "flow label (low 20 bits of the flow word)",
+        Value::Int(0),
+    ),
+    d(
+        "payload_len",
+        FieldKind::U16,
+        "payload length in bytes (autofill: computed)",
+        Value::Int(0),
+    ),
+    d(
+        "next_header",
+        FieldKind::U8,
+        "next header (autofill: derived from next layer)",
+        Value::Int(0),
+    ),
+    d(
+        "hop_limit",
+        FieldKind::U8,
+        "hop limit (autofill: 64)",
+        Value::Int(64),
+    ),
+    d(
+        "src",
+        FieldKind::Ipv6,
+        "source address (autofill: ::1)",
+        Value::Ipv6(Ipv6Addr::LOCALHOST),
+    ),
+    d(
+        "dst",
+        FieldKind::Ipv6,
+        "destination address (autofill: ::1)",
+        Value::Ipv6(Ipv6Addr::LOCALHOST),
+    ),
+];
 
 /// The kind string this codec implements (ADR 3): children (icmpv6,
 /// udp, tcp) reference `wrex_proto_ip6::KIND` in their `parents`
@@ -90,14 +90,14 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
 /// compile-checked.
 pub const KIND: &str = "ipv6";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 20,
     parents: &[wrex_proto_eth::KIND, wrex_proto_vlan::KIND],
     doc: "IPv6 (RFC 8200) fixed 40-byte header. Also a valid stack start. ver=6, traffic_class/flow_label pack the first 32-bit word (flow_label 20 bits, explicit over-wide values masked), payload_len autofilled from the bytes after this header (explicit wins), hop_limit defaults 64. src/dst are FieldKind::Ipv6 (::1 autofill). next_header drives the chain: 58=icmpv6, 6=tcp, 17=udp, and the extension-header family (tranche 17a): 0=hopopts, 43=routing, 44=frag, 50=esp, 51=ah, 59=nonext, 60=dstopts — else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). CLI alias: `ip6`/`v6` (--ip6-hop-limit == --ipv6-hop-limit). No header checksum (RFC 8200 §8.1): upper layers checksum over the v6 pseudo-header, which covers the extension headers too (Facts::upper_start, tranche 17a).",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// IPv6 codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_ip6::CODEC` directly.
@@ -393,6 +393,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use bytes::Bytes;
     use std::collections::BTreeMap;

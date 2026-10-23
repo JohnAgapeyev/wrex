@@ -4,9 +4,8 @@
 
 mod options;
 
-use std::sync::LazyLock;
-
 use bytes::{BufMut, Bytes};
+use std::borrow::Cow;
 use std::net::Ipv4Addr;
 
 use wrex_core::dissect::{LayerView, NetFacts};
@@ -21,85 +20,86 @@ use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d("ver", FieldKind::U8, "version (autofill: 4)", Value::Int(4)),
-        d(
-            "ihl",
-            FieldKind::U8,
-            "header length in 32-bit words (autofill: derived)",
-            Value::Int(0),
-        ),
-        d("tos", FieldKind::U8, "type of service", Value::Int(0)),
-        d(
-            "total_len",
-            FieldKind::U16,
-            "total length (autofill: computed)",
-            Value::Int(0),
-        ),
-        d(
-            "id",
-            FieldKind::U16,
-            "identification (autofill: 0, deterministic)",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "flags",
-            kind: FieldKind::FlagSet,
-            bit_names: &["df", "mf"],
-            default: Value::Int(0),
-            required: false,
-            doc: "flags aggregate [df,mf]; per-bit subpaths flags.df / flags.mf",
-        },
-        d("frag_off", FieldKind::U16, "fragment offset", Value::Int(0)),
-        d(
-            "ttl",
-            FieldKind::U8,
-            "time to live (autofill: 64)",
-            Value::Int(64),
-        ),
-        d(
-            "proto",
-            FieldKind::U8,
-            "protocol (autofill: derived from next layer)",
-            Value::Int(0),
-        ),
-        d(
-            "checksum",
-            FieldKind::U16,
-            "header checksum (autofill: computed)",
-            Value::Int(0),
-        ),
-        d(
-            "src",
-            FieldKind::Ipv4,
-            "source address (autofill: 127.0.0.1; interface primary on send)",
-            Value::Ipv4(Ipv4Addr::new(127, 0, 0, 1)),
-        ),
-        d(
-            "dst",
-            FieldKind::Ipv4,
-            "destination address (autofill: 127.0.0.1)",
-            Value::Ipv4(Ipv4Addr::new(127, 0, 0, 1)),
-        ),
-        FieldSchema {
-            name: "options",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "options: eol,nop,rr:IP…,ssrr:IP…,lsrr:IP…,ts:FLAG,CNT, or hex:…",
-        },
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 13] = [
+    d("ver", FieldKind::U8, "version (autofill: 4)", Value::Int(4)),
+    d(
+        "ihl",
+        FieldKind::U8,
+        "header length in 32-bit words (autofill: derived)",
+        Value::Int(0),
+    ),
+    d("tos", FieldKind::U8, "type of service", Value::Int(0)),
+    d(
+        "total_len",
+        FieldKind::U16,
+        "total length (autofill: computed)",
+        Value::Int(0),
+    ),
+    d(
+        "id",
+        FieldKind::U16,
+        "identification (autofill: 0, deterministic)",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "flags",
+        kind: FieldKind::FlagSet,
+        bit_names: &["df", "mf"],
+        default: Value::Int(0),
+        required: false,
+        doc: "flags aggregate [df,mf]; per-bit subpaths flags.df / flags.mf",
+    },
+    d("frag_off", FieldKind::U16, "fragment offset", Value::Int(0)),
+    d(
+        "ttl",
+        FieldKind::U8,
+        "time to live (autofill: 64)",
+        Value::Int(64),
+    ),
+    d(
+        "proto",
+        FieldKind::U8,
+        "protocol (autofill: derived from next layer)",
+        Value::Int(0),
+    ),
+    d(
+        "checksum",
+        FieldKind::U16,
+        "header checksum (autofill: computed)",
+        Value::Int(0),
+    ),
+    d(
+        "src",
+        FieldKind::Ipv4,
+        "source address (autofill: 127.0.0.1; interface primary on send)",
+        Value::Ipv4(Ipv4Addr::new(127, 0, 0, 1)),
+    ),
+    d(
+        "dst",
+        FieldKind::Ipv4,
+        "destination address (autofill: 127.0.0.1)",
+        Value::Ipv4(Ipv4Addr::new(127, 0, 0, 1)),
+    ),
+    FieldSchema {
+        name: "options",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "options: eol,nop,rr:IP…,ssrr:IP…,lsrr:IP…,ts:FLAG,CNT, or hex:…",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): children (icmp,
 /// udp, tcp) reference `wrex_proto_ip::KIND` in their `parents`
@@ -107,14 +107,14 @@ static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
 /// compile-checked.
 pub const KIND: &str = "ipv4";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 20,
     parents: &[wrex_proto_eth::KIND, wrex_proto_vlan::KIND],
     doc: "IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under --strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (--ip-ttl == --ipv4-ttl).",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// IPv4 codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_ip::CODEC` directly.
@@ -344,10 +344,10 @@ impl Codec for IpCodec {
         let agg = (flags_frag >> 13) & 0x3;
         let mut names: Vec<Value> = Vec::new();
         if agg & 0b10 != 0 {
-            names.push(Value::Str("df".into()));
+            names.push(Value::Str(Cow::Borrowed("df")));
         }
         if agg & 0b01 != 0 {
-            names.push(Value::Str("mf".into()));
+            names.push(Value::Str(Cow::Borrowed("mf")));
         }
 
         let mut fields = std::collections::BTreeMap::new();
@@ -485,7 +485,7 @@ pub mod strategy {
                 fields.insert("src".to_string(), src);
                 fields.insert("dst".to_string(), dst);
                 if let Some(o) = opts {
-                    fields.insert("options".to_string(), Value::Str(o));
+                    fields.insert("options".to_string(), Value::Str(o.into()));
                 }
                 LayerSpec::with_fields("ipv4", fields)
             })
@@ -495,6 +495,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
@@ -512,7 +525,7 @@ mod tests {
         for (k, v) in fields {
             if *k == "options" {
                 // Options use the list grammar, not the Bytes value grammar.
-                map.insert(k.to_string(), Value::Str((*v).to_string()));
+                map.insert(k.to_string(), Value::Str((*v).to_string().into()));
                 continue;
             }
             map.insert(k.to_string(), parse_value(f(k), v).unwrap());

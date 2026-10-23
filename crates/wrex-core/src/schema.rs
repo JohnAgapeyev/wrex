@@ -124,9 +124,34 @@ pub struct RecordSchema {
 
 impl RecordSchema {
     /// Whole record fields only.
-    pub fn field(&self, name: &str) -> Option<&'static FieldSchema> {
-        self.fields.iter().find(|f| f.name == name)
+    pub const fn field(&self, name: &str) -> Option<&'static FieldSchema> {
+        let mut i = 0;
+        while i < self.fields.len() {
+            if crate::str_eq(self.fields[i].name, name) {
+                return Some(&self.fields[i]);
+            }
+            i += 1;
+        }
+        None
     }
+}
+
+/// Const proof helper (the schema invariant): a field table carries no
+/// duplicate names. Every codec's `FIELDS`/record table asserts this at
+/// compile time via `const _` — wrong tables fail the build, not first use.
+pub const fn field_names_unique(fields: &[FieldSchema]) -> bool {
+    let mut i = 0;
+    while i < fields.len() {
+        let mut j = i + 1;
+        while j < fields.len() {
+            if crate::str_eq(fields[i].name, fields[j].name) {
+                return false;
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+    true
 }
 
 /// Fixed wire layout of one field (tranche 11b): byte offset + length
@@ -402,16 +427,31 @@ pub enum ResolvedField {
 }
 
 impl LayerSchema {
-    /// Whole fields only (no dotted subpaths).
-    pub fn field(&self, name: &str) -> Option<&'static FieldSchema> {
+    /// Whole fields only (no dotted subpaths). (const: index loop —
+    /// `iter().find(closure)` is not const-callable.)
+    pub const fn field(&self, name: &str) -> Option<&'static FieldSchema> {
         // `self.fields` is `&'static [FieldSchema]`, so iterated items are
         // `'static` — no lifetime gymnastics needed.
-        self.fields.iter().find(|f| f.name == name)
+        let mut i = 0;
+        while i < self.fields.len() {
+            if crate::str_eq(self.fields[i].name, name) {
+                return Some(&self.fields[i]);
+            }
+            i += 1;
+        }
+        None
     }
 
     /// A record section by name.
-    pub fn record(&self, name: &str) -> Option<&'static RecordSchema> {
-        self.records.iter().find(|r| r.name == name)
+    pub const fn record(&self, name: &str) -> Option<&'static RecordSchema> {
+        let mut i = 0;
+        while i < self.records.len() {
+            if crate::str_eq(self.records[i].name, name) {
+                return Some(&self.records[i]);
+            }
+            i += 1;
+        }
+        None
     }
 
     /// Resolve `name`, a dotted flag subpath (`flags.syn`) or an
@@ -490,7 +530,7 @@ mod tests {
         name: "type",
         kind: FieldKind::Str,
         bit_names: &[],
-        default: Value::Str(String::new()),
+        default: Value::Str(std::borrow::Cow::Borrowed("")),
         required: false,
         doc: "",
     }];

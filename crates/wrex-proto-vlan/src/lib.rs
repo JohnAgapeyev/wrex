@@ -3,8 +3,6 @@
 //! QinQ stacks: a vlan may follow eth (0x8100/0x88a8) or another vlan
 //! (inner tag); craft always emits 0x8100 (0x88a8 dissect-only).
 
-use std::sync::LazyLock;
-
 use bytes::BufMut;
 
 use wrex_core::dissect::LayerView;
@@ -16,56 +14,57 @@ use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d(
-            "pcp",
-            FieldKind::U8,
-            "priority code point (0-7, 3 bits)",
-            Value::Int(0),
-        ),
-        d(
-            "dei",
-            FieldKind::U8,
-            "drop eligible indicator (0/1, 1 bit)",
-            Value::Int(0),
-        ),
-        d(
-            "vid",
-            FieldKind::U16,
-            "VLAN identifier (0-4095, 12 bits; 0 = priority tag)",
-            Value::Int(0),
-        ),
-        d(
-            "type",
-            FieldKind::U16,
-            "encapsulated ethertype (autofill: derived from next layer)",
-            Value::Int(0),
-        ),
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 4] = [
+    d(
+        "pcp",
+        FieldKind::U8,
+        "priority code point (0-7, 3 bits)",
+        Value::Int(0),
+    ),
+    d(
+        "dei",
+        FieldKind::U8,
+        "drop eligible indicator (0/1, 1 bit)",
+        Value::Int(0),
+    ),
+    d(
+        "vid",
+        FieldKind::U16,
+        "VLAN identifier (0-4095, 12 bits; 0 = priority tag)",
+        Value::Int(0),
+    ),
+    d(
+        "type",
+        FieldKind::U16,
+        "encapsulated ethertype (autofill: derived from next layer)",
+        Value::Int(0),
+    ),
+];
 
 /// The kind string this codec implements (ADR 3): children reference
 /// `wrex_proto_vlan::KIND` in their `parents` instead of hand-written
 /// strings, so the registry vocabulary is compile-checked.
 pub const KIND: &str = "vlan";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 15,
     parents: &[wrex_proto_eth::KIND, KIND],
     doc: "IEEE 802.1Q VLAN tag: 4-byte header (TCI: pcp 3 bits + dei 1 bit + vid 12 bits, then the encapsulated ethertype). Stacks on eth (or another vlan for QinQ/802.1ad double tagging; craft emits 0x8100, 0x88a8 is dissect-only). type drives the chain like eth.type: 0x0800 -> ipv4, 0x0806 -> arp, 0x86dd -> ipv6, 0x8100/0x88a8 -> vlan, else synthesized `unknown`.",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// VLAN codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_vlan::CODEC` directly.
@@ -246,6 +245,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
@@ -334,15 +346,15 @@ mod tests {
     /// A schema-only ipv4 codec so the next-kind derivation test can run
     /// without cross-crate proto dependencies (same pattern as eth).
     struct MockIp;
-    static MOCK_IP_FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(Vec::new);
-    static MOCK_IP_SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+    static MOCK_IP_FIELDS: &[FieldSchema] = &[];
+    static MOCK_IP_SCHEMA: LayerSchema = LayerSchema {
         kind: "ipv4",
         rank: 20,
         parents: &["eth", "vlan"],
         doc: "test stand-in",
-        fields: MOCK_IP_FIELDS.as_slice(),
+        fields: MOCK_IP_FIELDS,
         records: &[],
-    });
+    };
     impl Codec for MockIp {
         fn schema(&self) -> &'static LayerSchema {
             &MOCK_IP_SCHEMA

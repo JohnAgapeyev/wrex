@@ -235,7 +235,7 @@ fn field_text(kind: &str, name: &str, value: &WValue) -> String {
         WValue::Bool(b) => b.to_string(),
         WValue::Int(v) => v.to_string(),
         WValue::Bytes(b) => hex::encode(b),
-        WValue::Str(s) => s.clone(),
+        WValue::Str(s) => s.to_string(),
         WValue::Ipv4(a) => a.to_string(),
         WValue::Ipv6(a) => a.to_string(),
         WValue::Mac(m) => mac_string(*m),
@@ -243,7 +243,7 @@ fn field_text(kind: &str, name: &str, value: &WValue) -> String {
             let parts: Vec<String> = items
                 .iter()
                 .map(|v| match v {
-                    WValue::Str(s) => s.clone(),
+                    WValue::Str(s) => s.to_string(),
                     other => field_text(kind, name, other),
                 })
                 .collect();

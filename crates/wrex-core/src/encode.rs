@@ -331,7 +331,7 @@ pub fn serialize_field_value(
                 let Value::Str(name) = item else {
                     return None;
                 };
-                let index = bit_names.iter().position(|b| *b == name.as_str())?;
+                let index = bit_names.iter().position(|b| *b == &**name)?;
                 if index >= n || n > 8 * 16 {
                     return None;
                 }

@@ -60,7 +60,7 @@ pub fn render_value_flat(v: &Value) -> String {
         Value::Bool(b) => b.to_string(),
         Value::Int(n) => n.to_string(),
         Value::Bytes(b) => hex::encode(b),
-        Value::Str(s) => s.clone(),
+        Value::Str(s) => s.to_string(),
         Value::Ipv4(a) => a.to_string(),
         Value::Ipv6(a) => a.to_string(),
         Value::Mac(m) => wrex_core::mac_string(*m),

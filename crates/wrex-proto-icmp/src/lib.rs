@@ -2,8 +2,6 @@
 //! wrex ICMP codec (type/code/checksum + echo id/seq for types 0/8, `rest`
 //! raw 4 bytes otherwise; rank 30, parent ipv4).
 
-use std::sync::LazyLock;
-
 use bytes::{BufMut, Bytes};
 
 use wrex_core::dissect::LayerView;
@@ -16,64 +14,65 @@ use wrex_core::spec::LayerSpec;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
-static FIELDS: LazyLock<Vec<FieldSchema>> = LazyLock::new(|| {
-    let d = |name: &'static str, kind: FieldKind, doc: &'static str, default: Value| FieldSchema {
+const fn d(name: &'static str, kind: FieldKind, doc: &'static str, default: Value) -> FieldSchema {
+    FieldSchema {
         name,
         kind,
         bit_names: &[],
         default,
         required: false,
         doc,
-    };
-    vec![
-        d(
-            "type",
-            FieldKind::U8,
-            "type (autofill: 8 echo request)",
-            Value::Int(8),
-        ),
-        d("code", FieldKind::U8, "code (autofill: 0)", Value::Int(0)),
-        d(
-            "checksum",
-            FieldKind::U16,
-            "checksum over header+payload (autofill: computed)",
-            Value::Int(0),
-        ),
-        d(
-            "echo.id",
-            FieldKind::U16,
-            "echo identifier (types 0/8)",
-            Value::Int(0),
-        ),
-        d(
-            "echo.seq",
-            FieldKind::U16,
-            "echo sequence (types 0/8)",
-            Value::Int(0),
-        ),
-        FieldSchema {
-            name: "rest",
-            kind: FieldKind::Bytes,
-            bit_names: &[],
-            default: Value::Bytes(Bytes::new()),
-            required: false,
-            doc: "raw 4-byte rest of header (non-echo types)",
-        },
-    ]
-});
+    }
+}
+
+static FIELDS: [FieldSchema; 6] = [
+    d(
+        "type",
+        FieldKind::U8,
+        "type (autofill: 8 echo request)",
+        Value::Int(8),
+    ),
+    d("code", FieldKind::U8, "code (autofill: 0)", Value::Int(0)),
+    d(
+        "checksum",
+        FieldKind::U16,
+        "checksum over header+payload (autofill: computed)",
+        Value::Int(0),
+    ),
+    d(
+        "echo.id",
+        FieldKind::U16,
+        "echo identifier (types 0/8)",
+        Value::Int(0),
+    ),
+    d(
+        "echo.seq",
+        FieldKind::U16,
+        "echo sequence (types 0/8)",
+        Value::Int(0),
+    ),
+    FieldSchema {
+        name: "rest",
+        kind: FieldKind::Bytes,
+        bit_names: &[],
+        default: Value::Bytes(Bytes::new()),
+        required: false,
+        doc: "raw 4-byte rest of header (non-echo types)",
+    },
+];
 
 /// The kind string this codec implements (ADR 3): the vocabulary is
 /// compile-checked and symmetric across codecs.
 pub const KIND: &str = "icmp";
 
-pub static SCHEMA: LazyLock<LayerSchema> = LazyLock::new(|| LayerSchema {
+pub static SCHEMA: LayerSchema = LayerSchema {
     kind: KIND,
     rank: 30,
     parents: &[wrex_proto_ip::KIND],
     doc: "ICMP (RFC 792) over IPv4. type 0/8 (echo reply/request) expose echo.id and echo.seq plus payload; every other type renders the 4-byte rest of header as icmp.rest raw bytes. checksum autofilled (explicit wins).",
-    fields: FIELDS.as_slice(),
+    fields: &FIELDS,
     records: &[],
-});
+};
 
 /// ICMP codec unit. Register via [`register`] (the ADR-3 closure);
 /// bespoke registries may use `&wrex_proto_icmp::CODEC` directly.
@@ -264,6 +263,19 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// the table. `field_names_unique` is a const fn, but the table is a
+    /// static (`Bytes` interior mutability blocks const eval), so the
+    /// proof runs here instead of in a `const _`.
+    #[test]
+    fn schema_field_names_unique() {
+        assert!(wrex_core::schema::field_names_unique(super::SCHEMA.fields));
+    }
+
+    /// Schema invariant (const-eval pass): no duplicate field names in
+    /// any table — `field_names_unique` is a const fn, but the tables
+    /// are statics (Bytes interior mutability blocks const eval), so
+    /// the proof runs here instead.
     use super::*;
     use std::collections::BTreeMap;
     use wrex_core::Registry;

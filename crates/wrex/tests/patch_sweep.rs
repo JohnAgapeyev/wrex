@@ -69,7 +69,7 @@ fn self_value_expr(kind: FieldKind, v: &Value) -> Option<String> {
         }
         // Str fields reach materialize and refuse there (the pointed
         // wire:HEX redirect) — the sweep asserts that refusal.
-        (FieldKind::Str, Value::Str(s)) => Some(s.clone()),
+        (FieldKind::Str, Value::Str(s)) => Some(s.to_string()),
         // schema-Bytes behind a resolved-name value (CNAME/NS/PTR
         // rdata): the presentation is not the wire bytes — no
         // round-trip to assert.

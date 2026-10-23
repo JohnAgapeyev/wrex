@@ -816,7 +816,7 @@ fn cmp_str(
             Some(Value::Int(v)) => v.to_string(),
             // dhcp sname/file (tranche 7c) are Str fields; dns/an
             // strings never reach the tshark map.
-            Some(Value::Str(s)) => s.clone(),
+            Some(Value::Str(s)) => s.to_string(),
             other => format!("{other:?}"),
         };
         let theirs_norm = theirs.trim().to_ascii_lowercase();
