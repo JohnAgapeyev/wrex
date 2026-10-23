@@ -111,6 +111,9 @@ impl RawEthDriver {
                 mr_alen: 0,
                 mr_address: [0; 8],
             };
+            // SAFETY: `setsockopt` reads `mreq` (stack-local, owned here)
+            // and the size argument only; `fd` is a valid descriptor
+            // owned by `Self`.
             let ret = unsafe {
                 libc::setsockopt(
                     fd,

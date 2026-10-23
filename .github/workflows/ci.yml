@@ -20,6 +20,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # SAFETY-comment gate (pass-2): every unsafe block/fn in wrex-io
+      # (the only crate with unsafe) must carry a SAFETY comment within
+      # the 3 preceding lines — cheap lint until clippy's
+      # undocumented_unsafe_lenses reaches our toolchain.
+      - run: |
+          python3 - <<'PY'
+          import glob, sys
+          missing = []
+          for path in glob.glob('crates/wrex-io/src/*.rs'):
+              lines = open(path).read().split('\n')
+              for i, l in enumerate(lines):
+                  if 'unsafe {' in l or 'unsafe fn' in l:
+                      if not any('SAFETY' in w for w in lines[max(0, i-3):i]):
+                          missing.append(f"{path}:{i+1}")
+          if missing:
+              sys.exit("unsafe blocks missing SAFETY comments:\n" + "\n".join(missing))
+          PY
       # man/ is generated from the clap definition + registry schemas;
       # regenerate and fail if committed pages drifted from the source.
       - run: cargo xtask man && git diff --exit-code -- man/

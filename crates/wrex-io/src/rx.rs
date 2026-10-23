@@ -106,6 +106,8 @@ pub(crate) fn recv_raw(fd: i32, deadline: Instant) -> io::Result<Option<RxFrame>
             continue;
         }
         let mut buf = vec![0u8; RX_BUF];
+        // SAFETY: `sockaddr_ll` is an all-POD struct — zeroing it is
+        // a valid, defined instance (recvfrom overwrites the tail).
         let mut addr: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
         let mut alen = std::mem::size_of::<libc::sockaddr_ll>() as libc::socklen_t;
         // SAFETY: `recvfrom` writes at most `buf.len()` bytes into `buf`
@@ -188,6 +190,8 @@ mod tests {
         // bind to ifindex -1 fails EINVAL. Either way: Err, and the fd
         // must not leak (verified implicitly — no descriptor exhaustion).
         let eth_p_all = u16::to_be(libc::ETH_P_ALL as u16);
+        // SAFETY: the callee owns its descriptor (never leaks: it
+        // closes on bind failure); we assert only the Err shape.
         let got = unsafe { open_packet_socket(-1, eth_p_all) };
         assert!(got.is_err(), "bogus ifindex must not open: {got:?}");
     }

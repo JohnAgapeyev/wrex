@@ -210,10 +210,13 @@ impl Driver for TcpDriver {
 ///
 /// # Safety
 ///
-/// `dst` must point to a live, fully-sized `sockaddr_storage`; each arm
-/// writes only that family's sockaddr layout, which is `<=` the
-/// storage's size.
+/// SAFETY contract: `dst` must point to a live, fully-sized
+/// `sockaddr_storage`; each arm writes only that family's sockaddr
+/// layout, which is `<=` the storage's size.
 unsafe fn fill_sockaddr(dst: &mut libc::sockaddr_storage, addr: SocketAddr) -> libc::socklen_t {
+    // SAFETY: the caller contract above holds — `dst` is a live,
+    // fully-sized storage; each arm writes only `size_of`-bounded
+    // family layouts inside it and returns the exact family length.
     unsafe {
         match addr {
             SocketAddr::V4(a) => {
@@ -307,7 +310,10 @@ fn tcp_connect(
         if ret < 0 {
             return Err(bail(fd, io::Error::last_os_error()));
         }
+        // SAFETY: all-POD struct — zeroing is a valid instance;
+        // fill_sockaddr's caller contract holds (live, fully-sized).
         let mut sockaddr: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        // SAFETY: fill_sockaddr contract (see fn docs) holds.
         let len = unsafe { fill_sockaddr(&mut sockaddr, local) };
         // SAFETY: `bind` reads `sockaddr` (filled for `local`'s family,
         // matching the socket's); `fd` is valid and owned here.
@@ -323,7 +329,10 @@ fn tcp_connect(
         }
     }
 
+    // SAFETY: all-POD struct — zeroing is a valid instance;
+    // fill_sockaddr's caller contract holds (live, fully-sized).
     let mut sockaddr: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+    // SAFETY: fill_sockaddr contract (see fn docs) holds.
     let len = unsafe { fill_sockaddr(&mut sockaddr, peer) };
     // SAFETY: `connect` reads `sockaddr` (filled for `peer`'s family);
     // `fd` is valid and owned here.
@@ -532,9 +541,14 @@ mod tests {
     /// no sockets).
     #[test]
     fn sockaddr_fill_per_family() {
+        // SAFETY: all-POD struct — zeroing is a valid instance; the
+        // fill contract holds (live, fully-sized storage).
         let mut sa: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        // SAFETY: fill_sockaddr contract (see fn docs) holds.
         let len = unsafe { fill_sockaddr(&mut sa, "127.0.0.1:443".parse::<SocketAddr>().unwrap()) };
         assert_eq!(len as usize, std::mem::size_of::<libc::sockaddr_in>());
+        // SAFETY: the storage holds a filled sockaddr_in (the len
+        // assert above); reads stay inside that layout.
         unsafe {
             let p = (&sa as *const libc::sockaddr_storage).cast::<libc::sockaddr_in>();
             assert_eq!((*p).sin_family, libc::AF_INET as u16);
@@ -546,10 +560,15 @@ mod tests {
             );
         }
 
+        // SAFETY: all-POD struct — zeroing is a valid instance; the
+        // fill contract holds (live, fully-sized storage).
         let mut sa: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+        // SAFETY: fill_sockaddr contract (see fn docs) holds.
         let len =
             unsafe { fill_sockaddr(&mut sa, "[2001:db8::1]:853".parse::<SocketAddr>().unwrap()) };
         assert_eq!(len as usize, std::mem::size_of::<libc::sockaddr_in6>());
+        // SAFETY: the storage holds a filled sockaddr_in6 (the len
+        // assert above); reads stay inside that layout.
         unsafe {
             let p = (&sa as *const libc::sockaddr_storage).cast::<libc::sockaddr_in6>();
             assert_eq!((*p).sin6_family, libc::AF_INET6 as u16);
