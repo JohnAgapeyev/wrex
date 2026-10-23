@@ -17,3 +17,4 @@ wrex-session = { workspace = true }
 hex = { workspace = true }
 wrex-io = { workspace = true }
 wrex-session = { workspace = true }
+proptest = { workspace = true }

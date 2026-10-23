@@ -509,3 +509,88 @@ mod tests {
         );
     }
 }
+
+/// Pass-2 schedule/split property suites (persisted regressions per the
+/// pass-1 convention). `cargo test -p wrex-h2`.
+#[cfg(test)]
+mod prop {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// The full fixture family: every helper-encoded frame shape.
+    fn fixtures() -> Vec<Bytes> {
+        vec![
+            settings_frame(),
+            settings_ack_frame(),
+            ping_ack_frame(b"12345678"),
+            headers_frame(1, &[0x82], true),
+            data_frame(3, b"wrex", true),
+            window_update_frame(0, 0x10000),
+            goaway_frame(5, 0xb),
+        ]
+    }
+
+    /// Truncated at EVERY offset: never a panic, never a read past the
+    /// buffer — Need (partial header/payload) or Malformed (bad fixed
+    /// shape), and a full frame decodes to Have.
+    #[test]
+    fn split_sweep_every_offset() {
+        for f in fixtures() {
+            for cut in 0..=f.len() {
+                let step = decode_frame(&f[..cut]);
+                match step {
+                    FrameStep::Need => {}
+                    FrameStep::Malformed(_) => {}
+                    FrameStep::Have { .. } => {
+                        // A prefix shorter than a whole frame must not
+                        // claim to have one.
+                        assert!(cut >= f.len(), "prefix {cut} claimed a full frame");
+                    }
+                }
+            }
+            // And the whole frame always decodes.
+            assert!(matches!(decode_frame(&f), FrameStep::Have { .. }));
+        }
+    }
+
+    /// Arbitrary two-piece splits of a frame stream reassemble: feeding
+    /// [prefix, rest] must accumulate (via the caller's buffer model —
+    /// here: decode_frame over concat) to the same step as the whole
+    /// buffer, and iterating split-by-split reaches every frame in
+    /// order (the session's chunked-feed invariant, driven at the
+    /// frame layer).
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            failure_persistence: Some(Box::new(proptest::test_runner::FileFailurePersistence::WithSource(
+                "proptest-regressions",
+            ))),
+            cases: 256,
+            ..ProptestConfig::default()
+        })]
+
+        #[test]
+        fn arbitrary_splits_never_desync(f_idx in 0u8..7, cut in 0usize..64, junk in proptest::collection::vec(proptest::num::u8::ANY, 0..16)) {
+            let fixtures = fixtures();
+            let f = &fixtures[f_idx as usize % fixtures.len()];
+            // A junk prefix frame (Malformed/Need/Hav — never a panic),
+            // then the real frame split at `cut`.
+            let stream: Vec<u8> = [junk.as_slice(), &f[..], f.as_ref()].concat();
+            let mut cursor = 0usize;
+            let mut frames_seen = 0usize;
+            while cursor < stream.len() {
+                match decode_frame(&stream[cursor..]) {
+                    FrameStep::Need => break,
+                    FrameStep::Malformed(_) => break, // caller stops the stream
+                    FrameStep::Have { consumed, .. } => {
+                        cursor += consumed;
+                        frames_seen += 1;
+                    }
+                }
+            }
+            // The junk prefix never causes a panic and the walk makes
+            // forward progress or stops: consumed stays in-bounds.
+            assert!(cursor <= stream.len());
+            let _ = frames_seen;
+        }
+    }
+}

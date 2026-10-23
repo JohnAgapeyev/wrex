@@ -1262,3 +1262,204 @@ mod tests {
         assert!(bl[0].len() >= bi[0].len());
     }
 }
+
+/// Pass-2 event-schedule property suites (persisted regressions per
+/// the pass-1 convention): arbitrary interleavings and split feeds
+/// of server byte streams must not desync the session — outcomes are
+/// a function of the byte stream, never of the feed schedule.
+#[cfg(test)]
+mod prop {
+    use super::*;
+    use crate::frame;
+    use crate::hpack;
+    use proptest::prelude::*;
+    use std::time::Duration;
+
+    const TIMEOUT: Duration = Duration::from_secs(10);
+
+    fn cfg() -> HttpConfig {
+        HttpConfig {
+            timeout: TIMEOUT,
+            max_bytes: 1024 * 1024,
+        }
+    }
+
+    fn spec(url: &str) -> HttpRequestSpec {
+        HttpRequestSpec::build("GET", url, &[], Bytes::new()).unwrap()
+    }
+
+    /// A scripted response (HEADERS [+ DATA]) on one stream.
+    fn server_response(id: u32, status: u16, body: &[u8]) -> Vec<u8> {
+        let status = status.to_string();
+        let block = hpack::encode_header_block(&[
+            (":status", &status),
+            ("content-type", "text/plain"),
+            ("content-length", &body.len().to_string()),
+        ]);
+        let mut out = frame::headers_frame(id, &block, body.is_empty()).to_vec();
+        if !body.is_empty() {
+            out.extend_from_slice(&frame::data_frame(id, body, true));
+        }
+        out
+    }
+
+    /// The complete outcome set for a driven session (sends drained,
+    /// results forced).
+    fn outcomes(specs: &[HttpRequestSpec], stream: &[u8]) -> Vec<HttpOutcome> {
+        let mut s = H2Session::new(specs, &vec![cfg(); specs.len()], Instant::now()).unwrap();
+        let now = Instant::now();
+        s.on_frame(
+            Frame {
+                bytes: Bytes::copy_from_slice(stream),
+                iface: "t".into(),
+                ts: std::time::SystemTime::UNIX_EPOCH,
+            },
+            now,
+        );
+        let mut outs = Vec::new();
+        loop {
+            while let Some(SessionAction::Send(_)) = s.poll_action() {}
+            match s.next_timeout() {
+                Some(t) => s.on_timeout(t),
+                None => break,
+            }
+        }
+        while let Some(r) = s.poll_result() {
+            outs.push(r);
+        }
+        outs
+    }
+
+    /// Arbitrary SPLIT FEEDS of one server byte stream: feeding the
+    /// stream in random chunks (any split, any chunk count) must
+    /// yield the same outcomes as one whole on_frame — the session
+    /// accumulates, it never resyncs on chunk boundaries.
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            failure_persistence: Some(Box::new(proptest::test_runner::FileFailurePersistence::WithSource(
+                "proptest-regressions",
+            ))),
+            cases: 128,
+            ..ProptestConfig::default()
+        })]
+
+        #[test]
+        fn split_feed_matches_whole_feed(
+            splits in proptest::collection::vec(1usize..48, 0..8),
+        ) {
+            // Two queued requests, two full responses — the canonical
+            // script (heads + bodies + a PING interleave).
+            let mut stream = frame::settings_frame().to_vec();
+            stream.extend_from_slice(&server_response(1, 200, b"hello"));
+            stream.extend_from_slice(&server_response(3, 404, b""));
+            stream.extend_from_slice(&frame::ping_ack_frame(b"12345678"));
+
+            // Chunk boundaries at arbitrary offsets (sorted, in-stream).
+            let mut cuts: Vec<usize> = splits;
+            cuts.sort();
+            cuts.dedup();
+            cuts.retain(|c| *c < stream.len());
+            let mut pieces: Vec<&[u8]> = Vec::new();
+            let mut prev = 0usize;
+            for c in cuts {
+                if c > prev {
+                    pieces.push(&stream[prev..c]);
+                    prev = c;
+                }
+            }
+            pieces.push(&stream[prev..]);
+
+            let specs = vec![spec("https://example.test/"), spec("https://example.test/x")];
+            let want = outcomes(&specs, &stream);
+
+            // Feed piece-by-piece.
+            let mut s = H2Session::new(&specs, &vec![cfg(); specs.len()], Instant::now()).unwrap();
+            let now = Instant::now();
+            for p in &pieces {
+                s.on_frame(
+                    Frame {
+                        bytes: Bytes::copy_from_slice(p),
+                        iface: "t".into(),
+                        ts: std::time::SystemTime::UNIX_EPOCH,
+                    },
+                    now,
+                );
+            }
+            let mut got = Vec::new();
+            loop {
+                while let Some(SessionAction::Send(_)) = s.poll_action() {}
+                match s.next_timeout() {
+                    Some(t) => s.on_timeout(t),
+                    None => break,
+                }
+            }
+            while let Some(r) = s.poll_result() {
+                got.push(r);
+            }
+            // Outcomes are a function of the byte stream only.
+            assert_eq!(got.len(), want.len(), "split feed desynced outcome count");
+            for (g, w) in got.iter().zip(&want) {
+                let (gs, ws) = (format!("{g:?}"), format!("{w:?}"));
+                assert_eq!(gs, ws, "split feed changed an outcome");
+            }
+        }
+    }
+
+    /// Random INTERLEAVINGS of independent server frames (PING,
+    /// WINDOW_UPDATE, SETTINGS) around the response frames: the
+    /// per-request outcomes must be unaffected — ordering of
+    /// connection-housekeeping frames is free.
+    proptest! {
+        #![proptest_config(ProptestConfig {
+            failure_persistence: Some(Box::new(proptest::test_runner::FileFailurePersistence::WithSource(
+                "proptest-regressions",
+            ))),
+            cases: 128,
+            ..ProptestConfig::default()
+        })]
+
+        #[test]
+        fn housekeeping_interleavings_preserve_outcomes(
+            holes in proptest::collection::vec(0usize..3, 0..4),
+        ) {
+            let specs = vec![spec("https://example.test/")];
+            // Response pieces for stream 1 (head + body).
+            let status = "200".to_string();
+            let block = hpack::encode_header_block(&[
+                (":status", &status),
+                ("content-type", "text/plain"),
+                ("content-length", "5"),
+            ]);
+            let head = frame::headers_frame(1, &block, false).to_vec();
+            let body = frame::data_frame(1, b"hello", true).to_vec();
+            // Housekeeping frames (independent, order-free).
+            let ping = frame::ping_ack_frame(b"12345678").to_vec();
+            let wu = frame::window_update_frame(0, 0x10000).to_vec();
+
+            // Place housekeeping at arbitrary slots around/between the
+            // response frames.
+            let mut stream = Vec::new();
+            let pieces: [&[u8]; 2] = [&head, &body];
+            for (i, p) in pieces.iter().enumerate() {
+                for h in holes.iter().filter(|h| **h == i) {
+                    match h % 3 {
+                        0 => stream.extend_from_slice(&ping),
+                        1 => stream.extend_from_slice(&wu),
+                        _ => {}
+                    }
+                }
+                stream.extend_from_slice(p);
+            }
+            // Outcomes on the interleaved stream equal the plain one.
+            let mut plain = Vec::new();
+            plain.extend_from_slice(&head);
+            plain.extend_from_slice(&body);
+            let want = outcomes(&specs, &plain);
+            let got = outcomes(&specs, &stream);
+            assert_eq!(got.len(), want.len());
+            for (g, w) in got.iter().zip(&want) {
+                assert_eq!(format!("{g:?}"), format!("{w:?}"), "interleave changed an outcome");
+            }
+        }
+    }
+}
