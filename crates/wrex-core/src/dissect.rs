@@ -31,7 +31,7 @@ pub enum NetFacts {
 
 impl NetFacts {
     /// The upper-layer protocol number (v4 `proto` / v6 `next_header`).
-    pub fn proto(&self) -> u8 {
+    pub const fn proto(&self) -> u8 {
         match *self {
             NetFacts::V4 { proto, .. } => proto,
             NetFacts::V6 { next_header, .. } => next_header,
@@ -115,7 +115,7 @@ pub enum FieldSpan {
 impl FieldSpan {
     /// The container range a patch writes into (`Bytes`' own range for
     /// whole-field patches, the `Bits` container otherwise).
-    pub fn container(&self) -> Option<Range<usize>> {
+    pub const fn container(&self) -> Option<Range<usize>> {
         match self {
             FieldSpan::Bytes(r) | FieldSpan::ReEncode(r) => Some(r.start..r.end),
             FieldSpan::Bits { container, .. } => Some(container.start..container.end),
@@ -249,13 +249,18 @@ impl<'a> DecodeCtx<'a> {
 
 /// Auto-start heuristic for `dissect --start auto`:
 /// `bytes[0] >> 4 == 4` → ipv4; `== 6` → ipv6 (tranche 7b); else
-/// len ≥ 14 → eth; else unknown.
-pub fn auto_start(bytes: &[u8]) -> &'static str {
-    match bytes.first() {
-        None => "unknown",
-        Some(&b) if b >> 4 == 4 => "ipv4",
-        Some(&b) if b >> 4 == 6 => "ipv6",
-        Some(_) if bytes.len() >= 14 => "eth",
+/// len ≥ 14 → eth; else unknown. (const: `first` is not const-stable,
+/// index guarded.)
+pub const fn auto_start(bytes: &[u8]) -> &'static str {
+    let first = if bytes.is_empty() {
+        256
+    } else {
+        bytes[0] as usize
+    };
+    match first {
+        b if b >> 4 == 4 => "ipv4",
+        b if b >> 4 == 6 => "ipv6",
+        _ if bytes.len() >= 14 => "eth",
         _ => "unknown",
     }
 }

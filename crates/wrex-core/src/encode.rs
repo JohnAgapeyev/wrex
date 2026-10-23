@@ -485,16 +485,16 @@ pub fn put_bytes(ctx: &mut EncodeCtx<'_>, bytes: &[u8]) {
 /// Truncate an int to `N` bytes big-endian (explicit values may exceed the
 /// wire width; `--strict` or downstream validation catches the bad ones —
 /// deliberate invalid packets are a feature).
-pub fn trunc_u8(v: u128) -> u8 {
+pub const fn trunc_u8(v: u128) -> u8 {
     v as u8
 }
 
-pub fn trunc_u16(v: u128) -> u16 {
+pub const fn trunc_u16(v: u128) -> u16 {
     v as u16
 }
 
 /// Is this field kind integer-comparable in filters?
-pub fn is_int_kind(kind: FieldKind) -> bool {
+pub const fn is_int_kind(kind: FieldKind) -> bool {
     matches!(
         kind,
         FieldKind::U8 | FieldKind::U16 | FieldKind::U32 | FieldKind::U64 | FieldKind::U128

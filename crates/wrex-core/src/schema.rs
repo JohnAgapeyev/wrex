@@ -19,7 +19,7 @@ pub enum FieldKind {
 
 impl FieldKind {
     /// Inclusive upper bound for integer field kinds; `None` otherwise.
-    pub fn int_max(self) -> Option<u128> {
+    pub const fn int_max(self) -> Option<u128> {
         match self {
             FieldKind::U8 => Some(u8::MAX as u128),
             FieldKind::U16 => Some(u16::MAX as u128),
@@ -30,7 +30,7 @@ impl FieldKind {
         }
     }
 
-    pub fn type_name(self) -> &'static str {
+    pub const fn type_name(self) -> &'static str {
         match self {
             FieldKind::U8 => "u8",
             FieldKind::U16 => "u16",
@@ -158,11 +158,13 @@ pub enum Layout {
 
 impl Layout {
     /// Container byte length of the layout's byte window.
-    pub fn container_len(&self) -> usize {
+    pub const fn container_len(&self) -> usize {
         match *self {
             Layout::Bytes { len, .. } | Layout::ReEncode { len, .. } => len,
             Layout::Bits { shift, width, .. } => {
-                (shift as usize + width as usize).div_ceil(8).max(1)
+                let len = (shift as usize + width as usize).div_ceil(8);
+                // (const: `Ord::max` is trait dispatch — spelled out.)
+                if len > 1 { len } else { 1 }
             }
         }
     }
@@ -215,7 +217,7 @@ pub enum Derived {
 
 impl Derived {
     /// The field name this derivation owns (`"checksum"`, `"length"`).
-    pub fn field(&self) -> &'static str {
+    pub const fn field(&self) -> &'static str {
         match *self {
             Derived::Length { field, .. } => field,
             Derived::Checksum { field, .. } => field,
@@ -270,7 +272,7 @@ pub enum LengthUnits {
 
 impl LengthUnits {
     /// The octet quantum this field counts in (`Bytes` = plain).
-    pub fn unit(self) -> usize {
+    pub const fn unit(self) -> usize {
         match self {
             LengthUnits::Bytes => 1,
             LengthUnits::Octlets4 => 4,
@@ -281,7 +283,7 @@ impl LengthUnits {
     /// The cell bias: the wire value is `(octets / unit) − bias`
     /// (hdr_ext_len counts 8-octet units *minus the first*; AH's
     /// payload_len counts 4-octet units *minus the fixed two*).
-    pub fn bias(self) -> usize {
+    pub const fn bias(self) -> usize {
         match self {
             LengthUnits::Bytes => 0,
             LengthUnits::Octlets4 => 2,
@@ -297,12 +299,19 @@ impl LengthUnits {
     /// count saturates to 0 (the RFC minimum), an above-u8 count
     /// truncates — both analyzer-visible, matching the pre-17a
     /// `val as u16` truncation behavior of the `Bytes` arm.
-    pub fn quantize(self, covered: usize) -> Option<u8> {
+    pub const fn quantize(self, covered: usize) -> Option<u8> {
         let (unit, bias) = (self.unit(), self.bias());
         if unit == 1 || !covered.is_multiple_of(unit) {
             return None;
         }
-        Some(((covered / unit).saturating_sub(bias)).min(u8::MAX as usize) as u8)
+        let cells = (covered / unit).saturating_sub(bias);
+        // (const: `Ord::min` is trait dispatch — spelled out.)
+        let cells = if cells > u8::MAX as usize {
+            u8::MAX as usize
+        } else {
+            cells
+        };
+        Some(cells as u8)
     }
 }
 

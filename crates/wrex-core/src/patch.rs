@@ -73,7 +73,7 @@ enum ScopeSel {
 
 impl Scope {
     /// Recompute every derived field (the default archetype).
-    pub fn all() -> Scope {
+    pub const fn all() -> Scope {
         Scope {
             selections: Vec::new(),
             all: true,
@@ -81,9 +81,13 @@ impl Scope {
     }
 
     /// No recomputation at all — every derived field stays verbatim,
-    /// wrong or not.
-    pub fn none() -> Scope {
-        Scope::default()
+    /// wrong or not. (const: spelled out — `Default::default` is not
+    /// const-callable.)
+    pub const fn none() -> Scope {
+        Scope {
+            selections: Vec::new(),
+            all: false,
+        }
     }
 
     /// Build a selective scope from path selectors: `"udp.*"` selects the
@@ -585,7 +589,7 @@ fn recompute(
 }
 
 impl Op {
-    fn start(&self) -> usize {
+    const fn start(&self) -> usize {
         match self {
             Op::Overwrite { span, .. } => span.start,
             Op::WriteBits { container, .. } => container.start,
@@ -595,7 +599,7 @@ impl Op {
     }
 
     /// End of the byte claim (inserts are points: start == end).
-    fn end(&self) -> usize {
+    const fn end(&self) -> usize {
         match self {
             Op::Overwrite { span, .. } => span.end,
             Op::WriteBits { container, .. } => container.end,
@@ -607,8 +611,9 @@ impl Op {
 
 /// Masked bit-window write (MSB-first `shift`/`width`) into a container
 /// slice: clear the window bits, OR the value in. Pure function of the
-/// container + window + value — the determinism guarantee.
-fn write_bits_window(container: &mut [u8], shift: u8, width: u8, value: u128) {
+/// container + window + value — the determinism guarantee. (const: index
+/// loops — `iter`/`iter_mut` are not const-callable.)
+const fn write_bits_window(container: &mut [u8], shift: u8, width: u8, value: u128) {
     let bits = container.len() * 8;
     let (shift, width) = (shift as usize, width as usize);
     if shift + width > bits {
@@ -616,8 +621,10 @@ fn write_bits_window(container: &mut [u8], shift: u8, width: u8, value: u128) {
     }
     // Whole container as one big-endian integer.
     let mut acc: u128 = 0;
-    for &b in container.iter() {
-        acc = (acc << 8) | b as u128;
+    let mut i = 0;
+    while i < container.len() {
+        acc = (acc << 8) | container[i] as u128;
+        i += 1;
     }
     let mask: u128 = if width >= 128 {
         u128::MAX
@@ -626,9 +633,11 @@ fn write_bits_window(container: &mut [u8], shift: u8, width: u8, value: u128) {
     };
     acc = (acc & !mask) | ((value << (bits - shift - width)) & mask);
     let n = container.len();
-    for (i, b) in container.iter_mut().enumerate() {
+    let mut i = 0;
+    while i < n {
         let down = (n - 1 - i) * 8;
-        *b = ((acc >> down) & 0xff) as u8;
+        container[i] = ((acc >> down) & 0xff) as u8;
+        i += 1;
     }
 }
 

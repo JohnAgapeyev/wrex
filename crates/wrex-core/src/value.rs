@@ -68,7 +68,7 @@ impl Value {
         }
     }
 
-    pub fn kind(&self) -> &'static str {
+    pub const fn kind(&self) -> &'static str {
         match self {
             Value::Bool(_) => "bool",
             Value::Int(_) => "int",

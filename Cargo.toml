@@ -6,8 +6,12 @@ exclude = ["fuzz"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-# 1.88: hickory-proto 0.26 (the DNS differential oracle) floors here.
-rust-version = "1.88"
+# 1.99: no external dependency floors here anymore (hickory-proto 0.26
+# fit under 1.88); the floor tracks latest-stable instead because the
+# const-eval work (schema tables, checksums) leans on 1.89+ std const
+# surfaces (const float arithmetic, const copy_from_slice, const
+# str::eq_ignore_ascii_case). No users: the floor rides latest stable.
+rust-version = "1.99"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]

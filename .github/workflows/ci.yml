@@ -73,19 +73,20 @@ jobs:
           [ "$n" = "0" ] || { echo "empty build registered $n kinds"; exit 1; }
 
   msrv:
-    # The workspace rust-version floor (1.88) only constrains direct
-    # dependency pins — accidental use of newer std APIs or language
-    # features would otherwise surface only at release. `cargo check`
-    # on the pinned toolchain catches that per commit (no test run:
-    # the suites compile on the floor's own deps either way).
+    # The workspace rust-version floor (latest stable, 1.99) only
+    # constrains direct dependency pins — accidental use of newer std
+    # APIs or language features would otherwise surface only at
+    # release. `cargo check` on the pinned toolchain catches that per
+    # commit (no test run: the suites compile on the floor's own deps
+    # either way).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: dtolnay/rust-toolchain@1.99
       - uses: Swatinem/rust-cache@v2
         with:
-          # A distinct key per toolchain: cache artifacts built on 1.88.
-          key: msrv-1.88
+          # A distinct key per toolchain: cache artifacts built on 1.99.
+          key: msrv-1.99
       - run: cargo check --workspace --all-features --all-targets
       # fuzz/ is excluded from the workspace and carries its own floor
       # (cargo-fuzz pins); check it too so the targets stay MSRV-clean.

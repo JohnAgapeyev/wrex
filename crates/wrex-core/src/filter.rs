@@ -27,18 +27,28 @@ impl Op {
     /// Operator spelling, in scan order (two-char forms first).
     const SPELINGS: [&'static str; 6] = ["!=", "<=", ">=", "=", "<", ">"];
 
-    fn parse(s: &str) -> Option<Self> {
-        Some(match s {
-            "=" => Self::Eq,
-            "!=" => Self::Ne,
-            "<=" => Self::Le,
-            ">=" => Self::Ge,
-            "<" => Self::Lt,
-            ">" => Self::Gt,
-            _ => return None,
-        })
+    /// (const: `str` matching is not const-callable — byte-pattern form.)
+    const fn parse(s: &str) -> Option<Self> {
+        let b = s.as_bytes();
+        if b.len() == 1 {
+            return match b[0] {
+                b'=' => Some(Self::Eq),
+                b'<' => Some(Self::Lt),
+                b'>' => Some(Self::Gt),
+                _ => None,
+            };
+        }
+        if b.len() == 2 {
+            return match [b[0], b[1]] {
+                [b'!', b'='] => Some(Self::Ne),
+                [b'<', b'='] => Some(Self::Le),
+                [b'>', b'='] => Some(Self::Ge),
+                _ => None,
+            };
+        }
+        None
     }
-    fn spelling(self) -> &'static str {
+    const fn spelling(self) -> &'static str {
         match self {
             Op::Eq => "=",
             Op::Ne => "!=",

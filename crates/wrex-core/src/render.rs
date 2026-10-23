@@ -8,7 +8,7 @@ use crate::value::Value as WValue;
 use crate::value::mac_string;
 
 /// Ethertype → protocol name (for rendering `eth.type` / `vlan.type`).
-pub fn ethertype_name(v: u16) -> Option<&'static str> {
+pub const fn ethertype_name(v: u16) -> Option<&'static str> {
     Some(match v {
         0x0800 => "ipv4",
         0x0806 => "arp",
@@ -19,7 +19,7 @@ pub fn ethertype_name(v: u16) -> Option<&'static str> {
 }
 
 /// IP protocol → name (for rendering `ipv4.proto`).
-pub fn ip_proto_name(v: u8) -> Option<&'static str> {
+pub const fn ip_proto_name(v: u8) -> Option<&'static str> {
     Some(match v {
         1 => "icmp",
         6 => "tcp",
@@ -29,7 +29,7 @@ pub fn ip_proto_name(v: u8) -> Option<&'static str> {
 }
 
 /// IPv6 next-header → name (for rendering `ipv6.next_header`).
-pub fn ip6_next_header_name(v: u8) -> Option<&'static str> {
+pub const fn ip6_next_header_name(v: u8) -> Option<&'static str> {
     Some(match v {
         58 => "icmpv6",
         6 => "tcp",
