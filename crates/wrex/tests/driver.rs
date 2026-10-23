@@ -72,34 +72,138 @@ fn lo_echo_through_hopopts_alive() {
     // Bounded capture (15s): every lo frame in the window, classified
     // after the window closes — never a blocking filter (the sibling
     // roundtrip test's udp frames land here too and are ignored below).
-    let mut recv = spawn_recv_bounded(10, "15s");
+    let mut recv = spawn_recv_bounded(24, "15s");
     std::thread::sleep(Duration::from_millis(300));
 
-    let frame_args = [
-        "send",
-        "-i",
-        "lo",
-        "--count",
-        "5",
-        "--interval",
-        "200ms",
-        "--layer",
-        "eth",
-        "--layer",
-        "ipv6",
-        "--layer",
-        "hopopts",
-        "--hopopts-options",
-        "hex:010400000000",
-        "--layer",
-        "icmpv6",
-        "--icmpv6-type",
-        "128",
-        "--ipv6-src=::1",
-        "--ipv6-dst=::1",
+    // Three probe variants in one window (the kernel's echo behavior
+    // pinned per variable — inventory-diagnosed in CI):
+    //   A: ext-free, eth dst broadcast (the craft default shape)
+    //   B: ext-free, eth dst = iface MAC (the RawIpv6Driver shape)
+    //   C: hopopts chain, eth dst = iface MAC (B + the 17a ext claim)
+    // Each variant carries a distinct echo.id so replies are
+    // attributable, and a distinct icmpv6.seq marker.
+    let variants: &[(&str, &[&str])] = &[
+        (
+            "A/ext-free/bcast",
+            &[
+                "send",
+                "-i",
+                "lo",
+                "--count",
+                "2",
+                "--interval",
+                "100ms",
+                "--layer",
+                "eth",
+                "--layer",
+                "ipv6",
+                "--layer",
+                "icmpv6",
+                "--icmpv6-type",
+                "128",
+                "--icmpv6-echo-id",
+                "1111",
+                "--ipv6-src=::1",
+                "--ipv6-dst=::1",
+            ],
+        ),
+        (
+            "B/ext-free/ifmac",
+            &[
+                "send",
+                "-i",
+                "lo",
+                "--count",
+                "2",
+                "--interval",
+                "100ms",
+                "--layer",
+                "eth",
+                "--eth-dst=00:00:00:00:00:00",
+                "--layer",
+                "ipv6",
+                "--layer",
+                "icmpv6",
+                "--icmpv6-type",
+                "128",
+                "--icmpv6-echo-id",
+                "2222",
+                "--ipv6-src=::1",
+                "--ipv6-dst=::1",
+            ],
+        ),
+        (
+            "C/hopopts/ifmac",
+            &[
+                "send",
+                "-i",
+                "lo",
+                "--count",
+                "2",
+                "--interval",
+                "100ms",
+                "--layer",
+                "eth",
+                "--eth-dst=00:00:00:00:00:00",
+                "--layer",
+                "ipv6",
+                "--layer",
+                "hopopts",
+                "--hopopts-options",
+                "hex:010400000000",
+                "--layer",
+                "icmpv6",
+                "--icmpv6-type",
+                "128",
+                "--icmpv6-echo-id",
+                "3333",
+                "--ipv6-src=::1",
+                "--ipv6-dst=::1",
+            ],
+        ),
     ];
+    for (label, args) in variants.iter() {
+        let send = Command::new(env!("CARGO_BIN_EXE_wrex"))
+            .args(*args)
+            .output()
+            .expect("spawn wrex send");
+        if !send.status.success() {
+            let stderr = String::from_utf8_lossy(&send.stderr).to_string();
+            if stderr.contains("CAP_NET_RAW") {
+                eprintln!(
+                    "driver tests: skipping lo_echo_through_hopopts (no CAP_NET_RAW; CI runs under sudo)"
+                );
+                let _ = recv.kill();
+                let _ = recv.wait();
+                return;
+            }
+            panic!("send ({label}) failed: {stderr}");
+        }
+    }
     let send = Command::new(env!("CARGO_BIN_EXE_wrex"))
-        .args(frame_args)
+        .args([
+            "send",
+            "-i",
+            "lo",
+            "--count",
+            "2",
+            "--interval",
+            "100ms",
+            "--layer",
+            "eth",
+            "--layer",
+            "ipv6",
+            "--layer",
+            "hopopts",
+            "--hopopts-options",
+            "hex:010400000000",
+            "--layer",
+            "icmpv6",
+            "--icmpv6-type",
+            "128",
+            "--ipv6-src=::1",
+            "--ipv6-dst=::1",
+        ])
         .output()
         .expect("spawn wrex send");
     if !send.status.success() {
