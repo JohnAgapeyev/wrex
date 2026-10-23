@@ -12,6 +12,11 @@ fn driver_tests_enabled() -> bool {
     std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1")
 }
 
+/// Capability probe (shared in wrex-test): `lo` + optional IPv6.
+fn loopback_ready(v6: bool) -> bool {
+    wrex_test::loopback_ready(v6)
+}
+
 /// Spawn `wrex recv -i lo --count 1 --format raw` with piped stdout.
 ///
 /// The filter is load-bearing: the sibling tests in this binary share
@@ -36,6 +41,9 @@ fn spawn_recv(filter: &str) -> Child {
 fn lo_echo_through_hopopts_alive() {
     if !driver_tests_enabled() {
         eprintln!("driver tests: skipping lo_echo_through_hopopts (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    if !loopback_ready(true) {
         return;
     }
     let mut recv = spawn_recv("icmpv6.type=129");
@@ -136,6 +144,9 @@ fn lo_echo_through_hopopts_alive() {
 fn lo_loopback_send_recv_roundtrip() {
     if !driver_tests_enabled() {
         eprintln!("driver tests: skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    if !loopback_ready(false) {
         return;
     }
     // A loopback eth frame the kernel will reflect back: eth+ipv4+udp.

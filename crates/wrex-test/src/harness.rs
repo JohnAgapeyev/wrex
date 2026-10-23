@@ -45,6 +45,22 @@ pub fn dissect(bytes: &[u8], args: &[&str]) -> String {
     String::from_utf8(out.get_output().stdout.clone()).expect("utf8")
 }
 
+/// Capability probe for the env-gated driver suites: `lo` must exist
+/// and (with `v6`) the IPv6 loopback `::1` must be bindable. A runner
+/// without loopback or IPv6 is an environment problem, not a
+/// regression — callers skip with a notice instead of failing.
+pub fn loopback_ready(v6: bool) -> bool {
+    if !std::path::Path::new("/sys/class/net/lo").exists() {
+        eprintln!("driver tests: skipping (no lo interface on this runner)");
+        return false;
+    }
+    if v6 && std::net::UdpSocket::bind("[::1]:0").is_err() {
+        eprintln!("driver tests: skipping (IPv6 loopback unavailable)");
+        return false;
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

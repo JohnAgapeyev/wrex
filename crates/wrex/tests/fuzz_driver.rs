@@ -12,7 +12,9 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 fn driver_tests_enabled() -> bool {
-    std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1")
+    // Capability probe (pass-2): lo must exist — a runner without
+    // loopback is an environment problem, skip with a notice.
+    std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1") && wrex_test::loopback_ready(false)
 }
 
 /// True when the failure is just the sandbox (no CAP_NET_RAW).

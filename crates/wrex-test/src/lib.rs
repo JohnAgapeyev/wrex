@@ -11,7 +11,7 @@ pub mod oracle;
 pub mod strategies;
 pub mod tls_stub;
 
-pub use harness::{craft_bytes, craft_hex, dissect, wrex_bin};
+pub use harness::{craft_bytes, craft_hex, dissect, loopback_ready, wrex_bin};
 pub use oracle::{Oracle, PcapWriter};
 pub use strategies::{packet_strategy, stacks};
 

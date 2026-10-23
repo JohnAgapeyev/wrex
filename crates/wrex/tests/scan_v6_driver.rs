@@ -12,7 +12,8 @@ use std::net::{TcpListener, UdpSocket};
 use std::process::Command;
 
 fn driver_tests_enabled() -> bool {
-    std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1")
+    // Capability probe (pass-2): v6 ground truth needs lo AND ::1.
+    std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1") && wrex_test::loopback_ready(true)
 }
 
 /// Run `wrex scan …`, return (exit code, stdout).
