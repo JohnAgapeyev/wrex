@@ -12,7 +12,7 @@ pub enum ScanAddr {
 }
 
 impl ScanAddr {
-    pub fn family(self) -> Family {
+    pub const fn family(self) -> Family {
         match self {
             ScanAddr::V4(_) => Family::V4,
             ScanAddr::V6(_) => Family::V6,
@@ -51,7 +51,7 @@ pub enum Family {
 
 impl Family {
     /// The network-layer registry kind probes/craft start from.
-    pub fn ip_kind(self) -> &'static str {
+    pub const fn ip_kind(self) -> &'static str {
         match self {
             Family::V4 => "ipv4",
             Family::V6 => "ipv6",
@@ -59,7 +59,7 @@ impl Family {
     }
 
     /// The echo protocol kind for this family (scan `icmp` mode).
-    pub fn echo_kind(self) -> &'static str {
+    pub const fn echo_kind(self) -> &'static str {
         match self {
             Family::V4 => "icmp",
             Family::V6 => "icmpv6",
@@ -195,7 +195,7 @@ fn expand_cidr(addr_raw: &str, prefix_raw: &str) -> Result<Vec<ScanAddr>, String
     }
 }
 
-fn mask_of(prefix: u32) -> u32 {
+const fn mask_of(prefix: u32) -> u32 {
     if prefix == 0 {
         0
     } else {
@@ -203,11 +203,17 @@ fn mask_of(prefix: u32) -> u32 {
     }
 }
 
-fn mask6_of(prefix: u32) -> u128 {
+const fn mask6_of(prefix: u32) -> u128 {
     if prefix == 0 {
         0
+    } else if prefix >= 128 {
+        u128::MAX
     } else {
-        u128::MAX.checked_shl(128 - prefix).unwrap_or(0)
+        // (const: unwrap_or is not const-callable — spelled out.)
+        match u128::MAX.checked_shl(128 - prefix) {
+            Some(m) => m,
+            None => 0,
+        }
     }
 }
 

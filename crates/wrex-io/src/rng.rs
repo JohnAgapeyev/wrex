@@ -21,7 +21,7 @@ impl Rng {
     }
 
     /// Next raw 64-bit value (SplitMix64 mix).
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
         let mut z = self.state;
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
@@ -30,12 +30,12 @@ impl Rng {
     }
 
     /// Uniform-ish `f64` in `[0, 1)` (top 53 bits).
-    pub fn next_f64(&mut self) -> f64 {
+    pub const fn next_f64(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
     }
 
     /// Uniform value in `lo..=hi` (empty range → `lo`).
-    pub fn range_u16(&mut self, lo: u16, hi: u16) -> u16 {
+    pub const fn range_u16(&mut self, lo: u16, hi: u16) -> u16 {
         if hi <= lo {
             return lo;
         }

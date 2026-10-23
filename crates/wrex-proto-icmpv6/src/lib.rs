@@ -364,20 +364,20 @@ fn mld_flag_field() -> &'static FieldSchema {
     mld_field("mld.flags")
 }
 
-fn is_mld(t: u8) -> bool {
+const fn is_mld(t: u8) -> bool {
     matches!(t, T_MLD_QUERY | T_MLD_REPORT | T_MLD_DONE | T_MLD_REPORT_V2)
 }
 
-fn is_echo(t: u8) -> bool {
+const fn is_echo(t: u8) -> bool {
     t == T_ECHO_REQ || t == T_ECHO_REPLY
 }
 
-fn is_ndp(t: u8) -> bool {
-    (T_RS..=T_NA).contains(&t)
+const fn is_ndp(t: u8) -> bool {
+    t >= T_RS && t <= T_NA
 }
 
 /// NDP body length after the 8-byte icmpv6 header: RA +8, NS/NA +16.
-fn ndp_body_len(t: u8) -> usize {
+const fn ndp_body_len(t: u8) -> usize {
     match t {
         T_RS => 0,
         T_RA => 8,

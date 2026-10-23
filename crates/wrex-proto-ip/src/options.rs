@@ -142,7 +142,7 @@ fn flush(pending: &mut Pending, out: &mut Vec<u8>) -> Result<(), EncodeError> {
 }
 
 /// Zero-pad to a 4-byte multiple (options region alignment).
-pub(crate) fn pad_len(len: usize) -> usize {
+pub(crate) const fn pad_len(len: usize) -> usize {
     (4 - len % 4) % 4
 }
 

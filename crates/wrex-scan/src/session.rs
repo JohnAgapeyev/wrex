@@ -220,7 +220,7 @@ impl<'a> ScanSession<'a> {
     }
 
     /// Classification on timeout per mode.
-    fn timeout_state(&self) -> &'static str {
+    const fn timeout_state(&self) -> &'static str {
         match self.cfg.mode {
             ScanMode::Syn | ScanMode::Connect => "filtered",
             ScanMode::Udp => "open|filtered",

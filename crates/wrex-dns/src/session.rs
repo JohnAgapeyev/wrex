@@ -60,7 +60,7 @@ impl QueryConfig {
 
 /// Network-layer registry kinds the query chain needs for `server`'s
 /// family (tranche 10a: family-aware gating).
-pub(crate) fn kinds_for_family(server: &IpAddr) -> [&'static str; 3] {
+pub(crate) const fn kinds_for_family(server: &IpAddr) -> [&'static str; 3] {
     match server {
         IpAddr::V4(_) => ["ipv4", "udp", "dns"],
         IpAddr::V6(_) => ["ipv6", "udp", "dns"],

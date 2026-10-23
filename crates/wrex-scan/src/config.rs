@@ -42,7 +42,7 @@ impl ScanMode {
 
     /// Wire protocol name for result rendering over `family` (the icmp
     /// mode speaks icmpv6 over v6 targets).
-    pub fn proto_for(self, family: Family) -> &'static str {
+    pub const fn proto_for(self, family: Family) -> &'static str {
         match self {
             Self::Syn | Self::Connect => "tcp",
             Self::Udp => "udp",
@@ -51,12 +51,12 @@ impl ScanMode {
     }
 
     /// Wire protocol name over IPv4 targets (source compatibility).
-    pub fn proto(self) -> &'static str {
+    pub const fn proto(self) -> &'static str {
         self.proto_for(Family::V4)
     }
 
     /// Registry kinds this mode needs registered over `family`.
-    pub fn needs_for(self, family: Family) -> &'static [&'static str] {
+    pub const fn needs_for(self, family: Family) -> &'static [&'static str] {
         match self {
             Self::Syn | Self::Connect => match family {
                 Family::V4 => &["ipv4", "tcp"],
@@ -74,11 +74,11 @@ impl ScanMode {
     }
 
     /// Registry kinds this mode needs over IPv4 targets (source compat).
-    pub fn needs(self) -> &'static [&'static str] {
+    pub const fn needs(self) -> &'static [&'static str] {
         self.needs_for(Family::V4)
     }
 
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
             Self::Syn => "syn",
             Self::Connect => "connect",

@@ -62,8 +62,8 @@ impl HttpResponse {
 }
 
 /// 1xx: informational (the session skips these and keeps reading).
-pub(crate) fn is_informational(code: u16) -> bool {
-    (100..200).contains(&code)
+pub(crate) const fn is_informational(code: u16) -> bool {
+    code >= 100 && code < 200
 }
 
 /// One step of head parsing (status line + headers together, as

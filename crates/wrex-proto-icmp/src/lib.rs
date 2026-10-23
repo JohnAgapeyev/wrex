@@ -92,7 +92,7 @@ pub fn register(r: &mut wrex_core::Registry) {
     wrex_proto_ip::register(r);
 }
 
-fn is_echo(icmp_type: u8) -> bool {
+const fn is_echo(icmp_type: u8) -> bool {
     icmp_type == 0 || icmp_type == 8
 }
 

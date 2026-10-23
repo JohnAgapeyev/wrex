@@ -49,6 +49,7 @@ use wrex_core::schema::{
     Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, LengthUnits,
 };
 use wrex_core::spec::LayerSpec;
+use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, EncodeError, Next, ReadOutcome};
 
@@ -68,7 +69,7 @@ pub const KIND_DSTOPTS: &str = "dstopts";
 /// five non-terminal kinds; `wrex-proto-ip6` carries the same rows in
 /// its own copy (dispatch is registry strings — the ADR-3
 /// child-side integration test pins the two tables against each other).
-fn next_header_to_kind(n: u8) -> &'static str {
+const fn next_header_to_kind(n: u8) -> &'static str {
     match n {
         0 => KIND_HOPOPTS,
         6 => "tcp",
@@ -87,25 +88,40 @@ fn next_header_to_kind(n: u8) -> &'static str {
 /// next layer kind → next-header number (for `write` autofill). With
 /// nothing following (or an unknown kind) 59 — `nonext`, the honest
 /// terminal.
-fn kind_to_next_header(kind: Option<&'static str>) -> u8 {
+const fn kind_to_next_header(kind: Option<&'static str>) -> u8 {
+    // (const: str patterns are not const-callable — str_eq chain.)
     match kind {
-        Some("icmpv6") => 58,
-        Some("tcp") => 6,
-        Some("udp") => 17,
-        Some(KIND_HOPOPTS) => 0,
-        Some(KIND_ROUTING) => 43,
-        Some(KIND_FRAG) => 44,
-        Some(KIND_ESP) => 50,
-        Some(KIND_AH) => 51,
-        Some(KIND_DSTOPTS) => 60,
-        _ => 59,
+        Some(k) => {
+            if str_eq(k, "icmpv6") {
+                58
+            } else if str_eq(k, "tcp") {
+                6
+            } else if str_eq(k, "udp") {
+                17
+            } else if str_eq(k, KIND_HOPOPTS) {
+                0
+            } else if str_eq(k, KIND_ROUTING) {
+                43
+            } else if str_eq(k, KIND_FRAG) {
+                44
+            } else if str_eq(k, KIND_ESP) {
+                50
+            } else if str_eq(k, KIND_AH) {
+                51
+            } else if str_eq(k, KIND_DSTOPTS) {
+                60
+            } else {
+                59
+            }
+        }
+        None => 59,
     }
 }
 
 /// Zero-pad a raw region length up to its octet grid (8 for the
 /// options-style headers): craft emits well-formed multiples even
 /// from arbitrary regions (the dhcp sname-padding precedent).
-fn pad_to_grid(len: usize, unit: usize) -> usize {
+const fn pad_to_grid(len: usize, unit: usize) -> usize {
     len.div_ceil(unit) * unit
 }
 

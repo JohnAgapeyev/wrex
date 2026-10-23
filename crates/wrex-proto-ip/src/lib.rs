@@ -17,6 +17,7 @@ use wrex_core::schema::{
     LengthUnits, PseudoSource,
 };
 use wrex_core::spec::LayerSpec;
+use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
@@ -134,17 +135,26 @@ pub fn register(r: &mut wrex_core::Registry) {
 }
 
 /// next layer kind → protocol number.
-fn kind_to_proto(kind: Option<&'static str>) -> u8 {
+const fn kind_to_proto(kind: Option<&'static str>) -> u8 {
+    // (const: str patterns are not const-callable — str_eq chain.)
     match kind {
-        Some("icmp") => 1,
-        Some("tcp") => 6,
-        Some("udp") => 17,
-        _ => 0,
+        Some(k) => {
+            if str_eq(k, "icmp") {
+                1
+            } else if str_eq(k, "tcp") {
+                6
+            } else if str_eq(k, "udp") {
+                17
+            } else {
+                0
+            }
+        }
+        None => 0,
     }
 }
 
 /// protocol number → next layer kind.
-fn proto_to_kind(p: u8) -> &'static str {
+const fn proto_to_kind(p: u8) -> &'static str {
     match p {
         1 => "icmp",
         6 => "tcp",

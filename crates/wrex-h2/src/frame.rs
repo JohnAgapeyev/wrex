@@ -48,7 +48,7 @@ pub enum FrameType {
 }
 
 impl FrameType {
-    pub fn from_u8(v: u8) -> Self {
+    pub const fn from_u8(v: u8) -> Self {
         match v {
             0x0 => FrameType::Data,
             0x1 => FrameType::Headers,
@@ -64,7 +64,7 @@ impl FrameType {
         }
     }
 
-    pub fn to_u8(self) -> u8 {
+    pub const fn to_u8(self) -> u8 {
         match self {
             FrameType::Data => 0x0,
             FrameType::Headers => 0x1,

@@ -21,6 +21,7 @@ use wrex_core::schema::{
     Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, LengthUnits,
 };
 use wrex_core::spec::LayerSpec;
+use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Anomaly, Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
@@ -117,26 +118,43 @@ pub fn register(r: &mut wrex_core::Registry) {
 }
 
 /// next layer kind → next-header number.
-fn kind_to_next_header(kind: Option<&'static str>) -> u8 {
+const fn kind_to_next_header(kind: Option<&'static str>) -> u8 {
+    // (const: str patterns are not const-callable — str_eq chain.)
     match kind {
-        Some("icmpv6") => 58,
-        Some("tcp") => 6,
-        Some("udp") => 17,
-        // Tranche 17a: the extension-header family (craft autofill —
-        // [ipv6, hopopts, …] writes next_header 0).
-        Some("hopopts") => 0,
-        Some("routing") => 43,
-        Some("frag") => 44,
-        Some("esp") => 50,
-        Some("ah") => 51,
-        Some("nonext") => 59,
-        Some("dstopts") => 60,
-        _ => 0,
+        Some(k) => {
+            if str_eq(k, "icmpv6") {
+                58
+            } else if str_eq(k, "tcp") {
+                6
+            } else if str_eq(k, "udp") {
+                17
+            }
+            // Tranche 17a: the extension-header family (craft autofill —
+            // [ipv6, hopopts, …] writes next_header 0).
+            else if str_eq(k, "hopopts") {
+                0
+            } else if str_eq(k, "routing") {
+                43
+            } else if str_eq(k, "frag") {
+                44
+            } else if str_eq(k, "esp") {
+                50
+            } else if str_eq(k, "ah") {
+                51
+            } else if str_eq(k, "nonext") {
+                59
+            } else if str_eq(k, "dstopts") {
+                60
+            } else {
+                0
+            }
+        }
+        None => 0,
     }
 }
 
 /// next-header number → next layer kind.
-fn next_header_to_kind(n: u8) -> &'static str {
+const fn next_header_to_kind(n: u8) -> &'static str {
     match n {
         58 => "icmpv6",
         6 => "tcp",

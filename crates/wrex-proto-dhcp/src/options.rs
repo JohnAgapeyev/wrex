@@ -71,7 +71,7 @@ pub fn render_msg_type(v: u8) -> String {
 /// reject `dhcp.msg_type` + `type:` double-setting (a usage guard; the
 /// walk stops at `end`/overrun, so a malformed region just answers
 /// conservatively).
-pub fn scan_msg_type(region: &[u8]) -> bool {
+pub const fn scan_msg_type(region: &[u8]) -> bool {
     let mut cursor = 0usize;
     while cursor + 2 <= region.len() {
         let code = region[cursor];

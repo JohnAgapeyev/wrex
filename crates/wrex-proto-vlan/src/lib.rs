@@ -12,6 +12,7 @@ use wrex_core::encode::{EncodeCtx, int_or_default};
 use wrex_core::error::DecodeError;
 use wrex_core::schema::{FieldKind, FieldSchema, LayerSchema, Layout};
 use wrex_core::spec::LayerSpec;
+use wrex_core::str_eq;
 use wrex_core::value::Value;
 use wrex_core::{Codec, DecodeCtx, EncodeError, Next, ReadOutcome};
 
@@ -85,7 +86,7 @@ pub fn register(r: &mut wrex_core::Registry) {
 }
 
 /// ethertype → next layer kind (for `read` continuation).
-fn ethertype_to_kind(t: u16) -> &'static str {
+const fn ethertype_to_kind(t: u16) -> &'static str {
     match t {
         0x0800 => "ipv4",
         0x0806 => "arp",
@@ -96,13 +97,23 @@ fn ethertype_to_kind(t: u16) -> &'static str {
 }
 
 /// next layer kind → ethertype (for `write` autofill of `type`).
-fn kind_to_ethertype(kind: Option<&'static str>) -> u16 {
+const fn kind_to_ethertype(kind: Option<&'static str>) -> u16 {
+    // (const: str patterns are not const-callable — str_eq chain.)
     match kind {
-        Some("ipv4") => 0x0800,
-        Some("arp") => 0x0806,
-        Some("ipv6") => 0x86dd,
-        Some("vlan") => 0x8100,
-        _ => 0x0000,
+        Some(k) => {
+            if str_eq(k, "ipv4") {
+                0x0800
+            } else if str_eq(k, "arp") {
+                0x0806
+            } else if str_eq(k, "ipv6") {
+                0x86dd
+            } else if str_eq(k, "vlan") {
+                0x8100
+            } else {
+                0x0000
+            }
+        }
+        None => 0x0000,
     }
 }
 
