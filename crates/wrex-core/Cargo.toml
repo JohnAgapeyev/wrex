@@ -16,7 +16,7 @@ hex = { workspace = true }
 [dev-dependencies]
 proptest = { workspace = true }
 # Bench tripwires (pass-2): dev-only; `cargo bench -p wrex-core`.
-criterion = "0.7"
+criterion = "0.8"
 wrex-test = { workspace = true }
 wrex = { workspace = true }
 wrex-pcap = { workspace = true }
