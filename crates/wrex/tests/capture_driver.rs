@@ -35,8 +35,11 @@ const SEND_ARGS: &[&str] = &[
     "udp",
     "--ipv4-src=127.0.0.1",
     "--ipv4-dst=127.0.0.1",
-    "--udp-sport=1",
-    "--udp-dport=2",
+    // Distinct ports from the driver.rs roundtrip recipe (sport=1
+    // dport=2): parallel test binaries share `lo`, and the driver.rs
+    // recv filters on `udp.dport=2` — don't feed it our frames.
+    "--udp-sport=41",
+    "--udp-dport=42",
     // "TS#" — ASCII bytes, even-length hex.
     "--payload=hex:545323",
 ];

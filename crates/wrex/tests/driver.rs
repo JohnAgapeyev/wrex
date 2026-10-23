@@ -13,9 +13,15 @@ fn driver_tests_enabled() -> bool {
 }
 
 /// Spawn `wrex recv -i lo --count 1 --format raw` with piped stdout.
-fn spawn_recv() -> Child {
+///
+/// The filter is load-bearing: the sibling tests in this binary share
+/// `lo`, and cargo runs them in parallel — an unfiltered `--count 1`
+/// recv happily captures a sibling test's frames (observed in CI).
+fn spawn_recv(filter: &str) -> Child {
     Command::new(env!("CARGO_BIN_EXE_wrex"))
-        .args(["recv", "-i", "lo", "--count", "1", "--format", "raw"])
+        .args([
+            "recv", "-i", "lo", "--count", "1", "--format", "raw", "--filter", filter,
+        ])
         .stdout(Stdio::piped())
         .spawn()
         .expect("spawn wrex recv")
@@ -32,7 +38,7 @@ fn lo_echo_through_hopopts_alive() {
         eprintln!("driver tests: skipping lo_echo_through_hopopts (WREX_DRIVER_TESTS != 1)");
         return;
     }
-    let mut recv = spawn_recv();
+    let mut recv = spawn_recv("icmpv6.type=129");
     std::thread::sleep(Duration::from_millis(300));
 
     let frame_args = [
@@ -133,7 +139,9 @@ fn lo_loopback_send_recv_roundtrip() {
         return;
     }
     // A loopback eth frame the kernel will reflect back: eth+ipv4+udp.
-    let mut recv = spawn_recv();
+    // The recv filter (udp.dport=2) keeps the sibling test's icmpv6/scan
+    // traffic out of this capture — parallel tests share `lo`.
+    let mut recv = spawn_recv("udp.dport=2");
     // give recv a moment to bind (paced repeats cover the race anyway)
     std::thread::sleep(Duration::from_millis(300));
 
