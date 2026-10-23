@@ -1,0 +1,75 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "33:33:00:00:00:01",
+        "src": "52:54:00:12:34:56",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "ff02::1:2",
+        "flow_label": 0,
+        "hop_limit": 64,
+        "next_header": "udp",
+        "payload_len": 76,
+        "src": "fe80::1",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 44362,
+        "dport": 547,
+        "length": 76,
+        "sport": 546
+      },
+      "kind": "udp",
+      "span": [
+        54,
+        62
+      ]
+    },
+    {
+      "fields": {
+        "msg_type": "renew",
+        "opt.0.code": 1,
+        "opt.0.len": 6,
+        "opt.0.value": "000102030405",
+        "opt.1.code": 2,
+        "opt.1.len": 6,
+        "opt.1.value": "000102030405",
+        "opt.2.code": 3,
+        "opt.2.len": 40,
+        "opt.2.sub.0.code": 5,
+        "opt.2.sub.0.ip": "2001:db8::1",
+        "opt.2.sub.0.len": 24,
+        "opt.2.sub.0.preferred": 0,
+        "opt.2.sub.0.valid": 0,
+        "opt.2.sub.0.value": "20010db80000000000000000000000010000000000000000",
+        "opt.2.value": "0000000a00000000000000000005001820010db80000000000000000000000010000000000000000",
+        "trans_id": 69905
+      },
+      "kind": "dhcp6",
+      "span": [
+        62,
+        130
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

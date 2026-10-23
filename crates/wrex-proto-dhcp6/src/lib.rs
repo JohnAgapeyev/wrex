@@ -533,19 +533,24 @@ pub mod strategy {
             ])
             .prop_map(Value::Str),
         );
-        (any::<u32>(), msg_type, opts).prop_map(|(tid, msg_type, opts)| {
-            let mut fields = std::collections::BTreeMap::new();
-            fields.insert("msg_type".to_string(), msg_type);
-            fields.insert("trans_id".to_string(), Value::Int(tid as u128));
-            if let Some(o) = opts {
-                if matches!(&o, Value::Str(s) if s.is_empty()) {
-                    // the empty-grammar sample is the no-options case
-                } else {
-                    fields.insert("options".to_string(), o);
+        // trans_id fits the 3-byte wire field (over-wide masks — the
+        // in-crate unit covers that; the differential roundtrips the
+        // typed value).
+        (0u32..0x100_0000, msg_type, opts)
+            .prop_map(|(tid, msg_type, opts)| {
+                let mut fields = std::collections::BTreeMap::new();
+                fields.insert("msg_type".to_string(), msg_type);
+                fields.insert("trans_id".to_string(), Value::Int(tid as u128));
+                if let Some(o) = opts {
+                    if matches!(&o, Value::Str(s) if s.is_empty()) {
+                        // the empty-grammar sample is the no-options case
+                    } else {
+                        fields.insert("options".to_string(), o);
+                    }
                 }
-            }
-            LayerSpec::with_fields("dhcp6", fields)
-        })
+                LayerSpec::with_fields("dhcp6", fields)
+            })
+            .boxed()
     }
 }
 

@@ -1,0 +1,66 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "33:33:00:00:00:01",
+        "src": "52:54:00:12:34:56",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "ff02::1:2",
+        "flow_label": 0,
+        "hop_limit": 64,
+        "next_header": "udp",
+        "payload_len": 32,
+        "src": "fe80::1",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 42104,
+        "dport": 547,
+        "length": 32,
+        "sport": 546
+      },
+      "kind": "udp",
+      "span": [
+        54,
+        62
+      ]
+    },
+    {
+      "fields": {
+        "msg_type": "decline",
+        "opt.0.code": 1,
+        "opt.0.len": 6,
+        "opt.0.value": "000102030405",
+        "opt.1.code": 2,
+        "opt.1.len": 6,
+        "opt.1.value": "000102030405",
+        "trans_id": 279620
+      },
+      "kind": "dhcp6",
+      "span": [
+        62,
+        86
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

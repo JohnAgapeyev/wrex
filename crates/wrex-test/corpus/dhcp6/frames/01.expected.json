@@ -1,0 +1,88 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "33:33:00:00:00:01",
+        "src": "52:54:00:12:34:56",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "ff02::1:2",
+        "flow_label": 0,
+        "hop_limit": 64,
+        "next_header": "udp",
+        "payload_len": 120,
+        "src": "fe80::1",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 48561,
+        "dport": 547,
+        "length": 120,
+        "sport": 546
+      },
+      "kind": "udp",
+      "span": [
+        54,
+        62
+      ]
+    },
+    {
+      "fields": {
+        "msg_type": "solicit",
+        "opt.0.code": 1,
+        "opt.0.len": 6,
+        "opt.0.value": "000102030405",
+        "opt.1.code": 8,
+        "opt.1.len": 2,
+        "opt.1.num": 100,
+        "opt.1.value": "0064",
+        "opt.2.code": 6,
+        "opt.2.len": 6,
+        "opt.2.num": 23,
+        "opt.2.value": "001700180027",
+        "opt.3.code": 3,
+        "opt.3.len": 40,
+        "opt.3.sub.0.code": 5,
+        "opt.3.sub.0.ip": "2001:db8::10",
+        "opt.3.sub.0.len": 24,
+        "opt.3.sub.0.preferred": 3600,
+        "opt.3.sub.0.valid": 7200,
+        "opt.3.sub.0.value": "20010db800000000000000000000001000000e1000001c20",
+        "opt.3.value": "000000070000012c000002580005001820010db800000000000000000000001000000e1000001c20",
+        "opt.4.code": 23,
+        "opt.4.ip": "2001:db8::53",
+        "opt.4.len": 16,
+        "opt.4.value": "20010db8000000000000000000000053",
+        "opt.5.code": 24,
+        "opt.5.len": 14,
+        "opt.5.text": "wrex.example",
+        "opt.5.value": "0477726578076578616d706c6500",
+        "trans_id": 1122867
+      },
+      "kind": "dhcp6",
+      "span": [
+        62,
+        174
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

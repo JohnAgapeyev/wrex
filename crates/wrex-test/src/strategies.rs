@@ -47,6 +47,10 @@ pub const STACKS: &[&str] = &[
     "eth-vlan-ipv6-hopopts-tcp",
     "eth-vlan-ipv6-hopopts-udp",
     "eth-vlan-ipv6-hopopts-icmpv6",
+    // Tranche 17c: the DHCPv6 stacks (ports pinned 546→547 so the
+    // udp dispatch chains into the codec).
+    "eth-ipv6-udp-dhcp6",
+    "eth-vlan-ipv6-udp-dhcp6",
 ];
 
 pub fn stacks() -> &'static [&'static str] {
@@ -84,6 +88,19 @@ fn udp_for_dhcp() -> BoxedStrategy<LayerSpec> {
         .prop_map(|mut udp| {
             udp.fields.insert("sport".to_string(), Value::Int(68));
             udp.fields.insert("dport".to_string(), Value::Int(67));
+            udp
+        })
+        .boxed()
+}
+
+/// Udp spec with client ports pinned (546→547): the dhcp6 stacks need
+/// the port dispatch to chain into the codec (the `udp_for_dhcp`
+/// pattern).
+fn udp_for_dhcp6() -> BoxedStrategy<LayerSpec> {
+    wrex_proto_udp::strategy::strategy()
+        .prop_map(|mut udp| {
+            udp.fields.insert("sport".to_string(), Value::Int(546));
+            udp.fields.insert("dport".to_string(), Value::Int(547));
             udp
         })
         .boxed()
@@ -466,6 +483,31 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
             .boxed(),
         "ipv6" => (wrex_proto_ip6::strategy::strategy(), payload())
             .prop_map(|(ip, pay)| PacketSpec::new(vec![ip], Some(pay)))
+            .boxed(),
+        // DHCPv6 stacks (tranche 17c): the udp ports are pinned so the
+        // port dispatch chains into the dhcp6 codec (the 7c pattern).
+        // No payload: dhcp6 is the terminal layer and v6 has no end
+        // marker (the v4 `end` precedent made a random tail payload
+        // safe there) — a random tail would read as garbage TLVs and
+        // anomaly on our own layer.
+        "eth-ipv6-udp-dhcp6" => (
+            eth_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            udp_for_dhcp6(),
+            wrex_proto_dhcp6::strategy::strategy(),
+        )
+            .prop_map(|(eth, ip, udp, dhcp6)| PacketSpec::new(vec![eth, ip, udp, dhcp6], None))
+            .boxed(),
+        "eth-vlan-ipv6-udp-dhcp6" => (
+            eth_derived(),
+            vlan_derived(),
+            wrex_proto_ip6::strategy::strategy(),
+            udp_for_dhcp6(),
+            wrex_proto_dhcp6::strategy::strategy(),
+        )
+            .prop_map(|(eth, vlan, ip, udp, dhcp6)| {
+                PacketSpec::new(vec![eth, vlan, ip, udp, dhcp6], None)
+            })
             .boxed(),
         other => panic!("unknown stack `{other}` (valid: {})", STACKS.join(", ")),
     }

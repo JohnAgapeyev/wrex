@@ -1,0 +1,82 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "33:33:00:00:00:01",
+        "src": "52:54:00:12:34:56",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "ff02::1:2",
+        "flow_label": 0,
+        "hop_limit": 64,
+        "next_header": "udp",
+        "payload_len": 78,
+        "src": "fe80::1",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 52164,
+        "dport": 547,
+        "length": 78,
+        "sport": 546
+      },
+      "kind": "udp",
+      "span": [
+        54,
+        62
+      ]
+    },
+    {
+      "fields": {
+        "msg_type": "info_req",
+        "opt.0.code": 1,
+        "opt.0.len": 6,
+        "opt.0.value": "000102030405",
+        "opt.1.code": 8,
+        "opt.1.len": 2,
+        "opt.1.num": 100,
+        "opt.1.value": "0064",
+        "opt.2.code": 6,
+        "opt.2.len": 4,
+        "opt.2.num": 23,
+        "opt.2.value": "00170018",
+        "opt.3.code": 23,
+        "opt.3.ip": "2001:db8::53",
+        "opt.3.len": 16,
+        "opt.3.value": "20010db8000000000000000000000053",
+        "opt.4.code": 24,
+        "opt.4.len": 14,
+        "opt.4.text": "wrex.example",
+        "opt.4.value": "0477726578076578616d706c6500",
+        "opt.5.code": 14,
+        "opt.5.len": 0,
+        "opt.5.value": "",
+        "trans_id": 419430
+      },
+      "kind": "dhcp6",
+      "span": [
+        62,
+        132
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

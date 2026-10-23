@@ -23,6 +23,7 @@ wrex-proto-vlan = { workspace = true, features = ["test-util"] }
 wrex-proto-tcp = { workspace = true, features = ["test-util"] }
 wrex-proto-dns = { workspace = true, features = ["test-util"] }
 wrex-proto-dhcp = { workspace = true, features = ["test-util"] }
+wrex-proto-dhcp6 = { workspace = true, features = ["test-util"] }
 bytes = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }

@@ -82,6 +82,8 @@ fn fixtures() -> Vec<Fixture> {
             "dhcp.server",
         ],
     );
+    // Tranche 17c: the fixed-header keys the dhcpv6 map block reads.
+    family("dhcp6", &["dhcpv6.msgtype", "dhcpv6.xid"]);
     family(
         "vlan",
         &["vlan.priority", "vlan.dei", "vlan.id", "vlan.etype"],
@@ -205,6 +207,7 @@ fn tshark_comparisons_are_live() {
         ("icmp", "icmp", "type", "type"),
         ("arp", "arp", "oper", "oper"),
         ("dhcp", "dhcp", "op", "op"),
+        ("dhcp6", "dhcp6", "trans_id", "trans_id"),
         // cmp_vlan_tag pushes one whole-tag mismatch, path "vlan tag (…)".
         ("vlan", "vlan", "vid", "vlan tag"),
         ("icmpv6", "icmpv6", "type", "type"),

@@ -688,6 +688,34 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
             }
         }
     }
+    // dhcpv6 (tranche 17c): fixed-header parity — msgtype (our named
+    // grammar mapped through the RFC registry) + transaction id. The
+    // options space is the in-process dhcproto v6 oracle's job —
+    // tshark's repeated `dhcpv6.option` JSON keys collapse (the
+    // vlan-tag problem, the dhcp precedent).
+    if let Some(dhcp6_json) = layers.get("dhcpv6")
+        && let Some(ours) = by_kind("dhcp6")
+    {
+        let get = |k: &str| dhcp6_json[k].as_str().map(|s| s.to_string());
+        // msg_type: our Str names map through the RFC 8415 registry.
+        if let Some(theirs) = get("dhcpv6.msgtype") {
+            let ours_num = match ours.fields.get("msg_type") {
+                Some(Value::Str(s)) => wrex_proto_dhcp6::options::parse_msg_type(s),
+                other => other.and_then(|v| match v {
+                    Value::Int(n) => u8::try_from(*n).ok(),
+                    _ => None,
+                }),
+            };
+            let theirs_num = parse_int_value(&theirs);
+            if ours_num.map(u128::from) != Some(theirs_num) {
+                report.push("dhcp6.msg_type", format!("{ours_num:?}"), theirs);
+            }
+        }
+        // Relay shapes carry no trans_id (the 34-byte header).
+        if ours.fields.contains_key("trans_id") {
+            cmp_int_str(report, "dhcp6.trans_id", ours, get("dhcpv6.xid"));
+        }
+    }
     // udp / tcp
     if let Some(udp_json) = layers.get("udp")
         && let Some(ours) = by_kind("udp")
