@@ -796,4 +796,805 @@ mod tests {
         assert_eq!(enc.bytes[0], 0); // id default 7 NOT applied
         assert_eq!(enc.bytes[1], 1); // req explicit
     }
+
+    // --- direct helper coverage (pass-2 mutation kill-strength) -----------
+
+    fn hfield(
+        name: &'static str,
+        kind: FieldKind,
+        bit_names: &'static [&'static str],
+        default: Value,
+    ) -> FieldSchema {
+        FieldSchema {
+            name,
+            kind,
+            bit_names,
+            default,
+            required: false,
+            doc: "",
+        }
+    }
+
+    #[test]
+    fn serialize_field_value_matrix() {
+        let bytes = |b: &[u8]| Some(b.to_vec());
+        // Numeric windows: BE, masked into ceil(bits/8) bytes.
+        assert_eq!(
+            serialize_field_value(FieldKind::U16, &[], 12, &Value::Int(0x0abc)),
+            bytes(&[0x0a, 0xbc])
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::U8, &[], 8, &Value::Int(0x1ff)),
+            bytes(&[0xff])
+        );
+        // bits == 0 and bits > 16*8 never serialize (numeric kinds).
+        assert_eq!(
+            serialize_field_value(FieldKind::U8, &[], 0, &Value::Int(1)),
+            None
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::U8, &[], 129, &Value::Int(1)),
+            None
+        );
+        // bits == 128: the full 16-byte window, mask = u128::MAX.
+        assert_eq!(
+            serialize_field_value(FieldKind::U128, &[], 128, &Value::Int(u128::MAX)),
+            bytes(&u128::MAX.to_be_bytes())
+        );
+        // Bytes kinds: value splices at any width (no bit constraint).
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::Bytes,
+                &[],
+                200,
+                &Value::Bytes(Bytes::from_static(&[1, 2, 3]))
+            ),
+            bytes(&[1, 2, 3])
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::ByteList,
+                &[],
+                0,
+                &Value::Bytes(Bytes::from_static(&[9]))
+            ),
+            bytes(&[9])
+        );
+        // Int on a Bytes kind: falls through to None.
+        assert_eq!(
+            serialize_field_value(FieldKind::Bytes, &[], 8, &Value::Int(1)),
+            None
+        );
+        // Typed arms.
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::Ipv4,
+                &[],
+                32,
+                &Value::Ipv4("1.2.3.4".parse().unwrap())
+            ),
+            bytes(&[1, 2, 3, 4])
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::Ipv6,
+                &[],
+                128,
+                &Value::Ipv6("::1".parse().unwrap())
+            ),
+            bytes(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::Mac, &[], 48, &Value::Mac([1, 2, 3, 4, 5, 6])),
+            bytes(&[1, 2, 3, 4, 5, 6])
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::Str, &[], 16, &Value::Str("hi".into())),
+            bytes(b"hi")
+        );
+        // FlagSet: raw int rides the numeric path.
+        assert_eq!(
+            serialize_field_value(FieldKind::FlagSet, &[], 8, &Value::Int(0xab)),
+            bytes(&[0xab])
+        );
+        // FlagSet aggregate bit names (MSB-first unit convention):
+        // syn = bit 1, ack = bit 0 → 0b11 in a 16-bit window.
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::FlagSet,
+                &["syn", "ack"],
+                16,
+                &Value::List(vec![Value::Str("syn".into()), Value::Str("ack".into())])
+            ),
+            bytes(&[0x00, 0x03])
+        );
+        // Unknown / mistyped flag items: None.
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::FlagSet,
+                &["syn"],
+                16,
+                &Value::List(vec![Value::Str("nope".into())])
+            ),
+            None
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::FlagSet,
+                &["syn"],
+                16,
+                &Value::List(vec![Value::Int(1)])
+            ),
+            None
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::FlagSet, &["syn"], 16, &Value::Str("syn".into())),
+            None
+        );
+        // Wide bit tables exercise the `n > 8*16` guard: 32 names fit
+        // (b0 → 1<<31 → an 8-byte window), 128 names are the boundary.
+        let names: &'static [&'static str] = Box::leak(
+            (0..32)
+                .map(|i| Box::leak(format!("b{i}").into_boxed_str()) as &'static str)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::FlagSet,
+                names,
+                64,
+                &Value::List(vec![Value::Str("b0".into())])
+            ),
+            bytes(&[0, 0, 0, 0, 0x80, 0, 0, 0])
+        );
+        let names128: &'static [&'static str] = Box::leak(
+            (0..128)
+                .map(|i| Box::leak(format!("b{i}").into_boxed_str()) as &'static str)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::FlagSet,
+                names128,
+                128,
+                &Value::List(vec![Value::Str("b0".into())])
+            ),
+            bytes(&[0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        );
+        // A >128-name unit has no consistent window (the second guard
+        // clause): None, never a phantom shift.
+        let names129: &'static [&'static str] = Box::leak(
+            (0..129)
+                .map(|i| Box::leak(format!("b{i}").into_boxed_str()) as &'static str)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::FlagSet,
+                names129,
+                128,
+                &Value::List(vec![Value::Str("b0".into())])
+            ),
+            None
+        );
+        // Type mismatches: None across kinds.
+        assert_eq!(
+            serialize_field_value(FieldKind::Str, &[], 16, &Value::Int(1)),
+            None
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::Ipv4, &[], 32, &Value::Str("x".into())),
+            None
+        );
+        assert_eq!(
+            serialize_field_value(
+                FieldKind::U8,
+                &[],
+                8,
+                &Value::Bytes(Bytes::from_static(&[1]))
+            ),
+            None
+        );
+        assert_eq!(
+            serialize_field_value(FieldKind::Mac, &[], 48, &Value::Int(1)),
+            None
+        );
+    }
+
+    #[test]
+    fn spec_accessors() {
+        let f7 = hfield("id", FieldKind::U8, &[], Value::Int(7));
+        let fstr = hfield("s", FieldKind::Str, &[], Value::Str("x".into()));
+        let mut explicit = LayerSpec::new("mock");
+        explicit.fields.insert("id".into(), Value::Int(9));
+        let empty = LayerSpec::new("mock");
+        // int_or_default: explicit wins (autofill on or off), default
+        // applies only when autofilling, non-int default falls to 0.
+        assert_eq!(int_or_default(&explicit, &f7, true), 9);
+        assert_eq!(int_or_default(&explicit, &f7, false), 9);
+        assert_eq!(int_or_default(&empty, &f7, true), 7);
+        assert_eq!(int_or_default(&empty, &f7, false), 0);
+        assert_eq!(int_or_default(&empty, &fstr, true), 0);
+        assert_eq!(field_value(&explicit, "id"), Some(&Value::Int(9)));
+        assert_eq!(field_value(&empty, "id"), None);
+        assert_eq!(field_int(&explicit, "id"), Some(9));
+        assert_eq!(field_int(&empty, "id"), None);
+        explicit.fields.insert("s".into(), Value::Str("v".into()));
+        assert_eq!(field_int(&explicit, "s"), None); // non-int is not an int
+        // trunc helpers.
+        assert_eq!(trunc_u8(0x1ff), 0xff);
+        assert_eq!(trunc_u16(0x12345), 0x2345);
+        // is_int_kind: exactly the U* kinds.
+        assert!(is_int_kind(FieldKind::U8));
+        assert!(is_int_kind(FieldKind::U16));
+        assert!(is_int_kind(FieldKind::U32));
+        assert!(is_int_kind(FieldKind::U64));
+        assert!(is_int_kind(FieldKind::U128));
+        assert!(!is_int_kind(FieldKind::FlagSet));
+        assert!(!is_int_kind(FieldKind::Ipv4));
+        assert!(!is_int_kind(FieldKind::Str));
+    }
+
+    #[test]
+    fn flagset_aggregate_bits() {
+        // df = bit 1, mf = bit 0 (MSB-first). Two observability phases —
+        // a single default cannot cover both: for bit 0 the mutant
+        // `1 >> bit` is *identical* to `1 << bit`, so each path needs a
+        // bit-1 observation, and the set/clear state must come from the
+        // default (a later insert *replaces* the earlier subpath key in
+        // the map — there is no history).
+        //
+        // A. the SET path: default carries bit 0, a subpath sets bit 1.
+        let ff_set = hfield("flags", FieldKind::FlagSet, &["df", "mf"], Value::Int(0b01));
+        let mut spec = LayerSpec::new("mock");
+        // The default applies only under autofill.
+        assert_eq!(flagset_or_default(&spec, &ff_set, false), 0);
+        assert_eq!(flagset_or_default(&spec, &ff_set, true), 0b01);
+        spec.fields.insert("flags.df".into(), Value::Bool(true));
+        // 0b01 | 0b10 = 0b11 — a right-shifted bit sets nothing.
+        assert_eq!(flagset_or_default(&spec, &ff_set, true), 0b11);
+        // Explicit aggregate wins over the default (no sub-bit paths:
+        // the subbits otherwise determine the value).
+        let mut explicit = LayerSpec::new("mock");
+        explicit.fields.insert("flags".into(), Value::Int(0b01));
+        assert_eq!(flagset_or_default(&explicit, &ff_set, true), 0b01);
+        explicit.fields.insert("flags".into(), Value::Int(0b10));
+        assert_eq!(flagset_or_default(&explicit, &ff_set, true), 0b10);
+
+        // B. the CLEAR path: default carries bit 1, a subpath clears it.
+        let ff_clr = hfield("flags", FieldKind::FlagSet, &["df", "mf"], Value::Int(0b10));
+        let mut spec = LayerSpec::new("mock");
+        assert_eq!(flagset_or_default(&spec, &ff_clr, true), 0b10);
+        spec.fields.insert("flags.df".into(), Value::Bool(false));
+        // 0b10 & !0b10 = 0b00 — a right-shifted mask clears nothing.
+        assert_eq!(flagset_or_default(&spec, &ff_clr, true), 0b00);
+        // Non-bool subpath counts as a clear, not a set (bit 1 again).
+        spec.fields.insert("flags.df".into(), Value::Int(1));
+        assert_eq!(flagset_or_default(&spec, &ff_clr, true), 0b00);
+        // Setting the other bit leaves the cleared bit clear.
+        spec.fields.insert("flags.mf".into(), Value::Bool(true));
+        assert_eq!(flagset_or_default(&spec, &ff_clr, true), 0b01);
+        // Unrelated prefixes never touch the aggregate.
+        spec.fields.insert("nope.df".into(), Value::Bool(true));
+        spec.fields.insert("flagsx".into(), Value::Bool(true));
+        assert_eq!(flagset_or_default(&spec, &ff_clr, true), 0b01);
+    }
+
+    #[test]
+    fn addr_and_bytes_accessors() {
+        let fi = hfield(
+            "src",
+            FieldKind::Ipv4,
+            &[],
+            Value::Ipv4("10.0.0.9".parse().unwrap()),
+        );
+        let f6 = hfield(
+            "src6",
+            FieldKind::Ipv6,
+            &[],
+            Value::Ipv6("2001:db8::9".parse().unwrap()),
+        );
+        let fm = hfield("dst", FieldKind::Mac, &[], Value::Mac([9; 6]));
+        let mut s = LayerSpec::new("mock");
+        // Absent: zero / unspecified / empty.
+        assert_eq!(ipv4_or_zero(&s, "src"), Ipv4Addr::UNSPECIFIED);
+        assert_eq!(mac_or_zero(&s, "dst"), [0; 6]);
+        assert_eq!(bytes_or_empty(&s, "opts"), Bytes::new());
+        // Default applies only when autofilling.
+        assert_eq!(
+            ipv4_or_default(&s, &fi, true),
+            "10.0.0.9".parse::<Ipv4Addr>().unwrap()
+        );
+        assert_eq!(ipv4_or_default(&s, &fi, false), Ipv4Addr::UNSPECIFIED);
+        assert_eq!(
+            ipv6_or_default(&s, &f6, true),
+            "2001:db8::9".parse::<Ipv6Addr>().unwrap()
+        );
+        assert_eq!(ipv6_or_default(&s, &f6, false), Ipv6Addr::UNSPECIFIED);
+        assert_eq!(mac_or_default(&s, &fm, true, [1; 6]), [9; 6]);
+        assert_eq!(mac_or_default(&s, &fm, false, [1; 6]), [1; 6]);
+        // Explicit wins over everything.
+        s.fields
+            .insert("src".into(), Value::Ipv4("1.1.1.1".parse().unwrap()));
+        assert_eq!(
+            ipv4_or_zero(&s, "src"),
+            "1.1.1.1".parse::<Ipv4Addr>().unwrap()
+        );
+        assert_eq!(
+            ipv4_or_default(&s, &fi, false),
+            "1.1.1.1".parse::<Ipv4Addr>().unwrap()
+        );
+        s.fields
+            .insert("dst".into(), Value::Mac([1, 2, 3, 4, 5, 6]));
+        assert_eq!(mac_or_zero(&s, "dst"), [1, 2, 3, 4, 5, 6]);
+        assert_eq!(mac_or_default(&s, &fm, false, [9; 6]), [1, 2, 3, 4, 5, 6]);
+        s.fields
+            .insert("src6".into(), Value::Ipv6("::2".parse().unwrap()));
+        assert_eq!(
+            ipv6_or_default(&s, &f6, false),
+            "::2".parse::<Ipv6Addr>().unwrap()
+        );
+        s.fields
+            .insert("opts".into(), Value::Bytes(Bytes::from_static(&[0xaa])));
+        assert_eq!(bytes_or_empty(&s, "opts"), Bytes::from_static(&[0xaa]));
+    }
+
+    #[test]
+    fn pseudo_facts_and_ctx_helpers() {
+        let net4 = NetFacts::V4 {
+            src: "1.1.1.1".parse().unwrap(),
+            dst: "2.2.2.2".parse().unwrap(),
+            proto: 17,
+        };
+        assert_eq!(net4.proto(), 17);
+        let net6 = NetFacts::V6 {
+            src: "::1".parse().unwrap(),
+            dst: "::2".parse().unwrap(),
+            next_header: 58,
+        };
+        assert_eq!(net6.proto(), 58);
+        let (s4, d4) = ("1.1.1.1".parse().unwrap(), "2.2.2.2".parse().unwrap());
+        let (s6, d6) = ("::1".parse().unwrap(), "::2".parse().unwrap());
+        match l4_pseudo(net4, 6) {
+            PseudoHeader::V4 { src, dst, proto } => {
+                assert_eq!((src, dst, proto), (s4, d4, 6));
+            }
+            PseudoHeader::V6 { .. } => panic!("v4 facts must yield a v4 pseudo-header"),
+        }
+        match l4_pseudo(net6, 58) {
+            PseudoHeader::V6 { src, dst, proto } => {
+                assert_eq!((src, dst, proto), (s6, d6, 58));
+            }
+            PseudoHeader::V4 { .. } => panic!("v6 facts must yield a v6 pseudo-header"),
+        }
+        // EncodeCtx helpers: put_bytes appends, defer records, facts land.
+        let mut buf = BytesMut::new();
+        let mut ctx = EncodeCtx {
+            buf: &mut buf,
+            facts: Facts::default(),
+            autofill: true,
+            payload: None,
+            next: None,
+            deferred: Vec::new(),
+        };
+        put_bytes(&mut ctx, &[1, 2]);
+        put_bytes(&mut ctx, &[3]);
+        assert_eq!(&ctx.buf[..], &[1, 2, 3]);
+        ctx.defer(Patch::MinByte {
+            at: 0,
+            min: 1,
+            path: "t",
+        });
+        assert_eq!(ctx.deferred.len(), 1);
+        record_net_facts(&mut ctx, net4);
+        assert_eq!(ctx.facts.net, Some(net4));
+    }
+
+    // --- a second fixture codec: resolve_patches arm coverage -------------
+    //
+    // The 6-byte MOCK above never observes MinNibble/MinByte, the u16
+    // length boundary, or a pseudo-headered checksum; RIG covers those.
+    // RIG header (8 bytes): id u8 | req u8 | nib<<4 u8 | minb u8 |
+    // len u16 @4 | checksum u16 @6.
+
+    static RIG_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "id",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(7),
+            required: false,
+            doc: "id",
+        },
+        FieldSchema {
+            name: "req",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: true,
+            doc: "required",
+        },
+        FieldSchema {
+            name: "nib",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "MinNibble target",
+        },
+        FieldSchema {
+            name: "minb",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "MinByte target",
+        },
+        FieldSchema {
+            name: "len",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "len",
+        },
+        FieldSchema {
+            name: "checksum",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "checksum",
+        },
+    ];
+
+    static RIG_SCHEMA: LayerSchema = LayerSchema {
+        kind: "rig",
+        rank: 5,
+        parents: &[],
+        doc: "resolve-patches fixture",
+        fields: RIG_FIELDS,
+        records: &[],
+    };
+
+    struct RigCodec;
+
+    impl Codec for RigCodec {
+        fn schema(&self) -> &'static LayerSchema {
+            &RIG_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(8)
+        }
+        fn write(&self, spec: &LayerSpec, ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            let start = ctx.buf.len();
+            let id = int_or_default(spec, &RIG_FIELDS[0], ctx.autofill);
+            ctx.buf.put_u8(trunc_u8(id));
+            let req = field_int(spec, "req").unwrap_or(0);
+            ctx.buf.put_u8(trunc_u8(req));
+            let nib = int_or_default(spec, &RIG_FIELDS[2], ctx.autofill);
+            // low nibble: the byte the MinNibble gate reads (`buf[at] & 0x0f`)
+            ctx.buf.put_u8(trunc_u8(nib) & 0x0f);
+            let minb = int_or_default(spec, &RIG_FIELDS[3], ctx.autofill);
+            ctx.buf.put_u8(trunc_u8(minb));
+            let at_len = ctx.buf.len();
+            ctx.buf.put_u16(0);
+            let len_explicit = spec.fields.contains_key("len");
+            if len_explicit {
+                let v = field_int(spec, "len").unwrap_or(0);
+                ctx.buf[at_len..at_len + 2].copy_from_slice(&trunc_u16(v).to_be_bytes());
+            }
+            ctx.defer(Patch::Length {
+                at: at_len,
+                base: start,
+                explicit: len_explicit,
+                path: "rig.len",
+            });
+            // Absolute offsets (RIG may not be the first layer).
+            ctx.defer(Patch::MinNibble {
+                at: start + 2,
+                min: 5,
+                path: "rig.nib",
+            });
+            ctx.defer(Patch::MinByte {
+                at: start + 3,
+                min: 3,
+                path: "rig.minb",
+            });
+            let at_ck = ctx.buf.len();
+            ctx.buf.put_u16(0);
+            let ck_explicit = spec.fields.contains_key("checksum");
+            if ck_explicit {
+                let v = field_int(spec, "checksum").unwrap_or(0);
+                ctx.buf[at_ck..at_ck + 2].copy_from_slice(&trunc_u16(v).to_be_bytes());
+            }
+            ctx.defer(Patch::Checksum {
+                at: at_ck,
+                start,
+                end: None,
+                pseudo: Some(PseudoHeader::V4 {
+                    src: "192.0.2.1".parse().unwrap(),
+                    dst: "192.0.2.2".parse().unwrap(),
+                    proto: 17,
+                }),
+                explicit: ck_explicit,
+                path: "rig.checksum",
+            });
+            Ok(())
+        }
+        fn read<'a>(&self, _bytes: &'a [u8], _ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+            ReadOutcome::Empty
+        }
+    }
+
+    // A one-byte preamble layer: "pa" writes a marker byte derived from
+    // `ctx.next` (killing the `i + 1` layer-lookup mutation) and gives RIG
+    // a nonzero start (killing the `start == 0` algebraic aliases).
+    struct PaCodec;
+    impl Codec for PaCodec {
+        fn schema(&self) -> &'static LayerSchema {
+            &PA_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(1)
+        }
+        fn write(&self, _spec: &LayerSpec, ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            let marker = match ctx.next {
+                Some("rig") => 0xd1,
+                Some("pa") => 0xd2,
+                Some(_) => 0xd3,
+                None => 0xd0,
+            };
+            ctx.buf.put_u8(marker);
+            Ok(())
+        }
+        fn read<'a>(&self, _bytes: &'a [u8], _ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+            ReadOutcome::Empty
+        }
+    }
+
+    static PA_SCHEMA: LayerSchema = LayerSchema {
+        kind: "pa",
+        rank: 4,
+        parents: &[],
+        doc: "preamble fixture",
+        fields: &[],
+        records: &[],
+    };
+
+    static RIG: RigCodec = RigCodec;
+    static PA: PaCodec = PaCodec;
+
+    fn rig_registry() -> Registry {
+        let mut r = Registry::empty();
+        r.register(&PA);
+        r.register(&RIG);
+        r
+    }
+
+    fn rig_spec(fields: &[(&str, &str)], payload: Option<&[u8]>) -> PacketSpec {
+        let mut spec = LayerSpec::new("rig");
+        for (k, v) in fields {
+            let f = RIG_SCHEMA.field(k.split('.').next().unwrap()).unwrap();
+            spec.fields
+                .insert(k.to_string(), parse_value(f, v).unwrap());
+        }
+        PacketSpec::new(
+            vec![spec],
+            payload.map(|p| Value::Bytes(Bytes::copy_from_slice(p))),
+        )
+    }
+
+    #[test]
+    fn rig_header_len_and_preamble_next_marker() {
+        let r = rig_registry();
+        assert_eq!(RIG.header_len(&LayerSpec::new("rig")).unwrap(), 8);
+        assert_eq!(PA.header_len(&LayerSpec::new("pa")).unwrap(), 1);
+        // pa@0 sees next = rig → 0xd1; rig@1 is terminal → pa-marker
+        // ordering proves the i+1 lookup.
+        let mut rig = LayerSpec::new("rig");
+        rig.fields.insert("req".into(), Value::Int(1));
+        let spec = PacketSpec::new(vec![LayerSpec::new("pa"), rig], None);
+        let enc = encode(
+            &r,
+            &spec,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(enc.bytes[0], 0xd1);
+    }
+
+    #[test]
+    fn rig_min_gates_strict_only() {
+        let r = rig_registry();
+        let enc = |fields: &[(&str, &str)], strict: bool| {
+            encode(
+                &r,
+                &rig_spec(fields, Some(&[0xde, 0xad])),
+                &EncodeOpts {
+                    autofill: true,
+                    strict,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        let paths =
+            |e: &Encoded| -> Vec<String> { e.violations.iter().map(|v| v.path.clone()).collect() };
+        // nib == min and minb == min: no violations under strict.
+        let ok = enc(&[("req", "1"), ("nib", "5"), ("minb", "3")], true);
+        assert!(ok.violations.is_empty(), "{:?}", ok.violations);
+        // nib < min: exactly the nib violation (minb == min here).
+        let low = enc(&[("req", "1"), ("nib", "4"), ("minb", "3")], true);
+        assert_eq!(paths(&low), ["rig.nib".to_string()]);
+        // nib > min: none (the nibble high half is untouched by the gate).
+        let high = enc(&[("req", "1"), ("nib", "6"), ("minb", "3")], true);
+        assert!(high.violations.is_empty(), "{:?}", high.violations);
+        // minb: 2 violates, 4 does not.
+        let mlow = enc(&[("req", "1"), ("nib", "5"), ("minb", "2")], true);
+        assert_eq!(paths(&mlow), ["rig.minb".to_string()]);
+        let mhigh = enc(&[("req", "1"), ("nib", "5"), ("minb", "4")], true);
+        assert!(mhigh.violations.is_empty(), "{:?}", mhigh.violations);
+        // Without --strict: nothing is validated at all.
+        let lax = enc(&[("req", "1"), ("nib", "4"), ("minb", "2")], false);
+        assert!(lax.violations.is_empty(), "{:?}", lax.violations);
+    }
+
+    #[test]
+    fn rig_length_u16_boundary() {
+        let r = rig_registry();
+        // 8-byte header + payload: 65535 total fits in u16 …
+        let enc = encode(
+            &r,
+            &rig_spec(&[("req", "1")], Some(&[0u8; 65527])),
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(enc.violations.is_empty(), "{:?}", enc.violations);
+        assert_eq!(u16::from_be_bytes([enc.bytes[4], enc.bytes[5]]), 0xffff);
+        // … 65536 does not (a violation regardless of --strict).
+        let enc = encode(
+            &r,
+            &rig_spec(&[("req", "1")], Some(&[0u8; 65528])),
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(enc.violations.len(), 1);
+        assert_eq!(enc.violations[0].path, "rig.len");
+        // The unwritable length stays zero (nothing partial lands).
+        assert_eq!(&enc.bytes[4..6], &[0, 0]);
+    }
+
+    /// The engine's pseudo-headered checksum over the RIG frame,
+    /// recomputed by hand from the same primitives (checksum at
+    /// `start + 6`, covered region `[start, at)` ∪ `[at + 2, ..)`).
+    fn rig_expected_checksum(frame: &[u8], start: usize) -> u16 {
+        let at = start + 6;
+        let mut acc = ChecksumAccumulator::new();
+        PseudoHeader::V4 {
+            src: "192.0.2.1".parse().unwrap(),
+            dst: "192.0.2.2".parse().unwrap(),
+            proto: 17,
+        }
+        .accumulate_into(&mut acc, frame.len() - start);
+        acc.add_bytes(&frame[start..at]);
+        acc.add_u16(0);
+        acc.add_bytes(&frame[at + 2..]);
+        acc.value()
+    }
+
+    #[test]
+    fn rig_pseudo_checksum_matches_manual() {
+        let r = rig_registry();
+        let spec = PacketSpec::new(
+            vec![LayerSpec::new("pa"), {
+                let mut s = LayerSpec::new("rig");
+                s.fields.insert("req".into(), Value::Int(1));
+                s
+            }],
+            Some(Value::Bytes(Bytes::from_static(&[0xde, 0xad]))),
+        );
+        let enc = encode(
+            &r,
+            &spec,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(enc.violations.is_empty());
+        // RIG starts at 1 (after the pa preamble): the checksum at
+        // 1+6..1+8, the covered region from `start`, the pseudo-header
+        // segment length = end - start (nonzero start kills the alias).
+        let frame = &enc.bytes[..];
+        assert_eq!(
+            u16::from_be_bytes([frame[7], frame[8]]),
+            rig_expected_checksum(frame, 1)
+        );
+        // Explicit consistent checksum: no strict violation. The
+        // expected value is derived from a lax pre-encode of the SAME
+        // field bytes (nib/minb set) so the folds agree.
+        let mut s2pre = LayerSpec::new("rig");
+        s2pre.fields.insert("req".into(), Value::Int(1));
+        s2pre.fields.insert("nib".into(), Value::Int(5));
+        s2pre.fields.insert("minb".into(), Value::Int(3));
+        let spec2pre = PacketSpec::new(
+            vec![LayerSpec::new("pa"), s2pre.clone()],
+            Some(Value::Bytes(Bytes::from_static(&[0xde, 0xad]))),
+        );
+        let pre = encode(
+            &r,
+            &spec2pre,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(pre.violations.is_empty());
+        let ck = rig_expected_checksum(&pre.bytes, 1);
+        let mut s2 = s2pre.clone();
+        s2.fields.insert("checksum".into(), Value::Int(ck as u128));
+        let spec2 = PacketSpec::new(
+            vec![LayerSpec::new("pa"), s2],
+            Some(Value::Bytes(Bytes::from_static(&[0xde, 0xad]))),
+        );
+        let enc2 = encode(
+            &r,
+            &spec2,
+            &EncodeOpts {
+                autofill: true,
+                strict: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            enc2.violations
+                .iter()
+                .all(|v| v.path != "rig.nib" && v.path != "rig.minb"),
+            "{:?}",
+            enc2.violations
+        );
+        assert!(
+            enc2.violations.iter().all(|v| v.path != "rig.checksum"),
+            "{:?}",
+            enc2.violations
+        );
+        // Explicit wrong checksum: strict flags it (and nothing else).
+        let mut s3 = LayerSpec::new("rig");
+        s3.fields.insert("req".into(), Value::Int(1));
+        s3.fields.insert("nib".into(), Value::Int(5));
+        s3.fields.insert("minb".into(), Value::Int(3));
+        s3.fields.insert("checksum".into(), Value::Int(0xdead));
+        let spec3 = PacketSpec::new(
+            vec![LayerSpec::new("pa"), s3],
+            Some(Value::Bytes(Bytes::from_static(&[0xde, 0xad]))),
+        );
+        let enc3 = encode(
+            &r,
+            &spec3,
+            &EncodeOpts {
+                autofill: true,
+                strict: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(enc3.violations.len(), 1);
+        assert_eq!(enc3.violations[0].path, "rig.checksum");
+    }
 }

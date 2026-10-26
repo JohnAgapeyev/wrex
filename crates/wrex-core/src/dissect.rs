@@ -476,6 +476,159 @@ fn anomaly_for(err: &DecodeError) -> Anomaly {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::codec::{Codec, Next, ReadOutcome, Registry};
+    use crate::error::EncodeError;
+    use crate::schema::{FieldKind, FieldSchema, LayerSchema, Layout};
+    use crate::spec::LayerSpec;
+
+    // A 2-byte fixed-header codec for engine-geometry tests (the payload
+    // handoff and the span table merge).
+    static MINI_FIELDS: &[FieldSchema] = &[FieldSchema {
+        name: "x",
+        kind: FieldKind::U8,
+        bit_names: &[],
+        default: Value::Int(0),
+        required: false,
+        doc: "x",
+    }];
+    static MINI_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mocki",
+        rank: 5,
+        parents: &[],
+        doc: "dissect-test mock",
+        fields: MINI_FIELDS,
+        records: &[],
+    };
+    struct MockMini;
+    impl Codec for MockMini {
+        fn schema(&self) -> &'static LayerSchema {
+            &MINI_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(2)
+        }
+        fn write(
+            &self,
+            _spec: &LayerSpec,
+            _ctx: &mut crate::encode::EncodeCtx,
+        ) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+            if bytes.len() < 2 {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind: "mocki",
+                        need: 2,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = BTreeMap::new();
+            fields.insert("x".to_string(), Value::Int(bytes[0] as u128));
+            let view = LayerView {
+                kind: "mocki",
+                span: ctx.offset..ctx.offset + 2,
+                field_spans: Default::default(),
+                fields,
+            };
+            ReadOutcome::Layer(view, Some(Next::Payload))
+        }
+    }
+
+    // A codec with flag aggregates + bit-window layouts (the span
+    // table merge and sub-bit derivation fixture).
+    static LAY_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "f",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "f",
+        },
+        FieldSchema {
+            name: "g",
+            kind: FieldKind::FlagSet,
+            bit_names: &["a", "b"],
+            default: Value::Int(0),
+            required: false,
+            doc: "g (Bytes-layout flagset)",
+        },
+        FieldSchema {
+            name: "flags",
+            kind: FieldKind::FlagSet,
+            bit_names: &["syn", "fin"],
+            default: Value::Int(0),
+            required: false,
+            doc: "flags (Bits-layout flagset)",
+        },
+    ];
+    static LAY_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mocklay",
+        rank: 5,
+        parents: &[],
+        doc: "span-merge mock",
+        fields: LAY_FIELDS,
+        records: &[],
+    };
+    struct MockLay;
+    impl Codec for MockLay {
+        fn schema(&self) -> &'static LayerSchema {
+            &LAY_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(3)
+        }
+        fn write(
+            &self,
+            _spec: &LayerSpec,
+            _ctx: &mut crate::encode::EncodeCtx,
+        ) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+            if bytes.len() < 3 {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind: "mocklay",
+                        need: 3,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = BTreeMap::new();
+            fields.insert("f".to_string(), Value::Int(0x1234));
+            fields.insert("g".to_string(), Value::List(vec![Value::Str("a".into())]));
+            fields.insert(
+                "flags".to_string(),
+                Value::List(vec![Value::Str("syn".into())]),
+            );
+            let view = LayerView {
+                kind: "mocklay",
+                span: ctx.offset..ctx.offset + 3,
+                field_spans: Default::default(),
+                fields,
+            };
+            ReadOutcome::Layer(view, Some(Next::Payload))
+        }
+        fn layouts(&self) -> &'static [(&'static str, Layout)] {
+            &[
+                ("f", Layout::Bytes { at: 0, len: 2 }),
+                ("g", Layout::Bytes { at: 2, len: 1 }),
+                (
+                    "flags",
+                    Layout::Bits {
+                        at: 2,
+                        shift: 0,
+                        width: 8,
+                    },
+                ),
+            ]
+        }
+    }
 
     #[test]
     fn heuristic_table() {
@@ -485,6 +638,38 @@ mod tests {
         assert_eq!(auto_start(&[0xff; 14]), "eth");
         assert_eq!(auto_start(&[0xff; 13]), "unknown");
         assert_eq!(auto_start(&[0x00, 0x11, 0x22]), "unknown");
+    }
+
+    #[test]
+    fn net_facts_proto_accessor() {
+        let v4 = NetFacts::V4 {
+            src: Ipv4Addr::LOCALHOST,
+            dst: Ipv4Addr::UNSPECIFIED,
+            proto: 17,
+        };
+        assert_eq!(v4.proto(), 17);
+        let v6 = NetFacts::V6 {
+            src: Ipv6Addr::LOCALHOST,
+            dst: Ipv6Addr::UNSPECIFIED,
+            next_header: 58,
+        };
+        assert_eq!(v6.proto(), 58);
+    }
+
+    #[test]
+    fn field_span_container_variants() {
+        assert_eq!(FieldSpan::Bytes(2..5).container(), Some(2..5));
+        assert_eq!(
+            FieldSpan::Bits {
+                container: 1..3,
+                shift: 4,
+                width: 8,
+            }
+            .container(),
+            Some(1..3)
+        );
+        assert_eq!(FieldSpan::ReEncode(4..6).container(), Some(4..6));
+        assert_eq!(FieldSpan::None.container(), None);
     }
 
     #[test]
@@ -510,6 +695,176 @@ mod tests {
             Some(Value::Bytes(b)) => assert_eq!(&b[..], &[0xaa, 0xbb]),
             other => panic!("no hex field: {other:?}"),
         }
+        // The synthetic layer's hex field carries its own span.
+        assert_eq!(
+            p.layers[0].field_spans.get("hex"),
+            Some(&FieldSpan::Bytes(0..2))
+        );
+    }
+
+    #[test]
+    fn layer_reads_advance_offset_into_payload() {
+        let mut r = Registry::empty();
+        r.register(&MockMini);
+        let p = dissect(&r, &[0x0a, 0x0b, 0xcc, 0xdd], "mocki");
+        assert_eq!(p.start, "mocki");
+        assert_eq!(p.layers.len(), 1);
+        assert_eq!(p.layers[0].span, 0..2);
+        // The terminal payload starts after the consumed header.
+        assert_eq!(&p.payload[..], &[0xcc, 0xdd]);
+        // Truncated read: never fatal, the remainder is retained.
+        let t = dissect(&r, &[0x0a], "mocki");
+        assert_eq!(t.layers.len(), 1);
+        assert_eq!(t.layers[0].kind, "unknown");
+        assert_eq!(&t.frame[..], &[0x0a]);
+    }
+
+    // A codec with EXACTLY ONE layout-derived field, a FlagSet aggregate:
+    // sub-bit derivation must not depend on other layout entries.
+    static SOLO_FIELDS: &[FieldSchema] = &[FieldSchema {
+        name: "flags",
+        kind: FieldKind::FlagSet,
+        bit_names: &["syn", "fin"],
+        default: Value::Int(0),
+        required: false,
+        doc: "flags (Bits-layout flagset, solo)",
+    }];
+    static SOLO_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mocksolo",
+        rank: 5,
+        parents: &[],
+        doc: "solo flagset mock",
+        fields: SOLO_FIELDS,
+        records: &[],
+    };
+    struct MockSolo;
+    impl Codec for MockSolo {
+        fn schema(&self) -> &'static LayerSchema {
+            &SOLO_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(1)
+        }
+        fn write(
+            &self,
+            _spec: &LayerSpec,
+            _ctx: &mut crate::encode::EncodeCtx,
+        ) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
+            if bytes.is_empty() {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind: "mocksolo",
+                        need: 1,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = BTreeMap::new();
+            fields.insert(
+                "flags".to_string(),
+                Value::List(vec![Value::Str("syn".into())]),
+            );
+            let view = LayerView {
+                kind: "mocksolo",
+                span: ctx.offset..ctx.offset + 1,
+                field_spans: Default::default(),
+                fields,
+            };
+            ReadOutcome::Layer(view, Some(Next::Payload))
+        }
+        fn layouts(&self) -> &'static [(&'static str, Layout)] {
+            &[(
+                "flags",
+                Layout::Bits {
+                    at: 0,
+                    shift: 0,
+                    width: 8,
+                },
+            )]
+        }
+    }
+
+    #[test]
+    fn populate_spans_derives_subbits_for_solo_aggregate() {
+        let mut r = Registry::empty();
+        r.register(&MockSolo);
+        let p = dissect(&r, &[0x02], "mocksolo");
+        let spans = &p.layers[0].field_spans;
+        assert_eq!(
+            spans.get("flags"),
+            Some(&FieldSpan::Bits {
+                container: 0..1,
+                shift: 0,
+                width: 8,
+            })
+        );
+        // Sub-bit derivation for the solo layout-derived aggregate:
+        // MSB-first inside its own window (syn = bit 1 → shift 6).
+        assert_eq!(
+            spans.get("flags.syn"),
+            Some(&FieldSpan::Bits {
+                container: 0..1,
+                shift: 6,
+                width: 1,
+            })
+        );
+        assert_eq!(
+            spans.get("flags.fin"),
+            Some(&FieldSpan::Bits {
+                container: 0..1,
+                shift: 7,
+                width: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn populate_spans_merges_layouts_and_derives_subbits() {
+        let mut r = Registry::empty();
+        r.register(&MockLay);
+        let p = dissect(&r, &[0x12, 0x34, 0x56, 0xff], "mocklay");
+        let spans = &p.layers[0].field_spans;
+        // Static table: absolute (base + at..at+len).
+        assert_eq!(spans.get("f"), Some(&FieldSpan::Bytes(0..2)));
+        assert_eq!(spans.get("g"), Some(&FieldSpan::Bytes(2..3)));
+        assert_eq!(
+            spans.get("flags"),
+            Some(&FieldSpan::Bits {
+                container: 2..3,
+                shift: 0,
+                width: 8,
+            })
+        );
+        // Sub-bit paths of layout-derived FlagSet aggregates: one bit
+        // each, MSB-first inside the aggregate's own window.
+        assert_eq!(
+            spans.get("g.a"),
+            Some(&FieldSpan::Bits {
+                container: 2..3,
+                shift: 6,
+                width: 1,
+            })
+        );
+        assert_eq!(
+            spans.get("flags.syn"),
+            Some(&FieldSpan::Bits {
+                container: 2..3,
+                shift: 6,
+                width: 1,
+            })
+        );
+        assert_eq!(
+            spans.get("flags.fin"),
+            Some(&FieldSpan::Bits {
+                container: 2..3,
+                shift: 7,
+                width: 1,
+            })
+        );
     }
 
     /// Tranche 11a: the frame is retained and reassembles verbatim —

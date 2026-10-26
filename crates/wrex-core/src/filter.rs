@@ -663,6 +663,48 @@ mod tests {
         ]
     });
 
+    static IPV6_FIELDS: std::sync::LazyLock<Vec<FieldSchema>> = std::sync::LazyLock::new(|| {
+        vec![FieldSchema {
+            name: "src",
+            kind: FieldKind::Ipv6,
+            bit_names: &[],
+            default: Value::Ipv6(std::net::Ipv6Addr::UNSPECIFIED),
+            required: false,
+            doc: "",
+        }]
+    });
+
+    static ETH_FIELDS: std::sync::LazyLock<Vec<FieldSchema>> = std::sync::LazyLock::new(|| {
+        vec![FieldSchema {
+            name: "dst",
+            kind: FieldKind::Mac,
+            bit_names: &[],
+            default: Value::Mac([0; 6]),
+            required: false,
+            doc: "",
+        }]
+    });
+
+    static IPV6_SCHEMA: std::sync::LazyLock<LayerSchema> =
+        std::sync::LazyLock::new(|| LayerSchema {
+            kind: "ipv6",
+            rank: 20,
+            parents: &["eth"],
+            doc: "filter-test stand-in",
+            fields: IPV6_FIELDS.as_slice(),
+            records: &[],
+        });
+
+    static ETH_SCHEMA: std::sync::LazyLock<LayerSchema> =
+        std::sync::LazyLock::new(|| LayerSchema {
+            kind: "eth",
+            rank: 10,
+            parents: &[],
+            doc: "filter-test stand-in",
+            fields: ETH_FIELDS.as_slice(),
+            records: &[],
+        });
+
     struct SchemaCodec(fn() -> &'static LayerSchema);
     impl Codec for SchemaCodec {
         fn schema(&self) -> &'static LayerSchema {
@@ -693,12 +735,16 @@ mod tests {
 
     static REG_TCP: SchemaCodec = SchemaCodec(tcp_schema);
     static REG_IPV4: SchemaCodec = SchemaCodec(ipv4_schema);
+    static REG_IPV6: SchemaCodec = SchemaCodec(|| &IPV6_SCHEMA);
+    static REG_ETH: SchemaCodec = SchemaCodec(|| &ETH_SCHEMA);
 
     fn test_registry() -> Registry {
         let mut r = Registry::empty();
         r.register(&REG_TCP);
         r.register(&REG_IPV4);
         r.register(&REG_DNS);
+        r.register(&REG_IPV6);
+        r.register(&REG_ETH);
         r
     }
 
@@ -886,5 +932,153 @@ mod tests {
         assert!(Filter::parse(&r, "dns.an.0.nope=1").is_err());
         assert!(Filter::parse(&r, "dns.an.*.ttl=1").is_err());
         assert!(Filter::parse(&r, "dns.qd.0.name=x").is_err()); // no qd section here
+    }
+
+    #[test]
+    fn is_empty_and_eq_ne_polarities() {
+        let r = test_registry();
+        // Empty filter: no terms, matches everything, is_empty == true.
+        let empty = Filter::parse(&r, "").unwrap();
+        assert!(empty.is_empty());
+        assert!(empty.matches(&packet(vec![("tcp", vec![])])));
+        // Non-empty: is_empty == false.
+        let f = Filter::parse(&r, "tcp.sport=1").unwrap();
+        assert!(!f.is_empty());
+        let p = packet(vec![("tcp", vec![("sport", Value::Int(443))])]);
+        // Eq / Ne on both polarities (packet 443).
+        assert!(Filter::parse(&r, "tcp.sport=443").unwrap().matches(&p));
+        assert!(!Filter::parse(&r, "tcp.sport=444").unwrap().matches(&p));
+        assert!(!Filter::parse(&r, "tcp.sport!=443").unwrap().matches(&p));
+        assert!(Filter::parse(&r, "tcp.sport!=444").unwrap().matches(&p));
+    }
+
+    #[test]
+    fn int_ops_full_order() {
+        let r = test_registry();
+        // v = 100, want = 443: every op, both polarities.
+        let p = packet(vec![("tcp", vec![("sport", Value::Int(100))])]);
+        let m = |q: &str| Filter::parse(&r, q).unwrap().matches(&p);
+        assert!(m("tcp.sport<443"));
+        assert!(!m("tcp.sport<100")); // equal: < is false
+        assert!(m("tcp.sport<=443"));
+        assert!(m("tcp.sport<=100")); // equal: <= is true
+        assert!(m("tcp.sport>44"));
+        assert!(!m("tcp.sport>100")); // equal: > is false
+        assert!(m("tcp.sport>=44"));
+        assert!(m("tcp.sport>=100")); // equal: >= is true
+        assert!(!m("tcp.sport>443"));
+        assert!(!m("tcp.sport>=443"));
+        assert!(!m("tcp.sport<44"));
+        assert!(!m("tcp.sport<=44"));
+        // ">=" grammar parses (the two-char spelling before its "<" prefix)
+        assert!(Filter::parse(&r, "tcp.sport>=443").is_ok());
+        // type mismatch: int term vs bytes value is false, never a panic
+        let b = packet(vec![(
+            "ipv4",
+            vec![("options", Value::Bytes(Bytes::from_static(&[1])))],
+        )]);
+        assert!(!Filter::parse(&r, "tcp.sport=443").unwrap().matches(&b));
+    }
+
+    #[test]
+    fn ipv4_cidr_boundaries() {
+        let r = test_registry();
+        let p = packet(vec![(
+            "ipv4",
+            vec![("src", Value::Ipv4("10.0.0.1".parse().unwrap()))],
+        )]);
+        let m = |q: &str| Filter::parse(&r, q).unwrap().matches(&p);
+        assert!(m("ipv4.src=10.0.0.0/8")); // membership
+        assert!(m("ipv4.src=10.0.0.0/16")); // high bits equal, low differ
+        assert!(!m("ipv4.src=11.0.0.0/8")); // non-member same prefix len
+        // exact /32: equal only
+        assert!(m("ipv4.src=10.0.0.1/32"));
+        assert!(!m("ipv4.src=10.0.0.2/32"));
+        // /0 matches anything (the zero mask)
+        assert!(m("ipv4.src=192.0.2.9/0"));
+        assert!(m("ipv4.src=11.11.11.11/0"));
+        // A /24 masks the low octet: membership on the prefix.
+        assert!(m("ipv4.src=10.0.0.9/24"));
+        assert!(!m("ipv4.src=10.0.1.9/24"));
+        // Ne with a mask: complement of membership
+        assert!(m("ipv4.src!=11.0.0.0/8"));
+        assert!(!m("ipv4.src!=10.0.0.0/8"));
+        // ordering ops are rejected at startup (validated upfront)
+        assert!(Filter::parse(&r, "ipv4.src<10.0.0.1").is_err());
+        // prefix bounds: > 32 is a startup error; 32 is the max
+        assert!(Filter::parse(&r, "ipv4.src=10.0.0.1/33").is_err());
+        assert!(Filter::parse(&r, "ipv4.src=10.0.0.1/32").is_ok());
+    }
+
+    #[test]
+    fn ipv6_cidr_boundaries() {
+        let r = test_registry();
+        let p = packet(vec![(
+            "ipv6",
+            vec![("src", Value::Ipv6("2001:db8::1".parse().unwrap()))],
+        )]);
+        let m = |q: &str| Filter::parse(&r, q).unwrap().matches(&p);
+        assert!(m("ipv6.src=2001:db8::/32")); // membership
+        assert!(m("ipv6.src=2001:db8::/64"));
+        assert!(!m("ipv6.src=2001:db9::/64")); // non-member same prefix len
+        assert!(!m("ipv6.src=2001:db8::2/128")); // exact: unequal
+        assert!(m("ipv6.src=2001:db8::1/128")); // exact: equal
+        // /0 matches anything (the zero mask)
+        assert!(m("ipv6.src=fe80::/0"));
+        assert!(m("ipv6.src=::1/0"));
+        // No prefix: plain equality (both polarities).
+        assert!(m("ipv6.src=2001:db8::1"));
+        assert!(!m("ipv6.src=2001:db8::2"));
+        // Ne with a mask: complement
+        assert!(m("ipv6.src!=2001:db9::/32"));
+        assert!(!m("ipv6.src!=2001:db8::/32"));
+        // ordering ops rejected upfront; prefix bounds 128
+        assert!(Filter::parse(&r, "ipv6.src<::1").is_err());
+        assert!(Filter::parse(&r, "ipv6.src=::1/129").is_err());
+        assert!(Filter::parse(&r, "ipv6.src=::1/128").is_ok());
+    }
+
+    #[test]
+    fn mac_filter_membership() {
+        let r = test_registry();
+        let mac = [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+        let p = packet(vec![("eth", vec![("dst", Value::Mac(mac))])]);
+        let m = |q: &str| Filter::parse(&r, q).unwrap().matches(&p);
+        assert!(m("eth.dst=aa:bb:cc:dd:ee:ff"));
+        assert!(m("eth.dst=AA-BB-CC-DD-EE-FF")); // '-' separator parses
+        assert!(!m("eth.dst=aa:bb:cc:dd:ee:fe"));
+        assert!(!m("eth.dst!=aa:bb:cc:dd:ee:ff")); // Ne: equal is not a member
+        assert!(m("eth.dst!=11:22:33:44:55:66")); // Ne: unequal is
+        // a non-mac value against a mac term: false, never a panic
+        let t = packet(vec![("eth", vec![("dst", Value::Int(1))])]);
+        assert!(
+            !Filter::parse(&r, "eth.dst=aa:bb:cc:dd:ee:ff")
+                .unwrap()
+                .matches(&t)
+        );
+        // non-mac grammar errors upfront
+        assert!(Filter::parse(&r, "eth.dst=zz:bb:cc:dd:ee:ff").is_err());
+        assert!(Filter::parse(&r, "eth.dst<aa:bb:cc:dd:ee:ff").is_err());
+    }
+
+    #[test]
+    fn str_ordering_ops() {
+        let r = test_registry();
+        let p = packet(vec![(
+            "dns",
+            vec![("an.0.name", Value::Str("beta".into()))],
+        )]);
+        let m = |q: &str| Filter::parse(&r, q).unwrap().matches(&p);
+        assert!(m("dns.an.0.name=beta"));
+        assert!(!m("dns.an.0.name=alpha"));
+        assert!(!m("dns.an.0.name!=beta")); // Ne: equal → false
+        assert!(m("dns.an.0.name!=alpha"));
+        assert!(m("dns.an.0.name<delta"));
+        assert!(m("dns.an.0.name<=beta")); // equal → true
+        assert!(!m("dns.an.0.name<beta")); // equal → false
+        assert!(m("dns.an.0.name>alpha"));
+        assert!(!m("dns.an.0.name>beta")); // equal → false
+        assert!(m("dns.an.0.name>=beta")); // equal → true
+        assert!(!m("dns.an.0.name>=delta"));
     }
 }

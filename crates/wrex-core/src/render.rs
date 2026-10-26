@@ -393,13 +393,102 @@ mod tests {
     fn name_maps() {
         assert_eq!(ethertype_name(0x0800), Some("ipv4"));
         assert_eq!(ethertype_name(0x0806), Some("arp"));
+        assert_eq!(ethertype_name(0x8100), Some("vlan"));
+        assert_eq!(ethertype_name(0x86dd), Some("ipv6"));
         assert_eq!(ethertype_name(0x1234), None);
+        assert_eq!(ip_proto_name(1), Some("icmp"));
         assert_eq!(ip_proto_name(6), Some("tcp"));
         assert_eq!(ip_proto_name(17), Some("udp"));
         assert_eq!(ip_proto_name(253), None);
         assert_eq!(ip6_next_header_name(58), Some("icmpv6"));
         assert_eq!(ip6_next_header_name(6), Some("tcp"));
+        assert_eq!(ip6_next_header_name(17), Some("udp"));
         assert_eq!(ip6_next_header_name(0), None);
+    }
+
+    /// Every name-mapping arm, rendered through both shapes: a layer
+    /// carrying `type`/`proto`/`next_header` maps to the protocol name;
+    /// an unmapped value falls through to the raw integer.
+    #[test]
+    fn name_arms_render_in_both_shapes() {
+        let mut vlan_fields = BTreeMap::new();
+        vlan_fields.insert("type".to_string(), WValue::Int(0x8100));
+        let mut vlan2_fields = BTreeMap::new();
+        vlan2_fields.insert("type".to_string(), WValue::Int(0x1234)); // unmapped
+        let mut ip_fields = BTreeMap::new();
+        ip_fields.insert("proto".to_string(), WValue::Int(6));
+        let mut ip2_fields = BTreeMap::new();
+        ip2_fields.insert("proto".to_string(), WValue::Int(253)); // unmapped
+        let mut ip6_fields = BTreeMap::new();
+        ip6_fields.insert("next_header".to_string(), WValue::Int(58));
+        let mut ip6b_fields = BTreeMap::new();
+        ip6b_fields.insert("next_header".to_string(), WValue::Int(17));
+        let p = DissectedPacket {
+            start: "eth",
+            layers: vec![
+                LayerView {
+                    kind: "vlan",
+                    span: 14..18,
+                    field_spans: Default::default(),
+                    fields: vlan_fields,
+                },
+                LayerView {
+                    kind: "vlan",
+                    span: 18..22,
+                    field_spans: Default::default(),
+                    fields: vlan2_fields,
+                },
+                LayerView {
+                    kind: "ipv4",
+                    span: 22..26,
+                    field_spans: Default::default(),
+                    fields: ip_fields,
+                },
+                LayerView {
+                    kind: "ipv4",
+                    span: 26..30,
+                    field_spans: Default::default(),
+                    fields: ip2_fields,
+                },
+                LayerView {
+                    kind: "ipv6",
+                    span: 30..34,
+                    field_spans: Default::default(),
+                    fields: ip6_fields,
+                },
+                LayerView {
+                    kind: "ipv6",
+                    span: 34..38,
+                    field_spans: Default::default(),
+                    fields: ip6b_fields,
+                },
+            ],
+            payload: B::new(),
+            anomalies: vec![],
+            frame: B::new(),
+            facts: Default::default(),
+        };
+        // json: mapped arms
+        let v = dissect_to_json(&p);
+        assert_eq!(v["layers"][0]["fields"]["type"], "vlan", "{v}");
+        assert_eq!(v["layers"][1]["fields"]["type"], 0x1234, "{v}");
+        assert_eq!(v["layers"][2]["fields"]["proto"], "tcp", "{v}");
+        assert_eq!(v["layers"][3]["fields"]["proto"], 253, "{v}");
+        assert_eq!(v["layers"][4]["fields"]["next_header"], "icmpv6", "{v}");
+        assert_eq!(v["layers"][5]["fields"]["next_header"], "udp", "{v}");
+        // text: same mapping, one line per field (indent = 2 per depth)
+        let t = dissect_to_text(&p);
+        assert!(t.contains("  type: vlan\n"), "{t}");
+        assert!(t.contains("    type: 4660\n"), "{t}");
+        assert!(t.contains("      proto: tcp\n"), "{t}");
+        assert!(t.contains("        proto: 253\n"), "{t}");
+        assert!(t.contains("          next_header: icmpv6\n"), "{t}");
+        assert!(t.contains("            next_header: udp\n"), "{t}");
+        // jsonl: one line per packet, non-empty and pinned-shaped
+        let l = dissect_to_jsonl(&p);
+        assert!(l.contains("\"start\":\"eth\""), "{l}");
+        assert!(l.contains("\"type\":\"vlan\""), "{l}");
+        assert!(serde_json::from_str::<JsonValue>(&l).is_ok(), "{l}");
     }
 
     #[test]

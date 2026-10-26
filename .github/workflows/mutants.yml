@@ -1,23 +1,105 @@
 name: mutants
 
-# Pass-2: scheduled mutation testing (cargo-mutants) — the meta-test
-# the .gitignore already anticipated. Measures test-suite kill
+# Pass-2: mutation testing (cargo-mutants) — measures test-suite kill
 # strength: which source mutations survive every test we have.
-# Weekly (not per-PR — a full mutants run on wrex-core alone takes
-# tens of minutes); NO gate initially: the artifacts are the product,
-# a scoring threshold on wrex-core comes after the first few weekly
-# baselines establish the variance.
+#
+# Two tiers, mirroring fuzz.yml's smoke-vs-release split:
+#
+#  - mutants-pr (per-PR): `--in-diff` smoke — only mutants inside lines
+#    the PR touches, so cost scales with PR size and "survived" means
+#    *this PR* introduced a test gap (exit code 2 gates the PR).
+#  - mutants-core (release tags + on demand): the full wrex-core scope.
+#    NOT a gate (exit codes neutered via continue-on-error) — hundreds
+#    of mutants survive today; the artifacts are the product until a
+#    scoring threshold is added after the first baselines settle.
 
 on:
-  schedule:
-    - cron: "0 4 * * 1" # Mondays 04:00 UTC
+  # No cron: every trigger is tied to actual development activity
+  # (a PR, a release tag, or a manual dispatch) — no runs while the
+  # repo sits idle.
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      # Same codec-sources trigger as the fuzz-smoke: mutants only
+      # change meaning when wrex source or the workflows move.
+      - "crates/**"
+      - ".github/workflows/mutants.yml"
   workflow_dispatch: {}
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  mutants-pr:
+    # PR-scoped smoke: mutate only lines the PR touches (--in-diff),
+    # gate on the exit code — a surviving mutant here is a gap *this
+    # PR* created (or failed to close), unlike the full-scope run
+    # where pre-existing survivors would fail every PR.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history: the diff base needs the PR's merge-base.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: Diff against merge-base
+        run: |
+          git diff "${{ github.event.pull_request.base.sha }}"...HEAD > pr.diff
+          if [ -s pr.diff ]; then
+            echo "pr-diff lines: $(grep -c '^[+-]' pr.diff)"
+          else
+            echo "empty diff — nothing to mutate"
+          fi
+      # Gating run: exit 2 (missed) / 3 (timeout) fails the job and
+      # reds the PR. Pre-existing debt outside the diff is invisible,
+      # so a red here is always actionable in the PR.
+      - name: Mutate the PR's touched lines
+        run: cargo mutants --in-place --in-diff pr.diff -- --all-features
+        env:
+          PROPTEST_RNG_SEED: "31337"
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "## cargo-mutants: PR diff scope"
+            echo
+            echo '```'
+            if [ -d mutants.out ]; then
+              for f in caught missed timeout unviable; do
+                [ -f "mutants.out/$f.txt" ] || continue
+                printf '%s: %s\n' "$f" "$(grep -c . "mutants.out/$f.txt")"
+              done
+            else
+              echo "mutants.out missing (see artifacts/log)"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-pr
+          path: |
+            mutants.out
+            mutants.json
+            mutants-*.log
+
   mutants-core:
+    # Full-scope baseline: every mutant in wrex-core (the engine
+    # crate: encode/dissect/patch/filter/checksum/schema — the
+    # highest-leverage kill-strength signal). Release tags for release
+    # records; manual dispatch for baseline refreshes between releases.
+    # Measurement, NOT a gate: cargo-mutants exits 2 when any mutant
+    # survives (hundreds do today) and 3 on timeouts, which would
+    # fail this job every run.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -27,13 +109,11 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      # Scoped to wrex-core (the engine crate: encode/dissect/patch/
-      # filter/checksum/schema — the highest-leverage kill-strength
-      # signal). Expand to the proto crates after the first baselines.
       # mutants.json + mutants.out land in the log + artifacts.
       - run: cargo mutants -p wrex-core --no-shuffle --in-place -- --all-features
+        continue-on-error: true
         env:
-          # Deterministic: the weekly runs stay comparable week over week.
+          # Deterministic: the runs stay comparable over time.
           PROPTEST_RNG_SEED: "31337"
       - name: Summarize
         if: always()
@@ -42,12 +122,14 @@ jobs:
             echo "## cargo-mutants: wrex-core"
             echo
             echo '```'
-            cargo mutants --list 2>/dev/null | head -5 >/dev/null || true
-            if [ -f mutants.out ]; then
-              grep -cE '^killed' mutants.out 2>/dev/null | awk '{print "killed:  "$1}'
-              grep -cE '^survived' mutants.out 2>/dev/null | awk '{print "survived: "$1}'
-              grep -cE '^timeout' mutants.out 2>/dev/null | awk '{print "timeout:  "$1}'
-              grep -cE '^missed' mutants.out 2>/dev/null | awk '{print "missed:  "$1}'
+            # cargo-mutants writes a mutants.out/ directory with one
+            # file per outcome: caught.txt, missed.txt, timeout.txt,
+            # unviable.txt — one mutant per line.
+            if [ -d mutants.out ]; then
+              for f in caught missed timeout unviable; do
+                [ -f "mutants.out/$f.txt" ] || continue
+                printf '%s: %s\n' "$f" "$(grep -c . "mutants.out/$f.txt")"
+              done
             else
               echo "mutants.out missing (see artifacts/log)"
             fi

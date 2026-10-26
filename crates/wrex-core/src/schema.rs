@@ -594,4 +594,109 @@ mod tests {
         assert_eq!(FieldKind::FlagSet.type_name(), "flagset");
         let _ = f(FieldKind::U8);
     }
+
+    // --- const-table coverage (pass-2 mutation kill-strength) --------------
+
+    #[test]
+    fn field_names_unique_table() {
+        let g = |name: &'static str| FieldSchema {
+            name,
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::zero_for(FieldKind::U8),
+            required: false,
+            doc: "",
+        };
+        let unique = &[g("a"), g("b")];
+        assert!(field_names_unique(unique), "unique table");
+        let dup = &[g("x"), g("x")];
+        assert!(!field_names_unique(dup), "duplicate names are caught");
+        assert!(field_names_unique(&[]), "empty table is unique");
+        assert!(field_names_unique(&[g("only")]));
+    }
+
+    #[test]
+    fn bit_pos_bounds() {
+        let mut fs = f(FieldKind::FlagSet);
+        // MSB-first positions.
+        fs.bit_names = &["a", "b"];
+        assert_eq!(fs.bit_pos("a"), Some(1));
+        assert_eq!(fs.bit_pos("b"), Some(0));
+        assert_eq!(fs.bit_pos("nope"), None);
+        // No bits and >8-bit units are not positions.
+        fs.bit_names = &[];
+        assert_eq!(fs.bit_pos("a"), None);
+        fs.bit_names = Box::leak(
+            (0..9)
+                .map(|i| Box::leak(format!("b{i}").into_boxed_str()) as &'static str)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        );
+        assert_eq!(fs.bit_pos("b0"), None, "9-name unit is too wide");
+        // 8-name unit is the boundary.
+        fs.bit_names = &["b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7"];
+        assert_eq!(fs.bit_pos("b0"), Some(7));
+        assert_eq!(fs.bit_pos("b7"), Some(0));
+        // Bit masks follow the positions.
+        let mut fs2 = f(FieldKind::FlagSet);
+        fs2.bit_names = &["df", "mf"];
+        assert_eq!(fs2.bit_mask("df"), Some(0b10));
+        assert_eq!(fs2.bit_mask("mf"), Some(0b01));
+        assert_eq!(fs2.bit_mask("nope"), None);
+    }
+
+    #[test]
+    fn layout_container_lengths() {
+        assert_eq!(Layout::Bytes { at: 0, len: 5 }.container_len(), 5);
+        assert_eq!(Layout::ReEncode { at: 4, len: 3 }.container_len(), 3);
+        // Bit windows: ceil((shift + width)/8), at least one byte.
+        assert_eq!(
+            Layout::Bits {
+                at: 0,
+                shift: 0,
+                width: 4,
+            }
+            .container_len(),
+            1
+        );
+        assert_eq!(
+            Layout::Bits {
+                at: 2,
+                shift: 4,
+                width: 12,
+            }
+            .container_len(),
+            2
+        );
+    }
+
+    #[test]
+    fn length_units_bias_and_quantize() {
+        use LengthUnits::*;
+        assert_eq!(Bytes.unit(), 1);
+        assert_eq!(Octlets4.unit(), 4);
+        assert_eq!(Octlets8.unit(), 8);
+        assert_eq!(Bytes.bias(), 0);
+        assert_eq!(Octlets4.bias(), 2);
+        assert_eq!(Octlets8.bias(), 1);
+        // Plain byte counts are not quantized (the caller writes the u16).
+        assert_eq!(Bytes.quantize(5), None);
+        // 8-octet units, bias 1: (octets/8) − 1.
+        assert_eq!(Octlets8.quantize(8), Some(0)); // minimum cell saturates to 0
+        assert_eq!(Octlets8.quantize(16), Some(1));
+        assert_eq!(Octlets8.quantize(24), Some(2));
+        assert_eq!(Octlets8.quantize(2048), Some(255)); // u8 saturation
+        // The saturation boundary itself: cells == 256 truncates to 0
+        // under `==`/`<` mutations — the pin is Some(255).
+        assert_eq!(Octlets8.quantize(2056), Some(255)); // (2056/8) − 1 = 256 → sat
+        assert_eq!(Octlets8.quantize(12), None); // off-grid → pointed None
+        // 4-octet units, bias 2: (octets/4) − 2.
+        assert_eq!(Octlets4.quantize(8), Some(0));
+        assert_eq!(Octlets4.quantize(12), Some(1));
+        assert_eq!(Octlets4.quantize(20), Some(3));
+        assert_eq!(Octlets4.quantize(10), None);
+        // Zero covered length: on-grid (0 is a multiple of anything),
+        // saturates to 0 — never a panic.
+        assert_eq!(Octlets8.quantize(0), Some(0));
+    }
 }

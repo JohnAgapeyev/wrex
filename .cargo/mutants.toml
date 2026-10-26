@@ -1,0 +1,67 @@
+# cargo-mutants configuration (workspace-wide).
+#
+# Exclusions are limited to mutants that are *provably* unkillable by
+# `cargo test` — every other missed mutant is a real coverage gap and
+# must stay killable (the kill-strength score stays honest):
+#
+#   1. cfg(kani) modules: the proof harnesses never run under cargo
+#      test; their kill-strength is `cargo kani`'s job (ci.yml kani job).
+#   2. Infinite-loop mutants: mutating the loop counter / fold condition
+#      makes the loop hang — no test can observe a failure before the
+#      runner timeout does.
+#   3. Behaviorally-equivalent mutants: the mutated expression is
+#      indistinguishable from the original for all reachable inputs
+#      (algebraic identities, default-trait-body aliases).
+#   4. Test fixtures: `#[cfg(test)]` mock codecs exist to *produce*
+#      inputs, not to be behavior under test.
+#   5. Environment-bound: reads process stdin — untestable in-process.
+
+exclude_re = [
+    # 1. Kani proof modules (never compiled under cargo test).
+    "kani_proofs::",
+    "verification::",
+
+    # 2. Loop mutations that hang instead of failing.
+    "replace \\+= with \\*= in str_eq",
+    "replace \\+= with \\*= in field_names_unique",
+    "replace \\+= with \\*= in RecordSchema::field",
+    "replace \\+= with \\*= in LayerSchema::field",
+    "replace \\+= with \\*= in LayerSchema::record",
+    "replace \\+= with \\*= in write_bits_window",
+    "replace & with \\^ in ChecksumAccumulator::value",
+    "replace >> with << in ChecksumAccumulator::value",
+
+    # 3. Behaviorally-equivalent mutants.
+    #    Default-trait-body aliases: `&[]`/`None`/empty-vec leaks and
+    #    `Default::default()` for `#[derive(Default)]` types with no
+    #    other fields are the original bodies spelled differently.
+    "replace Registry::empty -> Self with Default::default\\(\\)",
+    "replace Scope::none -> Scope with Default::default\\(\\)",
+    "replace Codec::layouts -> .* with Vec::leak\\(Vec::new\\(\\)\\)",
+    "replace Codec::derived -> .* with Vec::leak\\(Vec::new\\(\\)\\)",
+    "replace Codec::reencode -> .* with None",
+    #    `len > 1` ≡ `len >= 2` for usize; `cells > 255` ≡ `>= 256`.
+    "replace > with >= in Layout::container_len",
+    "replace > with >= in LengthUnits::quantize",
+    #    Dead arm: `serialize_field_value` early-returns for Bytes kinds
+    #    before the match, so the (Bytes|ByteList, Bytes) arm inside it
+    #    is unreachable — deleting it is behaviorally identical.
+    "delete match arm \\(FieldKind::Bytes \\| FieldKind::ByteList, Value::Bytes\\(b\\)\\)",
+    #    `field_names_unique`'s outer `i < len` bound: the loop body
+    #    indexes only under the inner `j < len` guard, so one extra outer
+    #    iteration (i == len) is a no-op — `<=` is behaviorally identical.
+    "replace < with <= in field_names_unique",
+    #    Disjoint operands: `a | b` ≡ `a ^ b` when the masks are
+    #    complementary / the shifted-in byte is zero.
+    "replace \\| with \\^ in write_bits_window",
+    "replace \\| with \\^ in patch",
+    #    MAC grammar: `is_empty() || len > 2` — every mutant-visible
+    #    difference is re-caught by `u8::from_str_radix` one line later.
+    "replace \\|\\| with && in parse_value",
+    #    Reads process stdin: untestable from inside the test harness
+    #    (a read here would block on the terminal).
+    "replace stdin_bytes -> Bytes with Default::default\\(\\)",
+
+    # 4. Test fixtures (mock codecs are inputs, not subjects).
+    "tests::<impl Codec for Mock",
+]

@@ -149,6 +149,11 @@ impl PseudoHeader {
 /// const-evaluatable, so the loop rewrite and the padded-bytes
 /// equivalence are provable as static assertions.
 const _: () = {
+    // Asymmetric pins (mutation kill-strength): concrete expected
+    // values, not just structural equalities — a broken const twin
+    // cannot mirror its way past a hardcoded checksum.
+    assert!(internet_checksum_bytes(&[0x00, 0x01, 0xf2, 0x03, 0xf4, 0xf5, 0xf6, 0xf7]) == 0x220d);
+    assert!(internet_checksum_bytes(&[0x12, 0x34, 0x56]) == 0x97cb);
     assert!(
         internet_checksum_bytes(&[0x12, 0x34, 0x56])
             == internet_checksum_bytes(&[0x12, 0x34, 0x56, 0x00])
@@ -234,6 +239,25 @@ mod tests {
         assert_eq!(acc.value(), acc2.value());
     }
 
+    /// The const twin over a 2-byte window: exactly one word, no phantom
+    /// odd-byte pad (`len % 2` vs `len / 2` diverge only here — the
+    /// mutation kill-strength pin for `add_bytes_const`'s even branch).
+    #[test]
+    fn add_bytes_const_two_byte_window() {
+        let mut acc = ChecksumAccumulator::new();
+        acc.add_bytes_const(&[0x12, 0x34]);
+        assert_eq!(acc.value(), internet_checksum_bytes(&[0x12, 0x34]));
+        // Asymmetric pin: the expected value is hardcoded, not self-derived.
+        assert_eq!(acc.value(), 0xedcb);
+        // 4-byte window: no odd branch on either path.
+        let mut acc4 = ChecksumAccumulator::new();
+        acc4.add_bytes_const(&[0x03, 0x00, 0x00, 0x01]);
+        assert_eq!(
+            acc4.value(),
+            internet_checksum_bytes(&[0x03, 0x00, 0x00, 0x01])
+        );
+    }
+
     #[test]
     fn all_zero_data_is_ffff() {
         // !0 == 0xffff: transmitted checksum of all-zero data.
@@ -271,12 +295,16 @@ mod tests {
             proto: 58,
         }
         .accumulate_into(&mut acc, 16);
-        let a = acc.value();
-        let mut acc2 = ChecksumAccumulator::new();
-        acc2.add_ipv6(src);
-        acc2.add_ipv6(dst);
-        acc2.add_bytes(&16u32.to_be_bytes());
-        acc2.add_bytes(&[0, 58]);
-        assert_eq!(acc2.value(), a);
+        // Asymmetric pin: the expected value comes from the *stateless
+        // const* path over the flattened byte string, not from a second
+        // pass through `add_ipv6` (which would mirror any mutation).
+        let mut flat = Vec::new();
+        flat.extend_from_slice(&src.octets());
+        flat.extend_from_slice(&dst.octets());
+        flat.extend_from_slice(&16u32.to_be_bytes());
+        flat.extend_from_slice(&[0, 58]);
+        assert_eq!(acc.value(), internet_checksum_bytes(&flat));
+        // …and that value is concrete, not self-derived.
+        assert_ne!(acc.value(), internet_checksum_bytes(&[0; 40]));
     }
 }

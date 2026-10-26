@@ -463,6 +463,9 @@ mod tests {
         assert_eq!(parse_value(&f, "ack,syn").unwrap(), Value::Int(0x12));
         assert_eq!(parse_value(&f, "0x02").unwrap(), Value::Int(2));
         assert_eq!(parse_value(&f, "2").unwrap(), Value::Int(2));
+        // The u8 boundary is inclusive: 0xff fits, 0x100 does not.
+        assert_eq!(parse_value(&f, "0xff").unwrap(), Value::Int(0xff));
+        assert!(parse_value(&f, "0x100").is_err());
         assert!(parse_value(&f, "SYN").is_err()); // case-sensitive bit names
         let e = parse_value(&f, "syn,xxx").unwrap_err();
         assert!(e.to_string().contains("unknown flag `xxx`"));
@@ -473,6 +476,21 @@ mod tests {
         assert!(parse_value(&f, "0x1ff").is_err()); // > 8 bits
         // empty mask from only separators is fine (nothing set)
         assert_eq!(parse_value(&f, ",").unwrap(), Value::Int(0));
+    }
+
+    #[test]
+    fn mac_single_hex_digits_parse() {
+        let fm = field("dst", FieldKind::Mac);
+        // Single-hex-digit groups are valid MAC octets (a:b:c:d:e:f).
+        assert_eq!(
+            parse_value(&fm, "a:b:c:d:e:f").unwrap(),
+            Value::Mac([0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f])
+        );
+        // …and the u8 range check is inclusive of 2-digit groups.
+        assert_eq!(
+            parse_value(&fm, "0a:0b:0c:0d:0e:0f").unwrap(),
+            Value::Mac([0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f])
+        );
     }
 
     #[test]

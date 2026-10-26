@@ -997,6 +997,109 @@ mod tests {
         }
     }
 
+    // A quantized-length mock at the frame edge: q7 writes its last
+    // in-bounds byte (pos + 1 == len), q8 sits past it (pos + 1 > len).
+    static QEDGE_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "q7",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "quantized len at the last byte",
+        },
+        FieldSchema {
+            name: "q8",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "quantized len past the last byte",
+        },
+    ];
+    static QEDGE_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mocke",
+        rank: 5,
+        parents: &[],
+        doc: "quantized-edge mock",
+        fields: QEDGE_FIELDS,
+        records: &[],
+    };
+    struct MockQuantEdge;
+    impl Codec for MockQuantEdge {
+        fn schema(&self) -> &'static LayerSchema {
+            &QEDGE_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(8)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'b>(&self, bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+            if bytes.len() < 8 {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind: "mocke",
+                        need: 8,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = std::collections::BTreeMap::new();
+            fields.insert("q7".to_string(), Value::Int(0));
+            fields.insert("q8".to_string(), Value::Int(0));
+            let view = crate::dissect::LayerView {
+                kind: "mocke",
+                span: ctx.offset..ctx.offset + 8,
+                field_spans: Default::default(),
+                fields,
+            };
+            ReadOutcome::Layer(view, Some(Next::Payload))
+        }
+        fn layouts(&self) -> &'static [(&'static str, Layout)] {
+            &[
+                ("q7", Layout::Bytes { at: 7, len: 1 }),
+                ("q8", Layout::Bytes { at: 8, len: 1 }),
+            ]
+        }
+        fn derived(&self) -> &'static [Derived] {
+            &[
+                Derived::Length {
+                    field: "q7",
+                    at: 7,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Octlets8,
+                },
+                Derived::Length {
+                    field: "q8",
+                    at: 8,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Octlets8,
+                },
+            ]
+        }
+    }
+
+    #[test]
+    fn quantized_length_write_bounds_at_frame_edge() {
+        let mut reg = Registry::default();
+        reg.register(&MockQuantEdge);
+        let p = crate::dissect::dissect(&reg, &[0u8; 8], "mocke");
+        // q7@pos7 → 7 + 1 = 8 > 8 false: the last in-bounds byte.
+        // covered = 8 (LayerStart) → (8/8) − 1 = 0.
+        let s7 = Scope::select(&["mocke.q7"]).expect("scope");
+        let out = patch(&reg, &p, &[], &s7).expect("boundary quantized length");
+        assert_eq!(out[7], 0);
+        // q8@pos8 → 9 > 8 → Err.
+        let s8 = Scope::select(&["mocke.q8"]).expect("scope");
+        assert!(matches!(
+            patch(&reg, &p, &[], &s8).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+    }
+
     #[test]
     fn scope_all_recomputes_len_and_checksum() {
         let reg = reg();
@@ -1233,6 +1336,1048 @@ mod tests {
         let mut c3 = [0xab, 0xcd];
         write_bits_window(&mut c3, 4, 12, 0x0123);
         assert_eq!(c3, [0xa1, 0x23]);
+        // A window in the *low* bits of byte 0: shift 4, width 4.
+        let mut c4 = [0xff, 0xff];
+        write_bits_window(&mut c4, 4, 4, 0x2);
+        assert_eq!(c4, [0xf2, 0xff]); // only the low nibble of byte 0
+    }
+
+    // --- Scope / error-display coverage ----------------------------------
+
+    #[test]
+    fn scope_selection_semantics() {
+        assert!(Scope::all().selects_path("udp.checksum"));
+        assert!(Scope::all().selects_path("anything.at.all"));
+        assert!(!Scope::none().selects_path("udp.checksum"));
+        let s = Scope::select(&["udp.checksum"]).expect("scope");
+        assert!(s.selects_path("udp.checksum"));
+        assert!(!s.selects_path("udp.length"));
+        assert!(!s.selects_path("tcp.checksum"));
+        let s = Scope::select(&["udp.*"]).expect("scope");
+        assert!(s.selects_path("udp.checksum"));
+        assert!(s.selects_path("udp.length"));
+        assert!(!s.selects_path("tcp.checksum"));
+        // A path without a dot never matches a selective scope.
+        let s = Scope::select(&["udp.checksum"]).expect("scope");
+        assert!(!s.selects_path("nopath"));
+        // Malformed selectors are pointed errors; an empty list is none.
+        assert!(Scope::select(&["nokind"]).is_err());
+        assert_eq!(Scope::select(&[]).unwrap(), Scope::none());
+        // "all" is a layer shorthand, not a keyword.
+        let s = Scope::select(&["all.*"]).expect("scope");
+        assert!(s.selects_path("all.checksum"));
+        assert!(!s.selects_path("udp.checksum"));
+    }
+
+    #[test]
+    fn patch_error_display_is_pointed() {
+        assert_eq!(PatchError::Overlap.to_string(), "edits overlap");
+        assert!(
+            PatchError::UnresolvedPath("tcp.seq".into())
+                .to_string()
+                .contains("no dissected field at path \"tcp.seq\"")
+        );
+        assert!(
+            PatchError::UnsupportedPath("ipv4.options".into())
+                .to_string()
+                .contains("no patchable span")
+        );
+        assert!(
+            PatchError::ReEncodeFailed {
+                path: "dhcp.sname".into(),
+                reason: "over-length".into()
+            }
+            .to_string()
+            .contains("refused")
+        );
+        assert_eq!(
+            PatchError::WidthMismatch {
+                path: "tcp.seq".into(),
+                want: 4,
+                got: 2,
+            }
+            .to_string(),
+            "field \"tcp.seq\" wants 4 bytes, got 2"
+        );
+        assert!(
+            PatchError::OutOfBounds {
+                path: "ipv4.src".into()
+            }
+            .to_string()
+            .contains("outside the frame")
+        );
+        assert!(
+            PatchError::EditScopeConflict("udp.checksum".into())
+                .to_string()
+                .contains("which the scope also recomputes")
+        );
+        assert!(
+            PatchError::BadScope("udp".into())
+                .to_string()
+                .contains("bad scope selector \"udp\"")
+        );
+        assert!(
+            PatchError::LengthNotQuantized {
+                path: "hopopts.hdr_ext_len".into(),
+                unit: 8,
+                remainder: 3,
+            }
+            .to_string()
+            .contains("divisible by 8")
+        );
+    }
+
+    // --- hand-built packets: span geometry at the frame edge ---------------
+
+    /// A packet whose layers/spans are hand-built (no codec roundtrip):
+    /// the engine reads `field_spans` verbatim, so synthetic entries are
+    /// enough to pin the bounds checks. `kind` selects the registry codec
+    /// the patch pre-pass resolves (its `reencode` hook contract).
+    fn synthetic_packet(
+        kind: &'static str,
+        frame: &[u8],
+        spans: &[(&str, FieldSpan)],
+    ) -> DissectedPacket {
+        let mut field_spans = std::collections::BTreeMap::new();
+        let mut fields = std::collections::BTreeMap::new();
+        for (name, span) in spans {
+            field_spans.insert(name.to_string(), span.clone());
+            fields.insert(name.to_string(), Value::Bytes(Bytes::new()));
+        }
+        DissectedPacket {
+            start: kind,
+            layers: vec![crate::dissect::LayerView {
+                kind,
+                span: 0..2,
+                field_spans,
+                fields,
+            }],
+            payload: Bytes::new(),
+            anomalies: vec![],
+            frame: Bytes::copy_from_slice(frame),
+            facts: Default::default(),
+        }
+    }
+
+    #[test]
+    fn spans_and_edits_at_the_frame_end_are_in_bounds() {
+        let reg = reg();
+        let p = synthetic_packet(
+            "mock",
+            &[0x00, 0x00],
+            &[
+                ("a", FieldSpan::Bytes(0..2)), // ends exactly at the frame end
+                (
+                    "nib",
+                    FieldSpan::Bits {
+                        container: 0..2,
+                        shift: 4,
+                        width: 4,
+                    },
+                ),
+            ],
+        );
+        // Bytes overwrite ending at frame.len(): in bounds, lands.
+        let out = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mock.a".to_string(),
+                bytes: Bytes::from_static(&[0x11, 0x22]),
+            }],
+            &Scope::none(),
+        )
+        .expect("bytes span at frame end is in bounds");
+        assert_eq!(&out[..], &[0x11, 0x22]);
+        // Bits container ending at frame.len(): in bounds, masked write.
+        let p2 = synthetic_packet(
+            "mock",
+            &[0x00, 0x00],
+            &[(
+                "nib",
+                FieldSpan::Bits {
+                    container: 0..2,
+                    shift: 4,
+                    width: 12,
+                },
+            )],
+        );
+        // width 12 → 2 value bytes, BE, masked into the window
+        // [bit4..bit16): 0x0123 → [0x01, 0x23] (multi-byte value
+        // packing; a 1-byte window would alias it).
+        let out2 = patch(
+            &reg,
+            &p2,
+            &[Edit::SetField {
+                path: "mock.nib".to_string(),
+                bytes: Bytes::from_static(&[0x01, 0x23]),
+            }],
+            &Scope::none(),
+        )
+        .expect("bits container at frame end is in bounds");
+        assert_eq!(&out2[..], &[0x01, 0x23]);
+        // Insert at exactly frame.len(): appends (a point at the end).
+        let out3 = patch(
+            &reg,
+            &p,
+            &[Edit::Insert {
+                at: 2,
+                bytes: Bytes::from_static(&[0x99]),
+            }],
+            &Scope::none(),
+        )
+        .expect("insert at frame end is in bounds");
+        assert_eq!(&out3[..], &[0x00, 0x00, 0x99]);
+        // Delete the full range / an empty range / a range ending at the end.
+        let out4 =
+            patch(&reg, &p, &[Edit::Delete { at: 0..2 }], &Scope::none()).expect("full delete");
+        assert!(out4.is_empty());
+        let out5 = patch(&reg, &p, &[Edit::Delete { at: 1..1 }], &Scope::none())
+            .expect("empty delete is a no-op");
+        assert_eq!(&out5[..], &[0x00, 0x00]);
+        // Out of bounds stays pointed on every edit shape: a Bytes span
+        // lying past the frame end (width matches, bounds do not).
+        let short = synthetic_packet("mock", &[0x00], &[("a", FieldSpan::Bytes(0..2))]);
+        assert!(matches!(
+            patch(
+                &reg,
+                &short,
+                &[Edit::SetField {
+                    path: "mock.a".to_string(),
+                    bytes: Bytes::from_static(&[1, 2]),
+                }],
+                &Scope::none()
+            )
+            .unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        assert!(matches!(
+            patch(
+                &reg,
+                &p,
+                &[Edit::Insert {
+                    at: 3,
+                    bytes: Bytes::new(),
+                }],
+                &Scope::none()
+            )
+            .unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        assert!(matches!(
+            patch(&reg, &p, &[Edit::Delete { at: 0..3 }], &Scope::none()).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        // start > end is a pointed error (a reversed range is never
+        // silently treated as a reverse iteration here).
+        #[allow(clippy::reversed_empty_ranges)]
+        let reversed = [Edit::Delete { at: 2..1 }];
+        assert!(matches!(
+            patch(&reg, &p, &reversed, &Scope::none()).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        // Interior delete of exactly the frame content.
+        let out6 =
+            patch(&reg, &p, &[Edit::Delete { at: 0..1 }], &Scope::none()).expect("interior delete");
+        assert_eq!(&out6[..], &[0x00]);
+    }
+
+    #[test]
+    fn multi_edit_ordering_and_overlap() {
+        let reg = reg();
+        let p = frame();
+        // Two disjoint edits: both land, in pre-edit coordinate order.
+        let out = patch(
+            &reg,
+            &p,
+            &[
+                Edit::SetField {
+                    path: "mock.len".to_string(),
+                    bytes: Bytes::from_static(&[0x0a, 0x0b]),
+                },
+                Edit::SetField {
+                    path: "mock.a".to_string(),
+                    bytes: Bytes::from_static(&[0xaa, 0xbb]),
+                },
+            ],
+            &Scope::none(),
+        )
+        .expect("disjoint edits");
+        assert_eq!(&out[0..2], &[0xaa, 0xbb]);
+        assert_eq!(&out[2..4], &[0x0a, 0x0b]);
+        // Adjacent (touching, non-overlapping) edits are fine.
+        let out = patch(
+            &reg,
+            &p,
+            &[
+                Edit::SetField {
+                    path: "mock.a".to_string(),
+                    bytes: Bytes::from_static(&[0x00, 0x01]),
+                },
+                Edit::SetField {
+                    path: "mock.len".to_string(),
+                    bytes: Bytes::from_static(&[0x00, 0x02]),
+                },
+            ],
+            &Scope::none(),
+        )
+        .expect("adjacent edits do not overlap");
+        assert_eq!(&out[0..4], &[0x00, 0x01, 0x00, 0x02]);
+        // Partial overlap (0..2 vs insert@1): ambiguous → pointed error.
+        assert!(matches!(
+            patch(
+                &reg,
+                &p,
+                &[
+                    Edit::SetField {
+                        path: "mock.a".to_string(),
+                        bytes: Bytes::from_static(&[0, 0]),
+                    },
+                    Edit::Insert {
+                        at: 1,
+                        bytes: Bytes::from_static(&[0xff]),
+                    },
+                ],
+                &Scope::none()
+            )
+            .unwrap_err(),
+            PatchError::Overlap
+        ));
+        // Equal starts (two inserts at one offset): ambiguous → error.
+        assert!(matches!(
+            patch(
+                &reg,
+                &p,
+                &[
+                    Edit::Insert {
+                        at: 7,
+                        bytes: Bytes::from_static(&[1]),
+                    },
+                    Edit::Insert {
+                        at: 7,
+                        bytes: Bytes::from_static(&[2]),
+                    },
+                ],
+                &Scope::none()
+            )
+            .unwrap_err(),
+            PatchError::Overlap
+        ));
+    }
+
+    /// Tranche 13a: a `ReEncode` span on a codec WITHOUT a `reencode`
+    /// hook defers pointedly — the default `None` is the deferral
+    /// contract, never a silent wrong-width splice.
+    #[test]
+    fn reencode_default_none_defers_pointedly() {
+        let reg = reg();
+        let p = frame();
+        let err = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mock.rn".to_string(), // ReEncode span, no hook
+                bytes: Bytes::from_static(&[0x00, 0x00]),
+            }],
+            &Scope::none(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
+    }
+
+    /// The TRAIT-default `reencode` (no codec override): a `ReEncode` span
+    /// on a hook-less codec defers pointedly — `None` (or a wrong-width
+    /// `Some`) is never silently accepted as a region replacement.
+    #[test]
+    fn reencode_trait_default_defers_pointedly() {
+        let mut reg = Registry::default();
+        reg.register(&MockQuantized); // no `reencode` override
+        // A 1-byte region: a `Some(Ok(vec![…]))` default of any concrete
+        // width is either rejected (0/2 bytes) or wrong (1 byte) — only
+        // `None` (the real default) defers.
+        let p = synthetic_packet("mockq", &[0x00], &[("zz", FieldSpan::ReEncode(0..1))]);
+        let err = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mockq.zz".to_string(),
+                bytes: Bytes::from_static(&[0x00]),
+            }],
+            &Scope::none(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, PatchError::UnsupportedPath(_)), "{err}");
+    }
+
+    /// A hooked `ReEncode` region strictly inside the frame (end < frame
+    /// len) is in bounds and lands: only regions past the frame edge are
+    /// the pointed `OutOfBounds`.
+    #[test]
+    fn reencode_region_strictly_inside_frame_lands() {
+        let reg = reg();
+        let p = synthetic_packet(
+            "mock",
+            &[0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            &[("re", FieldSpan::ReEncode(0..2))],
+        );
+        let out = patch(
+            &reg,
+            &p,
+            &[Edit::SetField {
+                path: "mock.re".to_string(),
+                bytes: Bytes::from_static(&[0x41]), // 1 byte → NUL-padded to 2
+            }],
+            &Scope::none(),
+        )
+        .expect("in-frame region is in bounds");
+        assert_eq!(&out[0..2], &[0x41, 0x00]);
+        assert_eq!(&out[2..], &[0, 0, 0, 0]);
+    }
+
+    // --- wire→wire recompute fixtures: net → l4 → l5 -----------------------
+    //
+    // MOCK above pins the flat engine; these pin the arithmetic the
+    // flat single-layer-at-0 case leaves aliased: LayerStart/LayerEnd/
+    // Span bases at nonzero offsets, UpperPacket/FromFacts checksums,
+    // quantized units, and the pos/stop boundary cases.
+
+    static NET_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "src",
+            kind: FieldKind::Ipv4,
+            bit_names: &[],
+            default: Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
+            required: false,
+            doc: "src",
+        },
+        FieldSchema {
+            name: "dst",
+            kind: FieldKind::Ipv4,
+            bit_names: &[],
+            default: Value::Ipv4(std::net::Ipv4Addr::UNSPECIFIED),
+            required: false,
+            doc: "dst",
+        },
+        FieldSchema {
+            name: "proto",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(17),
+            required: false,
+            doc: "proto",
+        },
+    ];
+    static NET_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mocknet",
+        rank: 20,
+        parents: &[],
+        doc: "recompute-test net mock",
+        fields: NET_FIELDS,
+        records: &[],
+    };
+
+    static L4_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "ck",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "ck (pos == start)",
+        },
+        FieldSchema {
+            name: "tlen",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "tlen (LayerStart)",
+        },
+        FieldSchema {
+            name: "plen",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "plen (LayerEnd)",
+        },
+        FieldSchema {
+            name: "q4",
+            kind: FieldKind::U8,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "q4 (Span/Octlets4)",
+        },
+        FieldSchema {
+            name: "ckf",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "ckf (UpperPacket/FromFacts)",
+        },
+    ];
+    static L4_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mockl4",
+        rank: 30,
+        parents: &["mocknet"],
+        doc: "recompute-test l4 mock",
+        fields: L4_FIELDS,
+        records: &[],
+    };
+
+    static L5_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mockl5",
+        rank: 31,
+        parents: &["mockl4"],
+        doc: "recompute-test l5 mock",
+        fields: L4_FIELDS,
+        records: &[],
+    };
+
+    fn net_read<'b>(bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+        if bytes.len() < 12 {
+            return ReadOutcome::Anomaly(
+                crate::error::DecodeError::Truncated {
+                    kind: "mocknet",
+                    need: 12,
+                    have: bytes.len(),
+                },
+                Next::Payload,
+            );
+        }
+        let src = std::net::Ipv4Addr::new(bytes[0], bytes[1], bytes[2], bytes[3]);
+        let dst = std::net::Ipv4Addr::new(bytes[4], bytes[5], bytes[6], bytes[7]);
+        let proto = bytes[8];
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("src".to_string(), Value::Ipv4(src));
+        fields.insert("dst".to_string(), Value::Ipv4(dst));
+        fields.insert("proto".to_string(), Value::Int(proto as u128));
+        let mut spans = std::collections::BTreeMap::new();
+        spans.insert(
+            "src".to_string(),
+            FieldSpan::Bytes(ctx.offset..ctx.offset + 4),
+        );
+        spans.insert(
+            "dst".to_string(),
+            FieldSpan::Bytes(ctx.offset + 4..ctx.offset + 8),
+        );
+        spans.insert(
+            "proto".to_string(),
+            FieldSpan::Bytes(ctx.offset + 8..ctx.offset + 9),
+        );
+        ctx.facts.net = Some(crate::dissect::NetFacts::V4 { src, dst, proto });
+        ctx.facts.upper_start = Some(ctx.offset + 12);
+        let view = crate::dissect::LayerView {
+            kind: "mocknet",
+            span: ctx.offset..ctx.offset + 12,
+            field_spans: spans,
+            fields,
+        };
+        ReadOutcome::Layer(view, Some(Next::Kind("mockl4")))
+    }
+
+    fn l4_read<'b>(kind: &'static str) -> impl Fn(&[u8], &mut DecodeCtx<'b>) -> ReadOutcome {
+        move |bytes, ctx| {
+            if bytes.len() < 12 {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind,
+                        need: 12,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = std::collections::BTreeMap::new();
+            fields.insert("ck".to_string(), Value::Int(0));
+            fields.insert("tlen".to_string(), Value::Int(0));
+            fields.insert("plen".to_string(), Value::Int(0));
+            fields.insert("q4".to_string(), Value::Int(0));
+            fields.insert("ckf".to_string(), Value::Int(0));
+            let view = crate::dissect::LayerView {
+                kind,
+                span: ctx.offset..ctx.offset + 12,
+                field_spans: Default::default(),
+                fields,
+            };
+            ReadOutcome::Layer(view, Some(Next::Kind("mockl5")))
+        }
+    }
+
+    fn l5_read<'b>(bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+        if bytes.len() < 4 {
+            return ReadOutcome::Anomaly(
+                crate::error::DecodeError::Truncated {
+                    kind: "mockl5",
+                    need: 4,
+                    have: bytes.len(),
+                },
+                Next::Payload,
+            );
+        }
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("ck".to_string(), Value::Int(0));
+        fields.insert("c5".to_string(), Value::Int(0));
+        let view = crate::dissect::LayerView {
+            kind: "mockl5",
+            span: ctx.offset..ctx.offset + 4,
+            field_spans: Default::default(),
+            fields,
+        };
+        ReadOutcome::Layer(view, Some(Next::Payload))
+    }
+
+    /// net(12) | l4(12) | l5(4) — derived fields per layer:
+    ///   l4: ck@0 Checksum{Layer, Frame}, tlen@2 Length{LayerStart},
+    ///       plen@4 Length{LayerEnd}, q4@6 Length{Span, Octlets4},
+    ///       ckf@10 Checksum{UpperPacket, Layer, FromFacts}
+    ///   l5: ck@0 Checksum{Layer, Layer}, c5@2 Length{LayerStart}
+    /// (ck and c5 share the tlen/plen/q4/ckf field *table* for brevity —
+    /// the derived() entries drive what gets recomputed, so a field may
+    /// appear in several roles across layers.)
+    struct MockNet;
+    impl Codec for MockNet {
+        fn schema(&self) -> &'static LayerSchema {
+            &NET_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(12)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'b>(&self, bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+            net_read(bytes, ctx)
+        }
+        fn derived(&self) -> &'static [Derived] {
+            // The net layer's own UpperPacket/Layer checksum: start (12)
+            // == stop (12) — an empty covered range is the pointed error,
+            // never a silent zero-byte fold.
+            &[Derived::Checksum {
+                field: "nck",
+                at: 12,
+                start: crate::schema::ChecksumStart::UpperPacket,
+                end: ChecksumEnd::Layer,
+                pseudo: PseudoSource::None,
+            }]
+        }
+    }
+
+    struct MockL4;
+    impl Codec for MockL4 {
+        fn schema(&self) -> &'static LayerSchema {
+            &L4_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(12)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'b>(&self, bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+            l4_read("mockl4")(bytes, ctx)
+        }
+        fn layouts(&self) -> &'static [(&'static str, Layout)] {
+            &[
+                ("ck", Layout::Bytes { at: 0, len: 2 }),
+                ("tlen", Layout::Bytes { at: 2, len: 2 }),
+                ("plen", Layout::Bytes { at: 4, len: 2 }),
+                ("q4", Layout::Bytes { at: 6, len: 1 }),
+                ("ckf", Layout::Bytes { at: 10, len: 2 }),
+            ]
+        }
+        fn derived(&self) -> &'static [Derived] {
+            &[
+                Derived::Checksum {
+                    field: "ck",
+                    at: 0,
+                    start: crate::schema::ChecksumStart::Layer,
+                    end: ChecksumEnd::Frame,
+                    pseudo: PseudoSource::None,
+                },
+                Derived::Length {
+                    field: "tlen",
+                    at: 2,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Bytes,
+                },
+                Derived::Length {
+                    field: "plen",
+                    at: 4,
+                    base: crate::schema::LengthBase::LayerEnd,
+                    units: crate::schema::LengthUnits::Bytes,
+                },
+                Derived::Length {
+                    field: "q4",
+                    at: 6,
+                    base: crate::schema::LengthBase::Span,
+                    units: crate::schema::LengthUnits::Octlets4,
+                },
+                Derived::Checksum {
+                    field: "ckf",
+                    at: 10,
+                    start: crate::schema::ChecksumStart::UpperPacket,
+                    end: ChecksumEnd::Layer,
+                    pseudo: PseudoSource::FromFacts,
+                },
+            ]
+        }
+    }
+
+    struct MockL5;
+    impl Codec for MockL5 {
+        fn schema(&self) -> &'static LayerSchema {
+            &L5_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(4)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'b>(&self, bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+            l5_read(bytes, ctx)
+        }
+        fn layouts(&self) -> &'static [(&'static str, Layout)] {
+            &[
+                ("ck", Layout::Bytes { at: 0, len: 2 }),
+                ("c5", Layout::Bytes { at: 2, len: 2 }),
+            ]
+        }
+        fn derived(&self) -> &'static [Derived] {
+            &[
+                Derived::Checksum {
+                    field: "ck",
+                    at: 0,
+                    start: crate::schema::ChecksumStart::Layer,
+                    end: ChecksumEnd::Layer,
+                    pseudo: PseudoSource::None,
+                },
+                Derived::Length {
+                    field: "c5",
+                    at: 2,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Bytes,
+                },
+            ]
+        }
+    }
+
+    fn net_registry() -> Registry {
+        let mut r = Registry::default();
+        r.register(&MockNet);
+        r.register(&MockL4);
+        r.register(&MockL5);
+        r
+    }
+
+    fn net_frame(payload: &[u8]) -> crate::dissect::DissectedPacket {
+        let reg = net_registry();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&[10, 0, 0, 1, 10, 0, 0, 2, 17, 0, 0, 0]); // net(12)
+        bytes.extend_from_slice(&[0; 12]); // l4(12)
+        bytes.extend_from_slice(&[0; 4]); // l5(4)
+        bytes.extend_from_slice(payload);
+        crate::dissect::dissect(&reg, &bytes, "mocknet")
+    }
+
+    #[test]
+    fn recompute_length_bases_at_nonzero_offsets() {
+        let reg = net_registry();
+        let p = net_frame(&[]);
+        // Selective scope: the lengths under test (Scope::all would also
+        // hit nck, the pointed empty-range checksum below).
+        let scope = Scope::select(&["mockl4.tlen", "mockl4.plen", "mockl4.q4", "mockl5.c5"])
+            .expect("scope");
+        let out = patch(&reg, &p, &[], &scope).expect("patch");
+        assert_eq!(out.len(), 28);
+        let l4 = 12; // l4 layer start
+        // tlen (LayerStart): frame end − l4 start = 28 − 12 = 16.
+        assert_eq!(&out[l4 + 2..l4 + 4], &16u16.to_be_bytes()[..], "tlen");
+        // plen (LayerEnd): frame end − l4 end = 28 − 24 = 4.
+        assert_eq!(&out[l4 + 4..l4 + 6], &4u16.to_be_bytes()[..], "plen");
+        // q4 (Span, Octlets4): 12 covered octets → (12/4) − 2 = 1.
+        assert_eq!(out[l4 + 6], 1, "q4");
+        // l5 c5 (LayerStart): frame end − l5 start = 28 − 24 = 4.
+        assert_eq!(&out[24 + 2..24 + 4], &4u16.to_be_bytes()[..], "c5");
+        // With a payload of 4: frame = 32 — every covered length moves.
+        let p2 = net_frame(&[0xde, 0xad, 0xbe, 0xef]);
+        let out2 = patch(&reg, &p2, &[], &scope).expect("patch");
+        assert_eq!(out2.len(), 32);
+        assert_eq!(&out2[l4 + 2..l4 + 4], &20u16.to_be_bytes()[..], "tlen");
+        assert_eq!(&out2[l4 + 4..l4 + 6], &8u16.to_be_bytes()[..], "plen");
+        assert_eq!(&out2[24 + 2..24 + 4], &8u16.to_be_bytes()[..], "c5");
+    }
+
+    #[test]
+    fn recompute_checksum_covers_and_pseudo_header() {
+        let reg = net_registry();
+        let p = net_frame(&[0xde, 0xad]);
+        // Each derived checksum recomputed in isolation (a shared scope
+        // would let one derivation's writes feed the next fold — order
+        // dependence belongs to the caller's scope choice, not here).
+        let only = |field: &str| Scope::select(&[field]).expect("scope");
+        let u16_at = |o: &Bytes, i: usize| u16::from_be_bytes([o[i], o[i + 1]]);
+
+        // ckf: UpperPacket start (net records 12) → l4 span end (24),
+        // FromFacts pseudo (v4 10.0.0.1→10.0.0.2, proto 17), checksum at
+        // l4+10; the covered region excludes the checksum field itself.
+        let out = patch(&reg, &p, &[], &only("mockl4.ckf")).expect("patch");
+        let l4 = 12;
+        let mut acc = ChecksumAccumulator::new();
+        crate::checksum::PseudoHeader::V4 {
+            src: "10.0.0.1".parse().unwrap(),
+            dst: "10.0.0.2".parse().unwrap(),
+            proto: 17,
+        }
+        .accumulate_into(&mut acc, 24 - 12); // stop − start
+        acc.add_bytes(&out[12..l4 + 10]);
+        acc.add_bytes(&out[l4 + 12..24]);
+        assert_eq!(u16_at(&out, l4 + 10), acc.value(), "ckf");
+
+        // l5 ck (Layer/Layer): pos == start (24), stop = span end (28):
+        // the covered region is [24..24) ∪ [26..28) — no pseudo-header.
+        let out = patch(&reg, &p, &[], &only("mockl5.ck")).expect("patch");
+        let mut acc2 = ChecksumAccumulator::new();
+        acc2.add_bytes(&out[26..28]);
+        assert_eq!(u16_at(&out, 24), acc2.value(), "l5 ck");
+
+        // l4 ck (pos == start, end Frame): covered region [12..12) ∪
+        // [14..30) — the payload rides in, the checksum's own bytes do not.
+        let out = patch(&reg, &p, &[], &only("mockl4.ck")).expect("patch");
+        let mut acc3 = ChecksumAccumulator::new();
+        acc3.add_bytes(&out[14..30]);
+        assert_eq!(u16_at(&out, l4), acc3.value(), "l4 ck");
+    }
+
+    /// The net layer's own UpperPacket/Layer checksum: start (12) ==
+    /// stop (12) — an empty covered range is the pointed error, never a
+    /// silent zero-byte fold.
+    #[test]
+    fn empty_covered_range_checksum_is_pointed() {
+        let reg = net_registry();
+        let p = net_frame(&[]);
+        let scope = Scope::select(&["mocknet.nck"]).expect("scope");
+        assert!(matches!(
+            patch(&reg, &p, &[], &scope).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+    }
+
+    /// The net fixture's own geometry: absolute field spans, recorded
+    /// facts, and the truncation boundary at exactly 12 bytes.
+    #[test]
+    fn net_fixture_geometry_and_truncation() {
+        let reg = net_registry();
+        // Full parse: spans are absolute (offset 0 here), facts recorded.
+        let p = net_frame(&[]);
+        assert_eq!(p.layers[0].kind, "mocknet");
+        assert_eq!(p.layers[0].span, 0..12);
+        assert_eq!(
+            p.layers[0].field_spans.get("src"),
+            Some(&FieldSpan::Bytes(0..4))
+        );
+        assert_eq!(
+            p.layers[0].field_spans.get("dst"),
+            Some(&FieldSpan::Bytes(4..8))
+        );
+        assert_eq!(
+            p.layers[0].field_spans.get("proto"),
+            Some(&FieldSpan::Bytes(8..9))
+        );
+        assert_eq!(p.facts.upper_start, Some(12));
+        // Exactly 12: the last good net length (the `==` boundary); l4
+        // then sees 0 bytes and truncates.
+        let p12 = crate::dissect::dissect(&reg, &[0u8; 12], "mocknet");
+        assert_eq!(p12.layers[0].kind, "mocknet");
+        assert_eq!(p12.layers[1].kind, "unknown");
+        // 11: net-truncated → never fatal, unknown tail.
+        let p11 = crate::dissect::dissect(&reg, &[0u8; 11], "mocknet");
+        assert_eq!(p11.layers[0].kind, "unknown");
+        // 24 (net 12 + l4 12, no l5 bytes): l4 parses at its exact
+        // minimum; 23 is the l4 truncation.
+        let p24 = crate::dissect::dissect(&reg, &[0u8; 24], "mocknet");
+        assert_eq!(p24.layers[1].kind, "mockl4");
+        let p23 = crate::dissect::dissect(&reg, &[0u8; 23], "mocknet");
+        assert_eq!(p23.layers[1].kind, "unknown");
+    }
+
+    // --- recompute bounds: the pos/stop boundary errors -------------------
+    //
+    // A 2-byte mock with TWO derived checksums (at 1 and at 4) driven over
+    // frames of 2/3/5/6 bytes pins every `pos + 2 > frame.len()` mutant:
+    // Err on the far side, Ok on the exact boundary.
+
+    static BAD_FIELDS: &[FieldSchema] = &[
+        FieldSchema {
+            name: "ck",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "ck",
+        },
+        FieldSchema {
+            name: "ck4",
+            kind: FieldKind::U16,
+            bit_names: &[],
+            default: Value::Int(0),
+            required: false,
+            doc: "ck4",
+        },
+    ];
+    static BAD_SCHEMA: LayerSchema = LayerSchema {
+        kind: "mockbad",
+        rank: 5,
+        parents: &[],
+        doc: "recompute-bounds mock",
+        fields: BAD_FIELDS,
+        records: &[],
+    };
+    struct MockBad;
+    impl Codec for MockBad {
+        fn schema(&self) -> &'static LayerSchema {
+            &BAD_SCHEMA
+        }
+        fn header_len(&self, _spec: &LayerSpec) -> Result<usize, EncodeError> {
+            Ok(2)
+        }
+        fn write(&self, _spec: &LayerSpec, _ctx: &mut EncodeCtx) -> Result<(), EncodeError> {
+            Ok(())
+        }
+        fn read<'b>(&self, bytes: &'b [u8], ctx: &mut DecodeCtx<'b>) -> ReadOutcome {
+            if bytes.len() < 2 {
+                return ReadOutcome::Anomaly(
+                    crate::error::DecodeError::Truncated {
+                        kind: "mockbad",
+                        need: 2,
+                        have: bytes.len(),
+                    },
+                    Next::Payload,
+                );
+            }
+            let mut fields = std::collections::BTreeMap::new();
+            fields.insert("ck".to_string(), Value::Int(0));
+            fields.insert("ck4".to_string(), Value::Int(0));
+            let view = crate::dissect::LayerView {
+                kind: "mockbad",
+                span: ctx.offset..ctx.offset + 2,
+                field_spans: Default::default(),
+                fields,
+            };
+            ReadOutcome::Layer(view, Some(Next::Payload))
+        }
+        fn layouts(&self) -> &'static [(&'static str, Layout)] {
+            &[
+                ("ck", Layout::Bytes { at: 1, len: 2 }),
+                ("ck4", Layout::Bytes { at: 4, len: 2 }),
+            ]
+        }
+        fn derived(&self) -> &'static [Derived] {
+            &[
+                Derived::Checksum {
+                    field: "ck",
+                    at: 1,
+                    start: crate::schema::ChecksumStart::Layer,
+                    end: ChecksumEnd::Frame,
+                    pseudo: PseudoSource::None,
+                },
+                Derived::Checksum {
+                    field: "ck4",
+                    at: 4,
+                    start: crate::schema::ChecksumStart::Layer,
+                    end: ChecksumEnd::Frame,
+                    pseudo: PseudoSource::None,
+                },
+                // Length fixtures at the frame edge: t2 writes its last
+                // in-bounds u16 (pos + 2 == len), t3 straddles it (pos + 2
+                // > len), t1 straddles it from 1 — the write-width bounds.
+                Derived::Length {
+                    field: "t2",
+                    at: 2,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Bytes,
+                },
+                Derived::Length {
+                    field: "t3",
+                    at: 3,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Bytes,
+                },
+                Derived::Length {
+                    field: "t1",
+                    at: 1,
+                    base: crate::schema::LengthBase::LayerStart,
+                    units: crate::schema::LengthUnits::Bytes,
+                },
+            ]
+        }
+    }
+
+    #[test]
+    fn recompute_bounds_are_pointed_at_the_frame_edge() {
+        let mut reg = Registry::default();
+        reg.register(&MockBad);
+        let dissected = |n: usize| {
+            let bytes = vec![0u8; n];
+            crate::dissect::dissect(&reg, &bytes, "mockbad")
+        };
+        // frame 2: ck@pos1 → 3 > 2 → OutOfBounds (and `&&` mutants
+        // turn every bound into a no-op → a silent Ok, which is worse).
+        let p = dissected(2);
+        assert!(matches!(
+            patch(&reg, &p, &[], &Scope::all()).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        // frame 3: ck@pos1 → 3 > 3 is false: the exact boundary is OK
+        // (scoped to ck alone so ck4 does not error first).
+        let p3 = dissected(3);
+        let scope = Scope::select(&["mockbad.ck"]).expect("scope");
+        let out = patch(&reg, &p3, &[], &scope).expect("boundary checksum");
+        assert_eq!(out.len(), 3);
+        // frame 5: ck4@pos4 → 6 > 5 → Err (and `pos − 2 > len` is the
+        // alias that must NOT trigger here).
+        let p5 = dissected(5);
+        let scope4 = Scope::select(&["mockbad.ck4"]).expect("scope");
+        assert!(matches!(
+            patch(&reg, &p5, &[], &scope4).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        // frame 6: ck4@pos4 → 6 > 6 is false: in bounds.
+        let p6 = dissected(6);
+        let out6 = patch(&reg, &p6, &[], &scope4).expect("boundary ck4");
+        assert_eq!(out6.len(), 6);
+    }
+
+    /// The derived-length write bounds (`pos + 2 > frame.len()`) at the
+    /// frame edge: the last in-bounds u16 window (pos + 2 == len) writes;
+    /// past it (pos + 2 > len) is the pointed error.
+    #[test]
+    fn derived_length_write_bounds_at_frame_edge() {
+        let mut reg = Registry::default();
+        reg.register(&MockBad);
+        // frame 4, t2@pos2 → 4 > 4 false: writes the last window.
+        let p4 = crate::dissect::dissect(&reg, &[0u8; 4], "mockbad");
+        let s2 = Scope::select(&["mockbad.t2"]).expect("scope");
+        let out = patch(&reg, &p4, &[], &s2).expect("boundary length");
+        // covered = frame 4 − layer start 0 = 4 (u16 BE).
+        assert_eq!(&out[2..4], &4u16.to_be_bytes()[..]);
+        // frame 4, t3@pos3 → 5 > 4 → Err.
+        let s3 = Scope::select(&["mockbad.t3"]).expect("scope");
+        assert!(matches!(
+            patch(&reg, &p4, &[], &s3).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
+        // frame 2, t1@pos1 → 1 + 2 = 3 > 2 → Err (and `pos − 2 > len`
+        // never underflow-errors here: pos ≥ 1).
+        let p2 = crate::dissect::dissect(&reg, &[0u8; 2], "mockbad");
+        let s1 = Scope::select(&["mockbad.t1"]).expect("scope");
+        assert!(matches!(
+            patch(&reg, &p2, &[], &s1).unwrap_err(),
+            PatchError::OutOfBounds { .. }
+        ));
     }
 
     /// Tranche 13a: a `ReEncode` span routes through the codec hook —
