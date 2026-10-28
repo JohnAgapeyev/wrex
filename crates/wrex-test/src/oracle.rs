@@ -212,6 +212,12 @@ fn etherparse_map(
         field_eq(report, "ipv6.ver", ours, &Value::Int(ip.version() as u128));
         field_eq(
             report,
+            "ipv6.payload_len",
+            ours,
+            &Value::Int(ip.payload_length() as u128),
+        );
+        field_eq(
+            report,
             "ipv6.hop_limit",
             ours,
             &Value::Int(ip.hop_limit() as u128),

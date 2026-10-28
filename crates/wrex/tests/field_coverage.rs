@@ -396,6 +396,26 @@ const G6_KIND_EXEMPT: &[(&str, &str)] = &[
         "options carried by the in-process dhcproto v6 oracle (the T17c design); \
          the fixed header IS compared by the tshark map",
     ),
+    // etherparse's SlicedPacket exposes no typed ARP/ICMP/ICMPv6 body
+    // (the payload stays raw after L3) — these kinds ride the tshark map
+    // (when live) and the committed foreign-lineage corpus goldens; the
+    // etherparse arm would be a no-op, so the audit exempts them rather
+    // than depend on tshark availability (CI has none).
+    (
+        "arp",
+        "no etherparse arm (SlicedPacket stops at L3); carried by the tshark \
+         map + the committed corpus goldens",
+    ),
+    (
+        "icmp",
+        "no etherparse arm (ICMP stays a raw payload); carried by the tshark \
+         map + the committed corpus goldens",
+    ),
+    (
+        "icmpv6",
+        "no etherparse arm (ICMPv6 stays a raw payload); carried by the tshark \
+         map + the committed corpus goldens",
+    ),
 ];
 
 /// Scalar schema fields with NO oracle arm (recorded reasons — a
@@ -419,6 +439,32 @@ const G6_FIELD_EXEMPT: &[(&str, &str, &str)] = &[
         "icmpv6",
         "rest",
         "raw 4-byte region — the generic-type body, no oracle arm",
+    ),
+    // The v6 extension-header octet-count len fields: etherparse's ext
+    // slices expose only next_header + the raw option bytes (the count
+    // lives inside the option encoding, not a typed field) — the tshark
+    // map and the ip6ext corpus goldens carry them.
+    (
+        "hopopts",
+        "len",
+        "octet-count field inside the option encoding — no etherparse \
+         exposure; tshark map + ip6ext corpus goldens carry it",
+    ),
+    (
+        "dstopts",
+        "len",
+        "same as hopopts.len (same option encoding)",
+    ),
+    (
+        "routing",
+        "len",
+        "same as hopopts.len (same option encoding)",
+    ),
+    (
+        "ah",
+        "len",
+        "AH octet-count field — etherparse stops at AH (ESP too); the \
+         tshark map + ip6ext corpus goldens carry it",
     ),
     (
         "icmpv6",

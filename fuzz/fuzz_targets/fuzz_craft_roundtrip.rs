@@ -3,6 +3,7 @@
 //! panic; if encode succeeds, dissection must not panic and must carry the
 //! encoded bytes as its leading region.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use arbitrary::Arbitrary;
@@ -44,7 +45,7 @@ fn to_packet_spec(f: &FuzzSpec) -> PacketSpec {
         let Some(schema) = registry.schema(kind) else {
             continue;
         };
-        let mut fields: BTreeMap<String, Value> = BTreeMap::new();
+        let mut fields: BTreeMap<Cow<'static, str>, Value> = BTreeMap::new();
         for fs in &l.fields {
             let field = &schema.fields[(fs.path_idx as usize) % schema.fields.len()];
             let value = match field.kind {
@@ -68,7 +69,7 @@ fn to_packet_spec(f: &FuzzSpec) -> PacketSpec {
                 }
                 _ => Value::Int(fs.int_val as u128),
             };
-            fields.insert(field.name.to_string(), value);
+            fields.insert(Cow::Borrowed(field.name), value);
         }
         layers.push(LayerSpec::with_fields(schema.kind, fields));
     }
