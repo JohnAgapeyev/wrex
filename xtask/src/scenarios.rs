@@ -308,7 +308,7 @@ pub fn capture(root: &Path, only: Option<&str>) {
 /// wrex-generated expected.json + manifest), then REWRITE the manifest
 /// with the scenario's declarative row: client commands, tool
 /// versions, sysctls, spec-vs-quirk annotations.
-fn import_with_manifest(root: &Path, pcap: &Path, s: &Scenario) -> usize {
+fn import_with_manifest(_root: &Path, pcap: &Path, s: &Scenario) -> usize {
     let dir = wrex_test::corpus::import(pcap, s.name).unwrap_or_else(|e| {
         panic!(
             "scenario {}: import failed: {e} (tcpdump wrote nothing?)",
@@ -366,14 +366,13 @@ fn frame_names(dir: &Path) -> Vec<String> {
 
 fn chrono_today() -> String {
     // The corpus importer's own date convention (no chrono dep here).
-    let out = Command::new("date")
+    Command::new("date")
         .arg("+%Y-%m-%d")
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".into());
-    out
+        .unwrap_or_else(|| "unknown".into())
 }
 
 /// The tshark review artifact: one-line dissections of every frame —

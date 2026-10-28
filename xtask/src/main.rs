@@ -476,7 +476,7 @@ fn parse_suite_times(stdout: &str, stderr: &str) -> Vec<(String, f64)> {
                 .and_then(|s| s.parse::<f64>().ok())
         })
         .collect();
-    keys.into_iter().zip(times).map(|(k, t)| (k, t)).collect()
+    keys.into_iter().zip(times).collect()
 }
 
 /// The per-crate public-API snapshot dir (the man-page pattern).
