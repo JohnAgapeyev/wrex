@@ -1,11 +1,67 @@
 //! Dissection rendering: `text` (indented field tree + `!` anomaly lines +
 //! trailing payload hexdump), `json`/`jsonl` (pinned shape).
 
+use serde::ser::SerializeMap;
 use serde_json::{Map, Value as JsonValue, json};
 
 use crate::dissect::{Anomaly, DissectedPacket, FieldSpan, LayerView};
 use crate::value::Value as WValue;
 use crate::value::mac_string;
+
+/// The pinned dissection JSON shape, **direct** (no intermediate
+/// `serde_json::Value` tree): keys serialize in the alphabetical order
+/// the tree form iterates in (`Map` is a `BTreeMap`) — `anomalies`,
+/// `layers`, `payload_hex`, `start` — byte-identical to
+/// [`dissect_to_json`]`.to_string()`, without the per-field `String`
+/// key allocations, node allocs and drop walk the tree form pays.
+impl serde::Serialize for DissectedPacket {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(4))?;
+        map.serialize_entry("anomalies", &self.anomalies)?;
+        map.serialize_entry("layers", &self.layers)?;
+        map.serialize_entry("payload_hex", &hex::encode(&self.payload))?;
+        map.serialize_entry("start", self.start)?;
+        map.end()
+    }
+}
+
+/// `{"fields", "kind", "span"}` (alphabetical — the tree iteration
+/// order), `fields` keys in the map's sorted order, values through
+/// [`field_json`] (the name-rendering grammar: `eth.type`/`ipv4.proto`
+/// render protocol names) — byte-identical to the tree form.
+impl serde::Serialize for LayerView {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(3))?;
+        map.serialize_entry("fields", &LayerFields(self))?;
+        map.serialize_entry("kind", self.kind)?;
+        map.serialize_entry("span", &(self.span.start, self.span.end))?;
+        map.end()
+    }
+}
+
+/// The `fields` map of one layer, serialized through the shared
+/// value-rendering grammar (see [`field_json`]).
+struct LayerFields<'a>(&'a LayerView);
+
+impl serde::Serialize for LayerFields<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(self.0.fields.len()))?;
+        for (name, value) in &self.0.fields {
+            map.serialize_entry(name.as_ref(), &field_json(self.0.kind, name, value))?;
+        }
+        map.end()
+    }
+}
+
+/// `{"message", "path"}` (alphabetical — the tree iteration order).
+impl serde::Serialize for Anomaly {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(2))?;
+        map.serialize_entry("message", &self.message)?;
+        map.serialize_entry("path", &self.path)?;
+        map.end()
+    }
+}
 
 /// Ethertype → protocol name (for rendering `eth.type` / `vlan.type`).
 pub const fn ethertype_name(v: u16) -> Option<&'static str> {
@@ -177,9 +233,11 @@ fn anomaly_json(a: &Anomaly) -> JsonValue {
     json!({ "path": a.path, "message": a.message })
 }
 
-/// `jsonl`: one line per packet.
+/// `jsonl`: one line per packet — the **direct** serializer (no tree;
+/// see the [`serde::Serialize for DissectedPacket`] impl), the recv/
+/// replay hot path.
 pub fn dissect_to_jsonl(p: &DissectedPacket) -> String {
-    dissect_to_json(p).to_string()
+    serde_json::to_string(p).expect("dissection serializes")
 }
 
 /// [`dissect_to_jsonl`] with the opt-in extras (spans / frame), the
@@ -203,63 +261,88 @@ pub fn field_span_text(span: &FieldSpan) -> String {
     }
 }
 
-fn field_text(kind: &str, name: &str, value: &WValue) -> String {
+/// The text value grammar, written directly into `out` (no per-value
+/// `String`): the protocol-name rendering for `eth/vlan.type`,
+/// `ipv4.proto`, `ipv6.next_header` (see [`field_json`]'s twin), else
+/// the plain value text.
+fn write_field_text(out: &mut String, kind: &str, name: &str, value: &WValue) {
+    use std::fmt::Write as _;
     if kind == "eth"
         && name == "type"
         && let WValue::Int(v) = value
         && let Some(n) = ethertype_name(*v as u16)
     {
-        return n.to_string();
+        out.push_str(n);
+        return;
     }
     if kind == "vlan"
         && name == "type"
         && let WValue::Int(v) = value
         && let Some(n) = ethertype_name(*v as u16)
     {
-        return n.to_string();
+        out.push_str(n);
+        return;
     }
     if kind == "ipv4"
         && name == "proto"
         && let WValue::Int(v) = value
         && let Some(n) = ip_proto_name(*v as u8)
     {
-        return n.to_string();
+        out.push_str(n);
+        return;
     }
     if kind == "ipv6"
         && name == "next_header"
         && let WValue::Int(v) = value
         && let Some(n) = ip6_next_header_name(*v as u8)
     {
-        return n.to_string();
+        out.push_str(n);
+        return;
     }
     match value {
-        WValue::Bool(b) => b.to_string(),
-        WValue::Int(v) => v.to_string(),
-        WValue::Bytes(b) => hex::encode(b),
-        WValue::Str(s) => s.to_string(),
-        WValue::Ipv4(a) => a.to_string(),
-        WValue::Ipv6(a) => a.to_string(),
-        WValue::Mac(m) => mac_string(*m),
+        WValue::Bool(b) => {
+            let _ = write!(out, "{b}");
+        }
+        WValue::Int(v) => {
+            let _ = write!(out, "{v}");
+        }
+        WValue::Bytes(b) => write_hex(out, b),
+        WValue::Str(s) => out.push_str(s),
+        WValue::Ipv4(a) => {
+            let _ = write!(out, "{a}");
+        }
+        WValue::Ipv6(a) => {
+            let _ = write!(out, "{a}");
+        }
+        WValue::Mac(m) => {
+            let mut it = m.iter();
+            if let Some(b) = it.next() {
+                let _ = write!(out, "{b:02x}");
+            }
+            for b in it {
+                let _ = write!(out, ":{b:02x}");
+            }
+        }
         WValue::List(items) => {
-            let parts: Vec<String> = items
-                .iter()
-                .map(|v| match v {
-                    WValue::Str(s) => s.to_string(),
-                    other => field_text(kind, name, other),
-                })
-                .collect();
-            parts.join(",")
+            for (i, v) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                match v {
+                    WValue::Str(s) => out.push_str(s),
+                    other => write_field_text(out, kind, name, other),
+                }
+            }
         }
     }
 }
 
-/// Hexdump `payload (N bytes):` + 16-per-line hex pairs.
+/// Hexdump `payload (N bytes):` + 16-per-line hex pairs — single-buffer
+/// writes (one `String` total; the per-byte `format!` allocation of the
+/// naive form showed up in the render tripwire).
 pub fn hexdump(bytes: &[u8]) -> String {
-    let mut out = String::new();
-    for (i, chunk) in bytes.chunks(16).enumerate() {
-        let hexes: Vec<String> = chunk.iter().map(|b| format!("{b:02x}")).collect();
-        out.push_str(&format!("  {:04x}  {}\n", i * 16, hexes.join(" ")));
-    }
+    let mut out = String::with_capacity(bytes.len() * 4 + bytes.len().div_ceil(16) * 12);
+    write_hexdump(&mut out, bytes);
     out
 }
 
@@ -275,44 +358,68 @@ pub fn dissect_to_text(p: &DissectedPacket) -> String {
 /// `frame (N bytes): <hex>` line after the payload section). Without
 /// the flags the text is byte-identical to [`dissect_to_text`].
 pub fn dissect_to_text_spans(p: &DissectedPacket, spans: bool, frame: bool) -> String {
-    let mut out = String::new();
-    for (i, layer) in p.layers.iter().enumerate() {
-        let indent = "  ".repeat(i);
-        out.push_str(&format!("{indent}{}\n", layer.kind));
+    use std::fmt::Write as _;
+    // Single pre-sized buffer, `write!` per line — no per-line/per-byte
+    // `format!` String allocations (the render tripwires caught them).
+    let mut out = String::with_capacity(p.frame.len() * 4 + 256);
+    let mut indent = String::new();
+    for layer in &p.layers {
+        let _ = writeln!(out, "{indent}{}", layer.kind);
         for (name, value) in &layer.fields {
-            out.push_str(&format!(
-                "{indent}  {name}: {}\n",
-                field_text(layer.kind, name, value)
-            ));
+            let _ = write!(out, "{indent}  {name}: ");
+            write_field_text(&mut out, layer.kind, name, value);
+            out.push('\n');
         }
         if spans {
-            out.push_str(&format!("{indent}  spans:\n"));
+            let _ = writeln!(out, "{indent}  spans:");
             for (name, span) in &layer.field_spans {
-                out.push_str(&format!("{indent}    {name}: {}\n", field_span_text(span)));
+                let _ = writeln!(out, "{indent}    {name}: {}", field_span_text(span));
             }
         }
+        indent.push_str("  ");
     }
     if !p.payload.is_empty() {
-        out.push_str(&format!("payload ({} bytes):\n", p.payload.len()));
-        out.push_str(&hexdump(&p.payload));
+        let _ = writeln!(out, "payload ({} bytes):", p.payload.len());
+        write_hexdump(&mut out, &p.payload);
     } else {
         out.push_str("payload (0 bytes)\n");
     }
     if frame {
-        out.push_str(&format!(
-            "frame ({} bytes): {}\n",
-            p.frame.len(),
-            hex::encode(&p.frame)
-        ));
+        let _ = write!(out, "frame ({} bytes): ", p.frame.len());
+        write_hex(&mut out, &p.frame);
+        out.push('\n');
     }
     if spans {
         let payload_at = p.frame.len() - p.payload.len();
-        out.push_str(&format!("payload span @{payload_at}..{}\n", p.frame.len()));
+        let _ = writeln!(out, "payload span @{payload_at}..{}", p.frame.len());
     }
     for a in &p.anomalies {
-        out.push_str(&format!("{a}\n"));
+        let _ = writeln!(out, "{a}");
     }
     out
+}
+
+/// Lowercase hex into `out` (no intermediate `String`; the per-value
+/// `hex::encode` allocation was visible in the render profile).
+fn write_hex(out: &mut String, bytes: &[u8]) {
+    use std::fmt::Write as _;
+    out.reserve(bytes.len() * 2);
+    for b in bytes {
+        let _ = write!(out, "{b:02x}");
+    }
+}
+
+/// Hexdump lines written directly into `out` (the writer twin of
+/// [`hexdump`]).
+fn write_hexdump(out: &mut String, bytes: &[u8]) {
+    use std::fmt::Write as _;
+    for (i, chunk) in bytes.chunks(16).enumerate() {
+        let _ = write!(out, "  {:04x} ", i * 16);
+        for b in chunk {
+            let _ = write!(out, " {b:02x}");
+        }
+        out.push('\n');
+    }
 }
 
 #[cfg(test)]

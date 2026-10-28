@@ -324,37 +324,37 @@ impl IntoFrame for Box<[u8]> {
     }
 }
 
-impl<'a> IntoFrame for &'a Bytes {
+impl IntoFrame for &Bytes {
     fn into_frame(self) -> Bytes {
         self.clone()
     }
 }
 
-impl<'a> IntoFrame for &'a [u8] {
+impl IntoFrame for &[u8] {
     fn into_frame(self) -> Bytes {
         Bytes::copy_from_slice(self)
     }
 }
 
-impl<'a, const N: usize> IntoFrame for &'a [u8; N] {
+impl<const N: usize> IntoFrame for &[u8; N] {
     fn into_frame(self) -> Bytes {
         Bytes::copy_from_slice(&self[..])
     }
 }
 
-impl<'a> IntoFrame for &'a Vec<u8> {
+impl IntoFrame for &Vec<u8> {
     fn into_frame(self) -> Bytes {
         Bytes::copy_from_slice(self)
     }
 }
 
-impl<'a> IntoFrame for &'a mut [u8] {
+impl IntoFrame for &mut [u8] {
     fn into_frame(self) -> Bytes {
         Bytes::copy_from_slice(self)
     }
 }
 
-impl<'a> IntoFrame for &'a BytesMut {
+impl IntoFrame for &BytesMut {
     fn into_frame(self) -> Bytes {
         Bytes::copy_from_slice(&self[..])
     }

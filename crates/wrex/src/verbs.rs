@@ -10,8 +10,8 @@ use crate::spec::packet_spec_from_matches;
 use wrex_core::dissect::dissect;
 use wrex_core::encode::EncodeOpts;
 use wrex_core::render::{
-    dissect_to_json, dissect_to_json_spans, dissect_to_jsonl, dissect_to_jsonl_spans,
-    dissect_to_text, dissect_to_text_spans,
+    dissect_to_json_spans, dissect_to_jsonl, dissect_to_jsonl_spans, dissect_to_text,
+    dissect_to_text_spans,
 };
 use wrex_core::value::Value;
 use wrex_core::{Filter, FilterError, PacketSpec, Registry, SpecError, encode};
@@ -746,10 +746,8 @@ fn recv(
                 write_stdout(out.as_bytes())?;
             }
             Format::Json => {
-                let mut out = serde_json::to_string(&dissect_to_json(
-                    packet.as_ref().expect("dissected for output"),
-                ))
-                .map_err(|e| usage(format!("json: {e}")))?;
+                let mut out = serde_json::to_string(packet.as_ref().expect("dissected for output"))
+                    .map_err(|e| usage(format!("json: {e}")))?;
                 out.push('\n');
                 write_stdout(out.as_bytes())?;
             }
@@ -791,8 +789,8 @@ fn print_frame(
             write_stdout(out.as_bytes())?;
         }
         Format::Json => {
-            let mut out = serde_json::to_string(&dissect_to_json(packet))
-                .map_err(|e| usage(format!("json: {e}")))?;
+            // Direct serializer (no intermediate tree) — identical bytes.
+            let mut out = serde_json::to_string(packet).map_err(|e| usage(format!("json: {e}")))?;
             out.push('\n');
             write_stdout(out.as_bytes())?;
         }
@@ -2652,7 +2650,7 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
                     s
                 }
                 Format::Json => {
-                    let mut s = serde_json::to_string_pretty(&dissect_to_json(&pkt))
+                    let mut s = serde_json::to_string_pretty(&pkt)
                         .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
                     s.push('\n');
                     s
@@ -2758,7 +2756,7 @@ fn query_tcp(
                         s
                     }
                     Format::Json => {
-                        let mut s = serde_json::to_string_pretty(&dissect_to_json(&pkt))
+                        let mut s = serde_json::to_string_pretty(&pkt)
                             .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
                         s.push('\n');
                         s

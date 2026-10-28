@@ -8,6 +8,30 @@ tranche.
 
 ## [Unreleased]
 
+### Changed — performance pass 2 (direct render, data-sizes audit)
+
+- **Direct JSON serialization** (`wrex-core/src/render.rs`): `DissectedPacket`,
+  `LayerView` (fields through the shared name-rendering grammar), and `Anomaly`
+  implement `Serialize` directly — the default `jsonl`/`json` paths no longer
+  build a `serde_json::Value` tree (owned `String` keys per field, node
+  allocs, drop walk) just to serialize it. Keys emit in the alphabetical
+  order the tree form iterated in — byte-identical (all pinned-golden and
+  differential suites pass). `render/jsonl`: **−79%** (966µs → 206µs per
+  corpus pass); the `--spans`/`--frame` extras keep the tree form.
+- **Single-buffer text rendering**: `dissect_to_text_spans` writes into one
+  pre-sized `String` (no per-line `format!` allocation); `hexdump` writes
+  directly (the old form allocated one `String` **per byte**); value
+  rendering writes in place (no per-value `String`). `render/text`:
+  **−58%** (940µs → 394µs).
+- **Cumulative recv/replay** (jsonl default): 1.55ms → 560µs per corpus
+  pass, **−64%** across both performance passes.
+- Audited and deliberately left alone (each <3% with real API cost):
+  `Value`'s 48-byte size (u128 alignment — boxing `Bytes`/`Vec`/`Cow`
+  payloads would trade hot-path allocs for node size), codec-side dynamic
+  key `format!` (~2% of dissect), `Registry::get` linear scans (cold,
+  ~20 entries), `options_region` re-parse under the encode capacity
+  estimate (early-exits on typical specs).
+
 ### Changed — performance pass 1 (allocation-profile tripwires)
 
 Measured first (criterion tripwires + perf/callgrind/dhat attribution),
