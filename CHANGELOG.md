@@ -8,6 +8,24 @@ tranche.
 
 ## [Unreleased]
 
+### Added — performance differentials (informational rail)
+
+- **`cargo xtask perf-diff`** (`xtask/src/perfdiff.rs`): wall-clock
+  differentials vs the reference tools on equivalent output — the
+  timing sibling of the logical differentials (which prove
+  equivalence) and the criterion tripwires (which prove stability
+  over time). Rows: tshark cold/text/jsonl/json over corpus-cycled
+  pcaps (classic + pcapng), dig UDP + TCP against a harness-owned
+  dnsmasq, curl cold 1KiB/1MiB + 100-URL keep-alive against an
+  in-process HTTP/1.1 stub, nmap connect/SYN burst + connect
+  defaults against a loopback listener farm. Warmup + interleaved
+  reps, median + min + ours/theirs ratio, exact commands and
+  attribution notes printed (the measured home of "key things they do
+  that we don't"), JSON artifact under `target/perfdiff/`;
+  release-profile precondition and `unshare -Urn` re-exec built in.
+  Advisory forever — no gate reads the numbers (docs:
+  verification.md "Performance differentials").
+
 ### Changed — performance pass 2 (direct render, data-sizes audit)
 
 - **Direct JSON serialization** (`wrex-core/src/render.rs`): `DissectedPacket`,

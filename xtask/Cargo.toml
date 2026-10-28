@@ -4,12 +4,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "wrex dev task runner: verify / coverage / corpus-import"
+description = "wrex dev task runner: verify / coverage / corpus-import / perf-diff"
 
 [dependencies]
 clap = { workspace = true }
 wrex = { workspace = true }
 wrex-core = { workspace = true }
+wrex-pcap = { workspace = true }
 wrex-test = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }

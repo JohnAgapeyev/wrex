@@ -61,8 +61,9 @@ fn tool_version(name: &str) -> String {
 }
 
 /// Which tool must exist for a scenario to run (skip-with-notice when
-/// absent — the doctrine's tool-optionality rule).
-fn have_tool(name: &str) -> bool {
+/// absent — the doctrine's tool-optionality rule; shared with the
+/// perf-diff harness rows).
+pub(crate) fn have_tool(name: &str) -> bool {
     Command::new("sh")
         .arg("-ec")
         .arg(format!("command -v {name} >/dev/null"))

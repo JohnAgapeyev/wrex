@@ -209,6 +209,46 @@ workflows per-commit, driver-dependent ones in the env-gated job.
 Documentation cannot lie: every documented command is a command CI
 actually runs.
 
+## Performance differentials (informational)
+
+The logical differentials prove *equivalence*; the criterion
+tripwires prove *stability*; neither answers "are we fast?" against
+the tools being fused. `cargo xtask perf-diff` measures the third
+thing: wall-clock differentials vs tshark / dig / curl / nmap on
+equivalent output. Informational forever (the `hotpaths.rs` posture):
+numbers land in the run logs and `target/perfdiff/report.json`, and
+no gate ever reads them. A perf gap found here becomes a tripwire
+bench + an optimization pass; a policy gap becomes a roadmap line.
+
+- **Methodology**: release-profile precondition (dev-profile numbers
+  measure debug-assertions); one discarded warmup per side, then N
+  reps (`--reps`, default 5) interleaved ours/theirs so scheduler
+  drift lands on both sides of every rep equally; median + min +
+  ratio reported. Every row prints its exact commands (reproduction)
+  and an attribution note — the note is where "key things they do
+  that we don't" gets recorded from measurement, not guess (the first
+  baseline's notes: the AF_PACKET tap bind's RCU-sync cost under the
+  udp query row; the scan session's 1ms send-spacing floor under the
+  burst rows).
+- **Environment**: the driver re-execs under `unshare -Urn` (the
+  corpus-capture pattern) — the raw-UDP query row and the scan rows
+  need CAP_NET_RAW, and one uniform environment keeps all rows
+  comparable. `--no-sandbox` stays outside and skips those rows.
+- **Fixtures are harness-owned** so the far side is never the
+  measured bottleneck and no external network is touched: pcaps
+  cycled from the committed golden corpus (classic + pcapng),
+  dnsmasq on a free loopback port, an in-process HTTP/1.1 keep-alive
+  stub, a loopback listener farm whose accept threads prevent
+  accept-queue overflow.
+
+| pair | wrex | reference | equivalence |
+|---|---|---|---|
+| dissect | `wrex replay --format text` | `tshark -r -n -V` | full per-frame field tree |
+| dissect | `wrex replay --format jsonl` | `tshark -T ek` / `-T json` | per-frame structured output (streaming NDJSON / buffered array) |
+| dns | `wrex query` | `dig` | one question, default output, UDP + TCP |
+| http | `wrex http` | `curl -s` | GET → response consumed; cold + 100-URL keep-alive |
+| scan | `wrex scan` | `nmap` | port classification; connect + SYN, burst-pinned + defaults rows |
+
 ## Maintainability rails (HP3-d/e)
 
 **The grammar census (consolidation target).** Five codec crates carry

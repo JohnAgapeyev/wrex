@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 mod man;
 mod mcdc;
+mod perfdiff;
 mod scenarios;
 use clap::{Parser, Subcommand};
 
@@ -63,6 +64,21 @@ enum Cmd {
         #[arg(long)]
         only: Option<String>,
     },
+    /// performance differentials vs tshark/dig/curl/nmap on equivalent
+    /// output (informational, like the bench tripwires — never a gate).
+    /// Re-execs under `unshare -Urn` (raw-socket rows need CAP_NET_RAW);
+    /// `--no-sandbox` stays outside and skips those rows.
+    PerfDiff {
+        /// only rows whose name contains this substring
+        #[arg(long)]
+        only: Option<String>,
+        /// repetitions per side (median + min reported)
+        #[arg(long, default_value = "5")]
+        reps: u32,
+        /// stay outside the sandbox; raw-socket rows skip with notice
+        #[arg(long)]
+        no_sandbox: bool,
+    },
 }
 
 fn main() {
@@ -96,6 +112,50 @@ fn main() {
         Cmd::CorpusCapture { only } => {
             corpus_capture(&root, only.as_deref());
         }
+        Cmd::PerfDiff {
+            only,
+            reps,
+            no_sandbox,
+        } => {
+            perf_diff(&root, only.as_deref(), reps, no_sandbox);
+        }
+    }
+}
+
+/// `cargo xtask perf-diff` — the release-profile precondition, then
+/// the `unshare -Urn` re-exec (the corpus-capture pattern): the
+/// raw-UDP query row and every scan row need CAP_NET_RAW, and one
+/// uniform environment keeps all rows comparable.
+fn perf_diff(root: &Path, only: Option<&str>, reps: u32, no_sandbox: bool) {
+    // Release precondition (the hotpaths rule): a dev-profile wrex
+    // measures debug-assertions and overflow checks, not wrex.
+    run(
+        root,
+        "wrex release build",
+        "cargo",
+        &["build", "--release", "-p", "wrex"],
+    );
+    let in_sandbox = std::env::var("WREX_PERFDIFF_SANDBOX").as_deref() == Ok("1");
+    if in_sandbox || no_sandbox {
+        perfdiff::run(root, only, reps, in_sandbox);
+        return;
+    }
+    let mut cmd =
+        format!("export WREX_PERFDIFF_SANDBOX=1; cargo run -q -p xtask -- perf-diff --reps {reps}");
+    if let Some(name) = only {
+        cmd.push_str(&format!(" --only {name:?}"));
+    }
+    let status = Command::new("unshare")
+        .arg("-Urn")
+        .arg("sh")
+        .arg("-ec")
+        .arg(&cmd)
+        .current_dir(root)
+        .status()
+        .expect("spawn unshare (needs a kernel with user namespaces)");
+    if !status.success() {
+        eprintln!("xtask perf-diff: sandbox run failed ({status})");
+        std::process::exit(1);
     }
 }
 

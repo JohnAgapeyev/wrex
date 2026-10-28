@@ -403,6 +403,12 @@ cargo xtask coverage --branch --mcdc-probe   # advisory coverage + MC/DC probe
   http:// and https:// over the same in-test TLS stub, reqwest with
   `rustls-tls`) and curl (subprocess, stub server). Missing tools
   skip with a printed notice.
+- Performance differentials: `cargo xtask perf-diff` — informational
+  wall-clock vs tshark/dig/curl/nmap on equivalent output (cold + hot
+  dissect, udp/tcp query, http cold/keep-alive, connect/syn scan;
+  advisory like the criterion tripwires, numbers land in run logs +
+  `target/perfdiff/report.json`; re-execs under `unshare -Urn` for
+  the raw-socket rows).
 - Kani proofs (gating CI job, scoped for cost): chunked-body decoder
   panic-freedom and checksum folding — curated bounds under a 6GB
   memory ceiling (a dns decode_name proof was retired: every scoped

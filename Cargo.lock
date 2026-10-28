@@ -2966,6 +2966,7 @@ dependencies = [
  "toml",
  "wrex",
  "wrex-core",
+ "wrex-pcap",
  "wrex-test",
 ]
 
