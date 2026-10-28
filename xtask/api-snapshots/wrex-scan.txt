@@ -100,7 +100,7 @@ pub unsafe fn wrex_scan::config::ScanConfig::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_scan::config::ScanConfig
 pub fn wrex_scan::config::ScanConfig::from(T) -> T
 pub const wrex_scan::config::DEFAULT_CONCURRENT: usize
-pub const wrex_scan::config::DEFAULT_RATE: u64
+pub const wrex_scan::config::DEFAULT_INTERVAL: core::time::Duration
 pub const wrex_scan::config::DEFAULT_RETRIES: u32
 pub const wrex_scan::config::DEFAULT_TCP_PORTS: &[u16]
 pub const wrex_scan::config::DEFAULT_TIMEOUT: core::time::Duration
@@ -584,5 +584,5 @@ impl<T> core::borrow::BorrowMut<T> for wrex_scan::session::ScanSession<'a> where
 pub fn wrex_scan::session::ScanSession<'a>::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_scan::session::ScanSession<'a>
 pub fn wrex_scan::session::ScanSession<'a>::from(T) -> T
-pub const wrex_scan::DEFAULT_RATE: u64
+pub const wrex_scan::DEFAULT_INTERVAL: core::time::Duration
 pub const wrex_scan::DEFAULT_TCP_PORTS: &[u16]

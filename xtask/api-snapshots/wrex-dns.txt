@@ -76,41 +76,6 @@ impl<T> core::clone::CloneToUninit for wrex_dns::DnsTcpReply where T: core::clon
 pub unsafe fn wrex_dns::DnsTcpReply::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_dns::DnsTcpReply
 pub fn wrex_dns::DnsTcpReply::from(T) -> T
-pub struct wrex_dns::DnsSession<'a>
-impl<'a> wrex_dns::DnsSession<'a>
-pub fn wrex_dns::DnsSession<'a>::new(&'a wrex_core::codec::Registry, wrex_dns::QueryConfig, core::net::ip_addr::IpAddr, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
-pub fn wrex_dns::DnsSession<'a>::query_bytes(&self) -> &bytes::bytes::Bytes
-pub fn wrex_dns::DnsSession<'a>::query_id(&self) -> u16
-impl<'a> wrex_session::Session for wrex_dns::DnsSession<'a>
-pub type wrex_dns::DnsSession<'a>::Output = wrex_dns::DnsReply
-pub fn wrex_dns::DnsSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
-pub fn wrex_dns::DnsSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
-pub fn wrex_dns::DnsSession<'a>::on_timeout(&mut self, std::time::Instant)
-pub fn wrex_dns::DnsSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
-pub fn wrex_dns::DnsSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_dns::DnsReply>
-impl<'a> !core::marker::Freeze for wrex_dns::DnsSession<'a>
-impl<'a> core::marker::Send for wrex_dns::DnsSession<'a>
-impl<'a> core::marker::Sync for wrex_dns::DnsSession<'a>
-impl<'a> core::marker::Unpin for wrex_dns::DnsSession<'a>
-impl<'a> core::marker::UnsafeUnpin for wrex_dns::DnsSession<'a>
-impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_dns::DnsSession<'a>
-impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_dns::DnsSession<'a>
-impl<T, U> core::convert::Into<U> for wrex_dns::DnsSession<'a> where U: core::convert::From<T>
-pub fn wrex_dns::DnsSession<'a>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for wrex_dns::DnsSession<'a> where U: core::convert::Into<T>
-pub type wrex_dns::DnsSession<'a>::Error = never
-pub fn wrex_dns::DnsSession<'a>::try_from(U) -> core::result::Result<T, never>
-impl<T, U> core::convert::TryInto<U> for wrex_dns::DnsSession<'a> where U: core::convert::TryFrom<T>
-pub type wrex_dns::DnsSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn wrex_dns::DnsSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for wrex_dns::DnsSession<'a> where T: 'static + ?core::marker::Sized
-pub fn wrex_dns::DnsSession<'a>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for wrex_dns::DnsSession<'a> where T: ?core::marker::Sized
-pub fn wrex_dns::DnsSession<'a>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsSession<'a> where T: ?core::marker::Sized
-pub fn wrex_dns::DnsSession<'a>::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for wrex_dns::DnsSession<'a>
-pub fn wrex_dns::DnsSession<'a>::from(T) -> T
 pub struct wrex_dns::DnsTcpSession<'a>
 impl<'a> wrex_dns::DnsTcpSession<'a>
 pub fn wrex_dns::DnsTcpSession<'a>::new(&'a wrex_core::codec::Registry, wrex_dns::QueryConfig, bytes::bytes::Bytes, u16, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
@@ -144,6 +109,39 @@ impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsTcpSession<'a> where T: ?cor
 pub fn wrex_dns::DnsTcpSession<'a>::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_dns::DnsTcpSession<'a>
 pub fn wrex_dns::DnsTcpSession<'a>::from(T) -> T
+pub struct wrex_dns::DnsUdpSession<'a>
+impl<'a> wrex_dns::DnsUdpSession<'a>
+pub fn wrex_dns::DnsUdpSession<'a>::new(&'a wrex_core::codec::Registry, wrex_dns::QueryConfig, bytes::bytes::Bytes, u16, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl<'a> wrex_session::Session for wrex_dns::DnsUdpSession<'a>
+pub type wrex_dns::DnsUdpSession<'a>::Output = wrex_dns::DnsReply
+pub fn wrex_dns::DnsUdpSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_dns::DnsUdpSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_dns::DnsUdpSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_dns::DnsUdpSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_dns::DnsUdpSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_dns::DnsReply>
+impl<'a> !core::marker::Freeze for wrex_dns::DnsUdpSession<'a>
+impl<'a> core::marker::Send for wrex_dns::DnsUdpSession<'a>
+impl<'a> core::marker::Sync for wrex_dns::DnsUdpSession<'a>
+impl<'a> core::marker::Unpin for wrex_dns::DnsUdpSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_dns::DnsUdpSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_dns::DnsUdpSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_dns::DnsUdpSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_dns::DnsUdpSession<'a> where U: core::convert::From<T>
+pub fn wrex_dns::DnsUdpSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_dns::DnsUdpSession<'a> where U: core::convert::Into<T>
+pub type wrex_dns::DnsUdpSession<'a>::Error = never
+pub fn wrex_dns::DnsUdpSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_dns::DnsUdpSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_dns::DnsUdpSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_dns::DnsUdpSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_dns::DnsUdpSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_dns::DnsUdpSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_dns::DnsUdpSession<'a> where T: ?core::marker::Sized
+pub fn wrex_dns::DnsUdpSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsUdpSession<'a> where T: ?core::marker::Sized
+pub fn wrex_dns::DnsUdpSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_dns::DnsUdpSession<'a>
+pub fn wrex_dns::DnsUdpSession<'a>::from(T) -> T
 pub struct wrex_dns::QueryConfig
 pub wrex_dns::QueryConfig::name: alloc::string::String
 pub wrex_dns::QueryConfig::port: u16

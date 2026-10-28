@@ -305,7 +305,16 @@ fn kani_stage(root: &Path) {
 const KANI_VMEM_KB: u64 = 6 * 1024 * 1024;
 
 fn coverage(root: &Path, branch: bool, mcdc_probe: bool) {
-    let mut args = vec!["+nightly", "llvm-cov", "--workspace", "--all-features"];
+    // --exclude xtask: mirror the CI gate (binary-only dev harness,
+    // 0% noise in llvm-cov; the product crates carry the floor).
+    let mut args = vec![
+        "+nightly",
+        "llvm-cov",
+        "--workspace",
+        "--exclude",
+        "xtask",
+        "--all-features",
+    ];
     if branch {
         args.push("--branch");
     }

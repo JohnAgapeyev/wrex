@@ -191,6 +191,9 @@ pub fn wrex_io::replay::ScriptedDriver::send(&mut self, &[u8]) -> core::io::erro
 impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::udp::UdpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
 pub fn wrex_io::driver::poll_timeout_for(std::time::Instant) -> u32
 pub mod wrex_io::iface
 pub struct wrex_io::iface::IfEntry
@@ -245,6 +248,7 @@ impl wrex_io::iface::IfTable
 pub fn wrex_io::iface::IfTable::empty() -> Self
 pub fn wrex_io::iface::IfTable::entries(&self) -> impl core::iter::traits::iterator::Iterator<Item = &wrex_io::iface::IfEntry>
 pub fn wrex_io::iface::IfTable::from_sysfs(&std::path::Path) -> core::result::Result<Self, core::io::error::Error>
+pub fn wrex_io::iface::IfTable::from_sysfs_with_addrs(&std::path::Path, &[if_addrs::Interface]) -> core::result::Result<Self, core::io::error::Error>
 pub fn wrex_io::iface::IfTable::from_system() -> core::result::Result<Self, core::io::error::Error>
 pub fn wrex_io::iface::IfTable::get(&self, &str) -> core::option::Option<&wrex_io::iface::IfEntry>
 pub fn wrex_io::iface::IfTable::names(&self) -> alloc::vec::Vec<alloc::string::String>
@@ -463,6 +467,37 @@ impl<T> core::borrow::BorrowMut<T> for wrex_io::tcp::TcpDriver where T: ?core::m
 pub fn wrex_io::tcp::TcpDriver::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::from(T) -> T
+pub mod wrex_io::udp
+pub struct wrex_io::udp::UdpDriver
+impl wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>) -> core::result::Result<Self, wrex_io::driver::DriverError>
+pub fn wrex_io::udp::UdpDriver::peer(&self) -> &str
+impl wrex_io::driver::Driver for wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::udp::UdpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::udp::UdpDriver
+impl core::marker::Send for wrex_io::udp::UdpDriver
+impl core::marker::Sync for wrex_io::udp::UdpDriver
+impl core::marker::Unpin for wrex_io::udp::UdpDriver
+impl core::marker::UnsafeUnpin for wrex_io::udp::UdpDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::udp::UdpDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::udp::UdpDriver
+impl<T, U> core::convert::Into<U> for wrex_io::udp::UdpDriver where U: core::convert::From<T>
+pub fn wrex_io::udp::UdpDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::udp::UdpDriver where U: core::convert::Into<T>
+pub type wrex_io::udp::UdpDriver::Error = never
+pub fn wrex_io::udp::UdpDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::udp::UdpDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::udp::UdpDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::udp::UdpDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::udp::UdpDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::udp::UdpDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::udp::UdpDriver where T: ?core::marker::Sized
+pub fn wrex_io::udp::UdpDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::udp::UdpDriver where T: ?core::marker::Sized
+pub fn wrex_io::udp::UdpDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::from(T) -> T
 pub enum wrex_io::DriverError
 pub wrex_io::DriverError::IfaceNotFound
 pub wrex_io::DriverError::IfaceNotFound::available: alloc::string::String
@@ -623,6 +658,7 @@ impl wrex_io::iface::IfTable
 pub fn wrex_io::iface::IfTable::empty() -> Self
 pub fn wrex_io::iface::IfTable::entries(&self) -> impl core::iter::traits::iterator::Iterator<Item = &wrex_io::iface::IfEntry>
 pub fn wrex_io::iface::IfTable::from_sysfs(&std::path::Path) -> core::result::Result<Self, core::io::error::Error>
+pub fn wrex_io::iface::IfTable::from_sysfs_with_addrs(&std::path::Path, &[if_addrs::Interface]) -> core::result::Result<Self, core::io::error::Error>
 pub fn wrex_io::iface::IfTable::from_system() -> core::result::Result<Self, core::io::error::Error>
 pub fn wrex_io::iface::IfTable::get(&self, &str) -> core::option::Option<&wrex_io::iface::IfEntry>
 pub fn wrex_io::iface::IfTable::names(&self) -> alloc::vec::Vec<alloc::string::String>
@@ -930,6 +966,36 @@ impl<T> core::borrow::BorrowMut<T> for wrex_io::tcp::TcpDriver where T: ?core::m
 pub fn wrex_io::tcp::TcpDriver::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::from(T) -> T
+pub struct wrex_io::UdpDriver
+impl wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>) -> core::result::Result<Self, wrex_io::driver::DriverError>
+pub fn wrex_io::udp::UdpDriver::peer(&self) -> &str
+impl wrex_io::driver::Driver for wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::udp::UdpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::udp::UdpDriver
+impl core::marker::Send for wrex_io::udp::UdpDriver
+impl core::marker::Sync for wrex_io::udp::UdpDriver
+impl core::marker::Unpin for wrex_io::udp::UdpDriver
+impl core::marker::UnsafeUnpin for wrex_io::udp::UdpDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::udp::UdpDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::udp::UdpDriver
+impl<T, U> core::convert::Into<U> for wrex_io::udp::UdpDriver where U: core::convert::From<T>
+pub fn wrex_io::udp::UdpDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::udp::UdpDriver where U: core::convert::Into<T>
+pub type wrex_io::udp::UdpDriver::Error = never
+pub fn wrex_io::udp::UdpDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::udp::UdpDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::udp::UdpDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::udp::UdpDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::udp::UdpDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::udp::UdpDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::udp::UdpDriver where T: ?core::marker::Sized
+pub fn wrex_io::udp::UdpDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::udp::UdpDriver where T: ?core::marker::Sized
+pub fn wrex_io::udp::UdpDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::from(T) -> T
 pub trait wrex_io::Clock: core::marker::Send + core::marker::Sync
 pub fn wrex_io::Clock::fast_forward(&self, std::time::Instant)
 pub fn wrex_io::Clock::now(&self) -> std::time::Instant
@@ -960,3 +1026,6 @@ pub fn wrex_io::replay::ScriptedDriver::send(&mut self, &[u8]) -> core::io::erro
 impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::udp::UdpDriver
+pub fn wrex_io::udp::UdpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::udp::UdpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>

@@ -1161,3 +1161,60 @@ fn port_list(ports: &[u16]) -> String {
         .collect::<Vec<_>>()
         .join(",")
 }
+
+#[cfg(test)]
+mod tests {
+    //! The pure helpers (the orchestration is exercised by running the
+    //! harness; these are the parts cargo-mutants can reason about).
+
+    use super::*;
+
+    #[test]
+    fn median_odd_even_and_ordering() {
+        assert_eq!(median(&mut [3.0, 1.0, 2.0]), 2.0, "odd: the middle");
+        assert_eq!(
+            median(&mut [4.0, 1.0, 3.0, 2.0]),
+            2.5,
+            "even: the mean of the middle pair"
+        );
+        assert_eq!(median(&mut [42.0]), 42.0);
+    }
+
+    #[test]
+    fn verdict_thresholds() {
+        assert_eq!(verdict(1.0 / 3.0), "wrex ~3.0x faster");
+        assert_eq!(verdict(0.99), "same ballpark");
+        assert_eq!(verdict(1.49), "same ballpark");
+        assert_eq!(verdict(3.0), "wrex ~3.0x slower");
+    }
+
+    #[test]
+    fn ms_and_rate_formatting() {
+        assert_eq!(fmt_ms(0.156), "0.16ms", "sub-10ms keeps two decimals");
+        assert_eq!(fmt_ms(42.0), "42.0ms");
+        assert_eq!(fmt_rate(12.5, "ports"), "12.5 ports/s");
+        assert_eq!(fmt_rate(2500.0, "frames"), "2.5k frames/s");
+    }
+
+    #[test]
+    fn head_end_search() {
+        assert_eq!(find_head_end(b"GET / HTTP/1.1\r\n\r\n"), Some(14));
+        assert_eq!(find_head_end(b"no complete head"), None);
+        // A CRLR that is not the double: not a terminator.
+        assert_eq!(find_head_end(b"\r\n lone"), None);
+    }
+
+    #[test]
+    fn cycle_repeats_the_seed_frames() {
+        let frames = vec![vec![1u8], vec![2], vec![3]];
+        let out = cycle(&frames, 7);
+        assert_eq!(out.len(), 7);
+        assert_eq!(out[4], vec![2], "index 4 wraps to frames[1]");
+        assert_eq!(out[6], vec![1]);
+    }
+
+    #[test]
+    fn port_list_sorts_and_joins() {
+        assert_eq!(port_list(&[3000, 2048, 80]), "80,2048,3000");
+    }
+}

@@ -321,6 +321,8 @@ pub fn wrex_core::dissect::Anomaly::fmt(&self, &mut core::fmt::Formatter<'_>) ->
 impl core::fmt::Display for wrex_core::dissect::Anomaly
 pub fn wrex_core::dissect::Anomaly::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for wrex_core::dissect::Anomaly
+impl serde_core::ser::Serialize for wrex_core::dissect::Anomaly
+pub fn wrex_core::dissect::Anomaly::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
 impl core::marker::Freeze for wrex_core::dissect::Anomaly
 impl core::marker::Send for wrex_core::dissect::Anomaly
 impl core::marker::Sync for wrex_core::dissect::Anomaly
@@ -396,6 +398,8 @@ impl core::clone::Clone for wrex_core::dissect::DissectedPacket
 pub fn wrex_core::dissect::DissectedPacket::clone(&self) -> Self
 impl core::fmt::Debug for wrex_core::dissect::DissectedPacket
 pub fn wrex_core::dissect::DissectedPacket::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for wrex_core::dissect::DissectedPacket
+pub fn wrex_core::dissect::DissectedPacket::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
 impl !core::marker::Freeze for wrex_core::dissect::DissectedPacket
 impl core::marker::Send for wrex_core::dissect::DissectedPacket
 impl core::marker::Sync for wrex_core::dissect::DissectedPacket
@@ -426,6 +430,7 @@ pub unsafe fn wrex_core::dissect::DissectedPacket::clone_to_uninit(&self, *mut u
 impl<T> core::convert::From<T> for wrex_core::dissect::DissectedPacket
 pub fn wrex_core::dissect::DissectedPacket::from(T) -> T
 pub struct wrex_core::dissect::Facts
+pub wrex_core::dissect::Facts::fragmented: bool
 pub wrex_core::dissect::Facts::link_dst: core::option::Option<[u8; 6]>
 pub wrex_core::dissect::Facts::link_src: core::option::Option<[u8; 6]>
 pub wrex_core::dissect::Facts::net: core::option::Option<wrex_core::dissect::NetFacts>
@@ -467,14 +472,16 @@ pub unsafe fn wrex_core::dissect::Facts::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::dissect::Facts
 pub fn wrex_core::dissect::Facts::from(T) -> T
 pub struct wrex_core::dissect::LayerView
-pub wrex_core::dissect::LayerView::field_spans: alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::dissect::FieldSpan>
-pub wrex_core::dissect::LayerView::fields: alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::value::Value>
+pub wrex_core::dissect::LayerView::field_spans: alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::dissect::FieldSpan>
+pub wrex_core::dissect::LayerView::fields: alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::value::Value>
 pub wrex_core::dissect::LayerView::kind: &'static str
 pub wrex_core::dissect::LayerView::span: core::ops::range::Range<usize>
 impl core::clone::Clone for wrex_core::dissect::LayerView
 pub fn wrex_core::dissect::LayerView::clone(&self) -> Self
 impl core::fmt::Debug for wrex_core::dissect::LayerView
 pub fn wrex_core::dissect::LayerView::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for wrex_core::dissect::LayerView
+pub fn wrex_core::dissect::LayerView::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
 impl core::marker::Freeze for wrex_core::dissect::LayerView
 impl core::marker::Send for wrex_core::dissect::LayerView
 impl core::marker::Sync for wrex_core::dissect::LayerView
@@ -504,8 +511,28 @@ impl<T> core::clone::CloneToUninit for wrex_core::dissect::LayerView where T: co
 pub unsafe fn wrex_core::dissect::LayerView::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::dissect::LayerView
 pub fn wrex_core::dissect::LayerView::from(T) -> T
+pub trait wrex_core::dissect::IntoFrame
+pub fn wrex_core::dissect::IntoFrame::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &[u8]
+pub fn &[u8]::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &alloc::vec::Vec<u8>
+pub fn &alloc::vec::Vec<u8>::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &bytes::bytes::Bytes
+pub fn &bytes::bytes::Bytes::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &bytes::bytes_mut::BytesMut
+pub fn &bytes::bytes_mut::BytesMut::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &mut [u8]
+pub fn &mut [u8]::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for alloc::boxed::Box<[u8]>
+pub fn alloc::boxed::Box<[u8]>::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for alloc::vec::Vec<u8>
+pub fn alloc::vec::Vec<u8>::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for bytes::bytes::Bytes
+pub fn bytes::bytes::Bytes::into_frame(self) -> bytes::bytes::Bytes
+impl<const N: usize> wrex_core::dissect::IntoFrame for &[u8; N]
+pub fn &[u8; N]::into_frame(self) -> bytes::bytes::Bytes
 pub const fn wrex_core::dissect::auto_start(&[u8]) -> &'static str
-pub fn wrex_core::dissect::dissect(&wrex_core::codec::Registry, &[u8], &str) -> wrex_core::dissect::DissectedPacket
+pub fn wrex_core::dissect::dissect(&wrex_core::codec::Registry, impl wrex_core::dissect::IntoFrame, &str) -> wrex_core::dissect::DissectedPacket
 pub mod wrex_core::encode
 pub enum wrex_core::encode::Patch
 pub wrex_core::encode::Patch::Checksum
@@ -1675,14 +1702,15 @@ impl<T> core::clone::CloneToUninit for wrex_core::schema::RecordSchema where T: 
 pub unsafe fn wrex_core::schema::RecordSchema::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::schema::RecordSchema
 pub fn wrex_core::schema::RecordSchema::from(T) -> T
+pub fn wrex_core::schema::dotted_path(&str, &str) -> alloc::string::String
 pub const fn wrex_core::schema::field_names_unique(&[wrex_core::schema::FieldSchema]) -> bool
 pub mod wrex_core::spec
 pub struct wrex_core::spec::LayerSpec
-pub wrex_core::spec::LayerSpec::fields: alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::value::Value>
+pub wrex_core::spec::LayerSpec::fields: alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::value::Value>
 pub wrex_core::spec::LayerSpec::kind: &'static str
 impl wrex_core::spec::LayerSpec
 pub fn wrex_core::spec::LayerSpec::new(&'static str) -> Self
-pub fn wrex_core::spec::LayerSpec::with_fields(&'static str, alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::value::Value>) -> Self
+pub fn wrex_core::spec::LayerSpec::with_fields(&'static str, alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::value::Value>) -> Self
 impl core::clone::Clone for wrex_core::spec::LayerSpec
 pub fn wrex_core::spec::LayerSpec::clone(&self) -> Self
 impl core::fmt::Debug for wrex_core::spec::LayerSpec
@@ -2785,6 +2813,8 @@ pub fn wrex_core::dissect::Anomaly::fmt(&self, &mut core::fmt::Formatter<'_>) ->
 impl core::fmt::Display for wrex_core::dissect::Anomaly
 pub fn wrex_core::dissect::Anomaly::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for wrex_core::dissect::Anomaly
+impl serde_core::ser::Serialize for wrex_core::dissect::Anomaly
+pub fn wrex_core::dissect::Anomaly::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
 impl core::marker::Freeze for wrex_core::dissect::Anomaly
 impl core::marker::Send for wrex_core::dissect::Anomaly
 impl core::marker::Sync for wrex_core::dissect::Anomaly
@@ -2905,6 +2935,8 @@ impl core::clone::Clone for wrex_core::dissect::DissectedPacket
 pub fn wrex_core::dissect::DissectedPacket::clone(&self) -> Self
 impl core::fmt::Debug for wrex_core::dissect::DissectedPacket
 pub fn wrex_core::dissect::DissectedPacket::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for wrex_core::dissect::DissectedPacket
+pub fn wrex_core::dissect::DissectedPacket::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
 impl !core::marker::Freeze for wrex_core::dissect::DissectedPacket
 impl core::marker::Send for wrex_core::dissect::DissectedPacket
 impl core::marker::Sync for wrex_core::dissect::DissectedPacket
@@ -3034,6 +3066,7 @@ pub fn wrex_core::encode::Encoded::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_core::encode::Encoded
 pub fn wrex_core::encode::Encoded::from(T) -> T
 pub struct wrex_core::Facts
+pub wrex_core::Facts::fragmented: bool
 pub wrex_core::Facts::link_dst: core::option::Option<[u8; 6]>
 pub wrex_core::Facts::link_src: core::option::Option<[u8; 6]>
 pub wrex_core::Facts::net: core::option::Option<wrex_core::dissect::NetFacts>
@@ -3202,11 +3235,11 @@ pub unsafe fn wrex_core::schema::LayerSchema::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::schema::LayerSchema
 pub fn wrex_core::schema::LayerSchema::from(T) -> T
 pub struct wrex_core::LayerSpec
-pub wrex_core::LayerSpec::fields: alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::value::Value>
+pub wrex_core::LayerSpec::fields: alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::value::Value>
 pub wrex_core::LayerSpec::kind: &'static str
 impl wrex_core::spec::LayerSpec
 pub fn wrex_core::spec::LayerSpec::new(&'static str) -> Self
-pub fn wrex_core::spec::LayerSpec::with_fields(&'static str, alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::value::Value>) -> Self
+pub fn wrex_core::spec::LayerSpec::with_fields(&'static str, alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::value::Value>) -> Self
 impl core::clone::Clone for wrex_core::spec::LayerSpec
 pub fn wrex_core::spec::LayerSpec::clone(&self) -> Self
 impl core::fmt::Debug for wrex_core::spec::LayerSpec
@@ -3243,14 +3276,16 @@ pub unsafe fn wrex_core::spec::LayerSpec::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::spec::LayerSpec
 pub fn wrex_core::spec::LayerSpec::from(T) -> T
 pub struct wrex_core::LayerView
-pub wrex_core::LayerView::field_spans: alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::dissect::FieldSpan>
-pub wrex_core::LayerView::fields: alloc::collections::btree::map::BTreeMap<alloc::string::String, wrex_core::value::Value>
+pub wrex_core::LayerView::field_spans: alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::dissect::FieldSpan>
+pub wrex_core::LayerView::fields: alloc::collections::btree::map::BTreeMap<alloc::borrow::Cow<'static, str>, wrex_core::value::Value>
 pub wrex_core::LayerView::kind: &'static str
 pub wrex_core::LayerView::span: core::ops::range::Range<usize>
 impl core::clone::Clone for wrex_core::dissect::LayerView
 pub fn wrex_core::dissect::LayerView::clone(&self) -> Self
 impl core::fmt::Debug for wrex_core::dissect::LayerView
 pub fn wrex_core::dissect::LayerView::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for wrex_core::dissect::LayerView
+pub fn wrex_core::dissect::LayerView::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
 impl core::marker::Freeze for wrex_core::dissect::LayerView
 impl core::marker::Send for wrex_core::dissect::LayerView
 impl core::marker::Sync for wrex_core::dissect::LayerView
@@ -3490,8 +3525,28 @@ pub fn wrex_core::Codec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::Deco
 pub fn wrex_core::Codec::reencode(&self, &str, &[u8], core::ops::range::Range<usize>) -> core::option::Option<core::result::Result<alloc::vec::Vec<u8>, alloc::string::String>>
 pub fn wrex_core::Codec::schema(&self) -> &'static wrex_core::schema::LayerSchema
 pub fn wrex_core::Codec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+pub trait wrex_core::IntoFrame
+pub fn wrex_core::IntoFrame::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &[u8]
+pub fn &[u8]::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &alloc::vec::Vec<u8>
+pub fn &alloc::vec::Vec<u8>::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &bytes::bytes::Bytes
+pub fn &bytes::bytes::Bytes::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &bytes::bytes_mut::BytesMut
+pub fn &bytes::bytes_mut::BytesMut::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for &mut [u8]
+pub fn &mut [u8]::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for alloc::boxed::Box<[u8]>
+pub fn alloc::boxed::Box<[u8]>::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for alloc::vec::Vec<u8>
+pub fn alloc::vec::Vec<u8>::into_frame(self) -> bytes::bytes::Bytes
+impl wrex_core::dissect::IntoFrame for bytes::bytes::Bytes
+pub fn bytes::bytes::Bytes::into_frame(self) -> bytes::bytes::Bytes
+impl<const N: usize> wrex_core::dissect::IntoFrame for &[u8; N]
+pub fn &[u8; N]::into_frame(self) -> bytes::bytes::Bytes
 pub const fn wrex_core::auto_start(&[u8]) -> &'static str
-pub fn wrex_core::dissect(&wrex_core::codec::Registry, &[u8], &str) -> wrex_core::dissect::DissectedPacket
+pub fn wrex_core::dissect(&wrex_core::codec::Registry, impl wrex_core::dissect::IntoFrame, &str) -> wrex_core::dissect::DissectedPacket
 pub fn wrex_core::encode(&wrex_core::codec::Registry, &wrex_core::spec::PacketSpec, &wrex_core::encode::EncodeOpts) -> core::result::Result<wrex_core::encode::Encoded, wrex_core::error::EncodeError>
 pub fn wrex_core::internet_checksum(impl core::iter::traits::iterator::Iterator<Item = u16>) -> u16
 pub fn wrex_core::mac_string([u8; 6]) -> alloc::string::String

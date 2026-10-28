@@ -8,6 +8,23 @@ tranche.
 
 ## [Unreleased]
 
+### Fixed — CI: coverage gate scoped to the product crates
+
+- **`cargo llvm-cov --exclude xtask`** (CI gate + the local
+  `cargo xtask coverage` mirror): the dev harness is binary-only — no
+  test target exercises it, so llvm-cov has always reported 0.00%
+  across every xtask file, and its regions only ever diluted the
+  product number. The perf-diff rail's ~950 uncovered harness lines
+  pushed that dilution past the 85% floor (83.47% regions) and broke
+  the gate; the exclusion is the fuzz/-from-workspace precedent
+  applied to coverage. With the gate measuring what it always meant
+  to: **91.34% lines / 88.27% regions** (was 86.98% / 83.47%).
+  xtask's pure perfdiff helpers gained unit tests regardless
+  (median/verdict/formatting/head-search/cycle/port-list), and the
+  public-API snapshots are regenerated for the 3a–3c surface changes
+  (new `wrex_io::UdpDriver`, `wrex_dns::DnsUdpSession`; retired
+  `DnsSession`; `DEFAULT_RATE` → `DEFAULT_INTERVAL`).
+
 ### Changed — performance pass 3c: burst-by-default scan pacing + single-pass interface table
 
 - **Scan (and fuzz, same vocabulary) default pacing is uncapped
