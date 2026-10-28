@@ -782,11 +782,23 @@ pub mod strategy {
             "A", "AAAA", "MX", "TXT", "NS", "PTR", "SOA", "SRV", "CNAME",
         ]);
         let qclass = proptest::sample::select(vec!["IN", "CH", "HS"]);
-        (any::<u16>(), any::<u8>(), name, qtype, qclass)
-            .prop_map(|(id, mask, name, qtype, qclass)| {
+        (
+            any::<u16>(),
+            any::<u8>(),
+            (0u8..=15),
+            (0u8..=15),
+            name,
+            qtype,
+            qclass,
+        )
+            .prop_map(|(id, mask, opcode, rcode, name, qtype, qclass)| {
                 let mut fields = std::collections::BTreeMap::new();
                 fields.insert("id".to_string(), Value::Int(id as u128));
                 fields.insert("flags".to_string(), Value::Int(mask as u128));
+                // G1 sweep: opcode/rcode are real 4-bit wire windows
+                // (RFC 1035 §4.1.1) — never sampled before.
+                fields.insert("opcode".to_string(), Value::Int(opcode as u128));
+                fields.insert("rcode".to_string(), Value::Int(rcode as u128));
                 fields.insert("qd.0.name".to_string(), Value::Str(name.into()));
                 fields.insert(
                     "qd.0.type".to_string(),

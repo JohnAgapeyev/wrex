@@ -55,16 +55,18 @@ static FIELDS: [FieldSchema; 13] = [
     FieldSchema {
         name: "flags",
         kind: FieldKind::FlagSet,
-        // RFC 791 §3.1: the 3-bit field is [res, df, mf] at word bits
-        // 13/14/15 — `mf` is bit 15 (the T18a sweep caught the original
-        // [df, mf] mapping putting mf on the reserved bit 13: real
-        // fragmented captures dissected with no mf at all, and craft
-        // emitted reserved-bit packets). MSB-first over the full
-        // 3-bit window: mf = top bit.
-        bit_names: &["mf", "df", "res"],
+        // RFC 791 §3.1, the 3-bit control field MSB-first on the wire:
+        //   word bit 15 (0x8000) = reserved ("Bit 0: reserved, must be
+        //   zero"), bit 14 (0x4000) = DF, bit 13 (0x2000) = MF.
+        // Linux <netinet/ip.h> agrees (IP_RF 0x8000, IP_DF 0x4000,
+        // IP_MF 0x2000). The T18a repair landed this table as
+        // [mf,df,res] — mf on the reserved bit — and the corpus
+        // self-confirmed; the HP3-a/G1 sweep (flags randomizing into
+        // the etherparse differential) caught the inversion.
+        bit_names: &["res", "df", "mf"],
         default: Value::Int(0),
         required: false,
-        doc: "flags aggregate [mf,df,res] (RFC 791: mf=bit 15, df=bit 14); per-bit subpaths flags.mf / flags.df / flags.res",
+        doc: "flags aggregate [res,df,mf] (RFC 791: res=bit 15, df=bit 14, mf=bit 13); per-bit subpaths flags.res / flags.df / flags.mf",
     },
     d("frag_off", FieldKind::U16, "fragment offset", Value::Int(0)),
     d(
@@ -349,11 +351,18 @@ impl Codec for IpCodec {
         // Flag names for the 3-bit field (RFC 791: res=13, df=14, mf=15).
         // Names render df-then-mf (the tshark order).
         let agg = (flags_frag >> 13) & 0x7;
+        // Render in `bit_names` MSB-first order ([res,df,mf] — RFC 791
+        // wire order), and render ALL named bits: the reserved bit is
+        // a real wire bit (the HP3-a sweep caught the pre-fix renderer
+        // emitting a stale order and silently dropping `res`).
         let mut names: Vec<Value> = Vec::new();
+        if agg & 0b100 != 0 {
+            names.push(Value::Str(Cow::Borrowed("res")));
+        }
         if agg & 0b010 != 0 {
             names.push(Value::Str(Cow::Borrowed("df")));
         }
-        if agg & 0b100 != 0 {
+        if agg & 0b001 != 0 {
             names.push(Value::Str(Cow::Borrowed("mf")));
         }
 
@@ -477,16 +486,20 @@ pub mod strategy {
             any::<u8>(),
             any::<u16>(),
             proptest::sample::select(vec![0u8, 32, 64, 255]),
+            // flags is the full 3-bit window [mf,df,res] (G1: never
+            // randomized before — the mf bug's blind spot).
+            proptest::sample::select(vec![0u8, 0b001, 0b010, 0b100, 0b111]),
             // frag_off is a 13-bit field: valid range only.
             (0u16..0x2000),
             ip.clone(),
             ip,
             opts,
         )
-            .prop_map(|(tos, id, ttl, frag, src, dst, opts)| {
+            .prop_map(|(tos, id, ttl, flags, frag, src, dst, opts)| {
                 let mut fields = std::collections::BTreeMap::new();
                 fields.insert("tos".to_string(), Value::Int(tos as u128));
                 fields.insert("id".to_string(), Value::Int(id as u128));
+                fields.insert("flags".to_string(), Value::Int(flags as u128));
                 fields.insert("ttl".to_string(), Value::Int(ttl as u128));
                 fields.insert("frag_off".to_string(), Value::Int(frag as u128));
                 fields.insert("src".to_string(), src);

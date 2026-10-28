@@ -937,59 +937,180 @@ pub mod strategy {
     use wrex_core::spec::LayerSpec;
     use wrex_core::value::Value;
 
-    use crate::{T_ECHO_REPLY, T_ECHO_REQ, T_NA, T_NS, T_RA, T_RS};
+    use crate::{
+        T_ECHO_REPLY, T_ECHO_REQ, T_MLD_DONE, T_MLD_QUERY, T_MLD_REPORT, T_MLD_REPORT_V2, T_NA,
+        T_NS, T_RA, T_RS,
+    };
 
-    /// Valid icmpv6 specs: echo types (id/seq) or NDP types with
-    /// type-consistent bodies, or another type with a 4-byte rest.
+    /// Valid icmpv6 specs: echo, the NDP family (RS/RA/NS/NA with
+    /// their full body fields and optional option TLVs), the MLDv1
+    /// triad, the MLDv2 query (the v2 extension discriminates by
+    /// field presence), the MLDv2 report (the `mld` record grammar),
+    /// or a generic type with a 4-byte rest. Fields stay
+    /// type-consistent so roundtrips are exact; every conditional
+    /// body field randomizes on its own branch (the G1 sweep drove
+    /// the population — the pre-fix strategy left ra_flags/na_flags,
+    /// the MLD bodies and the NDP options unsampled).
     pub fn strategy() -> BoxedStrategy<LayerSpec> {
+        let ndp_opts = || {
+            proptest::option::of(proptest::sample::select(vec![
+                "slla:00:11:22:33:44:55".to_string(),
+                "tlla:66:77:88:99:aa:bb,mtu:1500".to_string(),
+                "prefix:64,2001:db8::1,3600,1800,l,a".to_string(),
+                "raw:5:0102030405060708".to_string(),
+            ]))
+        };
         (
-            proptest::sample::select(vec![
-                T_ECHO_REQ,
-                T_ECHO_REPLY,
-                T_RS,
-                T_RA,
-                T_NS,
-                T_NA,
-                1, // generic type (rest)
-            ]),
-            any::<u16>(),
-            any::<u16>(),
-            any::<u8>(),
-            (0u32..0x10_0000),
-            proptest::array::uniform16(any::<u8>()),
+            (
+                proptest::sample::select(vec![
+                    T_ECHO_REQ,
+                    T_ECHO_REPLY,
+                    T_RS,
+                    T_RA,
+                    T_NS,
+                    T_NA,
+                    T_MLD_QUERY,
+                    T_MLD_REPORT,
+                    T_MLD_DONE,
+                    T_MLD_REPORT_V2,
+                    1, // generic type (rest)
+                ]),
+                (0u8..=15),   // code (the MLDv1 query's max-response rides it)
+                any::<u16>(), // echo.id
+                any::<u16>(), // echo.seq
+                any::<u8>(),  // RA cur_hop_limit
+                any::<u16>(), // RA router_lifetime (u16 wire field — RFC 4861 §4.2)
+                any::<u32>(), // RA reachable_time
+                any::<u32>(), // RA retrans_timer
+                (0u8..=3),    // RA flags mask [m,o]
+                (0u8..=7),    // NA flags mask [r,s,o]
+                proptest::array::uniform16(any::<u8>()), // target / mld.addr
+                proptest::bool::ANY, // MLD query: the v2 extension?
+            ),
+            (
+                (0u8..=1),   // mld.flags mask [s]
+                (0u8..=7),   // mld.qrv
+                any::<u8>(), // mld.qqic
+                proptest::option::of(proptest::sample::select(vec![
+                    Vec::<u8>::new(),
+                    vec![0u8; 16],
+                    (0..16).map(|i| i as u8).collect(),
+                ])), // mld.sources (16-byte grid)
+                proptest::option::of(proptest::sample::select(vec![
+                    "include:ff02::1".to_string(),
+                    "exclude:ff02::1,2001:db8::1".to_string(),
+                    "to_include:ff02::1".to_string(),
+                    "allow:ff02::2,ff02::3".to_string(),
+                    "block:2001:db8::dead".to_string(),
+                ])), // the 143 record grammar
+                ndp_opts(),
+            ),
         )
-            .prop_map(|(t, id, seq, hop, lifetime, target)| {
-                let mut fields = std::collections::BTreeMap::new();
-                fields.insert("type".to_string(), Value::Int(t as u128));
-                match t {
-                    T_ECHO_REQ | T_ECHO_REPLY => {
-                        fields.insert("echo.id".to_string(), Value::Int(id as u128));
-                        fields.insert("echo.seq".to_string(), Value::Int(seq as u128));
+            .prop_map(
+                |(
+                    (
+                        t,
+                        code,
+                        id,
+                        seq,
+                        hop,
+                        lifetime,
+                        reachable,
+                        retrans,
+                        ra_flags,
+                        na_flags,
+                        target,
+                        mld_v2,
+                    ),
+                    (mld_flags, qrv, qqic, sources, mld_grammar, opts),
+                )| {
+                    let mut fields = std::collections::BTreeMap::new();
+                    fields.insert("type".to_string(), Value::Int(t as u128));
+                    fields.insert("code".to_string(), Value::Int(code as u128));
+                    let addr = std::net::Ipv6Addr::from(target);
+                    match t {
+                        T_ECHO_REQ | T_ECHO_REPLY => {
+                            fields.insert("echo.id".to_string(), Value::Int(id as u128));
+                            fields.insert("echo.seq".to_string(), Value::Int(seq as u128));
+                        }
+                        T_RA => {
+                            fields.insert("ndp.cur_hop_limit".to_string(), Value::Int(hop as u128));
+                            fields.insert("ndp.ra_flags".to_string(), Value::Int(ra_flags as u128));
+                            fields.insert(
+                                "ndp.router_lifetime".to_string(),
+                                Value::Int(lifetime as u128),
+                            );
+                            fields.insert(
+                                "ndp.reachable_time".to_string(),
+                                Value::Int(reachable as u128),
+                            );
+                            fields.insert(
+                                "ndp.retrans_timer".to_string(),
+                                Value::Int(retrans as u128),
+                            );
+                            if let Some(o) = opts {
+                                fields.insert("options".to_string(), Value::Str(o.into()));
+                            }
+                        }
+                        T_NS | T_NA => {
+                            if t == T_NA {
+                                fields.insert(
+                                    "ndp.na_flags".to_string(),
+                                    Value::Int(na_flags as u128),
+                                );
+                            }
+                            fields.insert("ndp.target".to_string(), Value::Ipv6(addr));
+                            if let Some(o) = opts {
+                                fields.insert("options".to_string(), Value::Str(o.into()));
+                            }
+                        }
+                        // RS: header + optional options.
+                        T_RS => {
+                            if let Some(o) = opts {
+                                fields.insert("options".to_string(), Value::Str(o.into()));
+                            }
+                        }
+                        T_MLD_QUERY => {
+                            fields.insert("mld.addr".to_string(), Value::Ipv6(addr));
+                            if mld_v2 {
+                                // any v2 field discriminates the v2 shape;
+                                // nsrcs rides explicit (the add-a-record
+                                // rule: count fields are caller-decided).
+                                fields
+                                    .insert("mld.flags".to_string(), Value::Int(mld_flags as u128));
+                                fields.insert("mld.qrv".to_string(), Value::Int(qrv as u128));
+                                fields.insert("mld.qqic".to_string(), Value::Int(qqic as u128));
+                                let sources = sources.unwrap_or_default();
+                                let n = sources.len() / 16;
+                                if !sources.is_empty() {
+                                    fields.insert(
+                                        "mld.sources".to_string(),
+                                        Value::Bytes(bytes::Bytes::from(sources.clone())),
+                                    );
+                                }
+                                fields.insert("mld.nsrcs".to_string(), Value::Int(n as u128));
+                            }
+                        }
+                        T_MLD_REPORT | T_MLD_DONE => {
+                            fields.insert("mld.addr".to_string(), Value::Ipv6(addr));
+                        }
+                        T_MLD_REPORT_V2 => {
+                            if let Some(g) = mld_grammar {
+                                fields.insert("mld".to_string(), Value::Str(g.into()));
+                            }
+                        }
+                        _ => {
+                            fields.insert(
+                                "rest".to_string(),
+                                Value::Bytes(bytes::Bytes::from(vec![
+                                    code, id as u8, seq as u8, hop,
+                                ])),
+                            );
+                        }
                     }
-                    T_RA => {
-                        fields.insert("ndp.cur_hop_limit".to_string(), Value::Int(hop as u128));
-                        fields.insert(
-                            "ndp.router_lifetime".to_string(),
-                            Value::Int(lifetime as u128),
-                        );
-                    }
-                    T_NS | T_NA => {
-                        fields.insert(
-                            "ndp.target".to_string(),
-                            Value::Ipv6(std::net::Ipv6Addr::from(target)),
-                        );
-                    }
-                    // RS: header only; the generic types carry a 4-byte rest.
-                    T_RS => {}
-                    _ => {
-                        fields.insert(
-                            "rest".to_string(),
-                            Value::Bytes(bytes::Bytes::from(vec![1, 2, 3, 4])),
-                        );
-                    }
-                }
-                LayerSpec::with_fields("icmpv6", fields)
-            })
+                    LayerSpec::with_fields("icmpv6", fields)
+                },
+            )
             .boxed()
     }
 }

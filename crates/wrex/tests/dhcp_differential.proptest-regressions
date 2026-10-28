@@ -4,3 +4,4 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
+cc 3f8eeb3368b2cc16a2c9bc88c4a309bcd9c0ee37e9150a08218d2a668da67f4d # shrinks to spec = LayerSpec { kind: "dhcp", fields: {"chaddr": Bytes(b"\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"), "ciaddr": Ipv4(0.0.0.0), "flags": Int(0), "giaddr": Ipv4(0.0.0.0), "hlen": Int(6), "hops": Int(0), "htype": Int(1), "msg_type": Str("discover"), "op": Int(1), "secs": Int(0), "siaddr": Ipv4(0.0.0.0), "xid": Int(0), "yiaddr": Ipv4(0.0.0.0)} }

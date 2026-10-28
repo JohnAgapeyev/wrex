@@ -5,12 +5,14 @@
 pub mod corpus;
 pub mod dhcp_oracle;
 pub mod dns_oracle;
+pub mod gates;
 pub mod h2_stub;
 pub mod harness;
 pub mod oracle;
 pub mod strategies;
 pub mod tls_stub;
 
+pub use gates::{audit_strategy, codec_strategy};
 pub use harness::{craft_bytes, craft_hex, dissect, loopback_ready, wrex_bin};
 pub use oracle::{Oracle, PcapWriter};
 pub use strategies::{packet_strategy, stacks};

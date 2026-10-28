@@ -12,13 +12,10 @@ use proptest::test_runner::FileFailurePersistence;
 
 use wrex_core::Registry;
 use wrex_core::encode::{EncodeOpts, encode};
+use wrex_core::schema::{FieldKind, ResolvedField};
 use wrex_core::value::Value;
 use wrex_test::oracle::{EtherparseOracle, Oracle, TsharkOracle};
 use wrex_test::strategies::{packet_strategy, stacks};
-
-/// MSB-first TCP flag bit names (mirrors the schema; used for semantic
-/// flag-set roundtrips: the spec sets a mask, dissection yields names).
-const TCP_FLAGS: &[&str] = &["cwr", "ece", "urg", "ack", "psh", "rst", "syn", "fin"];
 
 /// One skip notice per test binary, not one per proptest case.
 static SKIP_NOTICE: std::sync::Once = std::sync::Once::new();
@@ -84,20 +81,38 @@ proptest! {
                 break;
             }
             for (k, v) in &layer_spec.fields {
-                if k.contains('.') {
+                // Schema-driven skips (the G1 fix made dotted names and
+                // flag sets common): per-bit subpaths (`flags.syn=true`)
+                // merge into their aggregate at encode time; list-grammar
+                // fields (`options`, icmpv6 `mld`) render as record
+                // sections on dissection, not typed-equal values.
+                let resolved = reg
+                    .schema(layer_spec.kind)
+                    .and_then(|s| s.resolve(k));
+                if matches!(resolved, Some(ResolvedField::FlagBit { .. })) {
                     continue; // per-bit subpaths merge into their aggregate
                 }
-                if k == "flags" {
+                if k == "options" || k == "mld" {
+                    continue; // list grammars → raw bytes/records, not typed-equal
+                }
+                if let Some(ResolvedField::Field(f)) = resolved
+                    && f.kind == FieldKind::FlagSet
+                {
                     // Flag-set aggregate: spec holds a mask, dissection a
-                    // sorted name list — compare semantically.
+                    // name list in `bit_names` MSB-first order — compare
+                    // semantically through the schema (any layer's flags,
+                    // not just tcp's: ipv4 [mf,df,res] randomizes since
+                    // the G1 sweep).
                     let Value::Int(mask) = v else { continue };
-                    let want: Vec<&str> = TCP_FLAGS
+                    let n = f.bit_names.len();
+                    let want: Vec<String> = f
+                        .bit_names
                         .iter()
                         .enumerate()
-                        .filter(|(i, _)| mask & (1 << (7 - *i as u128)) != 0)
-                        .map(|(_, n)| *n)
+                        .filter(|(i, _)| mask & (1u128 << (n - 1 - i)) != 0)
+                        .map(|(_, name)| name.to_string())
                         .collect();
-                    let got: Vec<String> = match layer_view.fields.get("flags") {
+                    let got: Vec<String> = match layer_view.fields.get(k) {
                         Some(Value::List(items)) => items
                             .iter()
                             .filter_map(|v| match v {
@@ -108,14 +123,11 @@ proptest! {
                         _ => Vec::new(),
                     };
                     prop_assert!(
-                        got == want.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
-                        "{stack} {}.flags: got {got:?} want {want:?}",
+                        got == want,
+                        "{stack} {}.{k}: got {got:?} want {want:?}",
                         layer_spec.kind
                     );
                     continue;
-                }
-                if k == "options" {
-                    continue; // options: list grammar → raw bytes, not typed-equal
                 }
                 let got = layer_view.fields.get(k).cloned();
                 prop_assert!(

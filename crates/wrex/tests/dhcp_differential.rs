@@ -52,12 +52,44 @@ proptest! {
             if k == "options" {
                 continue; // list grammar → raw TLVs, verified by the oracle
             }
+            if k == "flags" {
+                // FlagSet: the spec holds a mask, dissection a name
+                // list in bit_names MSB-first order (the differential
+                // roundtrip rule; broadcast randomizes since the G1
+                // sweep).
+                let Value::Int(mask) = v else {
+                    panic!("unexpected flags spec shape: {v:?}")
+                };
+                let f = wrex_proto_dhcp::SCHEMA
+                    .field("flags")
+                    .expect("flags schema");
+                let want: Vec<String> = f
+                    .bit_names
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| mask & (1u128 << (f.bit_names.len() - 1 - i)) != 0)
+                    .map(|(_, n)| n.to_string())
+                    .collect();
+                let got: Vec<String> = match dhcp.fields.get(k) {
+                    Some(Value::List(items)) => items
+                        .iter()
+                        .filter_map(|v| match v {
+                            Value::Str(s) => Some(s.to_string()),
+                            _ => None,
+                        })
+                        .collect(),
+                    other => panic!("unexpected roundtrip shape for {k}: {other:?}"),
+                };
+                prop_assert_eq!(got, want);
+                continue;
+            }
             let got = dhcp.fields.get(k);
             prop_assert!(got.is_some(), "{k} missing after roundtrip");
             match (got, v) {
                 (Some(Value::Int(a)), Value::Int(b)) => prop_assert_eq!(a, b),
                 (Some(Value::Ipv4(a)), Value::Ipv4(b)) => prop_assert_eq!(a, b),
                 (Some(Value::Str(a)), Value::Str(b)) => prop_assert_eq!(a, b),
+                (Some(Value::Bytes(a)), Value::Bytes(b)) => prop_assert_eq!(a, b),
                 (other, _) => panic!("unexpected roundtrip shape for {k}: {other:?}"),
             }
         }

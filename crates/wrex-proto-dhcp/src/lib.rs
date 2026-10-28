@@ -632,11 +632,13 @@ pub mod strategy {
 
     use crate::options::MSG_TYPES;
 
-    /// Valid dhcp specs: random identities/addresses, a message type
-    /// from the canonical names (roundtrips exact), and a small valid
-    /// options-grammar pool. `flags`/`chaddr`/`cookie` stay unset (the
-    /// differential roundtrip compares set fields only; chaddr pads to
-    /// 16 bytes on the wire).
+    /// Valid dhcp specs: random identities/addresses, the full header
+    /// (the G1 sweep drove op/htype/hlen/hops/flags/chaddr into the
+    /// sample — every fixed header field randomizes within wire-honest
+    /// bounds: op ∈ {request, reply}, htype ∈ {ethernet, ieee-802},
+    /// hlen ∈ {6, 16}), a message type from the canonical names
+    /// (roundtrips exact), and a small valid options-grammar pool.
+    /// `cookie` stays unset (autofilled).
     pub fn strategy() -> BoxedStrategy<LayerSpec> {
         let ip = any::<u32>().prop_map(|v| Value::Ipv4(std::net::Ipv4Addr::from(v)));
         let msg_type = proptest::sample::select(
@@ -646,11 +648,11 @@ pub mod strategy {
                 .collect::<Vec<_>>(),
         );
         let sname = proptest::option::of(
-            proptest::sample::select(vec!["wrex-server".to_string()])
+            proptest::sample::select(vec!["wrex-server".to_string(), "boothost".to_string()])
                 .prop_map(|s| Value::Str(s.into())),
         );
         let file = proptest::option::of(
-            proptest::sample::select(vec!["boot.img".to_string()])
+            proptest::sample::select(vec!["boot.img".to_string(), "pxelinux.0".to_string()])
                 .prop_map(|s| Value::Str(s.into())),
         );
         let opts = proptest::option::of(
@@ -667,23 +669,45 @@ pub mod strategy {
             .prop_map(|s| Value::Str(s.into())),
         );
         (
-            any::<u32>(), // xid
-            any::<u16>(), // secs
-            ip.clone(),   // ciaddr
-            ip.clone(),   // yiaddr
-            ip.clone(),   // siaddr
-            ip,           // giaddr
-            msg_type,
-            sname,
-            file,
-            opts,
+            (
+                proptest::sample::select(vec![1u8, 2]), // op: BOOTREQUEST/BOOTREPLY
+                proptest::sample::select(vec![1u8, 6]), // htype: ethernet/ieee-802
+                proptest::sample::select(vec![6u8, 16]), // hlen: MAC/GUID-sized chaddr
+                (0u8..=4),                              // hops (relay count stays small)
+                proptest::bool::ANY,                    // flags: the broadcast bit
+                proptest::array::uniform16(any::<u8>()), // chaddr (16-byte wire field)
+            ),
+            (
+                any::<u32>(), // xid
+                any::<u16>(), // secs
+                ip.clone(),   // ciaddr
+                ip.clone(),   // yiaddr
+                ip.clone(),   // siaddr
+                ip,           // giaddr
+                msg_type,
+                sname,
+                file,
+                opts,
+            ),
         )
             .prop_map(
-                |(xid, secs, ciaddr, yiaddr, siaddr, giaddr, msg_type, sname, file, opts)| {
+                |(
+                    (op, htype, hlen, hops, broadcast, chaddr),
+                    (xid, secs, ciaddr, yiaddr, siaddr, giaddr, msg_type, sname, file, opts),
+                )| {
                     let mut fields = std::collections::BTreeMap::new();
-                    fields.insert("op".to_string(), Value::Int(1));
-                    fields.insert("htype".to_string(), Value::Int(1));
-                    fields.insert("hlen".to_string(), Value::Int(6));
+                    fields.insert("op".to_string(), Value::Int(op as u128));
+                    fields.insert("htype".to_string(), Value::Int(htype as u128));
+                    fields.insert("hlen".to_string(), Value::Int(hlen as u128));
+                    fields.insert("hops".to_string(), Value::Int(hops as u128));
+                    fields.insert(
+                        "flags".to_string(),
+                        Value::Int(if broadcast { 0b1 } else { 0 } as u128),
+                    );
+                    fields.insert(
+                        "chaddr".to_string(),
+                        Value::Bytes(bytes::Bytes::from(chaddr.to_vec())),
+                    );
                     fields.insert("xid".to_string(), Value::Int(xid as u128));
                     fields.insert("secs".to_string(), Value::Int(secs as u128));
                     fields.insert("ciaddr".to_string(), ciaddr);

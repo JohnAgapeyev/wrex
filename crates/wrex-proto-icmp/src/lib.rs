@@ -231,18 +231,22 @@ pub mod strategy {
 
     /// Valid icmp specs: echo types (id/seq) or other types (4 rest bytes).
     /// Fields stay consistent with the chosen type so roundtrips are exact.
+    /// `code` randomizes (the G1 sweep: never sampled before; the
+    /// tshark map compares it, so the differential gains the coverage).
     pub fn strategy() -> BoxedStrategy<LayerSpec> {
         let id = any::<u16>().prop_map(|v| Value::Int(v as u128));
         let rest = proptest::array::uniform4(any::<u8>())
             .prop_map(|b| Value::Bytes(bytes::Bytes::copy_from_slice(&b)));
         (
             proptest::bool::ANY,
+            (0u8..=15),
             id.clone(),
             id,
             proptest::option::of(rest),
         )
-            .prop_map(|(is_echo, id, seq, rest)| {
+            .prop_map(|(is_echo, code, id, seq, rest)| {
                 let mut fields = std::collections::BTreeMap::new();
+                fields.insert("code".to_string(), Value::Int(code as u128));
                 if is_echo {
                     // default type 8 (echo request) → echo id/seq fields
                     fields.insert("type".to_string(), Value::Int(8));

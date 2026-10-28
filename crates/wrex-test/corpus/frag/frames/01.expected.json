@@ -1,7 +1,7 @@
 {
   "anomalies": [
     {
-      "message": "mismatch (computed 0x6499, found 0xe481)",
+      "message": "mismatch (computed 0xc499, found 0xe481)",
       "path": "ipv4.checksum"
     },
     {

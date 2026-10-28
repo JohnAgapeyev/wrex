@@ -329,7 +329,8 @@ fn synthesize(prefix: &[u8], rewrites: &[PrefixRewrite], payload: &[u8]) -> Vec<
             }
             PrefixRewrite::ClearMf(pos) => {
                 let word = u16::from_be_bytes([out[pos], out[pos + 1]]);
-                let v = word & !0x8000;
+                // RFC 791/Linux `IP_MF`: mf is word bit 13 (0x2000).
+                let v = word & !0x2000;
                 out[pos] = (v >> 8) as u8;
                 out[pos + 1] = v as u8;
             }
@@ -496,7 +497,7 @@ mod tests {
                 let mut h = vec![0x45u8; 20];
                 h[2] = 0;
                 h[3] = 0;
-                h[6] = 0x40 | if more { 0x80 } else { 0x00 }; // df set, mf as given
+                h[6] = 0x40 | if more { 0x20 } else { 0x00 }; // df set, mf as given (0x2000)
                 h
             },
             rewrites: vec![PrefixRewrite::TotalLen(2), PrefixRewrite::ClearMf(6)],
@@ -540,7 +541,7 @@ mod tests {
         assert_eq!(&out[20..], &[1, 2, 3, 4, 5, 6, 7, 8]);
         assert_eq!(u16::from_be_bytes([out[2], out[3]]), 28);
         assert_eq!(out[6] & 0x40, 0x40, "df kept");
-        assert_eq!(out[6] & 0x80, 0x00, "mf bit cleared");
+        assert_eq!(out[6] & 0x20, 0x00, "mf bit cleared (word bit 13)");
         assert!(r.is_empty(), "completed key evicted");
     }
 

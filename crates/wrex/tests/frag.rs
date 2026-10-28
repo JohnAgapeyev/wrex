@@ -126,7 +126,9 @@ fn v6_packet(hopopts: bool, payload: &[u8]) -> PacketSpec {
 /// chunk but the last 8-byte aligned (RFC 791), per-fragment headers
 /// patched (`total_len`, `mf`, `frag_off`; the checksum rides the
 /// original bytes — per-fragment checksum patching is fragmentation
-/// realism we do not need for the engine gate).
+/// realism we do not need for the engine gate). `mf` sits at word bit
+/// 13 (0x2000 — RFC 791/Linux `IP_MF`; the original carve wrote bit 15,
+/// the reserved position, self-confirming through the T18a corpus).
 fn v4_fragments(frame: &[u8], split: usize) -> Vec<Vec<u8>> {
     let ip_start = 14usize; // eth
     let hdr = 20usize; // fixed ipv4 (no options)
@@ -139,7 +141,7 @@ fn v4_fragments(frame: &[u8], split: usize) -> Vec<Vec<u8>> {
         f[ip_start + 2] = (total >> 8) as u8;
         f[ip_start + 3] = total as u8;
         let last = i == chunks.len() - 1;
-        let word = ((if last { 0u16 } else { 1u16 }) << 15) | ((split * i) / 8) as u16;
+        let word = ((if last { 0u16 } else { 1u16 }) << 13) | ((split * i) / 8) as u16;
         f[ip_start + 6] = (word >> 8) as u8;
         f[ip_start + 7] = word as u8;
         f.extend_from_slice(chunk);

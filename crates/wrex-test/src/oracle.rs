@@ -145,8 +145,15 @@ fn etherparse_map(
             ours,
             &Value::Int(ip.identification() as u128),
         );
-        // flags: df/mf (MSB-first aggregate [df,mf] → bit1/bit0)
+        // flags: the full 3-bit aggregate [res,df,mf] (RFC 791 §3.1
+        // wire order: res 0x8000, df 0x4000, mf 0x2000 — Linux
+        // <netinet/ip.h> agrees). etherparse names df/mf only; the
+        // reserved bit comes from the raw header word (byte 6, bit
+        // 15) so the G2 bit-toggle sweep covers it.
         let mut names = Vec::new();
+        if ip.slice()[6] & 0x80 != 0 {
+            names.push(Value::Str("res".into()));
+        }
         if ip.dont_fragment() {
             names.push(Value::Str("df".into()));
         }
