@@ -369,6 +369,11 @@ fn suitetime(root: &Path, update: bool) {
     let out = Command::new("cargo")
         .args(["test", "--workspace", "--all-features"])
         .current_dir(root)
+        // The parse below reads cargo's plain-text "Running …" status
+        // lines; CI exports CARGO_TERM_COLOR=always, whose ANSI escapes
+        // precede the prefix and break strip_prefix (the born-red HP3-e
+        // run). Force plain output for the measured invocation.
+        .env("CARGO_TERM_COLOR", "never")
         .env("PROPTEST_RNG_SEED", PROPTEST_RNG_SEED)
         .output()
         .expect("spawn cargo test");
