@@ -499,10 +499,12 @@ fn scan_rows(
                 ],
             ),
             "full throttle: 1000 ports (100 open farm + 900 closed), connect mode — wrex --rate 0 \
-             vs nmap -T4 --min-rate 1000. Measured attribution of the gap: wrex's session \
-             clamps probe-send spacing to >=1ms (session.rs MIN_STEP), so 'uncapped' paces a \
-             ~0.5-1k/s drip; nmap batches its in-flight window per tick and sustains ~25k \
-             ports/s on instant loopback RSTs. The floor is policy; probe cost itself is fine.",
+             vs nmap -T4 --min-rate 1000. Measured attribution of the gap (tcpdump + strace \
+             cross-reference): the tap's kernel-default receive buffer (212992 B ≈ 222 frames) \
+             silently dropped the initial burst's reply tail — 256 in-flight − 222 capacity = \
+             exactly the 34 probes that classified 'filtered' — and every drop paid the double \
+             1s timeout (the flat 2s wall). nmap's TPACKET ring never drops. Fixed by the tap's \
+             SO_RCVBUF bump (wrex-io rx.rs); the scan_driver burst test is the tripwire.",
             Some(thousand),
         ));
     }
@@ -543,8 +545,8 @@ fn scan_rows(
                 ],
             ),
             "same list, SYN mode: raw probes both sides (CAP_NET_RAW — the sandbox), the \
-             scanner RSTs half-opens closed itself — same MIN_STEP pacing floor as the \
-             connect row governs wrex's burst.",
+             scanner RSTs half-opens closed itself — the same receive-buffer drop mechanism \
+             as the connect row governs wrex's burst (see that row's attribution).",
             Some(thousand),
         ));
     }

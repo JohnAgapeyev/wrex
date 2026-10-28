@@ -228,8 +228,8 @@ bench + an optimization pass; a policy gap becomes a roadmap line.
   and an attribution note — the note is where "key things they do
   that we don't" gets recorded from measurement, not guess (the first
   baseline's notes: the AF_PACKET tap bind's RCU-sync cost under the
-  udp query row; the scan session's 1ms send-spacing floor under the
-  burst rows).
+  udp query row; the tap receive buffer silently dropping the reply
+  tail of a scan burst under the burst rows).
 - **Environment**: the driver re-execs under `unshare -Urn` (the
   corpus-capture pattern) — the raw-UDP query row and the scan rows
   need CAP_NET_RAW, and one uniform environment keeps all rows

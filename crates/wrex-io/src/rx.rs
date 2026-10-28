@@ -21,12 +21,48 @@ const RX_BUF: usize = 16 * 1024;
 /// `protocol_be` (ethertype in network byte order, e.g.
 /// `htons(ETH_P_ALL)` or `htons(ETH_P_IP)`).
 ///
+/// The receive buffer is grown first (best-effort, see
+/// [`TAP_RCVBUF_BYTES`]): the kernel default
+/// (`net.core.rmem_default`, typically 212992 ≈ 222 frames at the
+/// ~960-byte `skb` truesize of a small frame) silently DROPS the tail
+/// of any reply burst that outpaces the drain loop — a 256-probe
+/// in-flight scan lost exactly 34 replies (256 − 222) and every loss
+/// paid the double 1s timeout, the perf-diff scan finding.
+///
 /// SAFETY: caller owns the returned descriptor; `close` releases it.
 pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::Result<i32> {
     // SAFETY: `socket` is a simple libc syscall with integer args.
     let fd = unsafe { libc::socket(libc::AF_PACKET, libc::SOCK_RAW, protocol_be as i32) };
     if fd < 0 {
         return Err(io::Error::last_os_error());
+    }
+    // SAFETY: `setsockopt` reads `size`; `fd` is a valid descriptor
+    // owned by this function.
+    let size = TAP_RCVBUF_BYTES;
+    let forced = unsafe {
+        libc::setsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_RCVBUFFORCE,
+            &size as *const libc::c_int as *const libc::c_void,
+            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+        )
+    } == 0;
+    if !forced {
+        // SO_RCVBUFFORCE needs CAP_NET_ADMIN; plain SO_RCVBUF is capped
+        // by net.core.rmem_max — best-effort either way, never fail the
+        // open over a buffer knob (the kernel default still works, just
+        // drop-prone under bursts).
+        // SAFETY: as above.
+        let _ = unsafe {
+            libc::setsockopt(
+                fd,
+                libc::SOL_SOCKET,
+                libc::SO_RCVBUF,
+                &size as *const libc::c_int as *const libc::c_void,
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
     }
     let sockaddr = libc::sockaddr_ll {
         sll_family: libc::AF_PACKET as u16,
@@ -54,6 +90,11 @@ pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::R
     }
     Ok(fd)
 }
+
+/// Tap receive-buffer request: ~8 MiB ≈ 8000 frames of headroom —
+/// covers a `--concurrent`-bounded burst window (both directions land
+/// on the tap on loopback) many times over.
+const TAP_RCVBUF_BYTES: libc::c_int = 8 * 1024 * 1024;
 
 /// One received frame's bytes plus its `sll_pkttype`.
 #[derive(Debug)]

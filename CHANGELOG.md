@@ -8,6 +8,24 @@ tranche.
 
 ## [Unreleased]
 
+### Fixed — performance pass 3a: tap receive buffer (scan burst reply drops)
+
+- **`AF_PACKET` taps get a best-effort `SO_RCVBUFFORCE`/`SO_RCVBUF`
+  bump (~8MiB)** (`wrex-io/src/rx.rs::open_packet_socket`): the kernel
+  default (212992 B ≈ 222 frames at the ~960-byte truesize of a small
+  frame) silently dropped the reply tail of any burst that outpaced
+  the drain loop. Measured (perf-diff scan rows, tcpdump + strace
+  cross-referenced): a 256-probe in-flight burst lost exactly 34
+  replies (256 − 222), and every loss paid the double 1s timeout —
+  the flat ~2s wall and the "~500 ports/s" burst rate were misread as
+  a pacing floor (the earlier perf-diff attribution blamed the scan
+  session's MIN_STEP; corrected in the row notes, verification.md and
+  here). After the bump: the 1000-port burst row runs **2011ms → 44ms**
+  (nmap -T4 --min-rate 1000: 38ms — parity), zero misclassified
+  "filtered" ports. `scan_driver::burst_scan_loses_no_replies` is the
+  ground-truth tripwire (1000 all-closed ports, `--rate 0`, asserts
+  zero filtered + a no-timeout-tails wall ceiling).
+
 ### Added — performance differentials (informational rail)
 
 - **`cargo xtask perf-diff`** (`xtask/src/perfdiff.rs`): wall-clock

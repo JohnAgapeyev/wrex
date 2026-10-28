@@ -267,3 +267,39 @@ fn concurrent_scans_do_not_cross_match() {
     }
     drop(l);
 }
+
+/// The burst-reply drop class (the perf-diff scan finding): a
+/// 1000-port `--rate 0` scan against all-closed loopback ports must
+/// classify every port closed. With the kernel's default 212992-byte
+/// tap receive buffer the initial 256-probe burst's reply tail was
+/// silently dropped (256 − ~222-frame capacity = 34 frames) and every
+/// dropped probe paid the double 1s timeout, reporting "filtered" on
+/// a port that answered in 4µs. The tap's SO_RCVBUF bump (wrex-io
+/// rx.rs) is the fix; this is its tripwire. The assertion is
+/// zero-filtered (drop counts vary with the runner's
+/// `net.core.rmem_default`), plus a wall ceiling that fails when
+/// timeout tails (the pre-fix 2s signature) reappear.
+#[test]
+fn burst_scan_loses_no_replies() {
+    if !driver_tests_enabled() {
+        skip("burst_scan_loses_no_replies");
+        return;
+    }
+    // 2000-2999: below the ephemeral range and unbound in this suite
+    // (listeners here bind :0), so every port answers RST instantly.
+    let start = std::time::Instant::now();
+    let (code, stdout) = scan_out("1s", &["--rate", "0", "--ports", "2000-2999", "127.0.0.1"]);
+    assert_eq!(code, 0, "scan completed\n{stdout}");
+    let classified = stdout.lines().filter(|l| l.contains("/tcp")).count();
+    assert_eq!(classified, 1000, "every probed port classifies\n{stdout}");
+    assert!(
+        !stdout.contains("filtered"),
+        "a dropped reply is a misclassification, not a filtered port \
+         (tap receive-buffer overflow)\n{stdout}"
+    );
+    assert!(
+        start.elapsed() < Duration::from_secs(1),
+        "burst wall {:?} — timeout tails mean dropped replies",
+        start.elapsed()
+    );
+}
