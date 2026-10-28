@@ -2,11 +2,11 @@
 .el .ds Aq '
 .TH query 1  "query " 
 .SH NAME
-query \- Ask a DNS server one question over raw UDP and dissect the reply
+query \- Ask a DNS server one question (kernel UDP/TCP/TLS) and dissect the reply
 .SH SYNOPSIS
 \fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-tcp\fR] [\fB\-\-tls\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH DESCRIPTION
-Ask a DNS server one question over raw UDP and dissect the reply
+Ask a DNS server one question (kernel UDP/TCP/TLS) and dissect the reply
 .SH OPTIONS
 .TP
 \fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
@@ -64,25 +64,29 @@ Print help
 Question name (dotted form, e.g. example.com)
 .SH EXTRA
 QUERY GRAMMAR:
-  wrex query [\-i IFACE] \-\-server IP [\-\-port 53] [\-\-tcp]
-             [\-\-tls] [\-\-tls\-insecure] [\-\-tls\-ca FILE] [options] NAME
+  wrex query [\-\-server IP] [\-\-port 53] [\-\-tcp] [\-\-tls]
+             [\-\-tls\-insecure] [\-\-tls\-ca FILE] [options] NAME
 
   Sends one seeded DNS question and waits for the matching reply
-  (id + 4\-tuple over UDP; with \-\-tcp: RFC 7766 length\-prefixed DNS
-  over a fresh TCP connection per attempt). \-\-retries re\-sends the
-  SAME query (same dns id) after \-\-timeout. A reply received is a
-  success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
-  data, printed in the dissected reply.
+  (the reply must echo the query\*(Aqs dns id; with \-\-tcp: RFC 7766
+  length\-prefixed DNS over a fresh TCP connection per attempt).
+  \-\-retries re\-sends the SAME query (same dns id) after \-\-timeout.
+  A reply received is a success (exit 0) whatever the rcode says —
+  NXDOMAIN/SERVFAIL are data, printed in the dissected reply.
 
-  \-\-server accepts IPv4 or IPv6 (tranche 10a): a v6 server roots the
-  raw\-UDP query at ipv6 (the \-i iface picks its v6 source address),
-  and \-\-tcp/\-\-tls ride the dual\-family kernel driver.
+  Every transport rides a kernel socket — no \-i, no capabilities
+  (the raw\-IP + AF_PACKET tap path was retired in perf\-pass 3b:
+  ~15\-19ms of fixed cost per invocation, measured by `cargo xtask
+  perf\-diff` against dig). \-i, when given, pins the source address
+  on multihomed hosts; the seeded source port binds when free.
+
+  \-\-server accepts IPv4 or IPv6 (tranche 10a): a v6 server speaks
+  over the v6 kernel socket on any transport.
 
   \-\-tls is DNS\-over\-TLS (RFC 7858): implies the TCP transport (a
-  fresh TLS connection per attempt, no \-i needed), default server
-  port 853, server name from \-\-server. \-\-tls\-insecure accepts any
-  server certificate and \-\-tls\-ca FILE adds extra roots, as with
-  `wrex http`.
+  fresh TLS connection per attempt), default server port 853, server
+  name from \-\-server. \-\-tls\-insecure accepts any server certificate
+  and \-\-tls\-ca FILE adds extra roots, as with `wrex http`.
 
 RECORD FIELDS (wrex dissect \-\-filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
@@ -91,8 +95,8 @@ RECORD FIELDS (wrex dissect \-\-filter also accepts these):
   included) to names; TXT and everything else stay raw hex bytes.
 
 EXAMPLES:
-  wrex query \-i eth0 \-\-server 192.168.1.1 example.com
-  wrex query \-i eth0 \-\-server 1.1.1.1 \-\-type MX \-\-seed 42 example.com
+  wrex query \-\-server 192.168.1.1 example.com
+  wrex query \-\-server 1.1.1.1 \-\-type MX \-\-seed 42 example.com
   wrex query \-\-tcp \-\-server 192.168.1.1 example.com
   wrex query \-\-tls \-\-server 192.168.1.1 \-\-tls\-insecure example.com
-  wrex query \-i lo \-\-server ::1 example.com
+  wrex query \-\-server ::1 example.com

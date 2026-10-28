@@ -26,7 +26,9 @@ tranche-1 loopback-duplicate TODO.
 paths `an.0.name`, `an.0.rdata`, … and compression-pointer decoding),
 a records extension to the core schema (settable record sections,
 `dns.an.0.ttl=300`-style filters), UDP port-53 dispatch, and a
-seeded raw-UDP ask session (`wrex-dns`). Differentials: hickory-proto
+seeded ask session (`wrex-dns`; kernel UDP/TCP/TLS transports since
+the perf-diff pass — the raw-IP + AF_PACKET tap was retired at ~15-19ms
+measured fixed cost per invocation). Differentials: hickory-proto
 (in-process; craft is byte-identical) and dig (subprocess, stub-server,
 no external network).
 
@@ -141,12 +143,12 @@ completes with exit 0 regardless of findings. Pacing defaults to
 from `--seed`, and probe identities (source ports, tcp seqs, icmp
 ids) are bit-reproducible under a pinned seed.
 
-DNS (tranche 3; needs `CAP_NET_RAW`):
+DNS (tranche 3; kernel sockets since the perf-diff pass — no caps, no `-i`):
 
 ```sh
-# ask one question over raw UDP; the reply dissects to stdout
-wrex query -i eth0 --server 192.168.1.1 example.com
-wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
+# ask one question over kernel UDP; the reply dissects to stdout
+wrex query --server 192.168.1.1 example.com
+wrex query --server 1.1.1.1 --type MX --seed 42 example.com
 
 # craft/dissect DNS directly (records surface as indexed paths)
 wrex craft --format hex --layer dns --dns-name example.com --dns-type AAAA
@@ -279,10 +281,11 @@ deferral): the retained input frame as hex, opt-in.
 
 **Tranche 10** (delivered): IPv6 parity closure. **10a**: the kernel
 `TcpDriver` speaks both families (EOF/bind/`--source-port` conventions
-unchanged), so `wrex query --server ::1` (raw UDP, `--tcp`, `--tls`
-DoT), `wrex http http://[::1]/`, and `wrex fuzz --mode http|dns` v6
-targets all ride v6; the DNS session builds `ipv6`-rooted queries with
-family-aware reply matching. **10b**: the raw v6 driver resolves
+unchanged), so `wrex query --server ::1` (kernel UDP, `--tcp`,
+`--tls` DoT), `wrex http http://[::1]/`, and `wrex fuzz --mode
+http|dns` v6 targets all ride v6 (the query transports moved to
+kernel sockets in the perf-diff pass; the dns message bytes are
+family-agnostic — the transport owns the family). **10b**: the raw v6 driver resolves
 off-link next hops — `/proc/net/ipv6_route` lookup plus an NDP
 cache (hand-rolled NS/NA in `wrex-io::ndp`, no codec deps); local and
 multicast destinations keep the `lo`/on-link iface-MAC behavior, and

@@ -27,16 +27,17 @@ fn query_err(args: &[&str]) -> (i32, String) {
 }
 
 #[test]
-fn iface_and_server_required() {
+fn server_required() {
     let (code, stderr) = query_err(&["example.com"]);
     assert_eq!(code, 2);
     assert!(stderr.contains("query requires --server"), "{stderr}");
 
-    // --server alone (no -i): valid for --tcp; the UDP path errors on
-    // the missing iface once it reaches socket setup.
-    let (code, stderr) = query_err(&["--server", "127.0.0.1", "example.com"]);
+    // --server alone (no -i): accepted on every transport now (perf-
+    // pass 3b: kernel sockets; -i only pins the source address) —
+    // grammar errors are the only exit-2 class before sockets.
+    let (code, stderr) = query_err(&["--server", "127.0.0.1", "a..b"]);
     assert_eq!(code, 2);
-    assert!(stderr.contains("query requires -i"), "{stderr}");
+    assert!(stderr.contains("label"), "{stderr}");
 }
 
 #[test]
@@ -132,17 +133,13 @@ fn help_renders_the_query_grammar() {
     assert!(stdout.contains("NXDOMAIN"), "{stdout}");
 }
 
-/// Tranche 10a: `--server` accepts either family. The v6 raw-UDP path
-/// still demands -i (usage, exit 2); `--tcp --server ::1` past grammar
-/// is a runtime failure (exit 1) against a dead port, not a usage
-/// error — proving the family gate went in.
+/// Tranche 10a: `--server` accepts either family — and since perf-
+/// pass 3b every transport is a kernel socket, so no -i is demanded
+/// anywhere; a v6 server without -i is past the usage gates (a dead
+/// port is a runtime failure, not a usage error).
 #[test]
 fn v6_server_is_in_charter() {
-    let (code, stderr) = query_err(&["--server", "::1", "example.com"]);
-    assert_eq!(code, 2, "{stderr}");
-    assert!(stderr.contains("query requires -i"), "{stderr}");
-
-    // A v6 literal is NOT a bad-server usage error anymore.
+    // A v6 literal is NOT a bad-server usage error.
     let (code, stderr) = query_err(&["-i", "lo", "--server", "::1", "a..b"]);
     assert_eq!(code, 2);
     assert!(

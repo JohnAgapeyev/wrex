@@ -8,6 +8,35 @@ tranche.
 
 ## [Unreleased]
 
+### Changed — performance pass 3b: `wrex query` rides kernel UDP (dig parity)
+
+- **The default `wrex query` transport is a kernel UDP socket**
+  (`wrex-io/src/udp.rs::UdpDriver` + `wrex-dns/src/udp.rs::DnsUdpSession`):
+  bind the seeded source port (ephemeral fallback when taken), `connect(2)`
+  demux (the kernel owns the 4-tuple reply matching; the session matches
+  the dns id and retransmits the same bytes while attempts remain), the
+  reply dissects from the `dns` root — the same output shape as
+  `--tcp`/`--tls` (whose kernels own L3/L4 likewise).
+- **Why**: the perf-diff dns/udp row measured the raw-IP send + AF_PACKET
+  reply-tap path at ~15–19ms fixed cost per invocation (any AF_PACKET
+  socket's protocol-hook add/remove waits on an RCU grace period —
+  ~14ms bind + ~4ms close on 32 CPUs; a kernel socket costs µs) — wrex
+  was 2.2× slower than dig for a one-question ask. After: **24.6ms →
+  2.2ms, wrex ~4.3× faster than dig**, parity with the `--tcp` path.
+- **Deleted**: the tranche-3 raw-UDP session + network-rooted query
+  builder and the query verb's raw-driver wiring (`RawIpDriver`/
+  `RawIpv6Driver` stay — scan/fuzz own them). Arbitrary L3/L4 crafting
+  stays in the craft/send/recv verbs; the fuzz dns app-probe seed now
+  frames the BARE dns message per its own documented intent (it
+  previously framed the network-rooted datagram — a latent mismatch
+  fixed with the move).
+- **UX**: `wrex query` needs no `-i` and no capabilities on ANY
+  transport (`-i` is now an optional source-address pin for multihomed
+  hosts). The reply loses the (fake-ethernet) L3/L4 layers on UDP —
+  full-stack sniffing lives in `recv`/`capture`/`replay`. Epilog, man
+  pages, README, query CLI/driver tests updated; the dig differential
+  (query-side byte-identity via `wrex craft`) is unchanged and green.
+
 ### Fixed — performance pass 3a: tap receive buffer (scan burst reply drops)
 
 - **`AF_PACKET` taps get a best-effort `SO_RCVBUFFORCE`/`SO_RCVBUF`

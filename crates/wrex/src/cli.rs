@@ -345,7 +345,7 @@ pub enum Cmd {
     /// HTTP/1.1 exchanges: send request(s), dissect the responses.
     Http(HttpArgs),
 
-    /// Ask a DNS server one question over raw UDP and dissect the reply.
+    /// Ask a DNS server one question (kernel UDP/TCP/TLS) and dissect the reply.
     Query(QueryArgs),
 
     /// Diff two findings JSONL files (offline, exit 0).
@@ -669,28 +669,33 @@ pub struct ReplayArgs {
     pub reassemble: bool,
 }
 
-/// Epilog for query: the DNS ask verb (tranche 3; DoT at 8a; v6 at 10a).
+/// Epilog for query: the DNS ask verb (tranche 3; DoT at 8a; v6 at 10a;
+/// kernel sockets everywhere since perf-pass 3b).
 pub const QUERY_AFTER_HELP: &str = "\
 QUERY GRAMMAR:
-  wrex query [-i IFACE] --server IP [--port 53] [--tcp]
-             [--tls] [--tls-insecure] [--tls-ca FILE] [options] NAME
+  wrex query [--server IP] [--port 53] [--tcp] [--tls]
+             [--tls-insecure] [--tls-ca FILE] [options] NAME
 
   Sends one seeded DNS question and waits for the matching reply
-  (id + 4-tuple over UDP; with --tcp: RFC 7766 length-prefixed DNS
-  over a fresh TCP connection per attempt). --retries re-sends the
-  SAME query (same dns id) after --timeout. A reply received is a
-  success (exit 0) whatever the rcode says — NXDOMAIN/SERVFAIL are
-  data, printed in the dissected reply.
+  (the reply must echo the query's dns id; with --tcp: RFC 7766
+  length-prefixed DNS over a fresh TCP connection per attempt).
+  --retries re-sends the SAME query (same dns id) after --timeout.
+  A reply received is a success (exit 0) whatever the rcode says —
+  NXDOMAIN/SERVFAIL are data, printed in the dissected reply.
 
-  --server accepts IPv4 or IPv6 (tranche 10a): a v6 server roots the
-  raw-UDP query at ipv6 (the -i iface picks its v6 source address),
-  and --tcp/--tls ride the dual-family kernel driver.
+  Every transport rides a kernel socket — no -i, no capabilities
+  (the raw-IP + AF_PACKET tap path was retired in perf-pass 3b:
+  ~15-19ms of fixed cost per invocation, measured by `cargo xtask
+  perf-diff` against dig). -i, when given, pins the source address
+  on multihomed hosts; the seeded source port binds when free.
+
+  --server accepts IPv4 or IPv6 (tranche 10a): a v6 server speaks
+  over the v6 kernel socket on any transport.
 
   --tls is DNS-over-TLS (RFC 7858): implies the TCP transport (a
-  fresh TLS connection per attempt, no -i needed), default server
-  port 853, server name from --server. --tls-insecure accepts any
-  server certificate and --tls-ca FILE adds extra roots, as with
-  `wrex http`.
+  fresh TLS connection per attempt), default server port 853, server
+  name from --server. --tls-insecure accepts any server certificate
+  and --tls-ca FILE adds extra roots, as with `wrex http`.
 
 RECORD FIELDS (wrex dissect --filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
@@ -699,11 +704,11 @@ RECORD FIELDS (wrex dissect --filter also accepts these):
   included) to names; TXT and everything else stay raw hex bytes.
 
 EXAMPLES:
-  wrex query -i eth0 --server 192.168.1.1 example.com
-  wrex query -i eth0 --server 1.1.1.1 --type MX --seed 42 example.com
+  wrex query --server 192.168.1.1 example.com
+  wrex query --server 1.1.1.1 --type MX --seed 42 example.com
   wrex query --tcp --server 192.168.1.1 example.com
   wrex query --tls --server 192.168.1.1 --tls-insecure example.com
-  wrex query -i lo --server ::1 example.com";
+  wrex query --server ::1 example.com";
 
 /// Epilog for mut: the tranche-6a mutation verb.
 pub const MUT_AFTER_HELP: &str = "\
@@ -1090,7 +1095,8 @@ pub struct ScanArgs {
     pub concurrent: Option<usize>,
 }
 
-/// `wrex query`: one seeded DNS question over a raw UDP datagram.
+/// `wrex query`: one seeded DNS question over a kernel socket (UDP by
+/// default; `--tcp`/`--tls` over streams).
 #[derive(Args, Debug)]
 #[command(after_help = QUERY_AFTER_HELP)]
 pub struct QueryArgs {

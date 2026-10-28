@@ -11,6 +11,7 @@ pub mod ndp;
 pub mod replay;
 pub mod rng;
 pub mod tcp;
+pub mod udp;
 
 pub(crate) mod rx;
 
@@ -19,6 +20,7 @@ pub use iface::{IfEntry, IfTable};
 pub use replay::{FakeClock, ReplayDriver, ScriptedDriver};
 pub use rng::Rng;
 pub use tcp::TcpDriver;
+pub use udp::UdpDriver;
 
 use std::time::Instant;
 

@@ -1,9 +1,11 @@
 //! Query ground-truth tests (env-gated: `WREX_DRIVER_TESTS=1`): the
-//! real `wrex query` over raw-IP injection against a kernel UDP stub
-//! on `lo` — no external network, real sockets, real kernel routing.
+//! real `wrex query` over its kernel UDP socket against a kernel UDP
+//! stub on `lo` — no external network, real sockets, real kernel
+//! routing (perf-pass 3b: the raw-IP + AF_PACKET tap path is retired;
+//! these now pin the dig-style transport's semantics).
 //!
-//! Spawns processes and opens raw sockets: ignored under Miri.
-#![cfg_attr(miri, ignore = "raw sockets + subprocesses; not Miri-safe")]
+//! Spawns processes: ignored under Miri.
+#![cfg_attr(miri, ignore = "subprocesses; not Miri-safe")]
 
 use std::net::UdpSocket;
 use std::process::Command;
@@ -58,9 +60,8 @@ fn stub(reply_kind: (u8, bool)) -> (u16, std::sync::mpsc::Receiver<Vec<u8>>) {
         let query = buf[..n].to_vec();
         let _ = tx.send(query.clone());
         let reply = build_reply(&query, reply_kind.0, reply_kind.1);
-        // Answer the datagram's claimed source (the raw-socket sender);
-        // the kernel routes it to loopback, where our AF_PACKET RX sees
-        // it even though no kernel socket is bound to that port.
+        // Answer the datagram's source (the connected kernel socket's
+        // 4-tuple demux routes the reply straight back to the query).
         let _ = sock.send_to(&reply, from);
     });
     (port, rx)
@@ -70,8 +71,6 @@ fn run_query(port: u16, args: &[&str]) -> (i32, String, String) {
     let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "query",
-            "-i",
-            "lo",
             "--server",
             "127.0.0.1",
             "--port",
@@ -123,8 +122,8 @@ fn query_ground_truth_reply() {
     ));
 }
 
-/// Tranche 10a: the raw-UDP query over a v6 server (`::1` stub on lo).
-/// The datagram roots at ipv6; the reply dissects ipv6→udp→dns.
+/// Tranche 10a: the query over a v6 server (`::1` stub on lo) — the
+/// kernel socket speaks v6 natively; the reply dissects from dns.
 #[test]
 fn query_ground_truth_reply_v6() {
     if !driver_tests_enabled() {
@@ -146,8 +145,6 @@ fn query_ground_truth_reply_v6() {
     let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "query",
-            "-i",
-            "lo",
             "--server",
             "::1",
             "--port",
@@ -193,8 +190,6 @@ fn query_ground_truth_timeout_is_runtime_error() {
     let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "query",
-            "-i",
-            "lo",
             "--server",
             "127.0.0.1",
             "--port",

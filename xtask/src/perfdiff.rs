@@ -9,9 +9,10 @@
 //! The driver builds wrex in release first (dev-profile numbers
 //! measure debug-assertions, not wrex — the `assert_release_profile`
 //! precedent) and re-execs under `unshare -Urn` (the corpus-capture
-//! pattern): the raw-UDP query row and every scan row need
-//! CAP_NET_RAW, and one uniform environment keeps all rows
-//! comparable. `--no-sandbox` stays outside and skips those rows.
+//! pattern): every scan row needs CAP_NET_RAW, and one uniform
+//! environment keeps all rows comparable. `--no-sandbox` stays
+//! outside and skips those rows (the dns rows ride kernel sockets
+//! since perf-pass 3b and run either way).
 //!
 //! Methodology per row: one discarded warmup run per side (page
 //! cache, dynamic loading), then `--reps` runs interleaved
@@ -77,7 +78,7 @@ pub fn run(root: &Path, only: Option<&str>, reps: u32, sandboxed: bool) {
 
     let mut rows = Vec::new();
     rows.extend(dissect_rows(&wrex, &dir, reps, &want));
-    rows.extend(dns_rows(&wrex, &dir, reps, sandboxed, &want));
+    rows.extend(dns_rows(&wrex, &dir, reps, &want));
     rows.extend(http_rows(&wrex, &dir, reps, &want));
     rows.extend(scan_rows(&wrex, &dir, reps, sandboxed, &want));
     if rows.is_empty() {
@@ -250,13 +251,7 @@ fn dissect_rows(wrex: &str, dir: &Path, reps: u32, want: &dyn Fn(&str) -> bool) 
     rows
 }
 
-fn dns_rows(
-    wrex: &str,
-    dir: &Path,
-    reps: u32,
-    sandboxed: bool,
-    want: &dyn Fn(&str) -> bool,
-) -> Vec<Row> {
+fn dns_rows(wrex: &str, dir: &Path, reps: u32, want: &dyn Fn(&str) -> bool) -> Vec<Row> {
     let missing: Vec<&str> = ["dnsmasq", "dig"]
         .into_iter()
         .filter(|t| !have_tool(t))
@@ -266,14 +261,9 @@ fn dns_rows(
         return vec![];
     }
     let want_tcp = want("dns/tcp-cold");
-    let want_udp = want("dns/udp-cold") && sandboxed;
+    let want_udp = want("dns/udp-cold");
     if !want_tcp && !want_udp {
         return vec![];
-    }
-    if want("dns/udp-cold") && !sandboxed {
-        println!(
-            "perf-diff: dns/udp-cold SKIPPED (raw-socket row needs the sandbox; --no-sandbox passed)"
-        );
     }
     let dns = Dnsmasq::spawn(dir);
     let port = dns.port.to_string();
@@ -324,8 +314,6 @@ fn dns_rows(
                 wrex,
                 &[
                     "query",
-                    "-i",
-                    "lo",
                     "--server",
                     "127.0.0.1",
                     "--port",
@@ -347,11 +335,12 @@ fn dns_rows(
                     "A",
                 ],
             ),
-            "default transport: wrex crafts the datagram and taps the reply on an AF_PACKET \
-             socket (CAP_NET_RAW, hence the sandbox); dig rides a kernel UDP socket. Measured \
-             attribution of the gap (strace -T, 32 CPUs): the AF_PACKET tap's bind costs \
-             ~14ms (protocol-hook registration waits on an RCU grace period) + ~4ms on close — \
-             the raw driver itself is ≈ dig's startup. A cheaper reply tap is the fix.",
+            "default transport: both sides ride kernel UDP sockets (perf-pass 3b — the first \
+             baseline measured wrex's raw-IP send + AF_PACKET reply tap at ~15-19ms fixed cost \
+             per invocation: the tap's protocol-hook add/remove waits on an RCU grace period, \
+             ~14ms bind + ~4ms close on 32 CPUs; wrex was 2.2x slower than dig). The kernel \
+             socket is the dig-parity fix; wrex still crafts the dns message itself (seeded \
+             id) — the transport cost is what was measured here.",
             None,
         ));
     }

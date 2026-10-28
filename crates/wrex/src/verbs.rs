@@ -1833,14 +1833,14 @@ fn fuzz_app_probes(
                         timeout: cfg.timeout,
                         seed: cfg.seed,
                     };
-                    let sess = wrex_dns::DnsSession::new(
-                        registry,
-                        qcfg,
-                        target_ip, // packet src (same family as the server)
-                        Instant::now(),
-                    )
-                    .map_err(|e| usage(format!("fuzz: dns seed: {e}")))?;
-                    let query = sess.query_bytes().clone();
+                    // Same seeded draws as the query verb (sport,
+                    // then id): a pinned --seed reproduces the same
+                    // probe bytes. The bare dns message, length-prefixed.
+                    let mut rng = wrex_io::Rng::new(qcfg.seed);
+                    let sport = rng.range_u16(32768, 60999);
+                    let id = (rng.next_u64() & 0xffff) as u16;
+                    let query = wrex_dns::build_tcp_query(registry, &qcfg, sport, id)
+                        .map_err(|e| usage(format!("fuzz: dns seed: {e}")))?;
                     let mut framed = Vec::with_capacity(2 + query.len());
                     framed.extend_from_slice(&(query.len() as u16).to_be_bytes());
                     framed.extend_from_slice(&query);
@@ -2533,13 +2533,9 @@ fn render_http_responses(
 /// reply dissected to stdout. A reply is exit 0 whatever the rcode says
 /// (NXDOMAIN/SERVFAIL are data); silence after all attempts is exit 1.
 fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliError> {
-    use wrex_dns::{DnsReply, DnsSession, QueryConfig};
+    use wrex_dns::QueryConfig;
 
     let common = &args.common;
-    // --tcp rides kernel TCP (no iface, no caps); the raw UDP path
-    // needs -i for its source address. The gate is checked after the
-    // grammar below so usage errors take precedence.
-    let iface = common.iface.as_deref();
     // Formats: the reply is a DissectedPacket; raw/hex make no sense.
     let format = Format::parse(common, Format::Text)?;
     if matches!(format, Format::Raw | Format::Hex) {
@@ -2583,88 +2579,97 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
         seed,
     };
 
-    // Session first: grammar/name errors surface as usage (exit 2)
-    // BEFORE any socket is opened. --tcp/--tls need no interface
-    // (kernel TCP routes and picks the source); the raw UDP path
-    // needs -i.
+    // Grammar/name errors surface as usage (exit 2) BEFORE any socket
+    // is opened (the sessions validate in `new`).
+    //
+    // Perf-pass 3b: EVERY transport rides a kernel socket — no -i, no
+    // capabilities (`-i`, when given, pins the source address for
+    // multihomed determinism). Arbitrary L3/L4 crafting stays in the
+    // craft/send verbs; the raw-UDP + AF_PACKET tap path this replaced
+    // measured ~15-19ms of fixed cost per invocation (the perf-diff
+    // dns/udp row).
     if args.tcp || args.tls {
         let src = std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
         return query_tcp(registry, cfg, args, format, src);
     }
-    let Some(iface) = iface else {
-        return Err(usage("query requires -i/--iface (unless --tcp/--tls)"));
-    };
-    let table = IfTable::from_system()
-        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
-    let entry = table
-        .get(iface)
-        .ok_or_else(|| {
-            CliError::Runtime(format!(
-                "unknown iface `{iface}` (available: {})",
-                table.names().join(", ")
-            ))
-        })?
-        .clone();
-    // Tranche 10a: the source address family must match the server's
-    // (one family per run).
-    let (src, driver_open) = match server {
-        std::net::IpAddr::V4(_) => (
-            entry
-                .ipv4s
-                .first()
-                .copied()
-                .map(std::net::IpAddr::V4)
-                .ok_or_else(|| {
+    query_udp(registry, cfg, args, format)
+}
+
+/// `wrex query` default mode: one seeded DNS question over a kernel
+/// UDP socket ([`wrex_io::UdpDriver`] — the dig-style transport). The
+/// session retransmits the SAME bytes after each attempt timeout (DNS
+/// keeps the id); the kernel's `connect(2)` demux replaces the raw
+/// path's 4-tuple reply matching. The reply dissects from the `dns`
+/// root — the same output shape as `--tcp`/`--tls`, whose kernels own
+/// L3/L4 likewise.
+fn query_udp(
+    registry: &Registry,
+    cfg: wrex_dns::QueryConfig,
+    args: &crate::cli::QueryArgs,
+    format: Format,
+) -> Result<(), CliError> {
+    use wrex_dns::{DnsReply, DnsUdpSession};
+
+    // Seeded identity comes from the same rng draws as --tcp (sport,
+    // then id): the same --seed identifies the same exchange on either
+    // transport; the wire bytes are the BARE dns message (the kernel
+    // owns L3/L4 here).
+    let mut rng = wrex_io::Rng::new(cfg.seed);
+    let sport = rng.range_u16(32768, 60999);
+    let id = (rng.next_u64() & 0xffff) as u16;
+    let query = wrex_dns::build_tcp_query(registry, &cfg, 0, id)
+        .map_err(|e| usage(format!("query: {e}")))?;
+
+    // Optional source pin: the `-i` iface's address for the server's
+    // family (without -i the kernel routes and picks). The seeded
+    // sport binds when free; a taken port falls back to the kernel's
+    // ephemeral pick inside the driver (never a failure, and the dns
+    // message bytes stay seed-identical either way).
+    let bind = match args.common.iface.as_deref() {
+        None => None,
+        Some(iface) => {
+            let table = IfTable::from_system()
+                .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+            let entry = table.get(iface).ok_or_else(|| {
+                CliError::Runtime(format!(
+                    "unknown iface `{iface}` (available: {})",
+                    table.names().join(", ")
+                ))
+            })?;
+            let src = match cfg.server {
+                std::net::IpAddr::V4(_) => entry
+                    .ipv4s
+                    .first()
+                    .copied()
+                    .map(std::net::IpAddr::V4)
+                    .ok_or_else(|| {
                     CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
                 })?,
-            false,
-        ),
-        std::net::IpAddr::V6(_) => (
-            entry
-                .ipv6s
-                .first()
-                .copied()
-                .map(std::net::IpAddr::V6)
-                .ok_or_else(|| {
+                std::net::IpAddr::V6(_) => entry
+                    .ipv6s
+                    .first()
+                    .copied()
+                    .map(std::net::IpAddr::V6)
+                    .ok_or_else(|| {
                     CliError::Runtime(format!("iface `{iface}` has no IPv6 source address"))
                 })?,
-            true,
-        ),
+            };
+            Some(std::net::SocketAddr::new(src, sport))
+        }
     };
-    let mut session = DnsSession::new(registry, cfg, src, Instant::now())
+
+    let server = cfg.server;
+    let timeout = cfg.timeout;
+    let peer = std::net::SocketAddr::new(server, cfg.port);
+    let mut driver = wrex_io::UdpDriver::connect(peer, bind)
+        .map_err(|e| CliError::Runtime(format!("query: {e}")))?;
+    let mut session = DnsUdpSession::new(registry, cfg, query, id, Instant::now())
         .map_err(|e| usage(format!("query: {e}")))?;
-    let mut driver: Box<dyn wrex_io::Driver> = if driver_open {
-        Box::new(wrex_io::RawIpv6Driver::open(iface, &table)?)
-    } else {
-        Box::new(RawIpDriver::open(iface, &table)?)
-    };
-    let outcomes = wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
+    let outcomes = wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
         .map_err(|e| CliError::Runtime(format!("query: {e}")))?;
 
     match outcomes.into_iter().next() {
-        Some(DnsReply::Reply(pkt)) => {
-            let out = match format {
-                Format::Text => {
-                    let mut s = dissect_to_text(&pkt);
-                    s.push('\n');
-                    s
-                }
-                Format::Json => {
-                    let mut s = serde_json::to_string_pretty(&pkt)
-                        .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
-                    s.push('\n');
-                    s
-                }
-                Format::Jsonl => {
-                    let mut s = dissect_to_jsonl(&pkt);
-                    s.push('\n');
-                    s
-                }
-                Format::Raw | Format::Hex => unreachable!("rejected above"),
-            };
-            write_stdout(out.as_bytes())?;
-            Ok(())
-        }
+        Some(DnsReply::Reply(pkt)) => write_dns_reply(&pkt, format),
         Some(DnsReply::NoReply { attempts }) => Err(CliError::Runtime(format!(
             "no reply from {server} within {} x {attempts} ({})",
             hum_duration(timeout),
@@ -2674,6 +2679,34 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
         // never started (gated above) — unreachable in practice.
         None => Err(CliError::Runtime("query produced no outcome".to_string())),
     }
+}
+
+/// Render a matched DNS reply (a dns-rooted `DissectedPacket`) in the
+/// requested format — shared by both kernel transports.
+fn write_dns_reply(
+    pkt: &wrex_core::dissect::DissectedPacket,
+    format: Format,
+) -> Result<(), CliError> {
+    let out = match format {
+        Format::Text => {
+            let mut s = dissect_to_text(pkt);
+            s.push('\n');
+            s
+        }
+        Format::Json => {
+            let mut s = serde_json::to_string_pretty(pkt)
+                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+            s.push('\n');
+            s
+        }
+        Format::Jsonl => {
+            let mut s = dissect_to_jsonl(pkt);
+            s.push('\n');
+            s
+        }
+        Format::Raw | Format::Hex => unreachable!("rejected in query()"),
+    };
+    write_stdout(out.as_bytes())
 }
 
 /// `query --tcp`: RFC 7766 length-prefixed DNS over a fresh kernel TCP
@@ -2749,27 +2782,7 @@ fn query_tcp(
             .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?;
         match outcomes.into_iter().next() {
             Some(DnsTcpReply::Reply(pkt)) => {
-                let out = match format {
-                    Format::Text => {
-                        let mut s = dissect_to_text(&pkt);
-                        s.push('\n');
-                        s
-                    }
-                    Format::Json => {
-                        let mut s = serde_json::to_string_pretty(&pkt)
-                            .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
-                        s.push('\n');
-                        s
-                    }
-                    Format::Jsonl => {
-                        let mut s = dissect_to_jsonl(&pkt);
-                        s.push('\n');
-                        s
-                    }
-                    Format::Raw | Format::Hex => unreachable!("rejected in query()"),
-                };
-                write_stdout(out.as_bytes())?;
-                return Ok(());
+                return write_dns_reply(&pkt, format);
             }
             // Failed attempt: a fresh connection is the retry (RFC 7766).
             Some(DnsTcpReply::Truncated { .. }) | Some(DnsTcpReply::NoReply) | None => {
