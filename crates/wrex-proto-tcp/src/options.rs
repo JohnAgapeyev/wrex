@@ -3,9 +3,12 @@
 //! Comma list of `eol`, `nop`, `mss:1460`, `ws:7`, `sackok`,
 //! `sack:L,R,…` (relative sequence numbers), or `hex:…` raw escape.
 //! The whole options region is zero-padded to a 4-byte multiple by the
-//! caller.
+//! caller. Tokenization, the known-name split and the error mapping
+//! ride the shared [`wrex_core::options`] skeleton (HP3-d); the value
+//! encoders and the pending-sack continuation stay here.
 
 use wrex_core::EncodeError;
+use wrex_core::options::{bad, named, tokens, unknown};
 
 const OPT_EOL: u8 = 0;
 const OPT_NOP: u8 = 1;
@@ -14,90 +17,79 @@ const OPT_WS: u8 = 3;
 const OPT_SACKOK: u8 = 4;
 const OPT_SACK: u8 = 5;
 
-fn bad(detail: String) -> EncodeError {
-    EncodeError::IncompatibleStack { detail }
-}
+const FIELD: &str = "tcp.options";
+const KNOWN: &[&str] = &["mss", "ws", "sack", "hex"];
+const GRAMMAR_DOC: &str = "eol, nop, mss:1460, ws:7, sackok, sack:L,R,…, hex:…";
 
 /// Parse the options grammar into raw option bytes. `sack` values share the
 /// top-level comma, so bare integers continue the pending sack option.
 pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
     let mut out = Vec::new();
     let mut pending_sack: Option<Vec<u32>> = None;
-    for token in raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        if let Some(hex) = token.strip_prefix("hex:") {
+    for token in tokens(raw) {
+        if let Some((name, args)) = named(token, KNOWN) {
             flush_sack(&mut pending_sack, &mut out)?;
-            let bytes = wrex_core::value::parse_hex_bytes(hex.trim())
-                .map_err(|e| bad(format!("tcp.options: bad hex: {e}")))?;
-            out.extend_from_slice(&bytes);
-            continue;
-        }
-        let (name, args) = match token.split_once(':') {
-            Some((n, a)) => (n, Some(a)),
-            None => (token, None),
-        };
-        match name {
-            "eol" => {
-                flush_sack(&mut pending_sack, &mut out)?;
-                out.push(OPT_EOL);
-            }
-            "nop" => {
-                flush_sack(&mut pending_sack, &mut out)?;
-                out.push(OPT_NOP);
-            }
-            "mss" => {
-                flush_sack(&mut pending_sack, &mut out)?;
-                let mss: u16 = args
-                    .unwrap_or("")
-                    .trim()
-                    .parse()
-                    .map_err(|_| bad(format!("tcp.options: mss needs a value in `{token}`")))?;
-                out.extend_from_slice(&[OPT_MSS, 4, (mss >> 8) as u8, mss as u8]);
-            }
-            "ws" => {
-                flush_sack(&mut pending_sack, &mut out)?;
-                let ws: u8 = args
-                    .unwrap_or("")
-                    .trim()
-                    .parse()
-                    .map_err(|_| bad(format!("tcp.options: ws needs a value in `{token}`")))?;
-                out.extend_from_slice(&[OPT_WS, 3, ws, OPT_NOP]); // padded with nop
-            }
-            "sackok" => {
-                flush_sack(&mut pending_sack, &mut out)?;
-                out.extend_from_slice(&[OPT_SACKOK, 2, OPT_NOP, OPT_NOP]);
-            }
-            "sack" => {
-                flush_sack(&mut pending_sack, &mut out)?;
-                let nums: Vec<u32> = match args {
-                    Some(a) if !a.trim().is_empty() => a
-                        .split(',')
-                        .map(|s| s.trim().parse::<u32>())
-                        .collect::<Result<_, _>>()
-                        .map_err(|_| bad(format!("tcp.options: sack needs L,R,… in `{token}`")))?,
-                    _ => Vec::new(),
-                };
-                pending_sack = Some(nums);
-            }
-            _ => {
-                // Bare token: continue a pending sack, else unknown option.
-                if let Ok(n) = token.parse::<u32>() {
-                    match &mut pending_sack {
-                        Some(nums) => nums.push(n),
-                        None => {
-                            return Err(bad(format!(
-                                "tcp.options: unknown option `{token}` (valid: eol, nop, mss:1460, ws:7, sackok, sack:L,R,…, hex:…)"
-                            )));
-                        }
-                    }
-                } else {
-                    return Err(bad(format!(
-                        "tcp.options: unknown option `{token}` (valid: eol, nop, mss:1460, ws:7, sackok, sack:L,R,…, hex:…)"
-                    )));
+            match name {
+                "eol" => out.push(OPT_EOL),
+                "nop" => out.push(OPT_NOP),
+                "mss" => {
+                    let mss: u16 = args
+                        .trim()
+                        .parse()
+                        .map_err(|_| bad(FIELD, format!("mss needs a value in `{token}`")))?;
+                    out.extend_from_slice(&[OPT_MSS, 4, (mss >> 8) as u8, mss as u8]);
                 }
+                "ws" => {
+                    let ws: u8 = args
+                        .trim()
+                        .parse()
+                        .map_err(|_| bad(FIELD, format!("ws needs a value in `{token}`")))?;
+                    out.extend_from_slice(&[OPT_WS, 3, ws, OPT_NOP]); // padded with nop
+                }
+                "sackok" => out.extend_from_slice(&[OPT_SACKOK, 2, OPT_NOP, OPT_NOP]),
+                "sack" => {
+                    let nums: Vec<u32> = match args {
+                        a if a.trim().is_empty() => Vec::new(),
+                        a => a
+                            .split(',')
+                            .map(|s| s.trim().parse::<u32>())
+                            .collect::<Result<_, _>>()
+                            .map_err(|_| bad(FIELD, format!("sack needs L,R,… in `{token}`")))?,
+                    };
+                    pending_sack = Some(nums);
+                }
+                "hex" => {
+                    let bytes = wrex_core::value::parse_hex_bytes(args.trim())
+                        .map_err(|e| bad(FIELD, format!("bad hex: {e}")))?;
+                    out.extend_from_slice(&bytes);
+                }
+                _ => unreachable!("the KNOWN list is the dispatch table"),
+            }
+        } else {
+            // Bare token: the colon-less known options are list items
+            // too (the old split treated them as named; the gated split
+            // sends them here), bare integers continue a pending sack,
+            // anything else is the unknown option.
+            match token {
+                "eol" => {
+                    flush_sack(&mut pending_sack, &mut out)?;
+                    out.push(OPT_EOL);
+                }
+                "nop" => {
+                    flush_sack(&mut pending_sack, &mut out)?;
+                    out.push(OPT_NOP);
+                }
+                "sackok" => {
+                    flush_sack(&mut pending_sack, &mut out)?;
+                    out.extend_from_slice(&[OPT_SACKOK, 2, OPT_NOP, OPT_NOP]);
+                }
+                _ => match token.parse::<u32>() {
+                    Ok(n) => match &mut pending_sack {
+                        Some(nums) => nums.push(n),
+                        None => return Err(unknown(FIELD, token, GRAMMAR_DOC)),
+                    },
+                    Err(_) => return Err(unknown(FIELD, token, GRAMMAR_DOC)),
+                },
             }
         }
     }
@@ -108,7 +100,7 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
 fn flush_sack(pending: &mut Option<Vec<u32>>, out: &mut Vec<u8>) -> Result<(), EncodeError> {
     if let Some(nums) = pending.take() {
         if nums.is_empty() {
-            return Err(bad("tcp.options: sack needs at least one value".into()));
+            return Err(bad(FIELD, "sack needs at least one value"));
         }
         out.push(OPT_SACK);
         out.push(2 + 4 * nums.len() as u8);
@@ -121,7 +113,7 @@ fn flush_sack(pending: &mut Option<Vec<u32>>, out: &mut Vec<u8>) -> Result<(), E
 
 /// Zero-pad to a 4-byte multiple (options region alignment).
 pub(crate) fn pad_len(len: usize) -> usize {
-    (4 - len % 4) % 4
+    wrex_core::options::pad_to_grid(len, 4)
 }
 
 #[cfg(test)]

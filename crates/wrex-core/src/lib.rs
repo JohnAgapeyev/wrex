@@ -8,6 +8,7 @@ pub mod dissect;
 pub mod encode;
 pub mod error;
 pub mod filter;
+pub mod options;
 pub mod patch;
 pub mod render;
 pub mod schema;

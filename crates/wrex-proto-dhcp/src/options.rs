@@ -13,6 +13,7 @@
 use std::net::Ipv4Addr;
 
 use wrex_core::EncodeError;
+use wrex_core::options::{bad, named, tokens, unknown};
 
 // Option codes (RFC 2132).
 pub const OPT_PAD: u8 = 0;
@@ -107,27 +108,34 @@ enum Pending {
     },
 }
 
-fn bad(detail: String) -> EncodeError {
-    EncodeError::IncompatibleStack { detail }
-}
+const FIELD: &str = "dhcp.options";
+const KNOWN: &[&str] = &[
+    "type",
+    "mask",
+    "routers",
+    "dns",
+    "host",
+    "domain",
+    "req_ip",
+    "lease",
+    "renew",
+    "rebind",
+    "server",
+    "param_req",
+    "max_msg",
+    "client_id",
+    "hex",
+];
 
 fn push_tlv(out: &mut Vec<u8>, code: u8, data: &[u8]) -> Result<(), EncodeError> {
-    if data.len() > 255 {
-        return Err(bad(format!(
-            "dhcp.options: option {code} exceeds 255 bytes"
-        )));
-    }
-    out.push(code);
-    out.push(data.len() as u8);
-    out.extend_from_slice(data);
-    Ok(())
+    wrex_core::options::push_tlv_u8(FIELD, out, code, data)
 }
 
 fn push_ip(out: &mut Vec<u8>, code: u8, args: &str, token: &str) -> Result<(), EncodeError> {
     let ip: Ipv4Addr = args
         .trim()
         .parse()
-        .map_err(|_| bad(format!("dhcp.options: bad address in `{token}`")))?;
+        .map_err(|_| bad(FIELD, format!("bad address in `{token}`")))?;
     push_tlv(out, code, &ip.octets())
 }
 
@@ -135,7 +143,7 @@ fn push_u32(out: &mut Vec<u8>, code: u8, args: &str, token: &str) -> Result<(), 
     let n: u32 = args
         .trim()
         .parse()
-        .map_err(|_| bad(format!("dhcp.options: bad number in `{token}`")))?;
+        .map_err(|_| bad(FIELD, format!("bad number in `{token}`")))?;
     push_tlv(out, code, &n.to_be_bytes())
 }
 
@@ -143,7 +151,7 @@ fn push_u16(out: &mut Vec<u8>, code: u8, args: &str, token: &str) -> Result<(), 
     let n: u16 = args
         .trim()
         .parse()
-        .map_err(|_| bad(format!("dhcp.options: bad number in `{token}`")))?;
+        .map_err(|_| bad(FIELD, format!("bad number in `{token}`")))?;
     push_tlv(out, code, &n.to_be_bytes())
 }
 
@@ -154,7 +162,7 @@ fn push_text(out: &mut Vec<u8>, code: u8, args: &str) -> Result<(), EncodeError>
 fn push_hex(out: &mut Vec<u8>, code: u8, args: &str) -> Result<(), EncodeError> {
     let hexpart = args.strip_prefix("hex:").unwrap_or(args);
     let bytes = wrex_core::value::parse_hex_bytes(hexpart.trim())
-        .map_err(|e| bad(format!("dhcp.options: bad hex: {e}")))?;
+        .map_err(|e| bad(FIELD, format!("bad hex: {e}")))?;
     push_tlv(out, code, &bytes)
 }
 
@@ -167,18 +175,13 @@ client_id:HEX, pad, hex:CODE:HEX";
 pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
     let mut out = Vec::new();
     let mut pending = Pending::None;
-    for token in raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        if let Some((name, args)) = token.split_once(':') {
+    for token in tokens(raw) {
+        if let Some((name, args)) = named(token, KNOWN) {
             flush(&mut pending, &mut out)?;
             match name {
                 "type" => {
-                    let n = parse_msg_type(args).ok_or_else(|| {
-                        bad(format!("dhcp.options: bad message type in `{token}`"))
-                    })?;
+                    let n = parse_msg_type(args)
+                        .ok_or_else(|| bad(FIELD, format!("bad message type in `{token}`")))?;
                     push_tlv(&mut out, OPT_MSG_TYPE, &[n])?;
                 }
                 "mask" => push_ip(&mut out, OPT_SUBNET_MASK, args, token)?,
@@ -186,7 +189,7 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
                     let ip: Ipv4Addr = args
                         .trim()
                         .parse()
-                        .map_err(|_| bad(format!("dhcp.options: bad address in `{token}`")))?;
+                        .map_err(|_| bad(FIELD, format!("bad address in `{token}`")))?;
                     pending = Pending::Addrs {
                         code: OPT_ROUTER,
                         ips: vec![ip],
@@ -196,7 +199,7 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
                     let ip: Ipv4Addr = args
                         .trim()
                         .parse()
-                        .map_err(|_| bad(format!("dhcp.options: bad address in `{token}`")))?;
+                        .map_err(|_| bad(FIELD, format!("bad address in `{token}`")))?;
                     pending = Pending::Addrs {
                         code: OPT_DNS_SERVERS,
                         ips: vec![ip],
@@ -210,29 +213,26 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
                 "rebind" => push_u32(&mut out, OPT_REBINDING_TIME, args, token)?,
                 "server" => push_ip(&mut out, OPT_SERVER_ID, args, token)?,
                 "param_req" => {
-                    let n: u8 = args.trim().parse().map_err(|_| {
-                        bad(format!("dhcp.options: bad parameter code in `{token}`"))
-                    })?;
+                    let n: u8 = args
+                        .trim()
+                        .parse()
+                        .map_err(|_| bad(FIELD, format!("bad parameter code in `{token}`")))?;
                     pending = Pending::Codes { list: vec![n] };
                 }
                 "max_msg" => push_u16(&mut out, OPT_MAX_MSG_SIZE, args, token)?,
                 "client_id" => push_hex(&mut out, OPT_CLIENT_ID, args)?,
                 "hex" => {
                     // hex:CODE:HEX — the raw escape hatch.
-                    let (code_s, hexpart) = args.split_once(':').ok_or_else(|| {
-                        bad(format!("dhcp.options: hex needs CODE:HEX in `{token}`"))
-                    })?;
+                    let (code_s, hexpart) = args
+                        .split_once(':')
+                        .ok_or_else(|| bad(FIELD, format!("hex needs CODE:HEX in `{token}`")))?;
                     let code: u8 = code_s
                         .trim()
                         .parse()
-                        .map_err(|_| bad(format!("dhcp.options: bad option code in `{token}`")))?;
+                        .map_err(|_| bad(FIELD, format!("bad option code in `{token}`")))?;
                     push_hex(&mut out, code, hexpart)?;
                 }
-                _ => {
-                    return Err(bad(format!(
-                        "dhcp.options: unknown option `{token}` ({GRAMMAR_DOC})"
-                    )));
-                }
+                _ => return Err(unknown(FIELD, token, GRAMMAR_DOC)),
             }
         } else {
             // Continuation tokens: bare addresses extend routers/dns,
@@ -246,11 +246,7 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
                     flush(&mut pending, &mut out)?;
                     match token {
                         "pad" => out.push(OPT_PAD),
-                        _ => {
-                            return Err(bad(format!(
-                                "dhcp.options: unknown option `{token}` ({GRAMMAR_DOC})"
-                            )));
-                        }
+                        _ => return Err(unknown(FIELD, token, GRAMMAR_DOC)),
                     }
                 }
             }

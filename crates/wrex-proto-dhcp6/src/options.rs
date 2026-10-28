@@ -13,6 +13,7 @@
 use std::net::Ipv6Addr;
 
 use wrex_core::EncodeError;
+use wrex_core::options::{bad, named, tokens, unknown};
 
 // Option codes (RFC 8415 registry).
 pub const OPT_CLIENT_ID: u16 = 1;
@@ -71,16 +72,13 @@ pub fn render_msg_type(v: u8) -> String {
 /// `[4]wrex[7]example[0]`) — the wire format of the domain-search-list
 /// option (RFC 8415 §21.15 inherits RFC 3646).
 pub fn encode_domain_name(name: &str) -> Result<Vec<u8>, EncodeError> {
-    let bad = |what: &str| EncodeError::IncompatibleStack {
-        detail: format!("dhcp6.options: {what}"),
-    };
     if name.is_empty() {
-        return Err(bad("domain: empty name"));
+        return Err(bad(FIELD, "domain: empty name"));
     }
     let mut out = Vec::new();
     for label in name.split('.') {
         if label.is_empty() || label.len() > 63 {
-            return Err(bad(&format!("domain: bad label in `{name}`")));
+            return Err(bad(FIELD, format!("domain: bad label in `{name}`")));
         }
         out.push(label.len() as u8);
         out.extend_from_slice(label.as_bytes());
@@ -172,22 +170,22 @@ impl OpenAddr {
     }
 }
 
-fn bad(detail: String) -> EncodeError {
-    EncodeError::IncompatibleStack { detail }
-}
+const FIELD: &str = "dhcp6.options";
+const KNOWN: &[&str] = &[
+    "client_id",
+    "server_id",
+    "ia_na",
+    "ia_addr",
+    "oro",
+    "dns",
+    "domain",
+    "elapsed",
+    "hex",
+];
 
-/// Push one u16-code/u16-len TLV.
+/// Push one u16-code/u16-len TLV (the shared skeleton's dhcp6 shape).
 fn push_tlv(out: &mut Vec<u8>, code: u16, data: &[u8]) -> Result<(), EncodeError> {
-    if data.len() > u16::MAX as usize {
-        return Err(bad(format!(
-            "dhcp6.options: option {code} exceeds {} bytes",
-            u16::MAX
-        )));
-    }
-    out.extend_from_slice(&code.to_be_bytes());
-    out.extend_from_slice(&(data.len() as u16).to_be_bytes());
-    out.extend_from_slice(data);
-    Ok(())
+    wrex_core::options::push_tlv_u16(FIELD, out, code, data)
 }
 
 /// Open a new IAADDR sub-option inside a pending IA_NA: flush any
@@ -197,7 +195,7 @@ fn open_iaaddr(iana: &mut PendingIana, args: &str, token: &str) -> Result<(), En
     let addr: Ipv6Addr = args
         .trim()
         .parse()
-        .map_err(|_| bad(format!("dhcp6.options: bad address in `{token}`")))?;
+        .map_err(|_| bad(FIELD, format!("bad address in `{token}`")))?;
     iana.open_addr = Some(OpenAddr {
         addr,
         preferred: None,
@@ -218,7 +216,7 @@ fn flush_open_addr(iana: &mut PendingIana) -> Result<(), EncodeError> {
 fn push_hex(out: &mut Vec<u8>, code: u16, args: &str) -> Result<(), EncodeError> {
     let hexpart = args.strip_prefix("hex:").unwrap_or(args);
     let bytes = wrex_core::value::parse_hex_bytes(hexpart.trim())
-        .map_err(|e| bad(format!("dhcp6.options: bad hex: {e}")))?;
+        .map_err(|e| bad(FIELD, format!("bad hex: {e}")))?;
     push_tlv(out, code, &bytes)
 }
 
@@ -230,38 +228,18 @@ ia_addr:IP[,preferred,valid], oro:N…, dns:IP…, domain:NAME, elapsed:N, rapid
 pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
     let mut out = Vec::new();
     let mut pending = Pending::None;
-    for token in raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        // A bare continuation may itself contain `:` (an IPv6
-        // address) — only the KNOWN option names take the named
-        // branch (the icmpv6 options-grammar gotcha).
-        const KNOWN_NAMES: &[&str] = &[
-            "client_id",
-            "server_id",
-            "ia_na",
-            "ia_addr",
-            "oro",
-            "dns",
-            "domain",
-            "elapsed",
-            "hex",
-        ];
-        let named = token
-            .split_once(':')
-            .filter(|(n, _)| KNOWN_NAMES.contains(n));
-        if let Some((name, args)) = named {
+    for token in tokens(raw) {
+        if let Some((name, args)) = named(token, KNOWN) {
             match name {
                 // ia_addr continues the pending IA_NA — it must NOT
                 // flush it (IAADDR nests inside the IA_NA payload).
                 "ia_addr" => match &mut pending {
                     Pending::Iana(iana) => open_iaaddr(iana, args, token)?,
                     _ => {
-                        return Err(bad(format!(
-                            "dhcp6.options: ia_addr without a pending ia_na (`{token}`)"
-                        )));
+                        return Err(bad(
+                            FIELD,
+                            format!("ia_addr without a pending ia_na (`{token}`)"),
+                        ));
                     }
                 },
                 _ => {
@@ -304,20 +282,14 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
                     } else if t2.is_none() {
                         *t2 = Some(n);
                     } else {
-                        return Err(bad(format!(
-                            "dhcp6.options: unknown option `{token}` ({GRAMMAR_DOC})"
-                        )));
+                        return Err(unknown(FIELD, token, GRAMMAR_DOC));
                     }
                 }
                 _ => {
                     flush(&mut pending, &mut out)?;
                     match token {
                         "rapid" => push_tlv(&mut out, OPT_RAPID_COMMIT, &[])?,
-                        _ => {
-                            return Err(bad(format!(
-                                "dhcp6.options: unknown option `{token}` ({GRAMMAR_DOC})"
-                            )));
-                        }
+                        _ => return Err(unknown(FIELD, token, GRAMMAR_DOC)),
                     }
                 }
             }
@@ -334,9 +306,7 @@ fn fill_addr_lifetime(open: &mut OpenAddr, n: u32, token: &str) -> Result<(), En
     } else if open.valid.is_none() {
         open.valid = Some(n);
     } else {
-        return Err(bad(format!(
-            "dhcp6.options: unknown option `{token}` ({GRAMMAR_DOC})"
-        )));
+        return Err(unknown(FIELD, token, GRAMMAR_DOC));
     }
     Ok(())
 }
@@ -359,7 +329,7 @@ fn parse_named(
             let iaid: u32 = args
                 .trim()
                 .parse()
-                .map_err(|_| bad(format!("dhcp6.options: bad iaid in `{token}`")))?;
+                .map_err(|_| bad(FIELD, format!("bad iaid in `{token}`")))?;
             *pending = Pending::Iana(PendingIana {
                 iaid,
                 t1: None,
@@ -373,7 +343,7 @@ fn parse_named(
             let n: u16 = args
                 .trim()
                 .parse()
-                .map_err(|_| bad(format!("dhcp6.options: bad option code in `{token}`")))?;
+                .map_err(|_| bad(FIELD, format!("bad option code in `{token}`")))?;
             *pending = Pending::Codes { list: vec![n] };
             Ok(())
         }
@@ -381,7 +351,7 @@ fn parse_named(
             let ip: Ipv6Addr = args
                 .trim()
                 .parse()
-                .map_err(|_| bad(format!("dhcp6.options: bad address in `{token}`")))?;
+                .map_err(|_| bad(FIELD, format!("bad address in `{token}`")))?;
             *pending = Pending::Dns { ips: vec![ip] };
             Ok(())
         }
@@ -393,23 +363,21 @@ fn parse_named(
             let n: u16 = args
                 .trim()
                 .parse()
-                .map_err(|_| bad(format!("dhcp6.options: bad number in `{token}`")))?;
+                .map_err(|_| bad(FIELD, format!("bad number in `{token}`")))?;
             push_tlv(out, OPT_ELAPSED_TIME, &n.to_be_bytes())
         }
         "hex" => {
             // hex:CODE:HEX — the raw escape hatch.
             let (code_s, hexpart) = args
                 .split_once(':')
-                .ok_or_else(|| bad(format!("dhcp6.options: hex needs CODE:HEX in `{token}`")))?;
+                .ok_or_else(|| bad(FIELD, format!("hex needs CODE:HEX in `{token}`")))?;
             let code: u16 = code_s
                 .trim()
                 .parse()
-                .map_err(|_| bad(format!("dhcp6.options: bad option code in `{token}`")))?;
+                .map_err(|_| bad(FIELD, format!("bad option code in `{token}`")))?;
             push_hex(out, code, hexpart)
         }
-        _ => Err(bad(format!(
-            "dhcp6.options: unknown option `{token}` ({GRAMMAR_DOC})"
-        ))),
+        _ => Err(unknown(FIELD, token, GRAMMAR_DOC)),
     }
 }
 

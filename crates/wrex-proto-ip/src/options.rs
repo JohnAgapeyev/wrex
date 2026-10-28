@@ -5,11 +5,14 @@
 //! timestamp arguments share the top-level comma, so bare IPv4 addresses
 //! continue the previous route option and bare integers continue a
 //! `ts` option. The whole options region is zero-padded to a 4-byte
-//! multiple by the caller.
+//! multiple by the caller. Tokenization, the known-name split and the
+//! error mapping ride the shared [`wrex_core::options`] skeleton
+//! (HP3-d); the route/ts encoders and their pending state stay here.
 
 use std::net::Ipv4Addr;
 
 use wrex_core::EncodeError;
+use wrex_core::options::{bad, named, tokens, unknown};
 
 const OPT_EOL: u8 = 0;
 const OPT_NOP: u8 = 1;
@@ -18,26 +21,22 @@ const OPT_TS: u8 = 68;
 const OPT_LSRR: u8 = 131;
 const OPT_SSRR: u8 = 137;
 
+const FIELD: &str = "ipv4.options";
+const KNOWN: &[&str] = &["eol", "nop", "rr", "ssrr", "lsrr", "ts", "hex"];
+const GRAMMAR_DOC: &str = "eol, nop, rr:IP…, ssrr:IP…, lsrr:IP…, ts:FLAG,CNT, hex:…";
+
 enum Pending {
     None,
     Route { kind: u8, ips: Vec<Ipv4Addr> },
     Ts { flag: u8, cnt: Option<usize> },
 }
 
-fn bad(detail: String) -> EncodeError {
-    EncodeError::IncompatibleStack { detail }
-}
-
 /// Parse the options grammar into raw option bytes.
 pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
     let mut out = Vec::new();
     let mut pending = Pending::None;
-    for token in raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        if let Some((name, args)) = token.split_once(':') {
+    for token in tokens(raw) {
+        if let Some((name, args)) = named(token, KNOWN) {
             flush(&mut pending, &mut out)?;
             match name {
                 "eol" => out.push(OPT_EOL),
@@ -48,61 +47,50 @@ pub(crate) fn parse_options(raw: &str) -> Result<Vec<u8>, EncodeError> {
                         "ssrr" => OPT_SSRR,
                         _ => OPT_LSRR,
                     };
-                    let ips: Vec<Ipv4Addr> = match args {
-                        a if a.trim().is_empty() => Vec::new(),
-                        a => a
-                            .split(',')
+                    let ips: Vec<Ipv4Addr> = if args.trim().is_empty() {
+                        Vec::new()
+                    } else {
+                        args.split(',')
                             .map(|s| s.trim().parse::<Ipv4Addr>())
                             .collect::<Result<_, _>>()
-                            .map_err(|_| {
-                                bad(format!("ipv4.options: bad route address in `{token}`"))
-                            })?,
+                            .map_err(|_| bad(FIELD, format!("bad route address in `{token}`")))?
                     };
                     pending = Pending::Route { kind, ips };
                 }
                 "ts" => {
-                    let flag: u8 = args.trim().parse().map_err(|_| {
-                        bad(format!("ipv4.options: ts needs FLAG,CNT in `{token}`"))
-                    })?;
+                    let flag: u8 = args
+                        .trim()
+                        .parse()
+                        .map_err(|_| bad(FIELD, format!("ts needs FLAG,CNT in `{token}`")))?;
                     pending = Pending::Ts { flag, cnt: None };
                 }
                 "hex" => {
                     let bytes = wrex_core::value::parse_hex_bytes(args.trim())
-                        .map_err(|e| bad(format!("ipv4.options: bad hex: {e}")))?;
+                        .map_err(|e| bad(FIELD, format!("bad hex: {e}")))?;
                     out.extend_from_slice(&bytes);
                 }
-                _ => {
-                    return Err(bad(format!(
-                        "ipv4.options: unknown option `{token}` (valid: eol, nop, rr:IP…, ssrr:IP…, lsrr:IP…, ts:FLAG,CNT, hex:…)"
-                    )));
-                }
+                _ => unreachable!("the KNOWN list is the dispatch table"),
             }
         } else {
             // Continuation tokens: bare addresses extend a route option,
-            // bare integers complete `ts:FLAG,CNT`.
+            // bare integers complete `ts:FLAG,CNT`; bare eol/nop are
+            // also valid list items.
             match (&mut pending, token.parse::<Ipv4Addr>()) {
                 (Pending::Route { ips, .. }, Ok(ip)) => ips.push(ip),
                 (Pending::Ts { cnt, .. }, _) if token.parse::<usize>().is_ok() => {
                     *cnt = Some(token.parse::<usize>().unwrap());
                 }
-                (_, Ok(_)) | (_, Err(_)) => {
-                    // Bare eol/nop tokens are also valid list items.
-                    match token {
-                        "eol" => {
-                            flush(&mut pending, &mut out)?;
-                            out.push(OPT_EOL)
-                        }
-                        "nop" => {
-                            flush(&mut pending, &mut out)?;
-                            out.push(OPT_NOP)
-                        }
-                        _ => {
-                            return Err(bad(format!(
-                                "ipv4.options: unknown option `{token}` (valid: eol, nop, rr:IP…, ssrr:IP…, lsrr:IP…, ts:FLAG,CNT, hex:…)"
-                            )));
-                        }
+                (_, Ok(_)) | (_, Err(_)) => match token {
+                    "eol" => {
+                        flush(&mut pending, &mut out)?;
+                        out.push(OPT_EOL)
                     }
-                }
+                    "nop" => {
+                        flush(&mut pending, &mut out)?;
+                        out.push(OPT_NOP)
+                    }
+                    _ => return Err(unknown(FIELD, token, GRAMMAR_DOC)),
+                },
             }
         }
     }
@@ -115,9 +103,7 @@ fn flush(pending: &mut Pending, out: &mut Vec<u8>) -> Result<(), EncodeError> {
         Pending::None => Ok(()),
         Pending::Route { kind, ips } => {
             if ips.is_empty() {
-                return Err(bad(
-                    "ipv4.options: route option needs at least one address".into()
-                ));
+                return Err(bad(FIELD, "route option needs at least one address"));
             }
             out.push(kind);
             out.push(3 + 4 * ips.len() as u8);
@@ -128,9 +114,8 @@ fn flush(pending: &mut Pending, out: &mut Vec<u8>) -> Result<(), EncodeError> {
             Ok(())
         }
         Pending::Ts { flag, cnt } => {
-            let cnt = cnt.ok_or_else(|| {
-                bad("ipv4.options: ts needs FLAG,CNT (comma shares the item separator)".into())
-            })?;
+            let cnt = cnt
+                .ok_or_else(|| bad(FIELD, "ts needs FLAG,CNT (comma shares the item separator)"))?;
             out.push(OPT_TS);
             out.push(4 + 4 * cnt as u8);
             out.push(5); // pointer
@@ -143,7 +128,7 @@ fn flush(pending: &mut Pending, out: &mut Vec<u8>) -> Result<(), EncodeError> {
 
 /// Zero-pad to a 4-byte multiple (options region alignment).
 pub(crate) const fn pad_len(len: usize) -> usize {
-    (4 - len % 4) % 4
+    wrex_core::options::pad_to_grid(len, 4)
 }
 
 #[cfg(test)]
