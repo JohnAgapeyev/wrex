@@ -1,0 +1,962 @@
+pub mod wrex_io
+pub mod wrex_io::driver
+pub enum wrex_io::driver::DriverError
+pub wrex_io::driver::DriverError::IfaceNotFound
+pub wrex_io::driver::DriverError::IfaceNotFound::available: alloc::string::String
+pub wrex_io::driver::DriverError::IfaceNotFound::wanted: alloc::string::String
+pub wrex_io::driver::DriverError::Io
+pub wrex_io::driver::DriverError::Io::source: core::io::error::Error
+pub wrex_io::driver::DriverError::PermissionDenied
+pub wrex_io::driver::DriverError::PermissionDenied::hint: alloc::string::String
+impl core::error::Error for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_io::driver::DriverError
+impl core::marker::Send for wrex_io::driver::DriverError
+impl core::marker::Sync for wrex_io::driver::DriverError
+impl core::marker::Unpin for wrex_io::driver::DriverError
+impl core::marker::UnsafeUnpin for wrex_io::driver::DriverError
+impl !core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::DriverError
+impl !core::panic::unwind_safe::UnwindSafe for wrex_io::driver::DriverError
+impl<T, U> core::convert::Into<U> for wrex_io::driver::DriverError where U: core::convert::From<T>
+pub fn wrex_io::driver::DriverError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::DriverError where U: core::convert::Into<T>
+pub type wrex_io::driver::DriverError::Error = never
+pub fn wrex_io::driver::DriverError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::DriverError where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::DriverError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::DriverError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for wrex_io::driver::DriverError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_io::driver::DriverError where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::DriverError where T: ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::DriverError where T: ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::from(T) -> T
+pub struct wrex_io::driver::Frame
+pub wrex_io::driver::Frame::bytes: bytes::bytes::Bytes
+pub wrex_io::driver::Frame::iface: alloc::string::String
+pub wrex_io::driver::Frame::ts: std::time::SystemTime
+impl core::clone::Clone for wrex_io::driver::Frame
+pub fn wrex_io::driver::Frame::clone(&self) -> Self
+impl core::fmt::Debug for wrex_io::driver::Frame
+pub fn wrex_io::driver::Frame::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_io::driver::Frame
+impl core::marker::Send for wrex_io::driver::Frame
+impl core::marker::Sync for wrex_io::driver::Frame
+impl core::marker::Unpin for wrex_io::driver::Frame
+impl core::marker::UnsafeUnpin for wrex_io::driver::Frame
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::Frame
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::Frame
+impl<T, U> core::convert::Into<U> for wrex_io::driver::Frame where U: core::convert::From<T>
+pub fn wrex_io::driver::Frame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::Frame where U: core::convert::Into<T>
+pub type wrex_io::driver::Frame::Error = never
+pub fn wrex_io::driver::Frame::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::Frame where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::Frame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::Frame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::driver::Frame where T: core::clone::Clone
+pub type wrex_io::driver::Frame::Owned = T
+pub fn wrex_io::driver::Frame::clone_into(&self, &mut T)
+pub fn wrex_io::driver::Frame::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::driver::Frame where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::Frame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::Frame where T: ?core::marker::Sized
+pub fn wrex_io::driver::Frame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::Frame where T: ?core::marker::Sized
+pub fn wrex_io::driver::Frame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::driver::Frame where T: core::clone::Clone
+pub unsafe fn wrex_io::driver::Frame::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::driver::Frame
+pub fn wrex_io::driver::Frame::from(T) -> T
+pub struct wrex_io::driver::RawEthDriver
+impl wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::open(&str, bool, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawEthDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::driver::RawEthDriver
+impl core::marker::Send for wrex_io::driver::RawEthDriver
+impl core::marker::Sync for wrex_io::driver::RawEthDriver
+impl core::marker::Unpin for wrex_io::driver::RawEthDriver
+impl core::marker::UnsafeUnpin for wrex_io::driver::RawEthDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::RawEthDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::RawEthDriver
+impl<T, U> core::convert::Into<U> for wrex_io::driver::RawEthDriver where U: core::convert::From<T>
+pub fn wrex_io::driver::RawEthDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::RawEthDriver where U: core::convert::Into<T>
+pub type wrex_io::driver::RawEthDriver::Error = never
+pub fn wrex_io::driver::RawEthDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::RawEthDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::RawEthDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::RawEthDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::driver::RawEthDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::RawEthDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::RawEthDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawEthDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::RawEthDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawEthDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::from(T) -> T
+pub struct wrex_io::driver::RawIpDriver
+impl wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::open(&str, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::driver::RawIpDriver
+impl core::marker::Send for wrex_io::driver::RawIpDriver
+impl core::marker::Sync for wrex_io::driver::RawIpDriver
+impl core::marker::Unpin for wrex_io::driver::RawIpDriver
+impl core::marker::UnsafeUnpin for wrex_io::driver::RawIpDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::RawIpDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::RawIpDriver
+impl<T, U> core::convert::Into<U> for wrex_io::driver::RawIpDriver where U: core::convert::From<T>
+pub fn wrex_io::driver::RawIpDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::RawIpDriver where U: core::convert::Into<T>
+pub type wrex_io::driver::RawIpDriver::Error = never
+pub fn wrex_io::driver::RawIpDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::RawIpDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::RawIpDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::RawIpDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::driver::RawIpDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::RawIpDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::RawIpDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::RawIpDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::from(T) -> T
+pub struct wrex_io::driver::RawIpv6Driver
+impl wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::open(&str, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpv6Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::driver::RawIpv6Driver
+impl core::marker::Send for wrex_io::driver::RawIpv6Driver
+impl core::marker::Sync for wrex_io::driver::RawIpv6Driver
+impl core::marker::Unpin for wrex_io::driver::RawIpv6Driver
+impl core::marker::UnsafeUnpin for wrex_io::driver::RawIpv6Driver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::RawIpv6Driver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::RawIpv6Driver
+impl<T, U> core::convert::Into<U> for wrex_io::driver::RawIpv6Driver where U: core::convert::From<T>
+pub fn wrex_io::driver::RawIpv6Driver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::RawIpv6Driver where U: core::convert::Into<T>
+pub type wrex_io::driver::RawIpv6Driver::Error = never
+pub fn wrex_io::driver::RawIpv6Driver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::RawIpv6Driver where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::RawIpv6Driver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::RawIpv6Driver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::driver::RawIpv6Driver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::RawIpv6Driver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::RawIpv6Driver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpv6Driver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::RawIpv6Driver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpv6Driver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::from(T) -> T
+pub const wrex_io::driver::PERMISSION_HINT: &str
+pub trait wrex_io::driver::Driver: core::marker::Send
+pub fn wrex_io::driver::Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawEthDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpv6Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ReplayDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ScriptedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+pub fn wrex_io::driver::poll_timeout_for(std::time::Instant) -> u32
+pub mod wrex_io::iface
+pub struct wrex_io::iface::IfEntry
+pub wrex_io::iface::IfEntry::ifindex: i32
+pub wrex_io::iface::IfEntry::ipv4s: alloc::vec::Vec<core::net::ip_addr::Ipv4Addr>
+pub wrex_io::iface::IfEntry::ipv6s: alloc::vec::Vec<core::net::ip_addr::Ipv6Addr>
+pub wrex_io::iface::IfEntry::mac: [u8; 6]
+pub wrex_io::iface::IfEntry::mtu: u32
+pub wrex_io::iface::IfEntry::name: alloc::string::String
+pub wrex_io::iface::IfEntry::up: bool
+impl core::clone::Clone for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::clone(&self) -> Self
+impl core::cmp::Eq for wrex_io::iface::IfEntry
+impl core::cmp::PartialEq for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_io::iface::IfEntry
+impl serde_core::ser::Serialize for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_io::iface::IfEntry
+impl core::marker::Send for wrex_io::iface::IfEntry
+impl core::marker::Sync for wrex_io::iface::IfEntry
+impl core::marker::Unpin for wrex_io::iface::IfEntry
+impl core::marker::UnsafeUnpin for wrex_io::iface::IfEntry
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::iface::IfEntry
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::iface::IfEntry
+impl<T, U> core::convert::Into<U> for wrex_io::iface::IfEntry where U: core::convert::From<T>
+pub fn wrex_io::iface::IfEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::iface::IfEntry where U: core::convert::Into<T>
+pub type wrex_io::iface::IfEntry::Error = never
+pub fn wrex_io::iface::IfEntry::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::iface::IfEntry where U: core::convert::TryFrom<T>
+pub type wrex_io::iface::IfEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::iface::IfEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::iface::IfEntry where T: core::clone::Clone
+pub type wrex_io::iface::IfEntry::Owned = T
+pub fn wrex_io::iface::IfEntry::clone_into(&self, &mut T)
+pub fn wrex_io::iface::IfEntry::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::iface::IfEntry where T: 'static + ?core::marker::Sized
+pub fn wrex_io::iface::IfEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::iface::IfEntry where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::iface::IfEntry where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::iface::IfEntry where T: core::clone::Clone
+pub unsafe fn wrex_io::iface::IfEntry::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::from(T) -> T
+pub struct wrex_io::iface::IfTable
+impl wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::empty() -> Self
+pub fn wrex_io::iface::IfTable::entries(&self) -> impl core::iter::traits::iterator::Iterator<Item = &wrex_io::iface::IfEntry>
+pub fn wrex_io::iface::IfTable::from_sysfs(&std::path::Path) -> core::result::Result<Self, core::io::error::Error>
+pub fn wrex_io::iface::IfTable::from_system() -> core::result::Result<Self, core::io::error::Error>
+pub fn wrex_io::iface::IfTable::get(&self, &str) -> core::option::Option<&wrex_io::iface::IfEntry>
+pub fn wrex_io::iface::IfTable::names(&self) -> alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::clone(&self) -> Self
+impl core::cmp::Eq for wrex_io::iface::IfTable
+impl core::cmp::PartialEq for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::eq(&self, &Self) -> bool
+impl core::default::Default for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::default() -> Self
+impl core::fmt::Debug for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_io::iface::IfTable
+impl core::marker::Freeze for wrex_io::iface::IfTable
+impl core::marker::Send for wrex_io::iface::IfTable
+impl core::marker::Sync for wrex_io::iface::IfTable
+impl core::marker::Unpin for wrex_io::iface::IfTable
+impl core::marker::UnsafeUnpin for wrex_io::iface::IfTable
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::iface::IfTable
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::iface::IfTable
+impl<T, U> core::convert::Into<U> for wrex_io::iface::IfTable where U: core::convert::From<T>
+pub fn wrex_io::iface::IfTable::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::iface::IfTable where U: core::convert::Into<T>
+pub type wrex_io::iface::IfTable::Error = never
+pub fn wrex_io::iface::IfTable::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::iface::IfTable where U: core::convert::TryFrom<T>
+pub type wrex_io::iface::IfTable::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::iface::IfTable::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::iface::IfTable where T: core::clone::Clone
+pub type wrex_io::iface::IfTable::Owned = T
+pub fn wrex_io::iface::IfTable::clone_into(&self, &mut T)
+pub fn wrex_io::iface::IfTable::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::iface::IfTable where T: 'static + ?core::marker::Sized
+pub fn wrex_io::iface::IfTable::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::iface::IfTable where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfTable::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::iface::IfTable where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfTable::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::iface::IfTable where T: core::clone::Clone
+pub unsafe fn wrex_io::iface::IfTable::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::from(T) -> T
+pub mod wrex_io::ndp
+pub const wrex_io::ndp::RESOLVE_TIMEOUT: core::time::Duration
+pub fn wrex_io::ndp::build_ns_frame([u8; 6], core::net::ip_addr::Ipv6Addr, core::net::ip_addr::Ipv6Addr, [u8; 6]) -> alloc::vec::Vec<u8>
+pub fn wrex_io::ndp::icmp6_checksum(core::net::ip_addr::Ipv6Addr, core::net::ip_addr::Ipv6Addr, &[u8]) -> u16
+pub const fn wrex_io::ndp::multicast_mac(core::net::ip_addr::Ipv6Addr) -> [u8; 6]
+pub fn wrex_io::ndp::parse_na(&[u8]) -> core::option::Option<(core::net::ip_addr::Ipv6Addr, [u8; 6])>
+pub const fn wrex_io::ndp::solicited_node(core::net::ip_addr::Ipv6Addr) -> core::net::ip_addr::Ipv6Addr
+pub mod wrex_io::replay
+pub struct wrex_io::replay::FakeClock
+impl wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::advance(&self, core::time::Duration)
+pub fn wrex_io::replay::FakeClock::new() -> Self
+impl core::default::Default for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::default() -> Self
+impl wrex_io::Clock for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::fast_forward(&self, std::time::Instant)
+pub fn wrex_io::replay::FakeClock::now(&self) -> std::time::Instant
+impl !core::marker::Freeze for wrex_io::replay::FakeClock
+impl core::marker::Send for wrex_io::replay::FakeClock
+impl core::marker::Sync for wrex_io::replay::FakeClock
+impl core::marker::Unpin for wrex_io::replay::FakeClock
+impl core::marker::UnsafeUnpin for wrex_io::replay::FakeClock
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::replay::FakeClock
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::replay::FakeClock
+impl<T, U> core::convert::Into<U> for wrex_io::replay::FakeClock where U: core::convert::From<T>
+pub fn wrex_io::replay::FakeClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::replay::FakeClock where U: core::convert::Into<T>
+pub type wrex_io::replay::FakeClock::Error = never
+pub fn wrex_io::replay::FakeClock::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::replay::FakeClock where U: core::convert::TryFrom<T>
+pub type wrex_io::replay::FakeClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::replay::FakeClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::replay::FakeClock where T: 'static + ?core::marker::Sized
+pub fn wrex_io::replay::FakeClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::replay::FakeClock where T: ?core::marker::Sized
+pub fn wrex_io::replay::FakeClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::replay::FakeClock where T: ?core::marker::Sized
+pub fn wrex_io::replay::FakeClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::from(T) -> T
+pub struct wrex_io::replay::ReplayDriver
+pub wrex_io::replay::ReplayDriver::sent: alloc::vec::Vec<alloc::vec::Vec<u8>>
+impl wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::new(alloc::vec::Vec<wrex_io::driver::Frame>) -> Self
+pub fn wrex_io::replay::ReplayDriver::remaining(&self) -> usize
+impl wrex_io::driver::Driver for wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ReplayDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::replay::ReplayDriver
+impl core::marker::Send for wrex_io::replay::ReplayDriver
+impl core::marker::Sync for wrex_io::replay::ReplayDriver
+impl core::marker::Unpin for wrex_io::replay::ReplayDriver
+impl core::marker::UnsafeUnpin for wrex_io::replay::ReplayDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::replay::ReplayDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::replay::ReplayDriver
+impl<T, U> core::convert::Into<U> for wrex_io::replay::ReplayDriver where U: core::convert::From<T>
+pub fn wrex_io::replay::ReplayDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::replay::ReplayDriver where U: core::convert::Into<T>
+pub type wrex_io::replay::ReplayDriver::Error = never
+pub fn wrex_io::replay::ReplayDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::replay::ReplayDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::replay::ReplayDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::replay::ReplayDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::replay::ReplayDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::replay::ReplayDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::replay::ReplayDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ReplayDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::replay::ReplayDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ReplayDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::from(T) -> T
+pub struct wrex_io::replay::ScriptedDriver
+pub wrex_io::replay::ScriptedDriver::sent: alloc::vec::Vec<alloc::vec::Vec<u8>>
+impl wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::new(alloc::rcs::arc::Arc<dyn wrex_io::Clock>, alloc::vec::Vec<alloc::vec::Vec<u8>>) -> Self
+pub fn wrex_io::replay::ScriptedDriver::remaining(&self) -> usize
+impl wrex_io::driver::Driver for wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ScriptedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::replay::ScriptedDriver
+impl core::marker::Send for wrex_io::replay::ScriptedDriver
+impl core::marker::Sync for wrex_io::replay::ScriptedDriver
+impl core::marker::Unpin for wrex_io::replay::ScriptedDriver
+impl core::marker::UnsafeUnpin for wrex_io::replay::ScriptedDriver
+impl !core::panic::unwind_safe::RefUnwindSafe for wrex_io::replay::ScriptedDriver
+impl !core::panic::unwind_safe::UnwindSafe for wrex_io::replay::ScriptedDriver
+impl<T, U> core::convert::Into<U> for wrex_io::replay::ScriptedDriver where U: core::convert::From<T>
+pub fn wrex_io::replay::ScriptedDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::replay::ScriptedDriver where U: core::convert::Into<T>
+pub type wrex_io::replay::ScriptedDriver::Error = never
+pub fn wrex_io::replay::ScriptedDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::replay::ScriptedDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::replay::ScriptedDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::replay::ScriptedDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::replay::ScriptedDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::replay::ScriptedDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::replay::ScriptedDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ScriptedDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::replay::ScriptedDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ScriptedDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::from(T) -> T
+pub const fn wrex_io::replay::epoch_ts() -> std::time::SystemTime
+pub fn wrex_io::replay::fake_frame(&str, &[u8]) -> wrex_io::driver::Frame
+pub mod wrex_io::rng
+pub struct wrex_io::rng::Rng
+impl wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::jitter_secs(&mut self, core::time::Duration) -> f64
+pub const fn wrex_io::rng::Rng::new(u64) -> Self
+pub const fn wrex_io::rng::Rng::next_f64(&mut self) -> f64
+pub const fn wrex_io::rng::Rng::next_u64(&mut self) -> u64
+pub const fn wrex_io::rng::Rng::range_u16(&mut self, u16, u16) -> u16
+impl core::clone::Clone for wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::clone(&self) -> Self
+impl core::fmt::Debug for wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_io::rng::Rng
+impl core::marker::Send for wrex_io::rng::Rng
+impl core::marker::Sync for wrex_io::rng::Rng
+impl core::marker::Unpin for wrex_io::rng::Rng
+impl core::marker::UnsafeUnpin for wrex_io::rng::Rng
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::rng::Rng
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::rng::Rng
+impl<T, U> core::convert::Into<U> for wrex_io::rng::Rng where U: core::convert::From<T>
+pub fn wrex_io::rng::Rng::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::rng::Rng where U: core::convert::Into<T>
+pub type wrex_io::rng::Rng::Error = never
+pub fn wrex_io::rng::Rng::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::rng::Rng where U: core::convert::TryFrom<T>
+pub type wrex_io::rng::Rng::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::rng::Rng::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::rng::Rng where T: core::clone::Clone
+pub type wrex_io::rng::Rng::Owned = T
+pub fn wrex_io::rng::Rng::clone_into(&self, &mut T)
+pub fn wrex_io::rng::Rng::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::rng::Rng where T: 'static + ?core::marker::Sized
+pub fn wrex_io::rng::Rng::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::rng::Rng where T: ?core::marker::Sized
+pub fn wrex_io::rng::Rng::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::rng::Rng where T: ?core::marker::Sized
+pub fn wrex_io::rng::Rng::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::rng::Rng where T: core::clone::Clone
+pub unsafe fn wrex_io::rng::Rng::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::from(T) -> T
+pub mod wrex_io::tcp
+pub struct wrex_io::tcp::TcpDriver
+impl wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration) -> core::result::Result<Self, wrex_io::driver::DriverError>
+pub fn wrex_io::tcp::TcpDriver::peer(&self) -> &str
+impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::tcp::TcpDriver
+impl core::marker::Send for wrex_io::tcp::TcpDriver
+impl core::marker::Sync for wrex_io::tcp::TcpDriver
+impl core::marker::Unpin for wrex_io::tcp::TcpDriver
+impl core::marker::UnsafeUnpin for wrex_io::tcp::TcpDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::tcp::TcpDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::tcp::TcpDriver
+impl<T, U> core::convert::Into<U> for wrex_io::tcp::TcpDriver where U: core::convert::From<T>
+pub fn wrex_io::tcp::TcpDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::tcp::TcpDriver where U: core::convert::Into<T>
+pub type wrex_io::tcp::TcpDriver::Error = never
+pub fn wrex_io::tcp::TcpDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::tcp::TcpDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::tcp::TcpDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::tcp::TcpDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::tcp::TcpDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::tcp::TcpDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::tcp::TcpDriver where T: ?core::marker::Sized
+pub fn wrex_io::tcp::TcpDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::tcp::TcpDriver where T: ?core::marker::Sized
+pub fn wrex_io::tcp::TcpDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::from(T) -> T
+pub enum wrex_io::DriverError
+pub wrex_io::DriverError::IfaceNotFound
+pub wrex_io::DriverError::IfaceNotFound::available: alloc::string::String
+pub wrex_io::DriverError::IfaceNotFound::wanted: alloc::string::String
+pub wrex_io::DriverError::Io
+pub wrex_io::DriverError::Io::source: core::io::error::Error
+pub wrex_io::DriverError::PermissionDenied
+pub wrex_io::DriverError::PermissionDenied::hint: alloc::string::String
+impl core::error::Error for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_io::driver::DriverError
+impl core::marker::Send for wrex_io::driver::DriverError
+impl core::marker::Sync for wrex_io::driver::DriverError
+impl core::marker::Unpin for wrex_io::driver::DriverError
+impl core::marker::UnsafeUnpin for wrex_io::driver::DriverError
+impl !core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::DriverError
+impl !core::panic::unwind_safe::UnwindSafe for wrex_io::driver::DriverError
+impl<T, U> core::convert::Into<U> for wrex_io::driver::DriverError where U: core::convert::From<T>
+pub fn wrex_io::driver::DriverError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::DriverError where U: core::convert::Into<T>
+pub type wrex_io::driver::DriverError::Error = never
+pub fn wrex_io::driver::DriverError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::DriverError where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::DriverError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::DriverError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for wrex_io::driver::DriverError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_io::driver::DriverError where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::DriverError where T: ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::DriverError where T: ?core::marker::Sized
+pub fn wrex_io::driver::DriverError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::DriverError
+pub fn wrex_io::driver::DriverError::from(T) -> T
+pub struct wrex_io::FakeClock
+impl wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::advance(&self, core::time::Duration)
+pub fn wrex_io::replay::FakeClock::new() -> Self
+impl core::default::Default for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::default() -> Self
+impl wrex_io::Clock for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::fast_forward(&self, std::time::Instant)
+pub fn wrex_io::replay::FakeClock::now(&self) -> std::time::Instant
+impl !core::marker::Freeze for wrex_io::replay::FakeClock
+impl core::marker::Send for wrex_io::replay::FakeClock
+impl core::marker::Sync for wrex_io::replay::FakeClock
+impl core::marker::Unpin for wrex_io::replay::FakeClock
+impl core::marker::UnsafeUnpin for wrex_io::replay::FakeClock
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::replay::FakeClock
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::replay::FakeClock
+impl<T, U> core::convert::Into<U> for wrex_io::replay::FakeClock where U: core::convert::From<T>
+pub fn wrex_io::replay::FakeClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::replay::FakeClock where U: core::convert::Into<T>
+pub type wrex_io::replay::FakeClock::Error = never
+pub fn wrex_io::replay::FakeClock::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::replay::FakeClock where U: core::convert::TryFrom<T>
+pub type wrex_io::replay::FakeClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::replay::FakeClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::replay::FakeClock where T: 'static + ?core::marker::Sized
+pub fn wrex_io::replay::FakeClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::replay::FakeClock where T: ?core::marker::Sized
+pub fn wrex_io::replay::FakeClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::replay::FakeClock where T: ?core::marker::Sized
+pub fn wrex_io::replay::FakeClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::from(T) -> T
+pub struct wrex_io::Frame
+pub wrex_io::Frame::bytes: bytes::bytes::Bytes
+pub wrex_io::Frame::iface: alloc::string::String
+pub wrex_io::Frame::ts: std::time::SystemTime
+impl core::clone::Clone for wrex_io::driver::Frame
+pub fn wrex_io::driver::Frame::clone(&self) -> Self
+impl core::fmt::Debug for wrex_io::driver::Frame
+pub fn wrex_io::driver::Frame::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_io::driver::Frame
+impl core::marker::Send for wrex_io::driver::Frame
+impl core::marker::Sync for wrex_io::driver::Frame
+impl core::marker::Unpin for wrex_io::driver::Frame
+impl core::marker::UnsafeUnpin for wrex_io::driver::Frame
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::Frame
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::Frame
+impl<T, U> core::convert::Into<U> for wrex_io::driver::Frame where U: core::convert::From<T>
+pub fn wrex_io::driver::Frame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::Frame where U: core::convert::Into<T>
+pub type wrex_io::driver::Frame::Error = never
+pub fn wrex_io::driver::Frame::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::Frame where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::Frame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::Frame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::driver::Frame where T: core::clone::Clone
+pub type wrex_io::driver::Frame::Owned = T
+pub fn wrex_io::driver::Frame::clone_into(&self, &mut T)
+pub fn wrex_io::driver::Frame::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::driver::Frame where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::Frame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::Frame where T: ?core::marker::Sized
+pub fn wrex_io::driver::Frame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::Frame where T: ?core::marker::Sized
+pub fn wrex_io::driver::Frame::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::driver::Frame where T: core::clone::Clone
+pub unsafe fn wrex_io::driver::Frame::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::driver::Frame
+pub fn wrex_io::driver::Frame::from(T) -> T
+pub struct wrex_io::IfEntry
+pub wrex_io::IfEntry::ifindex: i32
+pub wrex_io::IfEntry::ipv4s: alloc::vec::Vec<core::net::ip_addr::Ipv4Addr>
+pub wrex_io::IfEntry::ipv6s: alloc::vec::Vec<core::net::ip_addr::Ipv6Addr>
+pub wrex_io::IfEntry::mac: [u8; 6]
+pub wrex_io::IfEntry::mtu: u32
+pub wrex_io::IfEntry::name: alloc::string::String
+pub wrex_io::IfEntry::up: bool
+impl core::clone::Clone for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::clone(&self) -> Self
+impl core::cmp::Eq for wrex_io::iface::IfEntry
+impl core::cmp::PartialEq for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_io::iface::IfEntry
+impl serde_core::ser::Serialize for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_io::iface::IfEntry
+impl core::marker::Send for wrex_io::iface::IfEntry
+impl core::marker::Sync for wrex_io::iface::IfEntry
+impl core::marker::Unpin for wrex_io::iface::IfEntry
+impl core::marker::UnsafeUnpin for wrex_io::iface::IfEntry
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::iface::IfEntry
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::iface::IfEntry
+impl<T, U> core::convert::Into<U> for wrex_io::iface::IfEntry where U: core::convert::From<T>
+pub fn wrex_io::iface::IfEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::iface::IfEntry where U: core::convert::Into<T>
+pub type wrex_io::iface::IfEntry::Error = never
+pub fn wrex_io::iface::IfEntry::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::iface::IfEntry where U: core::convert::TryFrom<T>
+pub type wrex_io::iface::IfEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::iface::IfEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::iface::IfEntry where T: core::clone::Clone
+pub type wrex_io::iface::IfEntry::Owned = T
+pub fn wrex_io::iface::IfEntry::clone_into(&self, &mut T)
+pub fn wrex_io::iface::IfEntry::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::iface::IfEntry where T: 'static + ?core::marker::Sized
+pub fn wrex_io::iface::IfEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::iface::IfEntry where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::iface::IfEntry where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::iface::IfEntry where T: core::clone::Clone
+pub unsafe fn wrex_io::iface::IfEntry::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::iface::IfEntry
+pub fn wrex_io::iface::IfEntry::from(T) -> T
+pub struct wrex_io::IfTable
+impl wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::empty() -> Self
+pub fn wrex_io::iface::IfTable::entries(&self) -> impl core::iter::traits::iterator::Iterator<Item = &wrex_io::iface::IfEntry>
+pub fn wrex_io::iface::IfTable::from_sysfs(&std::path::Path) -> core::result::Result<Self, core::io::error::Error>
+pub fn wrex_io::iface::IfTable::from_system() -> core::result::Result<Self, core::io::error::Error>
+pub fn wrex_io::iface::IfTable::get(&self, &str) -> core::option::Option<&wrex_io::iface::IfEntry>
+pub fn wrex_io::iface::IfTable::names(&self) -> alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::clone(&self) -> Self
+impl core::cmp::Eq for wrex_io::iface::IfTable
+impl core::cmp::PartialEq for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::eq(&self, &Self) -> bool
+impl core::default::Default for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::default() -> Self
+impl core::fmt::Debug for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_io::iface::IfTable
+impl core::marker::Freeze for wrex_io::iface::IfTable
+impl core::marker::Send for wrex_io::iface::IfTable
+impl core::marker::Sync for wrex_io::iface::IfTable
+impl core::marker::Unpin for wrex_io::iface::IfTable
+impl core::marker::UnsafeUnpin for wrex_io::iface::IfTable
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::iface::IfTable
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::iface::IfTable
+impl<T, U> core::convert::Into<U> for wrex_io::iface::IfTable where U: core::convert::From<T>
+pub fn wrex_io::iface::IfTable::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::iface::IfTable where U: core::convert::Into<T>
+pub type wrex_io::iface::IfTable::Error = never
+pub fn wrex_io::iface::IfTable::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::iface::IfTable where U: core::convert::TryFrom<T>
+pub type wrex_io::iface::IfTable::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::iface::IfTable::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::iface::IfTable where T: core::clone::Clone
+pub type wrex_io::iface::IfTable::Owned = T
+pub fn wrex_io::iface::IfTable::clone_into(&self, &mut T)
+pub fn wrex_io::iface::IfTable::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::iface::IfTable where T: 'static + ?core::marker::Sized
+pub fn wrex_io::iface::IfTable::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::iface::IfTable where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfTable::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::iface::IfTable where T: ?core::marker::Sized
+pub fn wrex_io::iface::IfTable::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::iface::IfTable where T: core::clone::Clone
+pub unsafe fn wrex_io::iface::IfTable::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::iface::IfTable
+pub fn wrex_io::iface::IfTable::from(T) -> T
+pub struct wrex_io::RawEthDriver
+impl wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::open(&str, bool, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawEthDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::driver::RawEthDriver
+impl core::marker::Send for wrex_io::driver::RawEthDriver
+impl core::marker::Sync for wrex_io::driver::RawEthDriver
+impl core::marker::Unpin for wrex_io::driver::RawEthDriver
+impl core::marker::UnsafeUnpin for wrex_io::driver::RawEthDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::RawEthDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::RawEthDriver
+impl<T, U> core::convert::Into<U> for wrex_io::driver::RawEthDriver where U: core::convert::From<T>
+pub fn wrex_io::driver::RawEthDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::RawEthDriver where U: core::convert::Into<T>
+pub type wrex_io::driver::RawEthDriver::Error = never
+pub fn wrex_io::driver::RawEthDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::RawEthDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::RawEthDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::RawEthDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::driver::RawEthDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::RawEthDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::RawEthDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawEthDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::RawEthDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawEthDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::from(T) -> T
+pub struct wrex_io::RawIpDriver
+impl wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::open(&str, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::driver::RawIpDriver
+impl core::marker::Send for wrex_io::driver::RawIpDriver
+impl core::marker::Sync for wrex_io::driver::RawIpDriver
+impl core::marker::Unpin for wrex_io::driver::RawIpDriver
+impl core::marker::UnsafeUnpin for wrex_io::driver::RawIpDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::RawIpDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::RawIpDriver
+impl<T, U> core::convert::Into<U> for wrex_io::driver::RawIpDriver where U: core::convert::From<T>
+pub fn wrex_io::driver::RawIpDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::RawIpDriver where U: core::convert::Into<T>
+pub type wrex_io::driver::RawIpDriver::Error = never
+pub fn wrex_io::driver::RawIpDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::RawIpDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::RawIpDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::RawIpDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::driver::RawIpDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::RawIpDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::RawIpDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::RawIpDriver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::from(T) -> T
+pub struct wrex_io::RawIpv6Driver
+impl wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::open(&str, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpv6Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::driver::RawIpv6Driver
+impl core::marker::Send for wrex_io::driver::RawIpv6Driver
+impl core::marker::Sync for wrex_io::driver::RawIpv6Driver
+impl core::marker::Unpin for wrex_io::driver::RawIpv6Driver
+impl core::marker::UnsafeUnpin for wrex_io::driver::RawIpv6Driver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::driver::RawIpv6Driver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::driver::RawIpv6Driver
+impl<T, U> core::convert::Into<U> for wrex_io::driver::RawIpv6Driver where U: core::convert::From<T>
+pub fn wrex_io::driver::RawIpv6Driver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::driver::RawIpv6Driver where U: core::convert::Into<T>
+pub type wrex_io::driver::RawIpv6Driver::Error = never
+pub fn wrex_io::driver::RawIpv6Driver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::driver::RawIpv6Driver where U: core::convert::TryFrom<T>
+pub type wrex_io::driver::RawIpv6Driver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::driver::RawIpv6Driver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::driver::RawIpv6Driver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::driver::RawIpv6Driver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::driver::RawIpv6Driver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpv6Driver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::RawIpv6Driver where T: ?core::marker::Sized
+pub fn wrex_io::driver::RawIpv6Driver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::from(T) -> T
+pub struct wrex_io::ReplayDriver
+pub wrex_io::ReplayDriver::sent: alloc::vec::Vec<alloc::vec::Vec<u8>>
+impl wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::new(alloc::vec::Vec<wrex_io::driver::Frame>) -> Self
+pub fn wrex_io::replay::ReplayDriver::remaining(&self) -> usize
+impl wrex_io::driver::Driver for wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ReplayDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::replay::ReplayDriver
+impl core::marker::Send for wrex_io::replay::ReplayDriver
+impl core::marker::Sync for wrex_io::replay::ReplayDriver
+impl core::marker::Unpin for wrex_io::replay::ReplayDriver
+impl core::marker::UnsafeUnpin for wrex_io::replay::ReplayDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::replay::ReplayDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::replay::ReplayDriver
+impl<T, U> core::convert::Into<U> for wrex_io::replay::ReplayDriver where U: core::convert::From<T>
+pub fn wrex_io::replay::ReplayDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::replay::ReplayDriver where U: core::convert::Into<T>
+pub type wrex_io::replay::ReplayDriver::Error = never
+pub fn wrex_io::replay::ReplayDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::replay::ReplayDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::replay::ReplayDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::replay::ReplayDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::replay::ReplayDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::replay::ReplayDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::replay::ReplayDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ReplayDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::replay::ReplayDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ReplayDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::from(T) -> T
+pub struct wrex_io::Rng
+impl wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::jitter_secs(&mut self, core::time::Duration) -> f64
+pub const fn wrex_io::rng::Rng::new(u64) -> Self
+pub const fn wrex_io::rng::Rng::next_f64(&mut self) -> f64
+pub const fn wrex_io::rng::Rng::next_u64(&mut self) -> u64
+pub const fn wrex_io::rng::Rng::range_u16(&mut self, u16, u16) -> u16
+impl core::clone::Clone for wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::clone(&self) -> Self
+impl core::fmt::Debug for wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_io::rng::Rng
+impl core::marker::Send for wrex_io::rng::Rng
+impl core::marker::Sync for wrex_io::rng::Rng
+impl core::marker::Unpin for wrex_io::rng::Rng
+impl core::marker::UnsafeUnpin for wrex_io::rng::Rng
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::rng::Rng
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::rng::Rng
+impl<T, U> core::convert::Into<U> for wrex_io::rng::Rng where U: core::convert::From<T>
+pub fn wrex_io::rng::Rng::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::rng::Rng where U: core::convert::Into<T>
+pub type wrex_io::rng::Rng::Error = never
+pub fn wrex_io::rng::Rng::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::rng::Rng where U: core::convert::TryFrom<T>
+pub type wrex_io::rng::Rng::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::rng::Rng::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::rng::Rng where T: core::clone::Clone
+pub type wrex_io::rng::Rng::Owned = T
+pub fn wrex_io::rng::Rng::clone_into(&self, &mut T)
+pub fn wrex_io::rng::Rng::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::rng::Rng where T: 'static + ?core::marker::Sized
+pub fn wrex_io::rng::Rng::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::rng::Rng where T: ?core::marker::Sized
+pub fn wrex_io::rng::Rng::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::rng::Rng where T: ?core::marker::Sized
+pub fn wrex_io::rng::Rng::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::rng::Rng where T: core::clone::Clone
+pub unsafe fn wrex_io::rng::Rng::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::rng::Rng
+pub fn wrex_io::rng::Rng::from(T) -> T
+pub struct wrex_io::ScriptedDriver
+pub wrex_io::ScriptedDriver::sent: alloc::vec::Vec<alloc::vec::Vec<u8>>
+impl wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::new(alloc::rcs::arc::Arc<dyn wrex_io::Clock>, alloc::vec::Vec<alloc::vec::Vec<u8>>) -> Self
+pub fn wrex_io::replay::ScriptedDriver::remaining(&self) -> usize
+impl wrex_io::driver::Driver for wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ScriptedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::replay::ScriptedDriver
+impl core::marker::Send for wrex_io::replay::ScriptedDriver
+impl core::marker::Sync for wrex_io::replay::ScriptedDriver
+impl core::marker::Unpin for wrex_io::replay::ScriptedDriver
+impl core::marker::UnsafeUnpin for wrex_io::replay::ScriptedDriver
+impl !core::panic::unwind_safe::RefUnwindSafe for wrex_io::replay::ScriptedDriver
+impl !core::panic::unwind_safe::UnwindSafe for wrex_io::replay::ScriptedDriver
+impl<T, U> core::convert::Into<U> for wrex_io::replay::ScriptedDriver where U: core::convert::From<T>
+pub fn wrex_io::replay::ScriptedDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::replay::ScriptedDriver where U: core::convert::Into<T>
+pub type wrex_io::replay::ScriptedDriver::Error = never
+pub fn wrex_io::replay::ScriptedDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::replay::ScriptedDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::replay::ScriptedDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::replay::ScriptedDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::replay::ScriptedDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::replay::ScriptedDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::replay::ScriptedDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ScriptedDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::replay::ScriptedDriver where T: ?core::marker::Sized
+pub fn wrex_io::replay::ScriptedDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::from(T) -> T
+pub struct wrex_io::SystemClock
+impl core::clone::Clone for wrex_io::SystemClock
+pub fn wrex_io::SystemClock::clone(&self) -> Self
+impl core::default::Default for wrex_io::SystemClock
+pub fn wrex_io::SystemClock::default() -> Self
+impl core::fmt::Debug for wrex_io::SystemClock
+pub fn wrex_io::SystemClock::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_io::SystemClock
+impl wrex_io::Clock for wrex_io::SystemClock
+pub fn wrex_io::SystemClock::fast_forward(&self, std::time::Instant)
+pub fn wrex_io::SystemClock::now(&self) -> std::time::Instant
+impl core::marker::Freeze for wrex_io::SystemClock
+impl core::marker::Send for wrex_io::SystemClock
+impl core::marker::Sync for wrex_io::SystemClock
+impl core::marker::Unpin for wrex_io::SystemClock
+impl core::marker::UnsafeUnpin for wrex_io::SystemClock
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::SystemClock
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::SystemClock
+impl<T, U> core::convert::Into<U> for wrex_io::SystemClock where U: core::convert::From<T>
+pub fn wrex_io::SystemClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::SystemClock where U: core::convert::Into<T>
+pub type wrex_io::SystemClock::Error = never
+pub fn wrex_io::SystemClock::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::SystemClock where U: core::convert::TryFrom<T>
+pub type wrex_io::SystemClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::SystemClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::SystemClock where T: core::clone::Clone
+pub type wrex_io::SystemClock::Owned = T
+pub fn wrex_io::SystemClock::clone_into(&self, &mut T)
+pub fn wrex_io::SystemClock::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::SystemClock where T: 'static + ?core::marker::Sized
+pub fn wrex_io::SystemClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::SystemClock where T: ?core::marker::Sized
+pub fn wrex_io::SystemClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::SystemClock where T: ?core::marker::Sized
+pub fn wrex_io::SystemClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::SystemClock where T: core::clone::Clone
+pub unsafe fn wrex_io::SystemClock::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::SystemClock
+pub fn wrex_io::SystemClock::from(T) -> T
+pub struct wrex_io::TcpDriver
+impl wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration) -> core::result::Result<Self, wrex_io::driver::DriverError>
+pub fn wrex_io::tcp::TcpDriver::peer(&self) -> &str
+impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::tcp::TcpDriver
+impl core::marker::Send for wrex_io::tcp::TcpDriver
+impl core::marker::Sync for wrex_io::tcp::TcpDriver
+impl core::marker::Unpin for wrex_io::tcp::TcpDriver
+impl core::marker::UnsafeUnpin for wrex_io::tcp::TcpDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::tcp::TcpDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::tcp::TcpDriver
+impl<T, U> core::convert::Into<U> for wrex_io::tcp::TcpDriver where U: core::convert::From<T>
+pub fn wrex_io::tcp::TcpDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::tcp::TcpDriver where U: core::convert::Into<T>
+pub type wrex_io::tcp::TcpDriver::Error = never
+pub fn wrex_io::tcp::TcpDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::tcp::TcpDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::tcp::TcpDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::tcp::TcpDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::tcp::TcpDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::tcp::TcpDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::tcp::TcpDriver where T: ?core::marker::Sized
+pub fn wrex_io::tcp::TcpDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::tcp::TcpDriver where T: ?core::marker::Sized
+pub fn wrex_io::tcp::TcpDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::from(T) -> T
+pub trait wrex_io::Clock: core::marker::Send + core::marker::Sync
+pub fn wrex_io::Clock::fast_forward(&self, std::time::Instant)
+pub fn wrex_io::Clock::now(&self) -> std::time::Instant
+impl wrex_io::Clock for wrex_io::SystemClock
+pub fn wrex_io::SystemClock::fast_forward(&self, std::time::Instant)
+pub fn wrex_io::SystemClock::now(&self) -> std::time::Instant
+impl wrex_io::Clock for wrex_io::replay::FakeClock
+pub fn wrex_io::replay::FakeClock::fast_forward(&self, std::time::Instant)
+pub fn wrex_io::replay::FakeClock::now(&self) -> std::time::Instant
+pub trait wrex_io::Driver: core::marker::Send
+pub fn wrex_io::Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::driver::RawEthDriver
+pub fn wrex_io::driver::RawEthDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawEthDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpDriver
+pub fn wrex_io::driver::RawIpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::driver::RawIpv6Driver
+pub fn wrex_io::driver::RawIpv6Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::driver::RawIpv6Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::replay::ReplayDriver
+pub fn wrex_io::replay::ReplayDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ReplayDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::replay::ScriptedDriver
+pub fn wrex_io::replay::ScriptedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::replay::ScriptedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
+pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>

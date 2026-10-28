@@ -441,8 +441,15 @@ impl Codec for Icmp6Codec {
                         .put_u32(int_or_default(spec, &FIELDS[10], af) as u32); // retrans_timer
                 }
                 T_MLD_REPORT_V2 => {
-                    // reserved(2) + record count(2) written by the mld
-                    // grammar block — RFC 3810 §5.2 has no rest field.
+                    // RFC 3810 §5.2: reserved(2) + record count(2) ride
+                    // even with zero records. The grammar block below
+                    // writes them when records are present; the bare
+                    // case writes count 0 here (the G1-populated
+                    // strategy caught the old header-only frame the
+                    // dissector rightly called truncated).
+                    if !spec.fields.contains_key("mld") {
+                        ctx.buf.extend_from_slice(&[0, 0, 0, 0]);
+                    }
                 }
                 T_NS | T_NA => {
                     if t == T_NA {

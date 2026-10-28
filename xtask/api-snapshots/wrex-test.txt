@@ -1,0 +1,534 @@
+pub mod wrex_test
+pub mod wrex_test::corpus
+pub struct wrex_test::corpus::Corpus
+pub wrex_test::corpus::Corpus::frames: alloc::vec::Vec<wrex_test::corpus::CorpusFrame>
+pub wrex_test::corpus::Corpus::manifest: wrex_test::corpus::Manifest
+pub wrex_test::corpus::Corpus::name: alloc::string::String
+pub wrex_test::corpus::Corpus::root: std::path::PathBuf
+impl wrex_test::corpus::Corpus
+pub fn wrex_test::corpus::Corpus::load(&str) -> core::option::Option<wrex_test::corpus::Corpus>
+pub fn wrex_test::corpus::Corpus::load_all() -> alloc::vec::Vec<wrex_test::corpus::Corpus>
+impl core::fmt::Debug for wrex_test::corpus::Corpus
+pub fn wrex_test::corpus::Corpus::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_test::corpus::Corpus
+impl core::marker::Send for wrex_test::corpus::Corpus
+impl core::marker::Sync for wrex_test::corpus::Corpus
+impl core::marker::Unpin for wrex_test::corpus::Corpus
+impl core::marker::UnsafeUnpin for wrex_test::corpus::Corpus
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::corpus::Corpus
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::corpus::Corpus
+impl<T, U> core::convert::Into<U> for wrex_test::corpus::Corpus where U: core::convert::From<T>
+pub fn wrex_test::corpus::Corpus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::corpus::Corpus where U: core::convert::Into<T>
+pub type wrex_test::corpus::Corpus::Error = never
+pub fn wrex_test::corpus::Corpus::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::corpus::Corpus where U: core::convert::TryFrom<T>
+pub type wrex_test::corpus::Corpus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::corpus::Corpus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::corpus::Corpus where T: 'static + ?core::marker::Sized
+pub fn wrex_test::corpus::Corpus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::corpus::Corpus where T: ?core::marker::Sized
+pub fn wrex_test::corpus::Corpus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::corpus::Corpus where T: ?core::marker::Sized
+pub fn wrex_test::corpus::Corpus::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::corpus::Corpus
+pub fn wrex_test::corpus::Corpus::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::corpus::Corpus
+impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::Corpus
+pub struct wrex_test::corpus::CorpusFrame
+pub wrex_test::corpus::CorpusFrame::bytes: alloc::vec::Vec<u8>
+pub wrex_test::corpus::CorpusFrame::expected: serde_json::value::Value
+pub wrex_test::corpus::CorpusFrame::name: alloc::string::String
+impl core::fmt::Debug for wrex_test::corpus::CorpusFrame
+pub fn wrex_test::corpus::CorpusFrame::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_test::corpus::CorpusFrame
+impl core::marker::Send for wrex_test::corpus::CorpusFrame
+impl core::marker::Sync for wrex_test::corpus::CorpusFrame
+impl core::marker::Unpin for wrex_test::corpus::CorpusFrame
+impl core::marker::UnsafeUnpin for wrex_test::corpus::CorpusFrame
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::corpus::CorpusFrame
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::corpus::CorpusFrame
+impl<T, U> core::convert::Into<U> for wrex_test::corpus::CorpusFrame where U: core::convert::From<T>
+pub fn wrex_test::corpus::CorpusFrame::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::corpus::CorpusFrame where U: core::convert::Into<T>
+pub type wrex_test::corpus::CorpusFrame::Error = never
+pub fn wrex_test::corpus::CorpusFrame::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::corpus::CorpusFrame where U: core::convert::TryFrom<T>
+pub type wrex_test::corpus::CorpusFrame::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::corpus::CorpusFrame::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::corpus::CorpusFrame where T: 'static + ?core::marker::Sized
+pub fn wrex_test::corpus::CorpusFrame::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::corpus::CorpusFrame where T: ?core::marker::Sized
+pub fn wrex_test::corpus::CorpusFrame::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::corpus::CorpusFrame where T: ?core::marker::Sized
+pub fn wrex_test::corpus::CorpusFrame::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::corpus::CorpusFrame
+pub fn wrex_test::corpus::CorpusFrame::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::corpus::CorpusFrame
+impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::CorpusFrame
+pub struct wrex_test::corpus::Manifest
+pub wrex_test::corpus::Manifest::frames: alloc::vec::Vec<alloc::string::String>
+pub wrex_test::corpus::Manifest::imported: alloc::string::String
+pub wrex_test::corpus::Manifest::source_url: alloc::string::String
+pub wrex_test::corpus::Manifest::start: alloc::string::String
+impl core::fmt::Debug for wrex_test::corpus::Manifest
+pub fn wrex_test::corpus::Manifest::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for wrex_test::corpus::Manifest
+pub fn wrex_test::corpus::Manifest::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_test::corpus::Manifest
+impl core::marker::Send for wrex_test::corpus::Manifest
+impl core::marker::Sync for wrex_test::corpus::Manifest
+impl core::marker::Unpin for wrex_test::corpus::Manifest
+impl core::marker::UnsafeUnpin for wrex_test::corpus::Manifest
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::corpus::Manifest
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::corpus::Manifest
+impl<T, U> core::convert::Into<U> for wrex_test::corpus::Manifest where U: core::convert::From<T>
+pub fn wrex_test::corpus::Manifest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::corpus::Manifest where U: core::convert::Into<T>
+pub type wrex_test::corpus::Manifest::Error = never
+pub fn wrex_test::corpus::Manifest::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::corpus::Manifest where U: core::convert::TryFrom<T>
+pub type wrex_test::corpus::Manifest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::corpus::Manifest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::corpus::Manifest where T: 'static + ?core::marker::Sized
+pub fn wrex_test::corpus::Manifest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::corpus::Manifest where T: ?core::marker::Sized
+pub fn wrex_test::corpus::Manifest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::corpus::Manifest where T: ?core::marker::Sized
+pub fn wrex_test::corpus::Manifest::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::corpus::Manifest
+pub fn wrex_test::corpus::Manifest::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_test::corpus::Manifest where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tracing::instrument::Instrument for wrex_test::corpus::Manifest
+impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::Manifest
+pub const wrex_test::corpus::MAX_FRAMES: usize
+pub fn wrex_test::corpus::import(&std::path::Path, &str) -> core::result::Result<std::path::PathBuf, alloc::string::String>
+pub fn wrex_test::corpus::matches_expected(&wrex_test::corpus::CorpusFrame, &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), alloc::string::String>
+pub fn wrex_test::corpus::read_classic_pcap(&[u8]) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, alloc::string::String>
+pub mod wrex_test::dhcp_oracle
+pub fn wrex_test::dhcp_oracle::dhcp6_diff(&[u8], &wrex_core::dissect::LayerView) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::dhcp_oracle::dhcp_diff(&[u8], &wrex_core::dissect::LayerView) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub mod wrex_test::dns_oracle
+pub fn wrex_test::dns_oracle::dns_diff(&[u8], &wrex_core::dissect::LayerView) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub mod wrex_test::gates
+pub struct wrex_test::gates::StrategyAudit
+pub wrex_test::gates::StrategyAudit::constant: alloc::vec::Vec<(alloc::string::String, usize)>
+pub wrex_test::gates::StrategyAudit::kind: alloc::string::String
+pub wrex_test::gates::StrategyAudit::never_set: alloc::vec::Vec<alloc::string::String>
+impl wrex_test::gates::StrategyAudit
+pub fn wrex_test::gates::StrategyAudit::is_clean(&self) -> bool
+pub fn wrex_test::gates::StrategyAudit::message(&self) -> alloc::string::String
+impl core::default::Default for wrex_test::gates::StrategyAudit
+pub fn wrex_test::gates::StrategyAudit::default() -> Self
+impl core::fmt::Debug for wrex_test::gates::StrategyAudit
+pub fn wrex_test::gates::StrategyAudit::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_test::gates::StrategyAudit
+impl core::marker::Send for wrex_test::gates::StrategyAudit
+impl core::marker::Sync for wrex_test::gates::StrategyAudit
+impl core::marker::Unpin for wrex_test::gates::StrategyAudit
+impl core::marker::UnsafeUnpin for wrex_test::gates::StrategyAudit
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::gates::StrategyAudit
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::gates::StrategyAudit
+impl<T, U> core::convert::Into<U> for wrex_test::gates::StrategyAudit where U: core::convert::From<T>
+pub fn wrex_test::gates::StrategyAudit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::gates::StrategyAudit where U: core::convert::Into<T>
+pub type wrex_test::gates::StrategyAudit::Error = never
+pub fn wrex_test::gates::StrategyAudit::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::gates::StrategyAudit where U: core::convert::TryFrom<T>
+pub type wrex_test::gates::StrategyAudit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::gates::StrategyAudit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::gates::StrategyAudit where T: 'static + ?core::marker::Sized
+pub fn wrex_test::gates::StrategyAudit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::gates::StrategyAudit where T: ?core::marker::Sized
+pub fn wrex_test::gates::StrategyAudit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::gates::StrategyAudit where T: ?core::marker::Sized
+pub fn wrex_test::gates::StrategyAudit::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::gates::StrategyAudit
+pub fn wrex_test::gates::StrategyAudit::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::gates::StrategyAudit
+impl<T> tracing::instrument::WithSubscriber for wrex_test::gates::StrategyAudit
+pub const wrex_test::gates::STRATEGY_EXEMPT: &[(&str, &str, &str)]
+pub fn wrex_test::gates::audit_strategy(&wrex_core::codec::Registry, &str, usize, usize) -> core::option::Option<wrex_test::gates::StrategyAudit>
+pub fn wrex_test::gates::codec_strategy(&str) -> core::option::Option<proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>>
+pub mod wrex_test::h2_stub
+pub enum wrex_test::h2_stub::AlpnPick
+pub wrex_test::h2_stub::AlpnPick::H2
+pub wrex_test::h2_stub::AlpnPick::Http11
+impl core::clone::Clone for wrex_test::h2_stub::AlpnPick
+pub fn wrex_test::h2_stub::AlpnPick::clone(&self) -> Self
+impl core::fmt::Debug for wrex_test::h2_stub::AlpnPick
+pub fn wrex_test::h2_stub::AlpnPick::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_test::h2_stub::AlpnPick
+impl core::marker::Freeze for wrex_test::h2_stub::AlpnPick
+impl core::marker::Send for wrex_test::h2_stub::AlpnPick
+impl core::marker::Sync for wrex_test::h2_stub::AlpnPick
+impl core::marker::Unpin for wrex_test::h2_stub::AlpnPick
+impl core::marker::UnsafeUnpin for wrex_test::h2_stub::AlpnPick
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::h2_stub::AlpnPick
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::h2_stub::AlpnPick
+impl<T, U> core::convert::Into<U> for wrex_test::h2_stub::AlpnPick where U: core::convert::From<T>
+pub fn wrex_test::h2_stub::AlpnPick::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::h2_stub::AlpnPick where U: core::convert::Into<T>
+pub type wrex_test::h2_stub::AlpnPick::Error = never
+pub fn wrex_test::h2_stub::AlpnPick::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::h2_stub::AlpnPick where U: core::convert::TryFrom<T>
+pub type wrex_test::h2_stub::AlpnPick::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::h2_stub::AlpnPick::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_test::h2_stub::AlpnPick where T: core::clone::Clone
+pub type wrex_test::h2_stub::AlpnPick::Owned = T
+pub fn wrex_test::h2_stub::AlpnPick::clone_into(&self, &mut T)
+pub fn wrex_test::h2_stub::AlpnPick::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_test::h2_stub::AlpnPick where T: 'static + ?core::marker::Sized
+pub fn wrex_test::h2_stub::AlpnPick::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::h2_stub::AlpnPick where T: ?core::marker::Sized
+pub fn wrex_test::h2_stub::AlpnPick::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::h2_stub::AlpnPick where T: ?core::marker::Sized
+pub fn wrex_test::h2_stub::AlpnPick::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_test::h2_stub::AlpnPick where T: core::clone::Clone
+pub unsafe fn wrex_test::h2_stub::AlpnPick::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_test::h2_stub::AlpnPick
+pub fn wrex_test::h2_stub::AlpnPick::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::AlpnPick
+impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::AlpnPick
+pub struct wrex_test::h2_stub::H2Stub
+pub wrex_test::h2_stub::H2Stub::addr: core::net::socket_addr::SocketAddr
+pub wrex_test::h2_stub::H2Stub::ca_der: alloc::vec::Vec<u8>
+pub wrex_test::h2_stub::H2Stub::ca_pem: alloc::string::String
+impl core::marker::Freeze for wrex_test::h2_stub::H2Stub
+impl core::marker::Send for wrex_test::h2_stub::H2Stub
+impl core::marker::Sync for wrex_test::h2_stub::H2Stub
+impl core::marker::Unpin for wrex_test::h2_stub::H2Stub
+impl core::marker::UnsafeUnpin for wrex_test::h2_stub::H2Stub
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::h2_stub::H2Stub
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::h2_stub::H2Stub
+impl<T, U> core::convert::Into<U> for wrex_test::h2_stub::H2Stub where U: core::convert::From<T>
+pub fn wrex_test::h2_stub::H2Stub::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::h2_stub::H2Stub where U: core::convert::Into<T>
+pub type wrex_test::h2_stub::H2Stub::Error = never
+pub fn wrex_test::h2_stub::H2Stub::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::h2_stub::H2Stub where U: core::convert::TryFrom<T>
+pub type wrex_test::h2_stub::H2Stub::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::h2_stub::H2Stub::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::h2_stub::H2Stub where T: 'static + ?core::marker::Sized
+pub fn wrex_test::h2_stub::H2Stub::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::h2_stub::H2Stub where T: ?core::marker::Sized
+pub fn wrex_test::h2_stub::H2Stub::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::h2_stub::H2Stub where T: ?core::marker::Sized
+pub fn wrex_test::h2_stub::H2Stub::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::h2_stub::H2Stub
+pub fn wrex_test::h2_stub::H2Stub::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::H2Stub
+impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::H2Stub
+pub struct wrex_test::h2_stub::H2cStub
+pub wrex_test::h2_stub::H2cStub::addr: core::net::socket_addr::SocketAddr
+impl core::marker::Freeze for wrex_test::h2_stub::H2cStub
+impl core::marker::Send for wrex_test::h2_stub::H2cStub
+impl core::marker::Sync for wrex_test::h2_stub::H2cStub
+impl core::marker::Unpin for wrex_test::h2_stub::H2cStub
+impl core::marker::UnsafeUnpin for wrex_test::h2_stub::H2cStub
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::h2_stub::H2cStub
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::h2_stub::H2cStub
+impl<T, U> core::convert::Into<U> for wrex_test::h2_stub::H2cStub where U: core::convert::From<T>
+pub fn wrex_test::h2_stub::H2cStub::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::h2_stub::H2cStub where U: core::convert::Into<T>
+pub type wrex_test::h2_stub::H2cStub::Error = never
+pub fn wrex_test::h2_stub::H2cStub::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::h2_stub::H2cStub where U: core::convert::TryFrom<T>
+pub type wrex_test::h2_stub::H2cStub::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::h2_stub::H2cStub::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::h2_stub::H2cStub where T: 'static + ?core::marker::Sized
+pub fn wrex_test::h2_stub::H2cStub::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::h2_stub::H2cStub where T: ?core::marker::Sized
+pub fn wrex_test::h2_stub::H2cStub::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::h2_stub::H2cStub where T: ?core::marker::Sized
+pub fn wrex_test::h2_stub::H2cStub::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::h2_stub::H2cStub
+pub fn wrex_test::h2_stub::H2cStub::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::H2cStub
+impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::H2cStub
+pub fn wrex_test::h2_stub::spawn_h2(u16, &[u8], usize, wrex_test::h2_stub::AlpnPick) -> wrex_test::h2_stub::H2Stub
+pub fn wrex_test::h2_stub::spawn_h2c(u16, &[u8], usize) -> wrex_test::h2_stub::H2cStub
+pub mod wrex_test::harness
+pub fn wrex_test::harness::craft_bytes<I, S>(I) -> alloc::vec::Vec<u8> where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::AsRef<std::ffi::os_str::OsStr>
+pub fn wrex_test::harness::craft_hex<I, S>(I) -> alloc::string::String where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::AsRef<std::ffi::os_str::OsStr>
+pub fn wrex_test::harness::dissect(&[u8], &[&str]) -> alloc::string::String
+pub fn wrex_test::harness::loopback_ready(bool) -> bool
+pub fn wrex_test::harness::wrex_bin() -> assert_cmd::cmd::Command
+pub mod wrex_test::oracle
+pub struct wrex_test::oracle::DiffReport
+pub wrex_test::oracle::DiffReport::compared: alloc::vec::Vec<alloc::string::String>
+pub wrex_test::oracle::DiffReport::mismatches: alloc::vec::Vec<(alloc::string::String, alloc::string::String, alloc::string::String)>
+impl wrex_test::oracle::DiffReport
+pub fn wrex_test::oracle::DiffReport::note_compared(&mut self, &str)
+pub fn wrex_test::oracle::DiffReport::push(&mut self, &str, alloc::string::String, alloc::string::String)
+impl core::default::Default for wrex_test::oracle::DiffReport
+pub fn wrex_test::oracle::DiffReport::default() -> Self
+impl core::fmt::Debug for wrex_test::oracle::DiffReport
+pub fn wrex_test::oracle::DiffReport::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_test::oracle::DiffReport
+impl core::marker::Send for wrex_test::oracle::DiffReport
+impl core::marker::Sync for wrex_test::oracle::DiffReport
+impl core::marker::Unpin for wrex_test::oracle::DiffReport
+impl core::marker::UnsafeUnpin for wrex_test::oracle::DiffReport
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::oracle::DiffReport
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::oracle::DiffReport
+impl<T, U> core::convert::Into<U> for wrex_test::oracle::DiffReport where U: core::convert::From<T>
+pub fn wrex_test::oracle::DiffReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::oracle::DiffReport where U: core::convert::Into<T>
+pub type wrex_test::oracle::DiffReport::Error = never
+pub fn wrex_test::oracle::DiffReport::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::oracle::DiffReport where U: core::convert::TryFrom<T>
+pub type wrex_test::oracle::DiffReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::oracle::DiffReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::oracle::DiffReport where T: 'static + ?core::marker::Sized
+pub fn wrex_test::oracle::DiffReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::oracle::DiffReport where T: ?core::marker::Sized
+pub fn wrex_test::oracle::DiffReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::DiffReport where T: ?core::marker::Sized
+pub fn wrex_test::oracle::DiffReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::oracle::DiffReport
+pub fn wrex_test::oracle::DiffReport::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::oracle::DiffReport
+impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::DiffReport
+pub struct wrex_test::oracle::EtherparseOracle
+impl wrex_test::oracle::EtherparseOracle
+pub fn wrex_test::oracle::EtherparseOracle::compare(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> wrex_test::oracle::DiffReport
+impl wrex_test::oracle::Oracle for wrex_test::oracle::EtherparseOracle
+pub fn wrex_test::oracle::EtherparseOracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::EtherparseOracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::EtherparseOracle::name(&self) -> &'static str
+impl core::marker::Freeze for wrex_test::oracle::EtherparseOracle
+impl core::marker::Send for wrex_test::oracle::EtherparseOracle
+impl core::marker::Sync for wrex_test::oracle::EtherparseOracle
+impl core::marker::Unpin for wrex_test::oracle::EtherparseOracle
+impl core::marker::UnsafeUnpin for wrex_test::oracle::EtherparseOracle
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::oracle::EtherparseOracle
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::oracle::EtherparseOracle
+impl<T, U> core::convert::Into<U> for wrex_test::oracle::EtherparseOracle where U: core::convert::From<T>
+pub fn wrex_test::oracle::EtherparseOracle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::oracle::EtherparseOracle where U: core::convert::Into<T>
+pub type wrex_test::oracle::EtherparseOracle::Error = never
+pub fn wrex_test::oracle::EtherparseOracle::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::oracle::EtherparseOracle where U: core::convert::TryFrom<T>
+pub type wrex_test::oracle::EtherparseOracle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::oracle::EtherparseOracle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::oracle::EtherparseOracle where T: 'static + ?core::marker::Sized
+pub fn wrex_test::oracle::EtherparseOracle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::oracle::EtherparseOracle where T: ?core::marker::Sized
+pub fn wrex_test::oracle::EtherparseOracle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::EtherparseOracle where T: ?core::marker::Sized
+pub fn wrex_test::oracle::EtherparseOracle::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::oracle::EtherparseOracle
+pub fn wrex_test::oracle::EtherparseOracle::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::oracle::EtherparseOracle
+impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::EtherparseOracle
+pub struct wrex_test::oracle::PcapWriter
+impl wrex_test::oracle::PcapWriter
+pub fn wrex_test::oracle::PcapWriter::finish(self) -> alloc::vec::Vec<u8>
+pub fn wrex_test::oracle::PcapWriter::new() -> Self
+pub fn wrex_test::oracle::PcapWriter::push_frame(&mut self, &[u8])
+impl core::default::Default for wrex_test::oracle::PcapWriter
+pub fn wrex_test::oracle::PcapWriter::default() -> Self
+impl core::marker::Freeze for wrex_test::oracle::PcapWriter
+impl core::marker::Send for wrex_test::oracle::PcapWriter
+impl core::marker::Sync for wrex_test::oracle::PcapWriter
+impl core::marker::Unpin for wrex_test::oracle::PcapWriter
+impl core::marker::UnsafeUnpin for wrex_test::oracle::PcapWriter
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::oracle::PcapWriter
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::oracle::PcapWriter
+impl<T, U> core::convert::Into<U> for wrex_test::oracle::PcapWriter where U: core::convert::From<T>
+pub fn wrex_test::oracle::PcapWriter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::oracle::PcapWriter where U: core::convert::Into<T>
+pub type wrex_test::oracle::PcapWriter::Error = never
+pub fn wrex_test::oracle::PcapWriter::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::oracle::PcapWriter where U: core::convert::TryFrom<T>
+pub type wrex_test::oracle::PcapWriter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::oracle::PcapWriter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::oracle::PcapWriter where T: 'static + ?core::marker::Sized
+pub fn wrex_test::oracle::PcapWriter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::oracle::PcapWriter where T: ?core::marker::Sized
+pub fn wrex_test::oracle::PcapWriter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::PcapWriter where T: ?core::marker::Sized
+pub fn wrex_test::oracle::PcapWriter::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::oracle::PcapWriter
+pub fn wrex_test::oracle::PcapWriter::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::oracle::PcapWriter
+impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::PcapWriter
+pub struct wrex_test::oracle::TsharkOracle
+impl wrex_test::oracle::TsharkOracle
+pub fn wrex_test::oracle::TsharkOracle::available(&self) -> bool
+impl wrex_test::oracle::TsharkOracle
+pub fn wrex_test::oracle::TsharkOracle::compare(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::option::Option<wrex_test::oracle::DiffReport>
+impl wrex_test::oracle::Oracle for wrex_test::oracle::TsharkOracle
+pub fn wrex_test::oracle::TsharkOracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::TsharkOracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::TsharkOracle::name(&self) -> &'static str
+impl core::marker::Freeze for wrex_test::oracle::TsharkOracle
+impl core::marker::Send for wrex_test::oracle::TsharkOracle
+impl core::marker::Sync for wrex_test::oracle::TsharkOracle
+impl core::marker::Unpin for wrex_test::oracle::TsharkOracle
+impl core::marker::UnsafeUnpin for wrex_test::oracle::TsharkOracle
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::oracle::TsharkOracle
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::oracle::TsharkOracle
+impl<T, U> core::convert::Into<U> for wrex_test::oracle::TsharkOracle where U: core::convert::From<T>
+pub fn wrex_test::oracle::TsharkOracle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::oracle::TsharkOracle where U: core::convert::Into<T>
+pub type wrex_test::oracle::TsharkOracle::Error = never
+pub fn wrex_test::oracle::TsharkOracle::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::oracle::TsharkOracle where U: core::convert::TryFrom<T>
+pub type wrex_test::oracle::TsharkOracle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::oracle::TsharkOracle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::oracle::TsharkOracle where T: 'static + ?core::marker::Sized
+pub fn wrex_test::oracle::TsharkOracle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::oracle::TsharkOracle where T: ?core::marker::Sized
+pub fn wrex_test::oracle::TsharkOracle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::TsharkOracle where T: ?core::marker::Sized
+pub fn wrex_test::oracle::TsharkOracle::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::oracle::TsharkOracle
+pub fn wrex_test::oracle::TsharkOracle::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::oracle::TsharkOracle
+impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::TsharkOracle
+pub trait wrex_test::oracle::Oracle: core::marker::Send + core::marker::Sync
+pub fn wrex_test::oracle::Oracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::Oracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::Oracle::name(&self) -> &'static str
+impl wrex_test::oracle::Oracle for wrex_test::oracle::EtherparseOracle
+pub fn wrex_test::oracle::EtherparseOracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::EtherparseOracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::EtherparseOracle::name(&self) -> &'static str
+impl wrex_test::oracle::Oracle for wrex_test::oracle::TsharkOracle
+pub fn wrex_test::oracle::TsharkOracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::TsharkOracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::TsharkOracle::name(&self) -> &'static str
+pub fn wrex_test::oracle::check_all_oracles(&[u8], &wrex_core::dissect::DissectedPacket) -> alloc::vec::Vec<(&'static str, wrex_test::oracle::DiffReport)>
+pub mod wrex_test::strategies
+pub const wrex_test::strategies::STACKS: &[&str]
+pub fn wrex_test::strategies::layer(&'static str, &[(&'static str, wrex_core::value::Value)]) -> wrex_core::spec::LayerSpec
+pub fn wrex_test::strategies::packet_strategy(&str) -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::PacketSpec>
+pub fn wrex_test::strategies::stacks() -> &'static [&'static str]
+pub mod wrex_test::tls_stub
+pub enum wrex_test::tls_stub::StubRequest
+pub wrex_test::tls_stub::StubRequest::DnsReply
+pub wrex_test::tls_stub::StubRequest::HttpHead
+pub wrex_test::tls_stub::StubRequest::LengthPrefixed2
+impl core::clone::Clone for wrex_test::tls_stub::StubRequest
+pub fn wrex_test::tls_stub::StubRequest::clone(&self) -> Self
+impl core::fmt::Debug for wrex_test::tls_stub::StubRequest
+pub fn wrex_test::tls_stub::StubRequest::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_test::tls_stub::StubRequest
+impl core::marker::Freeze for wrex_test::tls_stub::StubRequest
+impl core::marker::Send for wrex_test::tls_stub::StubRequest
+impl core::marker::Sync for wrex_test::tls_stub::StubRequest
+impl core::marker::Unpin for wrex_test::tls_stub::StubRequest
+impl core::marker::UnsafeUnpin for wrex_test::tls_stub::StubRequest
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::tls_stub::StubRequest
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::tls_stub::StubRequest
+impl<T, U> core::convert::Into<U> for wrex_test::tls_stub::StubRequest where U: core::convert::From<T>
+pub fn wrex_test::tls_stub::StubRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::tls_stub::StubRequest where U: core::convert::Into<T>
+pub type wrex_test::tls_stub::StubRequest::Error = never
+pub fn wrex_test::tls_stub::StubRequest::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::tls_stub::StubRequest where U: core::convert::TryFrom<T>
+pub type wrex_test::tls_stub::StubRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::tls_stub::StubRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_test::tls_stub::StubRequest where T: core::clone::Clone
+pub type wrex_test::tls_stub::StubRequest::Owned = T
+pub fn wrex_test::tls_stub::StubRequest::clone_into(&self, &mut T)
+pub fn wrex_test::tls_stub::StubRequest::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_test::tls_stub::StubRequest where T: 'static + ?core::marker::Sized
+pub fn wrex_test::tls_stub::StubRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::tls_stub::StubRequest where T: ?core::marker::Sized
+pub fn wrex_test::tls_stub::StubRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::tls_stub::StubRequest where T: ?core::marker::Sized
+pub fn wrex_test::tls_stub::StubRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_test::tls_stub::StubRequest where T: core::clone::Clone
+pub unsafe fn wrex_test::tls_stub::StubRequest::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_test::tls_stub::StubRequest
+pub fn wrex_test::tls_stub::StubRequest::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::tls_stub::StubRequest
+impl<T> tracing::instrument::WithSubscriber for wrex_test::tls_stub::StubRequest
+pub struct wrex_test::tls_stub::TlsStub
+pub wrex_test::tls_stub::TlsStub::addr: core::net::socket_addr::SocketAddr
+pub wrex_test::tls_stub::TlsStub::ca_der: alloc::vec::Vec<u8>
+pub wrex_test::tls_stub::TlsStub::ca_pem: alloc::string::String
+impl core::marker::Freeze for wrex_test::tls_stub::TlsStub
+impl core::marker::Send for wrex_test::tls_stub::TlsStub
+impl core::marker::Sync for wrex_test::tls_stub::TlsStub
+impl core::marker::Unpin for wrex_test::tls_stub::TlsStub
+impl core::marker::UnsafeUnpin for wrex_test::tls_stub::TlsStub
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::tls_stub::TlsStub
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::tls_stub::TlsStub
+impl<T, U> core::convert::Into<U> for wrex_test::tls_stub::TlsStub where U: core::convert::From<T>
+pub fn wrex_test::tls_stub::TlsStub::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::tls_stub::TlsStub where U: core::convert::Into<T>
+pub type wrex_test::tls_stub::TlsStub::Error = never
+pub fn wrex_test::tls_stub::TlsStub::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::tls_stub::TlsStub where U: core::convert::TryFrom<T>
+pub type wrex_test::tls_stub::TlsStub::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::tls_stub::TlsStub::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::tls_stub::TlsStub where T: 'static + ?core::marker::Sized
+pub fn wrex_test::tls_stub::TlsStub::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::tls_stub::TlsStub where T: ?core::marker::Sized
+pub fn wrex_test::tls_stub::TlsStub::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::tls_stub::TlsStub where T: ?core::marker::Sized
+pub fn wrex_test::tls_stub::TlsStub::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::tls_stub::TlsStub
+pub fn wrex_test::tls_stub::TlsStub::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::tls_stub::TlsStub
+impl<T> tracing::instrument::WithSubscriber for wrex_test::tls_stub::TlsStub
+pub fn wrex_test::tls_stub::spawn(alloc::vec::Vec<u8>, usize, usize, wrex_test::tls_stub::StubRequest) -> wrex_test::tls_stub::TlsStub
+pub struct wrex_test::PcapWriter
+impl wrex_test::oracle::PcapWriter
+pub fn wrex_test::oracle::PcapWriter::finish(self) -> alloc::vec::Vec<u8>
+pub fn wrex_test::oracle::PcapWriter::new() -> Self
+pub fn wrex_test::oracle::PcapWriter::push_frame(&mut self, &[u8])
+impl core::default::Default for wrex_test::oracle::PcapWriter
+pub fn wrex_test::oracle::PcapWriter::default() -> Self
+impl core::marker::Freeze for wrex_test::oracle::PcapWriter
+impl core::marker::Send for wrex_test::oracle::PcapWriter
+impl core::marker::Sync for wrex_test::oracle::PcapWriter
+impl core::marker::Unpin for wrex_test::oracle::PcapWriter
+impl core::marker::UnsafeUnpin for wrex_test::oracle::PcapWriter
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_test::oracle::PcapWriter
+impl core::panic::unwind_safe::UnwindSafe for wrex_test::oracle::PcapWriter
+impl<T, U> core::convert::Into<U> for wrex_test::oracle::PcapWriter where U: core::convert::From<T>
+pub fn wrex_test::oracle::PcapWriter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_test::oracle::PcapWriter where U: core::convert::Into<T>
+pub type wrex_test::oracle::PcapWriter::Error = never
+pub fn wrex_test::oracle::PcapWriter::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_test::oracle::PcapWriter where U: core::convert::TryFrom<T>
+pub type wrex_test::oracle::PcapWriter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_test::oracle::PcapWriter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_test::oracle::PcapWriter where T: 'static + ?core::marker::Sized
+pub fn wrex_test::oracle::PcapWriter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_test::oracle::PcapWriter where T: ?core::marker::Sized
+pub fn wrex_test::oracle::PcapWriter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::PcapWriter where T: ?core::marker::Sized
+pub fn wrex_test::oracle::PcapWriter::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_test::oracle::PcapWriter
+pub fn wrex_test::oracle::PcapWriter::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex_test::oracle::PcapWriter
+impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::PcapWriter
+pub trait wrex_test::Oracle: core::marker::Send + core::marker::Sync
+pub fn wrex_test::Oracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::Oracle::is_available(&self) -> bool
+pub fn wrex_test::Oracle::name(&self) -> &'static str
+impl wrex_test::oracle::Oracle for wrex_test::oracle::EtherparseOracle
+pub fn wrex_test::oracle::EtherparseOracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::EtherparseOracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::EtherparseOracle::name(&self) -> &'static str
+impl wrex_test::oracle::Oracle for wrex_test::oracle::TsharkOracle
+pub fn wrex_test::oracle::TsharkOracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
+pub fn wrex_test::oracle::TsharkOracle::is_available(&self) -> bool
+pub fn wrex_test::oracle::TsharkOracle::name(&self) -> &'static str
+pub fn wrex_test::assert_roundtrip(&wrex_core::codec::Registry, &wrex_core::spec::PacketSpec)
+pub fn wrex_test::assert_roundtrip_bytes(&wrex_core::codec::Registry, &[u8], &str) -> wrex_core::dissect::DissectedPacket
+pub fn wrex_test::audit_strategy(&wrex_core::codec::Registry, &str, usize, usize) -> core::option::Option<wrex_test::gates::StrategyAudit>
+pub fn wrex_test::codec_strategy(&str) -> core::option::Option<proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>>
+pub fn wrex_test::craft_bytes<I, S>(I) -> alloc::vec::Vec<u8> where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::AsRef<std::ffi::os_str::OsStr>
+pub fn wrex_test::craft_hex<I, S>(I) -> alloc::string::String where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::AsRef<std::ffi::os_str::OsStr>
+pub fn wrex_test::dissect(&[u8], &[&str]) -> alloc::string::String
+pub fn wrex_test::loopback_ready(bool) -> bool
+pub fn wrex_test::packet_strategy(&str) -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::PacketSpec>
+pub fn wrex_test::stacks() -> &'static [&'static str]
+pub fn wrex_test::wrex_bin() -> assert_cmd::cmd::Command

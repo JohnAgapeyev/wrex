@@ -1,0 +1,249 @@
+pub mod wrex_frag
+pub enum wrex_frag::Family
+pub wrex_frag::Family::V4
+pub wrex_frag::Family::V6
+impl core::clone::Clone for wrex_frag::Family
+pub fn wrex_frag::Family::clone(&self) -> Self
+impl core::cmp::Eq for wrex_frag::Family
+impl core::cmp::PartialEq for wrex_frag::Family
+pub fn wrex_frag::Family::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_frag::Family
+pub fn wrex_frag::Family::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_frag::Family
+impl core::marker::StructuralPartialEq for wrex_frag::Family
+impl core::marker::Freeze for wrex_frag::Family
+impl core::marker::Send for wrex_frag::Family
+impl core::marker::Sync for wrex_frag::Family
+impl core::marker::Unpin for wrex_frag::Family
+impl core::marker::UnsafeUnpin for wrex_frag::Family
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_frag::Family
+impl core::panic::unwind_safe::UnwindSafe for wrex_frag::Family
+impl<T, U> core::convert::Into<U> for wrex_frag::Family where U: core::convert::From<T>
+pub fn wrex_frag::Family::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_frag::Family where U: core::convert::Into<T>
+pub type wrex_frag::Family::Error = never
+pub fn wrex_frag::Family::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_frag::Family where U: core::convert::TryFrom<T>
+pub type wrex_frag::Family::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_frag::Family::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_frag::Family where T: core::clone::Clone
+pub type wrex_frag::Family::Owned = T
+pub fn wrex_frag::Family::clone_into(&self, &mut T)
+pub fn wrex_frag::Family::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_frag::Family where T: 'static + ?core::marker::Sized
+pub fn wrex_frag::Family::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_frag::Family where T: ?core::marker::Sized
+pub fn wrex_frag::Family::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_frag::Family where T: ?core::marker::Sized
+pub fn wrex_frag::Family::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_frag::Family where T: core::clone::Clone
+pub unsafe fn wrex_frag::Family::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_frag::Family
+pub fn wrex_frag::Family::from(T) -> T
+pub enum wrex_frag::PrefixRewrite
+pub wrex_frag::PrefixRewrite::ClearMf(usize)
+pub wrex_frag::PrefixRewrite::NextHeader(usize, u8)
+pub wrex_frag::PrefixRewrite::PayloadLen(usize)
+pub wrex_frag::PrefixRewrite::TotalLen(usize)
+impl core::clone::Clone for wrex_frag::PrefixRewrite
+pub fn wrex_frag::PrefixRewrite::clone(&self) -> Self
+impl core::cmp::Eq for wrex_frag::PrefixRewrite
+impl core::cmp::PartialEq for wrex_frag::PrefixRewrite
+pub fn wrex_frag::PrefixRewrite::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_frag::PrefixRewrite
+pub fn wrex_frag::PrefixRewrite::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_frag::PrefixRewrite
+impl core::marker::StructuralPartialEq for wrex_frag::PrefixRewrite
+impl core::marker::Freeze for wrex_frag::PrefixRewrite
+impl core::marker::Send for wrex_frag::PrefixRewrite
+impl core::marker::Sync for wrex_frag::PrefixRewrite
+impl core::marker::Unpin for wrex_frag::PrefixRewrite
+impl core::marker::UnsafeUnpin for wrex_frag::PrefixRewrite
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_frag::PrefixRewrite
+impl core::panic::unwind_safe::UnwindSafe for wrex_frag::PrefixRewrite
+impl<T, U> core::convert::Into<U> for wrex_frag::PrefixRewrite where U: core::convert::From<T>
+pub fn wrex_frag::PrefixRewrite::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_frag::PrefixRewrite where U: core::convert::Into<T>
+pub type wrex_frag::PrefixRewrite::Error = never
+pub fn wrex_frag::PrefixRewrite::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_frag::PrefixRewrite where U: core::convert::TryFrom<T>
+pub type wrex_frag::PrefixRewrite::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_frag::PrefixRewrite::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_frag::PrefixRewrite where T: core::clone::Clone
+pub type wrex_frag::PrefixRewrite::Owned = T
+pub fn wrex_frag::PrefixRewrite::clone_into(&self, &mut T)
+pub fn wrex_frag::PrefixRewrite::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_frag::PrefixRewrite where T: 'static + ?core::marker::Sized
+pub fn wrex_frag::PrefixRewrite::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_frag::PrefixRewrite where T: ?core::marker::Sized
+pub fn wrex_frag::PrefixRewrite::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_frag::PrefixRewrite where T: ?core::marker::Sized
+pub fn wrex_frag::PrefixRewrite::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_frag::PrefixRewrite where T: core::clone::Clone
+pub unsafe fn wrex_frag::PrefixRewrite::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_frag::PrefixRewrite
+pub fn wrex_frag::PrefixRewrite::from(T) -> T
+pub enum wrex_frag::Push
+pub wrex_frag::Push::Complete(alloc::vec::Vec<u8>)
+pub wrex_frag::Push::Overrun
+pub wrex_frag::Push::Pending
+impl core::cmp::Eq for wrex_frag::Push
+impl core::cmp::PartialEq for wrex_frag::Push
+pub fn wrex_frag::Push::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_frag::Push
+pub fn wrex_frag::Push::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_frag::Push
+impl core::marker::Freeze for wrex_frag::Push
+impl core::marker::Send for wrex_frag::Push
+impl core::marker::Sync for wrex_frag::Push
+impl core::marker::Unpin for wrex_frag::Push
+impl core::marker::UnsafeUnpin for wrex_frag::Push
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_frag::Push
+impl core::panic::unwind_safe::UnwindSafe for wrex_frag::Push
+impl<T, U> core::convert::Into<U> for wrex_frag::Push where U: core::convert::From<T>
+pub fn wrex_frag::Push::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_frag::Push where U: core::convert::Into<T>
+pub type wrex_frag::Push::Error = never
+pub fn wrex_frag::Push::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_frag::Push where U: core::convert::TryFrom<T>
+pub type wrex_frag::Push::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_frag::Push::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_frag::Push where T: 'static + ?core::marker::Sized
+pub fn wrex_frag::Push::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_frag::Push where T: ?core::marker::Sized
+pub fn wrex_frag::Push::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_frag::Push where T: ?core::marker::Sized
+pub fn wrex_frag::Push::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_frag::Push
+pub fn wrex_frag::Push::from(T) -> T
+pub struct wrex_frag::FragInfo
+pub wrex_frag::FragInfo::data: alloc::vec::Vec<u8>
+pub wrex_frag::FragInfo::family: wrex_frag::Family
+pub wrex_frag::FragInfo::key: wrex_frag::FragKey
+pub wrex_frag::FragInfo::more: bool
+pub wrex_frag::FragInfo::offset: usize
+pub wrex_frag::FragInfo::prefix: alloc::vec::Vec<u8>
+pub wrex_frag::FragInfo::rewrites: alloc::vec::Vec<wrex_frag::PrefixRewrite>
+impl core::clone::Clone for wrex_frag::FragInfo
+pub fn wrex_frag::FragInfo::clone(&self) -> Self
+impl core::fmt::Debug for wrex_frag::FragInfo
+pub fn wrex_frag::FragInfo::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_frag::FragInfo
+impl core::marker::Send for wrex_frag::FragInfo
+impl core::marker::Sync for wrex_frag::FragInfo
+impl core::marker::Unpin for wrex_frag::FragInfo
+impl core::marker::UnsafeUnpin for wrex_frag::FragInfo
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_frag::FragInfo
+impl core::panic::unwind_safe::UnwindSafe for wrex_frag::FragInfo
+impl<T, U> core::convert::Into<U> for wrex_frag::FragInfo where U: core::convert::From<T>
+pub fn wrex_frag::FragInfo::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_frag::FragInfo where U: core::convert::Into<T>
+pub type wrex_frag::FragInfo::Error = never
+pub fn wrex_frag::FragInfo::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_frag::FragInfo where U: core::convert::TryFrom<T>
+pub type wrex_frag::FragInfo::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_frag::FragInfo::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_frag::FragInfo where T: core::clone::Clone
+pub type wrex_frag::FragInfo::Owned = T
+pub fn wrex_frag::FragInfo::clone_into(&self, &mut T)
+pub fn wrex_frag::FragInfo::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_frag::FragInfo where T: 'static + ?core::marker::Sized
+pub fn wrex_frag::FragInfo::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_frag::FragInfo where T: ?core::marker::Sized
+pub fn wrex_frag::FragInfo::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_frag::FragInfo where T: ?core::marker::Sized
+pub fn wrex_frag::FragInfo::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_frag::FragInfo where T: core::clone::Clone
+pub unsafe fn wrex_frag::FragInfo::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_frag::FragInfo
+pub fn wrex_frag::FragInfo::from(T) -> T
+pub struct wrex_frag::FragKey
+pub wrex_frag::FragKey::dst: core::net::ip_addr::IpAddr
+pub wrex_frag::FragKey::ident: u32
+pub wrex_frag::FragKey::proto: u8
+pub wrex_frag::FragKey::src: core::net::ip_addr::IpAddr
+impl core::clone::Clone for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::clone(&self) -> Self
+impl core::cmp::Eq for wrex_frag::FragKey
+impl core::cmp::Ord for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialEq for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::eq(&self, &Self) -> bool
+impl core::cmp::PartialOrd for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for wrex_frag::FragKey
+impl core::marker::StructuralPartialEq for wrex_frag::FragKey
+impl core::marker::Freeze for wrex_frag::FragKey
+impl core::marker::Send for wrex_frag::FragKey
+impl core::marker::Sync for wrex_frag::FragKey
+impl core::marker::Unpin for wrex_frag::FragKey
+impl core::marker::UnsafeUnpin for wrex_frag::FragKey
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_frag::FragKey
+impl core::panic::unwind_safe::UnwindSafe for wrex_frag::FragKey
+impl<T, U> core::convert::Into<U> for wrex_frag::FragKey where U: core::convert::From<T>
+pub fn wrex_frag::FragKey::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_frag::FragKey where U: core::convert::Into<T>
+pub type wrex_frag::FragKey::Error = never
+pub fn wrex_frag::FragKey::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_frag::FragKey where U: core::convert::TryFrom<T>
+pub type wrex_frag::FragKey::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_frag::FragKey::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_frag::FragKey where T: core::clone::Clone
+pub type wrex_frag::FragKey::Owned = T
+pub fn wrex_frag::FragKey::clone_into(&self, &mut T)
+pub fn wrex_frag::FragKey::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_frag::FragKey where T: 'static + ?core::marker::Sized
+pub fn wrex_frag::FragKey::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_frag::FragKey where T: ?core::marker::Sized
+pub fn wrex_frag::FragKey::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_frag::FragKey where T: ?core::marker::Sized
+pub fn wrex_frag::FragKey::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_frag::FragKey where T: core::clone::Clone
+pub unsafe fn wrex_frag::FragKey::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_frag::FragKey
+pub fn wrex_frag::FragKey::from(T) -> T
+pub struct wrex_frag::Reassembler
+impl wrex_frag::Reassembler
+pub fn wrex_frag::Reassembler::evict_expired(&mut self, u64) -> alloc::vec::Vec<wrex_frag::FragKey>
+pub fn wrex_frag::Reassembler::incomplete(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn wrex_frag::Reassembler::is_empty(&self) -> bool
+pub fn wrex_frag::Reassembler::len(&self) -> usize
+pub fn wrex_frag::Reassembler::new(usize, core::time::Duration) -> Self
+pub fn wrex_frag::Reassembler::push(&mut self, wrex_frag::FragInfo, u64) -> wrex_frag::Push
+impl core::default::Default for wrex_frag::Reassembler
+pub fn wrex_frag::Reassembler::default() -> Self
+impl core::fmt::Debug for wrex_frag::Reassembler
+pub fn wrex_frag::Reassembler::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_frag::Reassembler
+impl core::marker::Send for wrex_frag::Reassembler
+impl core::marker::Sync for wrex_frag::Reassembler
+impl core::marker::Unpin for wrex_frag::Reassembler
+impl core::marker::UnsafeUnpin for wrex_frag::Reassembler
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_frag::Reassembler
+impl core::panic::unwind_safe::UnwindSafe for wrex_frag::Reassembler
+impl<T, U> core::convert::Into<U> for wrex_frag::Reassembler where U: core::convert::From<T>
+pub fn wrex_frag::Reassembler::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_frag::Reassembler where U: core::convert::Into<T>
+pub type wrex_frag::Reassembler::Error = never
+pub fn wrex_frag::Reassembler::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_frag::Reassembler where U: core::convert::TryFrom<T>
+pub type wrex_frag::Reassembler::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_frag::Reassembler::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_frag::Reassembler where T: 'static + ?core::marker::Sized
+pub fn wrex_frag::Reassembler::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_frag::Reassembler where T: ?core::marker::Sized
+pub fn wrex_frag::Reassembler::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_frag::Reassembler where T: ?core::marker::Sized
+pub fn wrex_frag::Reassembler::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_frag::Reassembler
+pub fn wrex_frag::Reassembler::from(T) -> T
+pub const wrex_frag::DEFAULT_BUDGET: usize
+pub const wrex_frag::DEFAULT_TTL: core::time::Duration
+pub const wrex_frag::KIND_FRAG: &str
+pub const wrex_frag::KIND_IPV4: &str
+pub const wrex_frag::KIND_IPV6: &str
+pub fn wrex_frag::classify(&wrex_core::dissect::DissectedPacket) -> core::option::Option<wrex_frag::FragInfo>

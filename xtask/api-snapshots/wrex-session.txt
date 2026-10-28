@@ -1,0 +1,44 @@
+pub mod wrex_session
+#[non_exhaustive] pub enum wrex_session::SessionAction
+pub wrex_session::SessionAction::Send(bytes::bytes::Bytes)
+impl core::clone::Clone for wrex_session::SessionAction
+pub fn wrex_session::SessionAction::clone(&self) -> Self
+impl core::fmt::Debug for wrex_session::SessionAction
+pub fn wrex_session::SessionAction::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_session::SessionAction
+impl core::marker::Send for wrex_session::SessionAction
+impl core::marker::Sync for wrex_session::SessionAction
+impl core::marker::Unpin for wrex_session::SessionAction
+impl core::marker::UnsafeUnpin for wrex_session::SessionAction
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_session::SessionAction
+impl core::panic::unwind_safe::UnwindSafe for wrex_session::SessionAction
+impl<T, U> core::convert::Into<U> for wrex_session::SessionAction where U: core::convert::From<T>
+pub fn wrex_session::SessionAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_session::SessionAction where U: core::convert::Into<T>
+pub type wrex_session::SessionAction::Error = never
+pub fn wrex_session::SessionAction::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_session::SessionAction where U: core::convert::TryFrom<T>
+pub type wrex_session::SessionAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_session::SessionAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_session::SessionAction where T: core::clone::Clone
+pub type wrex_session::SessionAction::Owned = T
+pub fn wrex_session::SessionAction::clone_into(&self, &mut T)
+pub fn wrex_session::SessionAction::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_session::SessionAction where T: 'static + ?core::marker::Sized
+pub fn wrex_session::SessionAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_session::SessionAction where T: ?core::marker::Sized
+pub fn wrex_session::SessionAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_session::SessionAction where T: ?core::marker::Sized
+pub fn wrex_session::SessionAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_session::SessionAction where T: core::clone::Clone
+pub unsafe fn wrex_session::SessionAction::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_session::SessionAction
+pub fn wrex_session::SessionAction::from(T) -> T
+pub trait wrex_session::Session: core::marker::Send
+pub type wrex_session::Session::Output: core::marker::Send
+pub fn wrex_session::Session::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_session::Session::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_session::Session::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_session::Session::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_session::Session::poll_result(&mut self) -> core::option::Option<Self::Output>
+pub fn wrex_session::run<S: wrex_session::Session>(&mut S, &mut dyn wrex_io::driver::Driver, &dyn wrex_io::Clock) -> core::io::error::Result<alloc::vec::Vec<<S as wrex_session::Session>::Output>>

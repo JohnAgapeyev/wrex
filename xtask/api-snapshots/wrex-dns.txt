@@ -1,0 +1,192 @@
+pub mod wrex_dns
+pub use wrex_dns::types
+pub enum wrex_dns::DnsReply
+pub wrex_dns::DnsReply::NoReply
+pub wrex_dns::DnsReply::NoReply::attempts: u32
+pub wrex_dns::DnsReply::Reply(wrex_core::dissect::DissectedPacket)
+impl core::clone::Clone for wrex_dns::DnsReply
+pub fn wrex_dns::DnsReply::clone(&self) -> Self
+impl core::fmt::Debug for wrex_dns::DnsReply
+pub fn wrex_dns::DnsReply::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_dns::DnsReply
+impl core::marker::Send for wrex_dns::DnsReply
+impl core::marker::Sync for wrex_dns::DnsReply
+impl core::marker::Unpin for wrex_dns::DnsReply
+impl core::marker::UnsafeUnpin for wrex_dns::DnsReply
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_dns::DnsReply
+impl core::panic::unwind_safe::UnwindSafe for wrex_dns::DnsReply
+impl<T, U> core::convert::Into<U> for wrex_dns::DnsReply where U: core::convert::From<T>
+pub fn wrex_dns::DnsReply::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_dns::DnsReply where U: core::convert::Into<T>
+pub type wrex_dns::DnsReply::Error = never
+pub fn wrex_dns::DnsReply::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_dns::DnsReply where U: core::convert::TryFrom<T>
+pub type wrex_dns::DnsReply::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_dns::DnsReply::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_dns::DnsReply where T: core::clone::Clone
+pub type wrex_dns::DnsReply::Owned = T
+pub fn wrex_dns::DnsReply::clone_into(&self, &mut T)
+pub fn wrex_dns::DnsReply::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_dns::DnsReply where T: 'static + ?core::marker::Sized
+pub fn wrex_dns::DnsReply::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_dns::DnsReply where T: ?core::marker::Sized
+pub fn wrex_dns::DnsReply::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsReply where T: ?core::marker::Sized
+pub fn wrex_dns::DnsReply::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_dns::DnsReply where T: core::clone::Clone
+pub unsafe fn wrex_dns::DnsReply::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_dns::DnsReply
+pub fn wrex_dns::DnsReply::from(T) -> T
+pub enum wrex_dns::DnsTcpReply
+pub wrex_dns::DnsTcpReply::NoReply
+pub wrex_dns::DnsTcpReply::Reply(wrex_core::dissect::DissectedPacket)
+pub wrex_dns::DnsTcpReply::Truncated
+pub wrex_dns::DnsTcpReply::Truncated::got: usize
+pub wrex_dns::DnsTcpReply::Truncated::want: u16
+impl core::clone::Clone for wrex_dns::DnsTcpReply
+pub fn wrex_dns::DnsTcpReply::clone(&self) -> Self
+impl core::fmt::Debug for wrex_dns::DnsTcpReply
+pub fn wrex_dns::DnsTcpReply::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_dns::DnsTcpReply
+impl core::marker::Send for wrex_dns::DnsTcpReply
+impl core::marker::Sync for wrex_dns::DnsTcpReply
+impl core::marker::Unpin for wrex_dns::DnsTcpReply
+impl core::marker::UnsafeUnpin for wrex_dns::DnsTcpReply
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_dns::DnsTcpReply
+impl core::panic::unwind_safe::UnwindSafe for wrex_dns::DnsTcpReply
+impl<T, U> core::convert::Into<U> for wrex_dns::DnsTcpReply where U: core::convert::From<T>
+pub fn wrex_dns::DnsTcpReply::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_dns::DnsTcpReply where U: core::convert::Into<T>
+pub type wrex_dns::DnsTcpReply::Error = never
+pub fn wrex_dns::DnsTcpReply::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_dns::DnsTcpReply where U: core::convert::TryFrom<T>
+pub type wrex_dns::DnsTcpReply::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_dns::DnsTcpReply::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_dns::DnsTcpReply where T: core::clone::Clone
+pub type wrex_dns::DnsTcpReply::Owned = T
+pub fn wrex_dns::DnsTcpReply::clone_into(&self, &mut T)
+pub fn wrex_dns::DnsTcpReply::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_dns::DnsTcpReply where T: 'static + ?core::marker::Sized
+pub fn wrex_dns::DnsTcpReply::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_dns::DnsTcpReply where T: ?core::marker::Sized
+pub fn wrex_dns::DnsTcpReply::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsTcpReply where T: ?core::marker::Sized
+pub fn wrex_dns::DnsTcpReply::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_dns::DnsTcpReply where T: core::clone::Clone
+pub unsafe fn wrex_dns::DnsTcpReply::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_dns::DnsTcpReply
+pub fn wrex_dns::DnsTcpReply::from(T) -> T
+pub struct wrex_dns::DnsSession<'a>
+impl<'a> wrex_dns::DnsSession<'a>
+pub fn wrex_dns::DnsSession<'a>::new(&'a wrex_core::codec::Registry, wrex_dns::QueryConfig, core::net::ip_addr::IpAddr, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_dns::DnsSession<'a>::query_bytes(&self) -> &bytes::bytes::Bytes
+pub fn wrex_dns::DnsSession<'a>::query_id(&self) -> u16
+impl<'a> wrex_session::Session for wrex_dns::DnsSession<'a>
+pub type wrex_dns::DnsSession<'a>::Output = wrex_dns::DnsReply
+pub fn wrex_dns::DnsSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_dns::DnsSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_dns::DnsSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_dns::DnsSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_dns::DnsSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_dns::DnsReply>
+impl<'a> !core::marker::Freeze for wrex_dns::DnsSession<'a>
+impl<'a> core::marker::Send for wrex_dns::DnsSession<'a>
+impl<'a> core::marker::Sync for wrex_dns::DnsSession<'a>
+impl<'a> core::marker::Unpin for wrex_dns::DnsSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_dns::DnsSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_dns::DnsSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_dns::DnsSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_dns::DnsSession<'a> where U: core::convert::From<T>
+pub fn wrex_dns::DnsSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_dns::DnsSession<'a> where U: core::convert::Into<T>
+pub type wrex_dns::DnsSession<'a>::Error = never
+pub fn wrex_dns::DnsSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_dns::DnsSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_dns::DnsSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_dns::DnsSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_dns::DnsSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_dns::DnsSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_dns::DnsSession<'a> where T: ?core::marker::Sized
+pub fn wrex_dns::DnsSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsSession<'a> where T: ?core::marker::Sized
+pub fn wrex_dns::DnsSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_dns::DnsSession<'a>
+pub fn wrex_dns::DnsSession<'a>::from(T) -> T
+pub struct wrex_dns::DnsTcpSession<'a>
+impl<'a> wrex_dns::DnsTcpSession<'a>
+pub fn wrex_dns::DnsTcpSession<'a>::new(&'a wrex_core::codec::Registry, wrex_dns::QueryConfig, bytes::bytes::Bytes, u16, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl<'a> wrex_session::Session for wrex_dns::DnsTcpSession<'a>
+pub type wrex_dns::DnsTcpSession<'a>::Output = wrex_dns::DnsTcpReply
+pub fn wrex_dns::DnsTcpSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_dns::DnsTcpSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_dns::DnsTcpSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_dns::DnsTcpSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_dns::DnsTcpSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_dns::DnsTcpReply>
+impl<'a> !core::marker::Freeze for wrex_dns::DnsTcpSession<'a>
+impl<'a> core::marker::Send for wrex_dns::DnsTcpSession<'a>
+impl<'a> core::marker::Sync for wrex_dns::DnsTcpSession<'a>
+impl<'a> core::marker::Unpin for wrex_dns::DnsTcpSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_dns::DnsTcpSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_dns::DnsTcpSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_dns::DnsTcpSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_dns::DnsTcpSession<'a> where U: core::convert::From<T>
+pub fn wrex_dns::DnsTcpSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_dns::DnsTcpSession<'a> where U: core::convert::Into<T>
+pub type wrex_dns::DnsTcpSession<'a>::Error = never
+pub fn wrex_dns::DnsTcpSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_dns::DnsTcpSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_dns::DnsTcpSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_dns::DnsTcpSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_dns::DnsTcpSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_dns::DnsTcpSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_dns::DnsTcpSession<'a> where T: ?core::marker::Sized
+pub fn wrex_dns::DnsTcpSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_dns::DnsTcpSession<'a> where T: ?core::marker::Sized
+pub fn wrex_dns::DnsTcpSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_dns::DnsTcpSession<'a>
+pub fn wrex_dns::DnsTcpSession<'a>::from(T) -> T
+pub struct wrex_dns::QueryConfig
+pub wrex_dns::QueryConfig::name: alloc::string::String
+pub wrex_dns::QueryConfig::port: u16
+pub wrex_dns::QueryConfig::qclass: alloc::string::String
+pub wrex_dns::QueryConfig::qtype: alloc::string::String
+pub wrex_dns::QueryConfig::rd: bool
+pub wrex_dns::QueryConfig::retries: u32
+pub wrex_dns::QueryConfig::seed: u64
+pub wrex_dns::QueryConfig::server: core::net::ip_addr::IpAddr
+pub wrex_dns::QueryConfig::timeout: core::time::Duration
+impl wrex_dns::QueryConfig
+pub fn wrex_dns::QueryConfig::validate(&self) -> core::result::Result<(), alloc::string::String>
+impl core::clone::Clone for wrex_dns::QueryConfig
+pub fn wrex_dns::QueryConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_dns::QueryConfig
+pub fn wrex_dns::QueryConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_dns::QueryConfig
+impl core::marker::Send for wrex_dns::QueryConfig
+impl core::marker::Sync for wrex_dns::QueryConfig
+impl core::marker::Unpin for wrex_dns::QueryConfig
+impl core::marker::UnsafeUnpin for wrex_dns::QueryConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_dns::QueryConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_dns::QueryConfig
+impl<T, U> core::convert::Into<U> for wrex_dns::QueryConfig where U: core::convert::From<T>
+pub fn wrex_dns::QueryConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_dns::QueryConfig where U: core::convert::Into<T>
+pub type wrex_dns::QueryConfig::Error = never
+pub fn wrex_dns::QueryConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_dns::QueryConfig where U: core::convert::TryFrom<T>
+pub type wrex_dns::QueryConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_dns::QueryConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_dns::QueryConfig where T: core::clone::Clone
+pub type wrex_dns::QueryConfig::Owned = T
+pub fn wrex_dns::QueryConfig::clone_into(&self, &mut T)
+pub fn wrex_dns::QueryConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_dns::QueryConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_dns::QueryConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_dns::QueryConfig where T: ?core::marker::Sized
+pub fn wrex_dns::QueryConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_dns::QueryConfig where T: ?core::marker::Sized
+pub fn wrex_dns::QueryConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_dns::QueryConfig where T: core::clone::Clone
+pub unsafe fn wrex_dns::QueryConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_dns::QueryConfig
+pub fn wrex_dns::QueryConfig::from(T) -> T
+pub fn wrex_dns::build_tcp_query(&wrex_core::codec::Registry, &wrex_dns::QueryConfig, u16, u16) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>

@@ -82,12 +82,34 @@ encode/decode error deterministically at authoring time. Extend to
 geometry: assert span layouts against an RFC-derived table, never
 against the schema's own declarations (they share the bug surface).
 
-**G4 — Mutation kill-list for codec crates.** The weekly cargo-mutants
-job (currently advisory, wrex-core only) extends to the proto crates.
-A bit-mapping bug *is* a surviving mutant; layout/bit-packing mutants
-must die. Track per-crate scores; promote codec crates to gating once
-scores are healthy. Mutation testing is the audit that proves G1–G3
-are real, not theatrical.
+**G4 — Mutation kill-list for codec crates.** The cargo-mutants release
+gate extends to the proto crates (`mutants-codecs` job, advisory
+first). A bit-mapping bug *is* a surviving mutant; layout/bit-packing
+mutants must die. Track per-crate scores; promote codec crates to
+gating once scores are healthy. Mutation testing is the audit that
+proves G1–G3 are real, not theatrical. The wrex-core full-scope run is
+**gated** since the kill-strength pass (737 mutants, 0 missed).
+
+First recorded baseline (2026-10-28, local, `--no-shuffle` — the
+scores are the product; the gap is the honest state: the codecs'
+write paths are exercised mainly by the `wrex` crate's integration
+suites, which cargo-mutants does not run per package):
+
+| crate | mutants | missed | caught | unviable | timeouts |
+|---|---|---|---|---|---|
+| wrex-proto-eth | 31 | 12 | 15 | 4 | 0 |
+| wrex-proto-arp | 19 | 7 | 7 | 5 | 0 |
+| wrex-proto-vlan | 48 | 12 | 31 | 5 | 0 |
+| wrex-proto-ip | 117 | 51 | 60 | 6 | 0 |
+| wrex-proto-ip6 | 61 | 31 | 24 | 6 | 0 |
+| wrex-proto-icmp | 27 | 9 | 12 | 6 | 0 |
+| wrex-proto-icmpv6 | 258 | 65 | 180 | 13 | 0 |
+| wrex-proto-udp | 54 | 14 | 34 | 6 | 0 |
+| wrex-proto-tcp | 87 | 24 | 57 | 6 | 0 |
+| wrex-proto-dns | 313 | 106 | 194 | 12 | 1 |
+| wrex-proto-dhcp | 217 | 77 | 133 | 5 | 2 |
+| wrex-proto-dhcp6 | 289 | 112 | 169 | 6 | 2 |
+| wrex-proto-ip6ext | 308 | 160 | 115 | 32 | 1 |
 
 **G5 — Foreign-value corpus policy.** Every codec's golden corpus
 contains at least one **real foreign capture** (or fixture), and its

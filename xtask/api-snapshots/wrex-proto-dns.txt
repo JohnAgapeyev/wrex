@@ -1,0 +1,62 @@
+pub mod wrex_proto_dns
+pub mod wrex_proto_dns::name
+pub fn wrex_proto_dns::name::decode_name(&[u8], usize) -> core::result::Result<(alloc::string::String, usize, bool, core::option::Option<usize>), alloc::string::String>
+pub fn wrex_proto_dns::name::encode_name(&str, &mut alloc::vec::Vec<u8>) -> core::result::Result<(), alloc::string::String>
+pub fn wrex_proto_dns::name::name_wire_len(&str) -> core::result::Result<usize, alloc::string::String>
+pub mod wrex_proto_dns::strategy
+pub fn wrex_proto_dns::strategy::strategy() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub mod wrex_proto_dns::types
+pub const wrex_proto_dns::types::CLASS_ANY: u16
+pub const wrex_proto_dns::types::CLASS_CH: u16
+pub const wrex_proto_dns::types::CLASS_HS: u16
+pub const wrex_proto_dns::types::CLASS_IN: u16
+pub const wrex_proto_dns::types::TYPE_A: u16
+pub const wrex_proto_dns::types::TYPE_AAAA: u16
+pub const wrex_proto_dns::types::TYPE_ANY: u16
+pub const wrex_proto_dns::types::TYPE_CNAME: u16
+pub const wrex_proto_dns::types::TYPE_MX: u16
+pub const wrex_proto_dns::types::TYPE_NS: u16
+pub const wrex_proto_dns::types::TYPE_OPT: u16
+pub const wrex_proto_dns::types::TYPE_PTR: u16
+pub const wrex_proto_dns::types::TYPE_SOA: u16
+pub const wrex_proto_dns::types::TYPE_SRV: u16
+pub const wrex_proto_dns::types::TYPE_TXT: u16
+pub fn wrex_proto_dns::types::parse_class(&str) -> core::option::Option<u16>
+pub fn wrex_proto_dns::types::parse_type(&str) -> core::option::Option<u16>
+pub fn wrex_proto_dns::types::render_class(u16) -> alloc::string::String
+pub fn wrex_proto_dns::types::render_type(u16) -> alloc::string::String
+pub struct wrex_proto_dns::DnsCodec
+impl wrex_core::codec::Codec for wrex_proto_dns::DnsCodec
+pub fn wrex_proto_dns::DnsCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_dns::DnsCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_dns::DnsCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_dns::DnsCodec::reencode(&self, &str, &[u8], core::ops::range::Range<usize>) -> core::option::Option<core::result::Result<alloc::vec::Vec<u8>, alloc::string::String>>
+pub fn wrex_proto_dns::DnsCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_dns::DnsCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_dns::DnsCodec
+impl core::marker::Send for wrex_proto_dns::DnsCodec
+impl core::marker::Sync for wrex_proto_dns::DnsCodec
+impl core::marker::Unpin for wrex_proto_dns::DnsCodec
+impl core::marker::UnsafeUnpin for wrex_proto_dns::DnsCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_dns::DnsCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_dns::DnsCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_dns::DnsCodec where U: core::convert::From<T>
+pub fn wrex_proto_dns::DnsCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_dns::DnsCodec where U: core::convert::Into<T>
+pub type wrex_proto_dns::DnsCodec::Error = never
+pub fn wrex_proto_dns::DnsCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_dns::DnsCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_dns::DnsCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_dns::DnsCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_dns::DnsCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_dns::DnsCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_dns::DnsCodec where T: ?core::marker::Sized
+pub fn wrex_proto_dns::DnsCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_dns::DnsCodec where T: ?core::marker::Sized
+pub fn wrex_proto_dns::DnsCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_dns::DnsCodec
+pub fn wrex_proto_dns::DnsCodec::from(T) -> T
+pub const wrex_proto_dns::KIND: &str
+pub static wrex_proto_dns::CODEC: wrex_proto_dns::DnsCodec
+pub static wrex_proto_dns::SCHEMA: wrex_core::schema::LayerSchema
+pub fn wrex_proto_dns::register(&mut wrex_core::codec::Registry)

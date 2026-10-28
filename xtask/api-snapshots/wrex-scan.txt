@@ -1,0 +1,588 @@
+pub mod wrex_scan
+pub use wrex_scan::Rng
+pub mod wrex_scan::config
+pub enum wrex_scan::config::ScanMode
+pub wrex_scan::config::ScanMode::Connect
+pub wrex_scan::config::ScanMode::Icmp
+pub wrex_scan::config::ScanMode::Syn
+pub wrex_scan::config::ScanMode::Udp
+impl wrex_scan::config::ScanMode
+pub const wrex_scan::config::ScanMode::DEFAULT: Self
+pub const fn wrex_scan::config::ScanMode::as_str(self) -> &'static str
+pub const fn wrex_scan::config::ScanMode::needs(self) -> &'static [&'static str]
+pub const fn wrex_scan::config::ScanMode::needs_for(self, wrex_scan::target::Family) -> &'static [&'static str]
+pub fn wrex_scan::config::ScanMode::parse(core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+pub const fn wrex_scan::config::ScanMode::proto(self) -> &'static str
+pub const fn wrex_scan::config::ScanMode::proto_for(self, wrex_scan::target::Family) -> &'static str
+impl core::clone::Clone for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::config::ScanMode
+impl core::cmp::PartialEq for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_scan::config::ScanMode
+impl core::marker::StructuralPartialEq for wrex_scan::config::ScanMode
+impl core::marker::Freeze for wrex_scan::config::ScanMode
+impl core::marker::Send for wrex_scan::config::ScanMode
+impl core::marker::Sync for wrex_scan::config::ScanMode
+impl core::marker::Unpin for wrex_scan::config::ScanMode
+impl core::marker::UnsafeUnpin for wrex_scan::config::ScanMode
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::config::ScanMode
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::config::ScanMode
+impl<T, U> core::convert::Into<U> for wrex_scan::config::ScanMode where U: core::convert::From<T>
+pub fn wrex_scan::config::ScanMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::config::ScanMode where U: core::convert::Into<T>
+pub type wrex_scan::config::ScanMode::Error = never
+pub fn wrex_scan::config::ScanMode::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::config::ScanMode where U: core::convert::TryFrom<T>
+pub type wrex_scan::config::ScanMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::config::ScanMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::config::ScanMode where T: core::clone::Clone
+pub type wrex_scan::config::ScanMode::Owned = T
+pub fn wrex_scan::config::ScanMode::clone_into(&self, &mut T)
+pub fn wrex_scan::config::ScanMode::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::config::ScanMode where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::config::ScanMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::config::ScanMode where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::config::ScanMode where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::config::ScanMode where T: core::clone::Clone
+pub unsafe fn wrex_scan::config::ScanMode::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::from(T) -> T
+pub struct wrex_scan::config::ScanConfig
+pub wrex_scan::config::ScanConfig::concurrent: usize
+pub wrex_scan::config::ScanConfig::interval: core::time::Duration
+pub wrex_scan::config::ScanConfig::jitter: core::time::Duration
+pub wrex_scan::config::ScanConfig::mode: wrex_scan::config::ScanMode
+pub wrex_scan::config::ScanConfig::ports: alloc::vec::Vec<u16>
+pub wrex_scan::config::ScanConfig::retries: u32
+pub wrex_scan::config::ScanConfig::seed: u64
+pub wrex_scan::config::ScanConfig::targets: alloc::vec::Vec<wrex_scan::target::ScanAddr>
+pub wrex_scan::config::ScanConfig::timeout: core::time::Duration
+impl wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::build(wrex_scan::config::ScanMode, &[alloc::string::String], core::option::Option<&str>, core::time::Duration, core::time::Duration, u64, u32, core::time::Duration, usize) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_scan::config::ScanConfig::family(&self) -> wrex_scan::target::Family
+pub fn wrex_scan::config::ScanConfig::probe_count(&self) -> usize
+impl core::clone::Clone for wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_scan::config::ScanConfig
+impl core::marker::Send for wrex_scan::config::ScanConfig
+impl core::marker::Sync for wrex_scan::config::ScanConfig
+impl core::marker::Unpin for wrex_scan::config::ScanConfig
+impl core::marker::UnsafeUnpin for wrex_scan::config::ScanConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::config::ScanConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::config::ScanConfig
+impl<T, U> core::convert::Into<U> for wrex_scan::config::ScanConfig where U: core::convert::From<T>
+pub fn wrex_scan::config::ScanConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::config::ScanConfig where U: core::convert::Into<T>
+pub type wrex_scan::config::ScanConfig::Error = never
+pub fn wrex_scan::config::ScanConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::config::ScanConfig where U: core::convert::TryFrom<T>
+pub type wrex_scan::config::ScanConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::config::ScanConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::config::ScanConfig where T: core::clone::Clone
+pub type wrex_scan::config::ScanConfig::Owned = T
+pub fn wrex_scan::config::ScanConfig::clone_into(&self, &mut T)
+pub fn wrex_scan::config::ScanConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::config::ScanConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::config::ScanConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::config::ScanConfig where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::config::ScanConfig where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::config::ScanConfig where T: core::clone::Clone
+pub unsafe fn wrex_scan::config::ScanConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::from(T) -> T
+pub const wrex_scan::config::DEFAULT_CONCURRENT: usize
+pub const wrex_scan::config::DEFAULT_RATE: u64
+pub const wrex_scan::config::DEFAULT_RETRIES: u32
+pub const wrex_scan::config::DEFAULT_TCP_PORTS: &[u16]
+pub const wrex_scan::config::DEFAULT_TIMEOUT: core::time::Duration
+pub const wrex_scan::config::MAX_PROBES: usize
+pub mod wrex_scan::packet
+pub const wrex_scan::packet::FLAG_ACK: u128
+pub const wrex_scan::packet::FLAG_RST: u128
+pub const wrex_scan::packet::FLAG_SYN: u128
+pub const wrex_scan::packet::ICMPV6_ECHO_REPLY: u8
+pub const wrex_scan::packet::ICMPV6_ECHO_REQ: u8
+pub fn wrex_scan::packet::icmp_echo(&wrex_core::codec::Registry, wrex_scan::target::ScanAddr, wrex_scan::target::ScanAddr, u8, u16, u16) -> core::result::Result<bytes::bytes::Bytes, wrex_core::error::EncodeError>
+pub fn wrex_scan::packet::tcp(&wrex_core::codec::Registry, wrex_scan::target::ScanAddr, wrex_scan::target::ScanAddr, u16, u16, u32, core::option::Option<u32>, u128) -> core::result::Result<bytes::bytes::Bytes, wrex_core::error::EncodeError>
+pub fn wrex_scan::packet::udp(&wrex_core::codec::Registry, wrex_scan::target::ScanAddr, wrex_scan::target::ScanAddr, u16, u16) -> core::result::Result<bytes::bytes::Bytes, wrex_core::error::EncodeError>
+pub mod wrex_scan::report
+pub struct wrex_scan::report::ScanResult
+pub wrex_scan::report::ScanResult::attempts: u32
+pub wrex_scan::report::ScanResult::port: core::option::Option<u16>
+pub wrex_scan::report::ScanResult::proto: &'static str
+pub wrex_scan::report::ScanResult::rtt_ms: core::option::Option<u64>
+pub wrex_scan::report::ScanResult::state: &'static str
+pub wrex_scan::report::ScanResult::target: wrex_scan::target::ScanAddr
+impl wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::rtt_from(core::time::Duration) -> u64
+pub fn wrex_scan::report::ScanResult::rtt_hum(&self) -> core::option::Option<alloc::string::String>
+pub fn wrex_scan::report::ScanResult::text_line(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::report::ScanResult
+impl core::cmp::PartialEq for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_scan::report::ScanResult
+impl serde_core::ser::Serialize for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_scan::report::ScanResult
+impl core::marker::Send for wrex_scan::report::ScanResult
+impl core::marker::Sync for wrex_scan::report::ScanResult
+impl core::marker::Unpin for wrex_scan::report::ScanResult
+impl core::marker::UnsafeUnpin for wrex_scan::report::ScanResult
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::report::ScanResult
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::report::ScanResult
+impl<T, U> core::convert::Into<U> for wrex_scan::report::ScanResult where U: core::convert::From<T>
+pub fn wrex_scan::report::ScanResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::report::ScanResult where U: core::convert::Into<T>
+pub type wrex_scan::report::ScanResult::Error = never
+pub fn wrex_scan::report::ScanResult::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::report::ScanResult where U: core::convert::TryFrom<T>
+pub type wrex_scan::report::ScanResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::report::ScanResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::report::ScanResult where T: core::clone::Clone
+pub type wrex_scan::report::ScanResult::Owned = T
+pub fn wrex_scan::report::ScanResult::clone_into(&self, &mut T)
+pub fn wrex_scan::report::ScanResult::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::report::ScanResult where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::report::ScanResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::report::ScanResult where T: ?core::marker::Sized
+pub fn wrex_scan::report::ScanResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::report::ScanResult where T: ?core::marker::Sized
+pub fn wrex_scan::report::ScanResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::report::ScanResult where T: core::clone::Clone
+pub unsafe fn wrex_scan::report::ScanResult::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::from(T) -> T
+pub mod wrex_scan::session
+pub struct wrex_scan::session::ScanSession<'a>
+impl<'a> wrex_scan::session::ScanSession<'a>
+pub fn wrex_scan::session::ScanSession<'a>::new(&'a wrex_core::codec::Registry, wrex_scan::config::ScanConfig, wrex_scan::target::ScanAddr, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl<'a> wrex_session::Session for wrex_scan::session::ScanSession<'a>
+pub type wrex_scan::session::ScanSession<'a>::Output = wrex_scan::report::ScanResult
+pub fn wrex_scan::session::ScanSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_scan::session::ScanSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_scan::session::ScanSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_scan::session::ScanSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_scan::session::ScanSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_scan::report::ScanResult>
+impl<'a> core::marker::Freeze for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::Send for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::Sync for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::Unpin for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_scan::session::ScanSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_scan::session::ScanSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_scan::session::ScanSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_scan::session::ScanSession<'a> where U: core::convert::From<T>
+pub fn wrex_scan::session::ScanSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::session::ScanSession<'a> where U: core::convert::Into<T>
+pub type wrex_scan::session::ScanSession<'a>::Error = never
+pub fn wrex_scan::session::ScanSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::session::ScanSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_scan::session::ScanSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::session::ScanSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_scan::session::ScanSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::session::ScanSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::session::ScanSession<'a> where T: ?core::marker::Sized
+pub fn wrex_scan::session::ScanSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::session::ScanSession<'a> where T: ?core::marker::Sized
+pub fn wrex_scan::session::ScanSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_scan::session::ScanSession<'a>
+pub fn wrex_scan::session::ScanSession<'a>::from(T) -> T
+pub mod wrex_scan::target
+pub enum wrex_scan::target::Family
+pub wrex_scan::target::Family::V4
+pub wrex_scan::target::Family::V6
+impl wrex_scan::target::Family
+pub const fn wrex_scan::target::Family::echo_kind(self) -> &'static str
+pub const fn wrex_scan::target::Family::ip_kind(self) -> &'static str
+impl core::clone::Clone for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::target::Family
+impl core::cmp::PartialEq for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_scan::target::Family
+impl core::marker::StructuralPartialEq for wrex_scan::target::Family
+impl core::marker::Freeze for wrex_scan::target::Family
+impl core::marker::Send for wrex_scan::target::Family
+impl core::marker::Sync for wrex_scan::target::Family
+impl core::marker::Unpin for wrex_scan::target::Family
+impl core::marker::UnsafeUnpin for wrex_scan::target::Family
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::target::Family
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::target::Family
+impl<T, U> core::convert::Into<U> for wrex_scan::target::Family where U: core::convert::From<T>
+pub fn wrex_scan::target::Family::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::target::Family where U: core::convert::Into<T>
+pub type wrex_scan::target::Family::Error = never
+pub fn wrex_scan::target::Family::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::target::Family where U: core::convert::TryFrom<T>
+pub type wrex_scan::target::Family::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::target::Family::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::target::Family where T: core::clone::Clone
+pub type wrex_scan::target::Family::Owned = T
+pub fn wrex_scan::target::Family::clone_into(&self, &mut T)
+pub fn wrex_scan::target::Family::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::target::Family where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::target::Family::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::target::Family where T: ?core::marker::Sized
+pub fn wrex_scan::target::Family::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::target::Family where T: ?core::marker::Sized
+pub fn wrex_scan::target::Family::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::target::Family where T: core::clone::Clone
+pub unsafe fn wrex_scan::target::Family::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::from(T) -> T
+pub enum wrex_scan::target::ScanAddr
+pub wrex_scan::target::ScanAddr::V4(core::net::ip_addr::Ipv4Addr)
+pub wrex_scan::target::ScanAddr::V6(core::net::ip_addr::Ipv6Addr)
+impl wrex_scan::target::ScanAddr
+pub const fn wrex_scan::target::ScanAddr::family(self) -> wrex_scan::target::Family
+pub fn wrex_scan::target::ScanAddr::is_unspecified(self) -> bool
+impl core::clone::Clone for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::target::ScanAddr
+impl core::cmp::Ord for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialEq for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::eq(&self, &Self) -> bool
+impl core::cmp::PartialOrd for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for wrex_scan::target::ScanAddr
+impl core::marker::StructuralPartialEq for wrex_scan::target::ScanAddr
+impl serde_core::ser::Serialize for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl core::marker::Freeze for wrex_scan::target::ScanAddr
+impl core::marker::Send for wrex_scan::target::ScanAddr
+impl core::marker::Sync for wrex_scan::target::ScanAddr
+impl core::marker::Unpin for wrex_scan::target::ScanAddr
+impl core::marker::UnsafeUnpin for wrex_scan::target::ScanAddr
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::target::ScanAddr
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::target::ScanAddr
+impl<T, U> core::convert::Into<U> for wrex_scan::target::ScanAddr where U: core::convert::From<T>
+pub fn wrex_scan::target::ScanAddr::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::target::ScanAddr where U: core::convert::Into<T>
+pub type wrex_scan::target::ScanAddr::Error = never
+pub fn wrex_scan::target::ScanAddr::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::target::ScanAddr where U: core::convert::TryFrom<T>
+pub type wrex_scan::target::ScanAddr::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::target::ScanAddr::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::target::ScanAddr where T: core::clone::Clone
+pub type wrex_scan::target::ScanAddr::Owned = T
+pub fn wrex_scan::target::ScanAddr::clone_into(&self, &mut T)
+pub fn wrex_scan::target::ScanAddr::to_owned(&self) -> T
+impl<T> alloc::string::ToString for wrex_scan::target::ScanAddr where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_scan::target::ScanAddr where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::target::ScanAddr where T: ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::target::ScanAddr where T: ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::target::ScanAddr where T: core::clone::Clone
+pub unsafe fn wrex_scan::target::ScanAddr::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::from(T) -> T
+pub const wrex_scan::target::MAX_ADDRS_PER_TARGET: u64
+pub fn wrex_scan::target::parse_ports(&str) -> core::result::Result<alloc::vec::Vec<u16>, alloc::string::String>
+pub fn wrex_scan::target::parse_targets(&[alloc::string::String]) -> core::result::Result<alloc::vec::Vec<wrex_scan::target::ScanAddr>, alloc::string::String>
+pub enum wrex_scan::Family
+pub wrex_scan::Family::V4
+pub wrex_scan::Family::V6
+impl wrex_scan::target::Family
+pub const fn wrex_scan::target::Family::echo_kind(self) -> &'static str
+pub const fn wrex_scan::target::Family::ip_kind(self) -> &'static str
+impl core::clone::Clone for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::target::Family
+impl core::cmp::PartialEq for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_scan::target::Family
+impl core::marker::StructuralPartialEq for wrex_scan::target::Family
+impl core::marker::Freeze for wrex_scan::target::Family
+impl core::marker::Send for wrex_scan::target::Family
+impl core::marker::Sync for wrex_scan::target::Family
+impl core::marker::Unpin for wrex_scan::target::Family
+impl core::marker::UnsafeUnpin for wrex_scan::target::Family
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::target::Family
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::target::Family
+impl<T, U> core::convert::Into<U> for wrex_scan::target::Family where U: core::convert::From<T>
+pub fn wrex_scan::target::Family::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::target::Family where U: core::convert::Into<T>
+pub type wrex_scan::target::Family::Error = never
+pub fn wrex_scan::target::Family::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::target::Family where U: core::convert::TryFrom<T>
+pub type wrex_scan::target::Family::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::target::Family::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::target::Family where T: core::clone::Clone
+pub type wrex_scan::target::Family::Owned = T
+pub fn wrex_scan::target::Family::clone_into(&self, &mut T)
+pub fn wrex_scan::target::Family::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::target::Family where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::target::Family::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::target::Family where T: ?core::marker::Sized
+pub fn wrex_scan::target::Family::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::target::Family where T: ?core::marker::Sized
+pub fn wrex_scan::target::Family::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::target::Family where T: core::clone::Clone
+pub unsafe fn wrex_scan::target::Family::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::target::Family
+pub fn wrex_scan::target::Family::from(T) -> T
+pub enum wrex_scan::ScanAddr
+pub wrex_scan::ScanAddr::V4(core::net::ip_addr::Ipv4Addr)
+pub wrex_scan::ScanAddr::V6(core::net::ip_addr::Ipv6Addr)
+impl wrex_scan::target::ScanAddr
+pub const fn wrex_scan::target::ScanAddr::family(self) -> wrex_scan::target::Family
+pub fn wrex_scan::target::ScanAddr::is_unspecified(self) -> bool
+impl core::clone::Clone for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::target::ScanAddr
+impl core::cmp::Ord for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::cmp(&self, &Self) -> core::cmp::Ordering
+impl core::cmp::PartialEq for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::eq(&self, &Self) -> bool
+impl core::cmp::PartialOrd for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::partial_cmp(&self, &Self) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for wrex_scan::target::ScanAddr
+impl core::marker::StructuralPartialEq for wrex_scan::target::ScanAddr
+impl serde_core::ser::Serialize for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::serialize<S: serde_core::ser::Serializer>(&self, S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl core::marker::Freeze for wrex_scan::target::ScanAddr
+impl core::marker::Send for wrex_scan::target::ScanAddr
+impl core::marker::Sync for wrex_scan::target::ScanAddr
+impl core::marker::Unpin for wrex_scan::target::ScanAddr
+impl core::marker::UnsafeUnpin for wrex_scan::target::ScanAddr
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::target::ScanAddr
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::target::ScanAddr
+impl<T, U> core::convert::Into<U> for wrex_scan::target::ScanAddr where U: core::convert::From<T>
+pub fn wrex_scan::target::ScanAddr::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::target::ScanAddr where U: core::convert::Into<T>
+pub type wrex_scan::target::ScanAddr::Error = never
+pub fn wrex_scan::target::ScanAddr::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::target::ScanAddr where U: core::convert::TryFrom<T>
+pub type wrex_scan::target::ScanAddr::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::target::ScanAddr::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::target::ScanAddr where T: core::clone::Clone
+pub type wrex_scan::target::ScanAddr::Owned = T
+pub fn wrex_scan::target::ScanAddr::clone_into(&self, &mut T)
+pub fn wrex_scan::target::ScanAddr::to_owned(&self) -> T
+impl<T> alloc::string::ToString for wrex_scan::target::ScanAddr where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_scan::target::ScanAddr where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::target::ScanAddr where T: ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::target::ScanAddr where T: ?core::marker::Sized
+pub fn wrex_scan::target::ScanAddr::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::target::ScanAddr where T: core::clone::Clone
+pub unsafe fn wrex_scan::target::ScanAddr::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::target::ScanAddr
+pub fn wrex_scan::target::ScanAddr::from(T) -> T
+pub enum wrex_scan::ScanMode
+pub wrex_scan::ScanMode::Connect
+pub wrex_scan::ScanMode::Icmp
+pub wrex_scan::ScanMode::Syn
+pub wrex_scan::ScanMode::Udp
+impl wrex_scan::config::ScanMode
+pub const wrex_scan::config::ScanMode::DEFAULT: Self
+pub const fn wrex_scan::config::ScanMode::as_str(self) -> &'static str
+pub const fn wrex_scan::config::ScanMode::needs(self) -> &'static [&'static str]
+pub const fn wrex_scan::config::ScanMode::needs_for(self, wrex_scan::target::Family) -> &'static [&'static str]
+pub fn wrex_scan::config::ScanMode::parse(core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+pub const fn wrex_scan::config::ScanMode::proto(self) -> &'static str
+pub const fn wrex_scan::config::ScanMode::proto_for(self, wrex_scan::target::Family) -> &'static str
+impl core::clone::Clone for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::config::ScanMode
+impl core::cmp::PartialEq for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_scan::config::ScanMode
+impl core::marker::StructuralPartialEq for wrex_scan::config::ScanMode
+impl core::marker::Freeze for wrex_scan::config::ScanMode
+impl core::marker::Send for wrex_scan::config::ScanMode
+impl core::marker::Sync for wrex_scan::config::ScanMode
+impl core::marker::Unpin for wrex_scan::config::ScanMode
+impl core::marker::UnsafeUnpin for wrex_scan::config::ScanMode
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::config::ScanMode
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::config::ScanMode
+impl<T, U> core::convert::Into<U> for wrex_scan::config::ScanMode where U: core::convert::From<T>
+pub fn wrex_scan::config::ScanMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::config::ScanMode where U: core::convert::Into<T>
+pub type wrex_scan::config::ScanMode::Error = never
+pub fn wrex_scan::config::ScanMode::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::config::ScanMode where U: core::convert::TryFrom<T>
+pub type wrex_scan::config::ScanMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::config::ScanMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::config::ScanMode where T: core::clone::Clone
+pub type wrex_scan::config::ScanMode::Owned = T
+pub fn wrex_scan::config::ScanMode::clone_into(&self, &mut T)
+pub fn wrex_scan::config::ScanMode::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::config::ScanMode where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::config::ScanMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::config::ScanMode where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::config::ScanMode where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::config::ScanMode where T: core::clone::Clone
+pub unsafe fn wrex_scan::config::ScanMode::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::config::ScanMode
+pub fn wrex_scan::config::ScanMode::from(T) -> T
+pub struct wrex_scan::ScanConfig
+pub wrex_scan::ScanConfig::concurrent: usize
+pub wrex_scan::ScanConfig::interval: core::time::Duration
+pub wrex_scan::ScanConfig::jitter: core::time::Duration
+pub wrex_scan::ScanConfig::mode: wrex_scan::config::ScanMode
+pub wrex_scan::ScanConfig::ports: alloc::vec::Vec<u16>
+pub wrex_scan::ScanConfig::retries: u32
+pub wrex_scan::ScanConfig::seed: u64
+pub wrex_scan::ScanConfig::targets: alloc::vec::Vec<wrex_scan::target::ScanAddr>
+pub wrex_scan::ScanConfig::timeout: core::time::Duration
+impl wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::build(wrex_scan::config::ScanMode, &[alloc::string::String], core::option::Option<&str>, core::time::Duration, core::time::Duration, u64, u32, core::time::Duration, usize) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_scan::config::ScanConfig::family(&self) -> wrex_scan::target::Family
+pub fn wrex_scan::config::ScanConfig::probe_count(&self) -> usize
+impl core::clone::Clone for wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_scan::config::ScanConfig
+impl core::marker::Send for wrex_scan::config::ScanConfig
+impl core::marker::Sync for wrex_scan::config::ScanConfig
+impl core::marker::Unpin for wrex_scan::config::ScanConfig
+impl core::marker::UnsafeUnpin for wrex_scan::config::ScanConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::config::ScanConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::config::ScanConfig
+impl<T, U> core::convert::Into<U> for wrex_scan::config::ScanConfig where U: core::convert::From<T>
+pub fn wrex_scan::config::ScanConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::config::ScanConfig where U: core::convert::Into<T>
+pub type wrex_scan::config::ScanConfig::Error = never
+pub fn wrex_scan::config::ScanConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::config::ScanConfig where U: core::convert::TryFrom<T>
+pub type wrex_scan::config::ScanConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::config::ScanConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::config::ScanConfig where T: core::clone::Clone
+pub type wrex_scan::config::ScanConfig::Owned = T
+pub fn wrex_scan::config::ScanConfig::clone_into(&self, &mut T)
+pub fn wrex_scan::config::ScanConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::config::ScanConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::config::ScanConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::config::ScanConfig where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::config::ScanConfig where T: ?core::marker::Sized
+pub fn wrex_scan::config::ScanConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::config::ScanConfig where T: core::clone::Clone
+pub unsafe fn wrex_scan::config::ScanConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::config::ScanConfig
+pub fn wrex_scan::config::ScanConfig::from(T) -> T
+pub struct wrex_scan::ScanResult
+pub wrex_scan::ScanResult::attempts: u32
+pub wrex_scan::ScanResult::port: core::option::Option<u16>
+pub wrex_scan::ScanResult::proto: &'static str
+pub wrex_scan::ScanResult::rtt_ms: core::option::Option<u64>
+pub wrex_scan::ScanResult::state: &'static str
+pub wrex_scan::ScanResult::target: wrex_scan::target::ScanAddr
+impl wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::rtt_from(core::time::Duration) -> u64
+pub fn wrex_scan::report::ScanResult::rtt_hum(&self) -> core::option::Option<alloc::string::String>
+pub fn wrex_scan::report::ScanResult::text_line(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::clone(&self) -> Self
+impl core::cmp::Eq for wrex_scan::report::ScanResult
+impl core::cmp::PartialEq for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_scan::report::ScanResult
+impl serde_core::ser::Serialize for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_scan::report::ScanResult
+impl core::marker::Send for wrex_scan::report::ScanResult
+impl core::marker::Sync for wrex_scan::report::ScanResult
+impl core::marker::Unpin for wrex_scan::report::ScanResult
+impl core::marker::UnsafeUnpin for wrex_scan::report::ScanResult
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_scan::report::ScanResult
+impl core::panic::unwind_safe::UnwindSafe for wrex_scan::report::ScanResult
+impl<T, U> core::convert::Into<U> for wrex_scan::report::ScanResult where U: core::convert::From<T>
+pub fn wrex_scan::report::ScanResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::report::ScanResult where U: core::convert::Into<T>
+pub type wrex_scan::report::ScanResult::Error = never
+pub fn wrex_scan::report::ScanResult::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::report::ScanResult where U: core::convert::TryFrom<T>
+pub type wrex_scan::report::ScanResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::report::ScanResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_scan::report::ScanResult where T: core::clone::Clone
+pub type wrex_scan::report::ScanResult::Owned = T
+pub fn wrex_scan::report::ScanResult::clone_into(&self, &mut T)
+pub fn wrex_scan::report::ScanResult::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_scan::report::ScanResult where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::report::ScanResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::report::ScanResult where T: ?core::marker::Sized
+pub fn wrex_scan::report::ScanResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::report::ScanResult where T: ?core::marker::Sized
+pub fn wrex_scan::report::ScanResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_scan::report::ScanResult where T: core::clone::Clone
+pub unsafe fn wrex_scan::report::ScanResult::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_scan::report::ScanResult
+pub fn wrex_scan::report::ScanResult::from(T) -> T
+pub struct wrex_scan::ScanSession<'a>
+impl<'a> wrex_scan::session::ScanSession<'a>
+pub fn wrex_scan::session::ScanSession<'a>::new(&'a wrex_core::codec::Registry, wrex_scan::config::ScanConfig, wrex_scan::target::ScanAddr, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl<'a> wrex_session::Session for wrex_scan::session::ScanSession<'a>
+pub type wrex_scan::session::ScanSession<'a>::Output = wrex_scan::report::ScanResult
+pub fn wrex_scan::session::ScanSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_scan::session::ScanSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_scan::session::ScanSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_scan::session::ScanSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_scan::session::ScanSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_scan::report::ScanResult>
+impl<'a> core::marker::Freeze for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::Send for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::Sync for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::Unpin for wrex_scan::session::ScanSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_scan::session::ScanSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_scan::session::ScanSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_scan::session::ScanSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_scan::session::ScanSession<'a> where U: core::convert::From<T>
+pub fn wrex_scan::session::ScanSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_scan::session::ScanSession<'a> where U: core::convert::Into<T>
+pub type wrex_scan::session::ScanSession<'a>::Error = never
+pub fn wrex_scan::session::ScanSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_scan::session::ScanSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_scan::session::ScanSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_scan::session::ScanSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_scan::session::ScanSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_scan::session::ScanSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_scan::session::ScanSession<'a> where T: ?core::marker::Sized
+pub fn wrex_scan::session::ScanSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_scan::session::ScanSession<'a> where T: ?core::marker::Sized
+pub fn wrex_scan::session::ScanSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_scan::session::ScanSession<'a>
+pub fn wrex_scan::session::ScanSession<'a>::from(T) -> T
+pub const wrex_scan::DEFAULT_RATE: u64
+pub const wrex_scan::DEFAULT_TCP_PORTS: &[u16]

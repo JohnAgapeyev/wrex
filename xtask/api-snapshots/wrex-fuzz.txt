@@ -1,0 +1,1113 @@
+pub mod wrex_fuzz
+pub mod wrex_fuzz::app
+pub enum wrex_fuzz::app::AppOutcome
+pub wrex_fuzz::app::AppOutcome::Reply(bytes::bytes::Bytes)
+pub wrex_fuzz::app::AppOutcome::Silence
+impl core::clone::Clone for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::app::AppOutcome
+impl core::cmp::PartialEq for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::app::AppOutcome
+impl !core::marker::Freeze for wrex_fuzz::app::AppOutcome
+impl core::marker::Send for wrex_fuzz::app::AppOutcome
+impl core::marker::Sync for wrex_fuzz::app::AppOutcome
+impl core::marker::Unpin for wrex_fuzz::app::AppOutcome
+impl core::marker::UnsafeUnpin for wrex_fuzz::app::AppOutcome
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::app::AppOutcome
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::app::AppOutcome
+impl<T, U> core::convert::Into<U> for wrex_fuzz::app::AppOutcome where U: core::convert::From<T>
+pub fn wrex_fuzz::app::AppOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::app::AppOutcome where U: core::convert::Into<T>
+pub type wrex_fuzz::app::AppOutcome::Error = never
+pub fn wrex_fuzz::app::AppOutcome::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::app::AppOutcome where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::app::AppOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::app::AppOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::app::AppOutcome where T: core::clone::Clone
+pub type wrex_fuzz::app::AppOutcome::Owned = T
+pub fn wrex_fuzz::app::AppOutcome::clone_into(&self, &mut T)
+pub fn wrex_fuzz::app::AppOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::app::AppOutcome where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::app::AppOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::app::AppOutcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::app::AppOutcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::app::AppOutcome where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::app::AppOutcome::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::from(T) -> T
+pub struct wrex_fuzz::app::AppConfig
+pub wrex_fuzz::app::AppConfig::max_bytes: usize
+pub wrex_fuzz::app::AppConfig::timeout: core::time::Duration
+impl core::clone::Clone for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::clone(&self) -> Self
+impl core::default::Default for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::default() -> Self
+impl core::fmt::Debug for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::app::AppConfig
+impl core::marker::Freeze for wrex_fuzz::app::AppConfig
+impl core::marker::Send for wrex_fuzz::app::AppConfig
+impl core::marker::Sync for wrex_fuzz::app::AppConfig
+impl core::marker::Unpin for wrex_fuzz::app::AppConfig
+impl core::marker::UnsafeUnpin for wrex_fuzz::app::AppConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::app::AppConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::app::AppConfig
+impl<T, U> core::convert::Into<U> for wrex_fuzz::app::AppConfig where U: core::convert::From<T>
+pub fn wrex_fuzz::app::AppConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::app::AppConfig where U: core::convert::Into<T>
+pub type wrex_fuzz::app::AppConfig::Error = never
+pub fn wrex_fuzz::app::AppConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::app::AppConfig where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::app::AppConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::app::AppConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::app::AppConfig where T: core::clone::Clone
+pub type wrex_fuzz::app::AppConfig::Owned = T
+pub fn wrex_fuzz::app::AppConfig::clone_into(&self, &mut T)
+pub fn wrex_fuzz::app::AppConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::app::AppConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::app::AppConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::app::AppConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::app::AppConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::app::AppConfig where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::app::AppConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::from(T) -> T
+pub struct wrex_fuzz::app::AppSession
+impl wrex_fuzz::app::AppSession
+pub fn wrex_fuzz::app::AppSession::new(bytes::bytes::Bytes, wrex_fuzz::app::AppConfig, std::time::Instant) -> Self
+impl wrex_session::Session for wrex_fuzz::app::AppSession
+pub type wrex_fuzz::app::AppSession::Output = wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppSession::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_fuzz::app::AppSession::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_fuzz::app::AppSession::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_fuzz::app::AppSession::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_fuzz::app::AppSession::poll_result(&mut self) -> core::option::Option<wrex_fuzz::app::AppOutcome>
+impl !core::marker::Freeze for wrex_fuzz::app::AppSession
+impl core::marker::Send for wrex_fuzz::app::AppSession
+impl core::marker::Sync for wrex_fuzz::app::AppSession
+impl core::marker::Unpin for wrex_fuzz::app::AppSession
+impl core::marker::UnsafeUnpin for wrex_fuzz::app::AppSession
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::app::AppSession
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::app::AppSession
+impl<T, U> core::convert::Into<U> for wrex_fuzz::app::AppSession where U: core::convert::From<T>
+pub fn wrex_fuzz::app::AppSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::app::AppSession where U: core::convert::Into<T>
+pub type wrex_fuzz::app::AppSession::Error = never
+pub fn wrex_fuzz::app::AppSession::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::app::AppSession where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::app::AppSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::app::AppSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_fuzz::app::AppSession where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::app::AppSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::app::AppSession where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::app::AppSession where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_fuzz::app::AppSession
+pub fn wrex_fuzz::app::AppSession::from(T) -> T
+pub const wrex_fuzz::app::DEFAULT_MAX_BYTES: usize
+pub mod wrex_fuzz::config
+pub enum wrex_fuzz::config::ProbeMode
+pub wrex_fuzz::config::ProbeMode::Dns
+pub wrex_fuzz::config::ProbeMode::Http
+pub wrex_fuzz::config::ProbeMode::Icmp
+pub wrex_fuzz::config::ProbeMode::Tcp
+pub wrex_fuzz::config::ProbeMode::Udp
+impl wrex_fuzz::config::ProbeMode
+pub const wrex_fuzz::config::ProbeMode::DEFAULT: Self
+pub fn wrex_fuzz::config::ProbeMode::as_str(self) -> &'static str
+pub fn wrex_fuzz::config::ProbeMode::is_app(self) -> bool
+pub fn wrex_fuzz::config::ProbeMode::needs(self) -> &'static [&'static str]
+pub fn wrex_fuzz::config::ProbeMode::needs_for(self, wrex_scan::target::Family) -> &'static [&'static str]
+pub fn wrex_fuzz::config::ProbeMode::parse(core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+impl core::clone::Clone for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::config::ProbeMode
+impl core::cmp::PartialEq for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::config::ProbeMode
+impl core::marker::StructuralPartialEq for wrex_fuzz::config::ProbeMode
+impl core::marker::Freeze for wrex_fuzz::config::ProbeMode
+impl core::marker::Send for wrex_fuzz::config::ProbeMode
+impl core::marker::Sync for wrex_fuzz::config::ProbeMode
+impl core::marker::Unpin for wrex_fuzz::config::ProbeMode
+impl core::marker::UnsafeUnpin for wrex_fuzz::config::ProbeMode
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::config::ProbeMode
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::config::ProbeMode
+impl<T, U> core::convert::Into<U> for wrex_fuzz::config::ProbeMode where U: core::convert::From<T>
+pub fn wrex_fuzz::config::ProbeMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::config::ProbeMode where U: core::convert::Into<T>
+pub type wrex_fuzz::config::ProbeMode::Error = never
+pub fn wrex_fuzz::config::ProbeMode::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::config::ProbeMode where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::config::ProbeMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::config::ProbeMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::config::ProbeMode where T: core::clone::Clone
+pub type wrex_fuzz::config::ProbeMode::Owned = T
+pub fn wrex_fuzz::config::ProbeMode::clone_into(&self, &mut T)
+pub fn wrex_fuzz::config::ProbeMode::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::config::ProbeMode where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::config::ProbeMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::config::ProbeMode where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::ProbeMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::config::ProbeMode where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::ProbeMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::config::ProbeMode where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::config::ProbeMode::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::from(T) -> T
+pub struct wrex_fuzz::config::FuzzConfig
+pub wrex_fuzz::config::FuzzConfig::baseline: bool
+pub wrex_fuzz::config::FuzzConfig::concurrent: usize
+pub wrex_fuzz::config::FuzzConfig::interval: core::time::Duration
+pub wrex_fuzz::config::FuzzConfig::jitter: core::time::Duration
+pub wrex_fuzz::config::FuzzConfig::mode: wrex_fuzz::config::ProbeMode
+pub wrex_fuzz::config::FuzzConfig::ports: alloc::vec::Vec<u16>
+pub wrex_fuzz::config::FuzzConfig::retries: u32
+pub wrex_fuzz::config::FuzzConfig::rounds: u32
+pub wrex_fuzz::config::FuzzConfig::seed: u64
+pub wrex_fuzz::config::FuzzConfig::strategy: wrex_mut::Strategy
+pub wrex_fuzz::config::FuzzConfig::targets: alloc::vec::Vec<wrex_scan::target::ScanAddr>
+pub wrex_fuzz::config::FuzzConfig::timeout: core::time::Duration
+pub wrex_fuzz::config::FuzzConfig::tls: bool
+impl wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::build(wrex_fuzz::config::ProbeMode, &[alloc::string::String], core::option::Option<&str>, u32, bool, wrex_mut::Strategy, core::time::Duration, core::time::Duration, u64, u32, core::time::Duration, usize, bool) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_fuzz::config::FuzzConfig::family(&self) -> wrex_scan::target::Family
+pub fn wrex_fuzz::config::FuzzConfig::probe_count(&self) -> usize
+impl core::clone::Clone for wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_fuzz::config::FuzzConfig
+impl core::marker::Send for wrex_fuzz::config::FuzzConfig
+impl core::marker::Sync for wrex_fuzz::config::FuzzConfig
+impl core::marker::Unpin for wrex_fuzz::config::FuzzConfig
+impl core::marker::UnsafeUnpin for wrex_fuzz::config::FuzzConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::config::FuzzConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::config::FuzzConfig
+impl<T, U> core::convert::Into<U> for wrex_fuzz::config::FuzzConfig where U: core::convert::From<T>
+pub fn wrex_fuzz::config::FuzzConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::config::FuzzConfig where U: core::convert::Into<T>
+pub type wrex_fuzz::config::FuzzConfig::Error = never
+pub fn wrex_fuzz::config::FuzzConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::config::FuzzConfig where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::config::FuzzConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::config::FuzzConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::config::FuzzConfig where T: core::clone::Clone
+pub type wrex_fuzz::config::FuzzConfig::Owned = T
+pub fn wrex_fuzz::config::FuzzConfig::clone_into(&self, &mut T)
+pub fn wrex_fuzz::config::FuzzConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::config::FuzzConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::config::FuzzConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::config::FuzzConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::FuzzConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::config::FuzzConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::FuzzConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::config::FuzzConfig where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::config::FuzzConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::from(T) -> T
+pub const wrex_fuzz::config::DEFAULT_ROUNDS: u32
+pub mod wrex_fuzz::diff
+pub enum wrex_fuzz::diff::Delta
+pub wrex_fuzz::diff::Delta::Attempts
+pub wrex_fuzz::diff::Delta::Attempts::from: u32
+pub wrex_fuzz::diff::Delta::Attempts::to: u32
+pub wrex_fuzz::diff::Delta::Outcome
+pub wrex_fuzz::diff::Delta::Outcome::from: wrex_fuzz::report::Outcome
+pub wrex_fuzz::diff::Delta::Outcome::to: wrex_fuzz::report::Outcome
+pub wrex_fuzz::diff::Delta::ReplyAdded
+pub wrex_fuzz::diff::Delta::ReplyAdded::reply_hex: alloc::string::String
+pub wrex_fuzz::diff::Delta::ReplyChanged
+pub wrex_fuzz::diff::Delta::ReplyChanged::from: alloc::string::String
+pub wrex_fuzz::diff::Delta::ReplyChanged::to: alloc::string::String
+pub wrex_fuzz::diff::Delta::ReplyRemoved
+pub wrex_fuzz::diff::Delta::ReplyRemoved::reply_hex: alloc::string::String
+impl core::clone::Clone for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::Delta
+impl core::cmp::PartialEq for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::Delta
+impl serde_core::ser::Serialize for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::diff::Delta
+impl core::marker::Send for wrex_fuzz::diff::Delta
+impl core::marker::Sync for wrex_fuzz::diff::Delta
+impl core::marker::Unpin for wrex_fuzz::diff::Delta
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::Delta
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::Delta
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::Delta
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::Delta where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::Delta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::Delta where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::Delta::Error = never
+pub fn wrex_fuzz::diff::Delta::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::Delta where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::Delta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::Delta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::Delta where T: core::clone::Clone
+pub type wrex_fuzz::diff::Delta::Owned = T
+pub fn wrex_fuzz::diff::Delta::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::Delta::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::Delta where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::Delta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::Delta where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Delta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::Delta where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Delta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::Delta where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::Delta::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::from(T) -> T
+pub enum wrex_fuzz::diff::DiffEntry
+pub wrex_fuzz::diff::DiffEntry::Changed
+pub wrex_fuzz::diff::DiffEntry::Changed::a_strategy: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::Changed::b_strategy: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::Changed::deltas: alloc::vec::Vec<wrex_fuzz::diff::Delta>
+pub wrex_fuzz::diff::DiffEntry::Changed::port: core::option::Option<u16>
+pub wrex_fuzz::diff::DiffEntry::Changed::proto: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::Changed::round: core::option::Option<u32>
+pub wrex_fuzz::diff::DiffEntry::Changed::target: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::OnlyIn
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::outcome: wrex_fuzz::report::Outcome
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::port: core::option::Option<u16>
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::probe_hex: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::proto: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::round: core::option::Option<u32>
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::side: wrex_fuzz::diff::Side
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::strategy: alloc::string::String
+pub wrex_fuzz::diff::DiffEntry::OnlyIn::target: alloc::string::String
+impl wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::text_line(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::DiffEntry
+impl core::cmp::PartialEq for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::DiffEntry
+impl serde_core::ser::Serialize for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::diff::DiffEntry
+impl core::marker::Send for wrex_fuzz::diff::DiffEntry
+impl core::marker::Sync for wrex_fuzz::diff::DiffEntry
+impl core::marker::Unpin for wrex_fuzz::diff::DiffEntry
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::DiffEntry
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::DiffEntry
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::DiffEntry
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::DiffEntry where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::DiffEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::DiffEntry where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::DiffEntry::Error = never
+pub fn wrex_fuzz::diff::DiffEntry::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::DiffEntry where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::DiffEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::DiffEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::DiffEntry where T: core::clone::Clone
+pub type wrex_fuzz::diff::DiffEntry::Owned = T
+pub fn wrex_fuzz::diff::DiffEntry::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::DiffEntry::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::DiffEntry where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::DiffEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::DiffEntry where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::DiffEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::DiffEntry where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::DiffEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::DiffEntry where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::DiffEntry::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::from(T) -> T
+pub enum wrex_fuzz::diff::Side
+pub wrex_fuzz::diff::Side::A
+pub wrex_fuzz::diff::Side::B
+impl core::clone::Clone for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::Side
+impl core::cmp::PartialEq for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::diff::Side
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::Side
+impl serde_core::ser::Serialize for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::diff::Side
+impl core::marker::Send for wrex_fuzz::diff::Side
+impl core::marker::Sync for wrex_fuzz::diff::Side
+impl core::marker::Unpin for wrex_fuzz::diff::Side
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::Side
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::Side
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::Side
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::Side where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::Side::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::Side where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::Side::Error = never
+pub fn wrex_fuzz::diff::Side::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::Side where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::Side::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::Side::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::Side where T: core::clone::Clone
+pub type wrex_fuzz::diff::Side::Owned = T
+pub fn wrex_fuzz::diff::Side::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::Side::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::Side where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::Side::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::Side where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Side::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::Side where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Side::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::Side where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::Side::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::from(T) -> T
+pub struct wrex_fuzz::diff::FindingRecord
+pub wrex_fuzz::diff::FindingRecord::attempts: u32
+pub wrex_fuzz::diff::FindingRecord::outcome: wrex_fuzz::report::Outcome
+pub wrex_fuzz::diff::FindingRecord::port: core::option::Option<u16>
+pub wrex_fuzz::diff::FindingRecord::probe_hex: alloc::string::String
+pub wrex_fuzz::diff::FindingRecord::proto: alloc::string::String
+pub wrex_fuzz::diff::FindingRecord::reply_hex: core::option::Option<alloc::string::String>
+pub wrex_fuzz::diff::FindingRecord::round: core::option::Option<u32>
+pub wrex_fuzz::diff::FindingRecord::rtt_ms: core::option::Option<u64>
+pub wrex_fuzz::diff::FindingRecord::strategy: alloc::string::String
+pub wrex_fuzz::diff::FindingRecord::target: alloc::string::String
+impl core::clone::Clone for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::FindingRecord
+impl core::cmp::PartialEq for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::FindingRecord
+impl<'de> serde_core::de::Deserialize<'de> for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_fuzz::diff::FindingRecord
+impl core::marker::Send for wrex_fuzz::diff::FindingRecord
+impl core::marker::Sync for wrex_fuzz::diff::FindingRecord
+impl core::marker::Unpin for wrex_fuzz::diff::FindingRecord
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::FindingRecord
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::FindingRecord
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::FindingRecord
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::FindingRecord where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::FindingRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::FindingRecord where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::FindingRecord::Error = never
+pub fn wrex_fuzz::diff::FindingRecord::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::FindingRecord where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::FindingRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::FindingRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::FindingRecord where T: core::clone::Clone
+pub type wrex_fuzz::diff::FindingRecord::Owned = T
+pub fn wrex_fuzz::diff::FindingRecord::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::FindingRecord::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::FindingRecord where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::FindingRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::FindingRecord where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::FindingRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::FindingRecord where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::FindingRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::FindingRecord where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::FindingRecord::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_fuzz::diff::FindingRecord where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn wrex_fuzz::diff::diff_findings(&[wrex_fuzz::diff::FindingRecord], &[wrex_fuzz::diff::FindingRecord]) -> alloc::vec::Vec<wrex_fuzz::diff::DiffEntry>
+pub fn wrex_fuzz::diff::parse_findings(&str, &str) -> core::result::Result<alloc::vec::Vec<wrex_fuzz::diff::FindingRecord>, alloc::string::String>
+pub mod wrex_fuzz::report
+pub enum wrex_fuzz::report::Outcome
+pub wrex_fuzz::report::Outcome::Reply
+pub wrex_fuzz::report::Outcome::Silence
+pub wrex_fuzz::report::Outcome::Unreachable(u8)
+impl wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::as_str(self) -> &'static str
+impl core::clone::Clone for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::report::Outcome
+impl core::cmp::PartialEq for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::report::Outcome
+impl core::marker::StructuralPartialEq for wrex_fuzz::report::Outcome
+impl serde_core::ser::Serialize for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_fuzz::report::Outcome
+impl core::marker::Send for wrex_fuzz::report::Outcome
+impl core::marker::Sync for wrex_fuzz::report::Outcome
+impl core::marker::Unpin for wrex_fuzz::report::Outcome
+impl core::marker::UnsafeUnpin for wrex_fuzz::report::Outcome
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::report::Outcome
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::report::Outcome
+impl<T, U> core::convert::Into<U> for wrex_fuzz::report::Outcome where U: core::convert::From<T>
+pub fn wrex_fuzz::report::Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::report::Outcome where U: core::convert::Into<T>
+pub type wrex_fuzz::report::Outcome::Error = never
+pub fn wrex_fuzz::report::Outcome::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::report::Outcome where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::report::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::report::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::report::Outcome where T: core::clone::Clone
+pub type wrex_fuzz::report::Outcome::Owned = T
+pub fn wrex_fuzz::report::Outcome::clone_into(&self, &mut T)
+pub fn wrex_fuzz::report::Outcome::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::report::Outcome where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::report::Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::report::Outcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::report::Outcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::report::Outcome where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::report::Outcome::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_fuzz::report::Outcome where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct wrex_fuzz::report::Finding
+pub wrex_fuzz::report::Finding::attempts: u32
+pub wrex_fuzz::report::Finding::outcome: wrex_fuzz::report::Outcome
+pub wrex_fuzz::report::Finding::port: core::option::Option<u16>
+pub wrex_fuzz::report::Finding::probe_hex: alloc::string::String
+pub wrex_fuzz::report::Finding::proto: &'static str
+pub wrex_fuzz::report::Finding::reply_hex: core::option::Option<alloc::string::String>
+pub wrex_fuzz::report::Finding::round: core::option::Option<u32>
+pub wrex_fuzz::report::Finding::rtt_ms: core::option::Option<u64>
+pub wrex_fuzz::report::Finding::strategy: &'static str
+pub wrex_fuzz::report::Finding::target: wrex_scan::target::ScanAddr
+impl wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::text_line(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::clone(&self) -> Self
+impl core::fmt::Debug for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::report::Finding
+impl core::marker::Send for wrex_fuzz::report::Finding
+impl core::marker::Sync for wrex_fuzz::report::Finding
+impl core::marker::Unpin for wrex_fuzz::report::Finding
+impl core::marker::UnsafeUnpin for wrex_fuzz::report::Finding
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::report::Finding
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::report::Finding
+impl<T, U> core::convert::Into<U> for wrex_fuzz::report::Finding where U: core::convert::From<T>
+pub fn wrex_fuzz::report::Finding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::report::Finding where U: core::convert::Into<T>
+pub type wrex_fuzz::report::Finding::Error = never
+pub fn wrex_fuzz::report::Finding::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::report::Finding where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::report::Finding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::report::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::report::Finding where T: core::clone::Clone
+pub type wrex_fuzz::report::Finding::Owned = T
+pub fn wrex_fuzz::report::Finding::clone_into(&self, &mut T)
+pub fn wrex_fuzz::report::Finding::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::report::Finding where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::report::Finding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::report::Finding where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Finding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::report::Finding where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Finding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::report::Finding where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::report::Finding::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::from(T) -> T
+pub mod wrex_fuzz::session
+pub struct wrex_fuzz::session::ProberSession<'a>
+impl<'a> wrex_fuzz::session::ProberSession<'a>
+pub fn wrex_fuzz::session::ProberSession<'a>::new(&'a wrex_core::codec::Registry, wrex_fuzz::config::FuzzConfig, wrex_scan::target::ScanAddr, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl<'a> wrex_session::Session for wrex_fuzz::session::ProberSession<'a>
+pub type wrex_fuzz::session::ProberSession<'a>::Output = wrex_fuzz::report::Finding
+pub fn wrex_fuzz::session::ProberSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_fuzz::session::ProberSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_fuzz::session::ProberSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_fuzz::session::ProberSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_fuzz::session::ProberSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_fuzz::report::Finding>
+impl<'a> core::marker::Freeze for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::Send for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::Sync for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::Unpin for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_fuzz::session::ProberSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::session::ProberSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_fuzz::session::ProberSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_fuzz::session::ProberSession<'a> where U: core::convert::From<T>
+pub fn wrex_fuzz::session::ProberSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::session::ProberSession<'a> where U: core::convert::Into<T>
+pub type wrex_fuzz::session::ProberSession<'a>::Error = never
+pub fn wrex_fuzz::session::ProberSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::session::ProberSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::session::ProberSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::session::ProberSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_fuzz::session::ProberSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::session::ProberSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::session::ProberSession<'a> where T: ?core::marker::Sized
+pub fn wrex_fuzz::session::ProberSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::session::ProberSession<'a> where T: ?core::marker::Sized
+pub fn wrex_fuzz::session::ProberSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_fuzz::session::ProberSession<'a>
+pub fn wrex_fuzz::session::ProberSession<'a>::from(T) -> T
+pub enum wrex_fuzz::AppOutcome
+pub wrex_fuzz::AppOutcome::Reply(bytes::bytes::Bytes)
+pub wrex_fuzz::AppOutcome::Silence
+impl core::clone::Clone for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::app::AppOutcome
+impl core::cmp::PartialEq for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::app::AppOutcome
+impl !core::marker::Freeze for wrex_fuzz::app::AppOutcome
+impl core::marker::Send for wrex_fuzz::app::AppOutcome
+impl core::marker::Sync for wrex_fuzz::app::AppOutcome
+impl core::marker::Unpin for wrex_fuzz::app::AppOutcome
+impl core::marker::UnsafeUnpin for wrex_fuzz::app::AppOutcome
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::app::AppOutcome
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::app::AppOutcome
+impl<T, U> core::convert::Into<U> for wrex_fuzz::app::AppOutcome where U: core::convert::From<T>
+pub fn wrex_fuzz::app::AppOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::app::AppOutcome where U: core::convert::Into<T>
+pub type wrex_fuzz::app::AppOutcome::Error = never
+pub fn wrex_fuzz::app::AppOutcome::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::app::AppOutcome where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::app::AppOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::app::AppOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::app::AppOutcome where T: core::clone::Clone
+pub type wrex_fuzz::app::AppOutcome::Owned = T
+pub fn wrex_fuzz::app::AppOutcome::clone_into(&self, &mut T)
+pub fn wrex_fuzz::app::AppOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::app::AppOutcome where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::app::AppOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::app::AppOutcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::app::AppOutcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::app::AppOutcome where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::app::AppOutcome::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppOutcome::from(T) -> T
+pub enum wrex_fuzz::Delta
+pub wrex_fuzz::Delta::Attempts
+pub wrex_fuzz::Delta::Attempts::from: u32
+pub wrex_fuzz::Delta::Attempts::to: u32
+pub wrex_fuzz::Delta::Outcome
+pub wrex_fuzz::Delta::Outcome::from: wrex_fuzz::report::Outcome
+pub wrex_fuzz::Delta::Outcome::to: wrex_fuzz::report::Outcome
+pub wrex_fuzz::Delta::ReplyAdded
+pub wrex_fuzz::Delta::ReplyAdded::reply_hex: alloc::string::String
+pub wrex_fuzz::Delta::ReplyChanged
+pub wrex_fuzz::Delta::ReplyChanged::from: alloc::string::String
+pub wrex_fuzz::Delta::ReplyChanged::to: alloc::string::String
+pub wrex_fuzz::Delta::ReplyRemoved
+pub wrex_fuzz::Delta::ReplyRemoved::reply_hex: alloc::string::String
+impl core::clone::Clone for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::Delta
+impl core::cmp::PartialEq for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::Delta
+impl serde_core::ser::Serialize for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::diff::Delta
+impl core::marker::Send for wrex_fuzz::diff::Delta
+impl core::marker::Sync for wrex_fuzz::diff::Delta
+impl core::marker::Unpin for wrex_fuzz::diff::Delta
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::Delta
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::Delta
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::Delta
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::Delta where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::Delta::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::Delta where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::Delta::Error = never
+pub fn wrex_fuzz::diff::Delta::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::Delta where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::Delta::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::Delta::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::Delta where T: core::clone::Clone
+pub type wrex_fuzz::diff::Delta::Owned = T
+pub fn wrex_fuzz::diff::Delta::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::Delta::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::Delta where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::Delta::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::Delta where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Delta::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::Delta where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Delta::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::Delta where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::Delta::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::Delta
+pub fn wrex_fuzz::diff::Delta::from(T) -> T
+pub enum wrex_fuzz::DiffEntry
+pub wrex_fuzz::DiffEntry::Changed
+pub wrex_fuzz::DiffEntry::Changed::a_strategy: alloc::string::String
+pub wrex_fuzz::DiffEntry::Changed::b_strategy: alloc::string::String
+pub wrex_fuzz::DiffEntry::Changed::deltas: alloc::vec::Vec<wrex_fuzz::diff::Delta>
+pub wrex_fuzz::DiffEntry::Changed::port: core::option::Option<u16>
+pub wrex_fuzz::DiffEntry::Changed::proto: alloc::string::String
+pub wrex_fuzz::DiffEntry::Changed::round: core::option::Option<u32>
+pub wrex_fuzz::DiffEntry::Changed::target: alloc::string::String
+pub wrex_fuzz::DiffEntry::OnlyIn
+pub wrex_fuzz::DiffEntry::OnlyIn::outcome: wrex_fuzz::report::Outcome
+pub wrex_fuzz::DiffEntry::OnlyIn::port: core::option::Option<u16>
+pub wrex_fuzz::DiffEntry::OnlyIn::probe_hex: alloc::string::String
+pub wrex_fuzz::DiffEntry::OnlyIn::proto: alloc::string::String
+pub wrex_fuzz::DiffEntry::OnlyIn::round: core::option::Option<u32>
+pub wrex_fuzz::DiffEntry::OnlyIn::side: wrex_fuzz::diff::Side
+pub wrex_fuzz::DiffEntry::OnlyIn::strategy: alloc::string::String
+pub wrex_fuzz::DiffEntry::OnlyIn::target: alloc::string::String
+impl wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::text_line(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::DiffEntry
+impl core::cmp::PartialEq for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::DiffEntry
+impl serde_core::ser::Serialize for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::diff::DiffEntry
+impl core::marker::Send for wrex_fuzz::diff::DiffEntry
+impl core::marker::Sync for wrex_fuzz::diff::DiffEntry
+impl core::marker::Unpin for wrex_fuzz::diff::DiffEntry
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::DiffEntry
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::DiffEntry
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::DiffEntry
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::DiffEntry where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::DiffEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::DiffEntry where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::DiffEntry::Error = never
+pub fn wrex_fuzz::diff::DiffEntry::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::DiffEntry where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::DiffEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::DiffEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::DiffEntry where T: core::clone::Clone
+pub type wrex_fuzz::diff::DiffEntry::Owned = T
+pub fn wrex_fuzz::diff::DiffEntry::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::DiffEntry::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::DiffEntry where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::DiffEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::DiffEntry where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::DiffEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::DiffEntry where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::DiffEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::DiffEntry where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::DiffEntry::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::DiffEntry
+pub fn wrex_fuzz::diff::DiffEntry::from(T) -> T
+pub enum wrex_fuzz::Outcome
+pub wrex_fuzz::Outcome::Reply
+pub wrex_fuzz::Outcome::Silence
+pub wrex_fuzz::Outcome::Unreachable(u8)
+impl wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::as_str(self) -> &'static str
+impl core::clone::Clone for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::report::Outcome
+impl core::cmp::PartialEq for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::report::Outcome
+impl core::marker::StructuralPartialEq for wrex_fuzz::report::Outcome
+impl serde_core::ser::Serialize for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_fuzz::report::Outcome
+impl core::marker::Send for wrex_fuzz::report::Outcome
+impl core::marker::Sync for wrex_fuzz::report::Outcome
+impl core::marker::Unpin for wrex_fuzz::report::Outcome
+impl core::marker::UnsafeUnpin for wrex_fuzz::report::Outcome
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::report::Outcome
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::report::Outcome
+impl<T, U> core::convert::Into<U> for wrex_fuzz::report::Outcome where U: core::convert::From<T>
+pub fn wrex_fuzz::report::Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::report::Outcome where U: core::convert::Into<T>
+pub type wrex_fuzz::report::Outcome::Error = never
+pub fn wrex_fuzz::report::Outcome::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::report::Outcome where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::report::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::report::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::report::Outcome where T: core::clone::Clone
+pub type wrex_fuzz::report::Outcome::Owned = T
+pub fn wrex_fuzz::report::Outcome::clone_into(&self, &mut T)
+pub fn wrex_fuzz::report::Outcome::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::report::Outcome where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::report::Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::report::Outcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::report::Outcome where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::report::Outcome where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::report::Outcome::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::report::Outcome
+pub fn wrex_fuzz::report::Outcome::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_fuzz::report::Outcome where T: for<'de> serde_core::de::Deserialize<'de>
+pub enum wrex_fuzz::ProbeMode
+pub wrex_fuzz::ProbeMode::Dns
+pub wrex_fuzz::ProbeMode::Http
+pub wrex_fuzz::ProbeMode::Icmp
+pub wrex_fuzz::ProbeMode::Tcp
+pub wrex_fuzz::ProbeMode::Udp
+impl wrex_fuzz::config::ProbeMode
+pub const wrex_fuzz::config::ProbeMode::DEFAULT: Self
+pub fn wrex_fuzz::config::ProbeMode::as_str(self) -> &'static str
+pub fn wrex_fuzz::config::ProbeMode::is_app(self) -> bool
+pub fn wrex_fuzz::config::ProbeMode::needs(self) -> &'static [&'static str]
+pub fn wrex_fuzz::config::ProbeMode::needs_for(self, wrex_scan::target::Family) -> &'static [&'static str]
+pub fn wrex_fuzz::config::ProbeMode::parse(core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+impl core::clone::Clone for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::config::ProbeMode
+impl core::cmp::PartialEq for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::config::ProbeMode
+impl core::marker::StructuralPartialEq for wrex_fuzz::config::ProbeMode
+impl core::marker::Freeze for wrex_fuzz::config::ProbeMode
+impl core::marker::Send for wrex_fuzz::config::ProbeMode
+impl core::marker::Sync for wrex_fuzz::config::ProbeMode
+impl core::marker::Unpin for wrex_fuzz::config::ProbeMode
+impl core::marker::UnsafeUnpin for wrex_fuzz::config::ProbeMode
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::config::ProbeMode
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::config::ProbeMode
+impl<T, U> core::convert::Into<U> for wrex_fuzz::config::ProbeMode where U: core::convert::From<T>
+pub fn wrex_fuzz::config::ProbeMode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::config::ProbeMode where U: core::convert::Into<T>
+pub type wrex_fuzz::config::ProbeMode::Error = never
+pub fn wrex_fuzz::config::ProbeMode::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::config::ProbeMode where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::config::ProbeMode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::config::ProbeMode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::config::ProbeMode where T: core::clone::Clone
+pub type wrex_fuzz::config::ProbeMode::Owned = T
+pub fn wrex_fuzz::config::ProbeMode::clone_into(&self, &mut T)
+pub fn wrex_fuzz::config::ProbeMode::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::config::ProbeMode where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::config::ProbeMode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::config::ProbeMode where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::ProbeMode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::config::ProbeMode where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::ProbeMode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::config::ProbeMode where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::config::ProbeMode::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::config::ProbeMode
+pub fn wrex_fuzz::config::ProbeMode::from(T) -> T
+pub enum wrex_fuzz::Side
+pub wrex_fuzz::Side::A
+pub wrex_fuzz::Side::B
+impl core::clone::Clone for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::Side
+impl core::cmp::PartialEq for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::diff::Side
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::Side
+impl serde_core::ser::Serialize for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::diff::Side
+impl core::marker::Send for wrex_fuzz::diff::Side
+impl core::marker::Sync for wrex_fuzz::diff::Side
+impl core::marker::Unpin for wrex_fuzz::diff::Side
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::Side
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::Side
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::Side
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::Side where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::Side::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::Side where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::Side::Error = never
+pub fn wrex_fuzz::diff::Side::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::Side where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::Side::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::Side::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::Side where T: core::clone::Clone
+pub type wrex_fuzz::diff::Side::Owned = T
+pub fn wrex_fuzz::diff::Side::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::Side::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::Side where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::Side::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::Side where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Side::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::Side where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::Side::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::Side where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::Side::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::Side
+pub fn wrex_fuzz::diff::Side::from(T) -> T
+pub struct wrex_fuzz::AppConfig
+pub wrex_fuzz::AppConfig::max_bytes: usize
+pub wrex_fuzz::AppConfig::timeout: core::time::Duration
+impl core::clone::Clone for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::clone(&self) -> Self
+impl core::default::Default for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::default() -> Self
+impl core::fmt::Debug for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_fuzz::app::AppConfig
+impl core::marker::Freeze for wrex_fuzz::app::AppConfig
+impl core::marker::Send for wrex_fuzz::app::AppConfig
+impl core::marker::Sync for wrex_fuzz::app::AppConfig
+impl core::marker::Unpin for wrex_fuzz::app::AppConfig
+impl core::marker::UnsafeUnpin for wrex_fuzz::app::AppConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::app::AppConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::app::AppConfig
+impl<T, U> core::convert::Into<U> for wrex_fuzz::app::AppConfig where U: core::convert::From<T>
+pub fn wrex_fuzz::app::AppConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::app::AppConfig where U: core::convert::Into<T>
+pub type wrex_fuzz::app::AppConfig::Error = never
+pub fn wrex_fuzz::app::AppConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::app::AppConfig where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::app::AppConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::app::AppConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::app::AppConfig where T: core::clone::Clone
+pub type wrex_fuzz::app::AppConfig::Owned = T
+pub fn wrex_fuzz::app::AppConfig::clone_into(&self, &mut T)
+pub fn wrex_fuzz::app::AppConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::app::AppConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::app::AppConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::app::AppConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::app::AppConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::app::AppConfig where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::app::AppConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::app::AppConfig
+pub fn wrex_fuzz::app::AppConfig::from(T) -> T
+pub struct wrex_fuzz::AppSession
+impl wrex_fuzz::app::AppSession
+pub fn wrex_fuzz::app::AppSession::new(bytes::bytes::Bytes, wrex_fuzz::app::AppConfig, std::time::Instant) -> Self
+impl wrex_session::Session for wrex_fuzz::app::AppSession
+pub type wrex_fuzz::app::AppSession::Output = wrex_fuzz::app::AppOutcome
+pub fn wrex_fuzz::app::AppSession::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_fuzz::app::AppSession::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_fuzz::app::AppSession::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_fuzz::app::AppSession::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_fuzz::app::AppSession::poll_result(&mut self) -> core::option::Option<wrex_fuzz::app::AppOutcome>
+impl !core::marker::Freeze for wrex_fuzz::app::AppSession
+impl core::marker::Send for wrex_fuzz::app::AppSession
+impl core::marker::Sync for wrex_fuzz::app::AppSession
+impl core::marker::Unpin for wrex_fuzz::app::AppSession
+impl core::marker::UnsafeUnpin for wrex_fuzz::app::AppSession
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::app::AppSession
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::app::AppSession
+impl<T, U> core::convert::Into<U> for wrex_fuzz::app::AppSession where U: core::convert::From<T>
+pub fn wrex_fuzz::app::AppSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::app::AppSession where U: core::convert::Into<T>
+pub type wrex_fuzz::app::AppSession::Error = never
+pub fn wrex_fuzz::app::AppSession::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::app::AppSession where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::app::AppSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::app::AppSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_fuzz::app::AppSession where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::app::AppSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::app::AppSession where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::app::AppSession where T: ?core::marker::Sized
+pub fn wrex_fuzz::app::AppSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_fuzz::app::AppSession
+pub fn wrex_fuzz::app::AppSession::from(T) -> T
+pub struct wrex_fuzz::Finding
+pub wrex_fuzz::Finding::attempts: u32
+pub wrex_fuzz::Finding::outcome: wrex_fuzz::report::Outcome
+pub wrex_fuzz::Finding::port: core::option::Option<u16>
+pub wrex_fuzz::Finding::probe_hex: alloc::string::String
+pub wrex_fuzz::Finding::proto: &'static str
+pub wrex_fuzz::Finding::reply_hex: core::option::Option<alloc::string::String>
+pub wrex_fuzz::Finding::round: core::option::Option<u32>
+pub wrex_fuzz::Finding::rtt_ms: core::option::Option<u64>
+pub wrex_fuzz::Finding::strategy: &'static str
+pub wrex_fuzz::Finding::target: wrex_scan::target::ScanAddr
+impl wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::text_line(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::clone(&self) -> Self
+impl core::fmt::Debug for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::serialize<__S>(&self, __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl core::marker::Freeze for wrex_fuzz::report::Finding
+impl core::marker::Send for wrex_fuzz::report::Finding
+impl core::marker::Sync for wrex_fuzz::report::Finding
+impl core::marker::Unpin for wrex_fuzz::report::Finding
+impl core::marker::UnsafeUnpin for wrex_fuzz::report::Finding
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::report::Finding
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::report::Finding
+impl<T, U> core::convert::Into<U> for wrex_fuzz::report::Finding where U: core::convert::From<T>
+pub fn wrex_fuzz::report::Finding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::report::Finding where U: core::convert::Into<T>
+pub type wrex_fuzz::report::Finding::Error = never
+pub fn wrex_fuzz::report::Finding::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::report::Finding where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::report::Finding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::report::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::report::Finding where T: core::clone::Clone
+pub type wrex_fuzz::report::Finding::Owned = T
+pub fn wrex_fuzz::report::Finding::clone_into(&self, &mut T)
+pub fn wrex_fuzz::report::Finding::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::report::Finding where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::report::Finding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::report::Finding where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Finding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::report::Finding where T: ?core::marker::Sized
+pub fn wrex_fuzz::report::Finding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::report::Finding where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::report::Finding::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::report::Finding
+pub fn wrex_fuzz::report::Finding::from(T) -> T
+pub struct wrex_fuzz::FindingRecord
+pub wrex_fuzz::FindingRecord::attempts: u32
+pub wrex_fuzz::FindingRecord::outcome: wrex_fuzz::report::Outcome
+pub wrex_fuzz::FindingRecord::port: core::option::Option<u16>
+pub wrex_fuzz::FindingRecord::probe_hex: alloc::string::String
+pub wrex_fuzz::FindingRecord::proto: alloc::string::String
+pub wrex_fuzz::FindingRecord::reply_hex: core::option::Option<alloc::string::String>
+pub wrex_fuzz::FindingRecord::round: core::option::Option<u32>
+pub wrex_fuzz::FindingRecord::rtt_ms: core::option::Option<u64>
+pub wrex_fuzz::FindingRecord::strategy: alloc::string::String
+pub wrex_fuzz::FindingRecord::target: alloc::string::String
+impl core::clone::Clone for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::clone(&self) -> Self
+impl core::cmp::Eq for wrex_fuzz::diff::FindingRecord
+impl core::cmp::PartialEq for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_fuzz::diff::FindingRecord
+impl<'de> serde_core::de::Deserialize<'de> for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_fuzz::diff::FindingRecord
+impl core::marker::Send for wrex_fuzz::diff::FindingRecord
+impl core::marker::Sync for wrex_fuzz::diff::FindingRecord
+impl core::marker::Unpin for wrex_fuzz::diff::FindingRecord
+impl core::marker::UnsafeUnpin for wrex_fuzz::diff::FindingRecord
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::diff::FindingRecord
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::diff::FindingRecord
+impl<T, U> core::convert::Into<U> for wrex_fuzz::diff::FindingRecord where U: core::convert::From<T>
+pub fn wrex_fuzz::diff::FindingRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::diff::FindingRecord where U: core::convert::Into<T>
+pub type wrex_fuzz::diff::FindingRecord::Error = never
+pub fn wrex_fuzz::diff::FindingRecord::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::diff::FindingRecord where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::diff::FindingRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::diff::FindingRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::diff::FindingRecord where T: core::clone::Clone
+pub type wrex_fuzz::diff::FindingRecord::Owned = T
+pub fn wrex_fuzz::diff::FindingRecord::clone_into(&self, &mut T)
+pub fn wrex_fuzz::diff::FindingRecord::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::diff::FindingRecord where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::diff::FindingRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::diff::FindingRecord where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::FindingRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::diff::FindingRecord where T: ?core::marker::Sized
+pub fn wrex_fuzz::diff::FindingRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::diff::FindingRecord where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::diff::FindingRecord::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::diff::FindingRecord
+pub fn wrex_fuzz::diff::FindingRecord::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_fuzz::diff::FindingRecord where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct wrex_fuzz::FuzzConfig
+pub wrex_fuzz::FuzzConfig::baseline: bool
+pub wrex_fuzz::FuzzConfig::concurrent: usize
+pub wrex_fuzz::FuzzConfig::interval: core::time::Duration
+pub wrex_fuzz::FuzzConfig::jitter: core::time::Duration
+pub wrex_fuzz::FuzzConfig::mode: wrex_fuzz::config::ProbeMode
+pub wrex_fuzz::FuzzConfig::ports: alloc::vec::Vec<u16>
+pub wrex_fuzz::FuzzConfig::retries: u32
+pub wrex_fuzz::FuzzConfig::rounds: u32
+pub wrex_fuzz::FuzzConfig::seed: u64
+pub wrex_fuzz::FuzzConfig::strategy: wrex_mut::Strategy
+pub wrex_fuzz::FuzzConfig::targets: alloc::vec::Vec<wrex_scan::target::ScanAddr>
+pub wrex_fuzz::FuzzConfig::timeout: core::time::Duration
+pub wrex_fuzz::FuzzConfig::tls: bool
+impl wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::build(wrex_fuzz::config::ProbeMode, &[alloc::string::String], core::option::Option<&str>, u32, bool, wrex_mut::Strategy, core::time::Duration, core::time::Duration, u64, u32, core::time::Duration, usize, bool) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_fuzz::config::FuzzConfig::family(&self) -> wrex_scan::target::Family
+pub fn wrex_fuzz::config::FuzzConfig::probe_count(&self) -> usize
+impl core::clone::Clone for wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_fuzz::config::FuzzConfig
+impl core::marker::Send for wrex_fuzz::config::FuzzConfig
+impl core::marker::Sync for wrex_fuzz::config::FuzzConfig
+impl core::marker::Unpin for wrex_fuzz::config::FuzzConfig
+impl core::marker::UnsafeUnpin for wrex_fuzz::config::FuzzConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::config::FuzzConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_fuzz::config::FuzzConfig
+impl<T, U> core::convert::Into<U> for wrex_fuzz::config::FuzzConfig where U: core::convert::From<T>
+pub fn wrex_fuzz::config::FuzzConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::config::FuzzConfig where U: core::convert::Into<T>
+pub type wrex_fuzz::config::FuzzConfig::Error = never
+pub fn wrex_fuzz::config::FuzzConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::config::FuzzConfig where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::config::FuzzConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::config::FuzzConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_fuzz::config::FuzzConfig where T: core::clone::Clone
+pub type wrex_fuzz::config::FuzzConfig::Owned = T
+pub fn wrex_fuzz::config::FuzzConfig::clone_into(&self, &mut T)
+pub fn wrex_fuzz::config::FuzzConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_fuzz::config::FuzzConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::config::FuzzConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::config::FuzzConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::FuzzConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::config::FuzzConfig where T: ?core::marker::Sized
+pub fn wrex_fuzz::config::FuzzConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_fuzz::config::FuzzConfig where T: core::clone::Clone
+pub unsafe fn wrex_fuzz::config::FuzzConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_fuzz::config::FuzzConfig
+pub fn wrex_fuzz::config::FuzzConfig::from(T) -> T
+pub struct wrex_fuzz::ProberSession<'a>
+impl<'a> wrex_fuzz::session::ProberSession<'a>
+pub fn wrex_fuzz::session::ProberSession<'a>::new(&'a wrex_core::codec::Registry, wrex_fuzz::config::FuzzConfig, wrex_scan::target::ScanAddr, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl<'a> wrex_session::Session for wrex_fuzz::session::ProberSession<'a>
+pub type wrex_fuzz::session::ProberSession<'a>::Output = wrex_fuzz::report::Finding
+pub fn wrex_fuzz::session::ProberSession<'a>::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_fuzz::session::ProberSession<'a>::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_fuzz::session::ProberSession<'a>::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_fuzz::session::ProberSession<'a>::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_fuzz::session::ProberSession<'a>::poll_result(&mut self) -> core::option::Option<wrex_fuzz::report::Finding>
+impl<'a> core::marker::Freeze for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::Send for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::Sync for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::Unpin for wrex_fuzz::session::ProberSession<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_fuzz::session::ProberSession<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_fuzz::session::ProberSession<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_fuzz::session::ProberSession<'a>
+impl<T, U> core::convert::Into<U> for wrex_fuzz::session::ProberSession<'a> where U: core::convert::From<T>
+pub fn wrex_fuzz::session::ProberSession<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_fuzz::session::ProberSession<'a> where U: core::convert::Into<T>
+pub type wrex_fuzz::session::ProberSession<'a>::Error = never
+pub fn wrex_fuzz::session::ProberSession<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_fuzz::session::ProberSession<'a> where U: core::convert::TryFrom<T>
+pub type wrex_fuzz::session::ProberSession<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_fuzz::session::ProberSession<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_fuzz::session::ProberSession<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_fuzz::session::ProberSession<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_fuzz::session::ProberSession<'a> where T: ?core::marker::Sized
+pub fn wrex_fuzz::session::ProberSession<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_fuzz::session::ProberSession<'a> where T: ?core::marker::Sized
+pub fn wrex_fuzz::session::ProberSession<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_fuzz::session::ProberSession<'a>
+pub fn wrex_fuzz::session::ProberSession<'a>::from(T) -> T
+pub const wrex_fuzz::DEFAULT_ROUNDS: u32
+pub fn wrex_fuzz::diff_findings(&[wrex_fuzz::diff::FindingRecord], &[wrex_fuzz::diff::FindingRecord]) -> alloc::vec::Vec<wrex_fuzz::diff::DiffEntry>
+pub fn wrex_fuzz::parse_findings(&str, &str) -> core::result::Result<alloc::vec::Vec<wrex_fuzz::diff::FindingRecord>, alloc::string::String>

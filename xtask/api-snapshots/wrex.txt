@@ -1,0 +1,1050 @@
+pub mod wrex
+pub mod wrex::cli
+pub enum wrex::cli::Cmd
+pub wrex::cli::Cmd::Capture(wrex::cli::CaptureArgs)
+pub wrex::cli::Cmd::Completions(wrex::cli::CompletionsArgs)
+pub wrex::cli::Cmd::Craft(wrex::cli::CraftArgs)
+pub wrex::cli::Cmd::Diff(wrex::cli::DiffArgs)
+pub wrex::cli::Cmd::Dissect(wrex::cli::DissectArgs)
+pub wrex::cli::Cmd::Fields(wrex::cli::FieldsArgs)
+pub wrex::cli::Cmd::Fuzz(wrex::cli::FuzzArgs)
+pub wrex::cli::Cmd::Http(wrex::cli::HttpArgs)
+pub wrex::cli::Cmd::Iface(wrex::cli::IfaceArgs)
+pub wrex::cli::Cmd::Mut(wrex::cli::MutArgs)
+pub wrex::cli::Cmd::Patch(wrex::cli::PatchArgs)
+pub wrex::cli::Cmd::Query(wrex::cli::QueryArgs)
+pub wrex::cli::Cmd::Recv(wrex::cli::RecvArgs)
+pub wrex::cli::Cmd::Replay(wrex::cli::ReplayArgs)
+pub wrex::cli::Cmd::Scan(wrex::cli::ScanArgs)
+pub wrex::cli::Cmd::Send(wrex::cli::SendArgs)
+impl clap_builder::derive::FromArgMatches for wrex::cli::Cmd
+pub fn wrex::cli::Cmd::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::Cmd::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::Cmd::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::Cmd::update_from_arg_matches_mut<'b>(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for wrex::cli::Cmd
+pub fn wrex::cli::Cmd::augment_subcommands<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::Cmd::augment_subcommands_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::Cmd::has_subcommand(&str) -> bool
+impl core::fmt::Debug for wrex::cli::Cmd
+pub fn wrex::cli::Cmd::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::Cmd
+impl core::marker::Send for wrex::cli::Cmd
+impl core::marker::Sync for wrex::cli::Cmd
+impl core::marker::Unpin for wrex::cli::Cmd
+impl core::marker::UnsafeUnpin for wrex::cli::Cmd
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::Cmd
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::Cmd
+impl<T, U> core::convert::Into<U> for wrex::cli::Cmd where U: core::convert::From<T>
+pub fn wrex::cli::Cmd::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::Cmd where U: core::convert::Into<T>
+pub type wrex::cli::Cmd::Error = never
+pub fn wrex::cli::Cmd::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::Cmd where U: core::convert::TryFrom<T>
+pub type wrex::cli::Cmd::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::Cmd::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::Cmd where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::Cmd::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::Cmd where T: ?core::marker::Sized
+pub fn wrex::cli::Cmd::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::Cmd where T: ?core::marker::Sized
+pub fn wrex::cli::Cmd::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::Cmd
+pub fn wrex::cli::Cmd::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::Cmd
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::Cmd
+pub struct wrex::cli::CaptureArgs
+pub wrex::cli::CaptureArgs::common: wrex::cli::Common
+pub wrex::cli::CaptureArgs::count: core::option::Option<u64>
+pub wrex::cli::CaptureArgs::filter: core::option::Option<alloc::string::String>
+pub wrex::cli::CaptureArgs::pcapng: bool
+pub wrex::cli::CaptureArgs::pcapng_ns: bool
+pub wrex::cli::CaptureArgs::promisc: bool
+pub wrex::cli::CaptureArgs::snaplen: core::option::Option<usize>
+pub wrex::cli::CaptureArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::CaptureArgs::write: alloc::string::String
+impl clap_builder::derive::Args for wrex::cli::CaptureArgs
+pub fn wrex::cli::CaptureArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::CaptureArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::CaptureArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::CaptureArgs
+pub fn wrex::cli::CaptureArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::CaptureArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::CaptureArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::CaptureArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::CaptureArgs
+pub fn wrex::cli::CaptureArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::CaptureArgs
+impl core::marker::Send for wrex::cli::CaptureArgs
+impl core::marker::Sync for wrex::cli::CaptureArgs
+impl core::marker::Unpin for wrex::cli::CaptureArgs
+impl core::marker::UnsafeUnpin for wrex::cli::CaptureArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::CaptureArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::CaptureArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::CaptureArgs where U: core::convert::From<T>
+pub fn wrex::cli::CaptureArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::CaptureArgs where U: core::convert::Into<T>
+pub type wrex::cli::CaptureArgs::Error = never
+pub fn wrex::cli::CaptureArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::CaptureArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::CaptureArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::CaptureArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::CaptureArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::CaptureArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::CaptureArgs where T: ?core::marker::Sized
+pub fn wrex::cli::CaptureArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::CaptureArgs where T: ?core::marker::Sized
+pub fn wrex::cli::CaptureArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::CaptureArgs
+pub fn wrex::cli::CaptureArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::CaptureArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::CaptureArgs
+pub struct wrex::cli::Cli
+pub wrex::cli::Cli::cmd: wrex::cli::Cmd
+impl wrex::cli::Cli
+pub fn wrex::cli::Cli::verbose_level(&self) -> u8
+impl clap_builder::derive::Args for wrex::cli::Cli
+pub fn wrex::cli::Cli::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::Cli::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::Cli::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::CommandFactory for wrex::cli::Cli
+pub fn wrex::cli::Cli::command<'b>() -> clap_builder::builder::command::Command
+pub fn wrex::cli::Cli::command_for_update<'b>() -> clap_builder::builder::command::Command
+impl clap_builder::derive::FromArgMatches for wrex::cli::Cli
+pub fn wrex::cli::Cli::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::Cli::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::Cli::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::Cli::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Parser for wrex::cli::Cli
+impl core::marker::Freeze for wrex::cli::Cli
+impl core::marker::Send for wrex::cli::Cli
+impl core::marker::Sync for wrex::cli::Cli
+impl core::marker::Unpin for wrex::cli::Cli
+impl core::marker::UnsafeUnpin for wrex::cli::Cli
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::Cli
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::Cli
+impl<T, U> core::convert::Into<U> for wrex::cli::Cli where U: core::convert::From<T>
+pub fn wrex::cli::Cli::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::Cli where U: core::convert::Into<T>
+pub type wrex::cli::Cli::Error = never
+pub fn wrex::cli::Cli::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::Cli where U: core::convert::TryFrom<T>
+pub type wrex::cli::Cli::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::Cli::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::Cli where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::Cli::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::Cli where T: ?core::marker::Sized
+pub fn wrex::cli::Cli::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::Cli where T: ?core::marker::Sized
+pub fn wrex::cli::Cli::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::Cli
+pub fn wrex::cli::Cli::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::Cli
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::Cli
+pub struct wrex::cli::Common
+pub wrex::cli::Common::format: core::option::Option<alloc::string::String>
+pub wrex::cli::Common::iface: core::option::Option<alloc::string::String>
+pub wrex::cli::Common::no_autofill: bool
+pub wrex::cli::Common::strict: bool
+pub wrex::cli::Common::verbose: u8
+impl wrex::cli::Common
+pub fn wrex::cli::Common::verbose(&self) -> u8
+impl clap_builder::derive::Args for wrex::cli::Common
+pub fn wrex::cli::Common::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::Common::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::Common::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::Common
+pub fn wrex::cli::Common::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::Common::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::Common::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::Common::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::Common
+pub fn wrex::cli::Common::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::Common
+impl core::marker::Send for wrex::cli::Common
+impl core::marker::Sync for wrex::cli::Common
+impl core::marker::Unpin for wrex::cli::Common
+impl core::marker::UnsafeUnpin for wrex::cli::Common
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::Common
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::Common
+impl<T, U> core::convert::Into<U> for wrex::cli::Common where U: core::convert::From<T>
+pub fn wrex::cli::Common::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::Common where U: core::convert::Into<T>
+pub type wrex::cli::Common::Error = never
+pub fn wrex::cli::Common::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::Common where U: core::convert::TryFrom<T>
+pub type wrex::cli::Common::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::Common::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::Common where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::Common::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::Common where T: ?core::marker::Sized
+pub fn wrex::cli::Common::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::Common where T: ?core::marker::Sized
+pub fn wrex::cli::Common::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::Common
+pub fn wrex::cli::Common::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::Common
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::Common
+pub struct wrex::cli::CompletionsArgs
+pub wrex::cli::CompletionsArgs::shell: clap_complete::aot::shells::shell::Shell
+impl clap_builder::derive::Args for wrex::cli::CompletionsArgs
+pub fn wrex::cli::CompletionsArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::CompletionsArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::CompletionsArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::CompletionsArgs
+pub fn wrex::cli::CompletionsArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::CompletionsArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::CompletionsArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::CompletionsArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::CompletionsArgs
+pub fn wrex::cli::CompletionsArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::CompletionsArgs
+impl core::marker::Send for wrex::cli::CompletionsArgs
+impl core::marker::Sync for wrex::cli::CompletionsArgs
+impl core::marker::Unpin for wrex::cli::CompletionsArgs
+impl core::marker::UnsafeUnpin for wrex::cli::CompletionsArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::CompletionsArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::CompletionsArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::CompletionsArgs where U: core::convert::From<T>
+pub fn wrex::cli::CompletionsArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::CompletionsArgs where U: core::convert::Into<T>
+pub type wrex::cli::CompletionsArgs::Error = never
+pub fn wrex::cli::CompletionsArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::CompletionsArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::CompletionsArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::CompletionsArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::CompletionsArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::CompletionsArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::CompletionsArgs where T: ?core::marker::Sized
+pub fn wrex::cli::CompletionsArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::CompletionsArgs where T: ?core::marker::Sized
+pub fn wrex::cli::CompletionsArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::CompletionsArgs
+pub fn wrex::cli::CompletionsArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::CompletionsArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::CompletionsArgs
+pub struct wrex::cli::CraftArgs
+pub wrex::cli::CraftArgs::common: wrex::cli::Common
+impl clap_builder::derive::Args for wrex::cli::CraftArgs
+pub fn wrex::cli::CraftArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::CraftArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::CraftArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::CraftArgs
+pub fn wrex::cli::CraftArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::CraftArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::CraftArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::CraftArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::CraftArgs
+pub fn wrex::cli::CraftArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::CraftArgs
+impl core::marker::Send for wrex::cli::CraftArgs
+impl core::marker::Sync for wrex::cli::CraftArgs
+impl core::marker::Unpin for wrex::cli::CraftArgs
+impl core::marker::UnsafeUnpin for wrex::cli::CraftArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::CraftArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::CraftArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::CraftArgs where U: core::convert::From<T>
+pub fn wrex::cli::CraftArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::CraftArgs where U: core::convert::Into<T>
+pub type wrex::cli::CraftArgs::Error = never
+pub fn wrex::cli::CraftArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::CraftArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::CraftArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::CraftArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::CraftArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::CraftArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::CraftArgs where T: ?core::marker::Sized
+pub fn wrex::cli::CraftArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::CraftArgs where T: ?core::marker::Sized
+pub fn wrex::cli::CraftArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::CraftArgs
+pub fn wrex::cli::CraftArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::CraftArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::CraftArgs
+pub struct wrex::cli::DiffArgs
+pub wrex::cli::DiffArgs::common: wrex::cli::Common
+pub wrex::cli::DiffArgs::files: alloc::vec::Vec<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::DiffArgs
+pub fn wrex::cli::DiffArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::DiffArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::DiffArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::DiffArgs
+pub fn wrex::cli::DiffArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::DiffArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::DiffArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::DiffArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::DiffArgs
+pub fn wrex::cli::DiffArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::DiffArgs
+impl core::marker::Send for wrex::cli::DiffArgs
+impl core::marker::Sync for wrex::cli::DiffArgs
+impl core::marker::Unpin for wrex::cli::DiffArgs
+impl core::marker::UnsafeUnpin for wrex::cli::DiffArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::DiffArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::DiffArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::DiffArgs where U: core::convert::From<T>
+pub fn wrex::cli::DiffArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::DiffArgs where U: core::convert::Into<T>
+pub type wrex::cli::DiffArgs::Error = never
+pub fn wrex::cli::DiffArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::DiffArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::DiffArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::DiffArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::DiffArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::DiffArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::DiffArgs where T: ?core::marker::Sized
+pub fn wrex::cli::DiffArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::DiffArgs where T: ?core::marker::Sized
+pub fn wrex::cli::DiffArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::DiffArgs
+pub fn wrex::cli::DiffArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::DiffArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::DiffArgs
+pub struct wrex::cli::DissectArgs
+pub wrex::cli::DissectArgs::common: wrex::cli::Common
+pub wrex::cli::DissectArgs::frame: bool
+pub wrex::cli::DissectArgs::spans: bool
+pub wrex::cli::DissectArgs::start: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::DissectArgs
+pub fn wrex::cli::DissectArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::DissectArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::DissectArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::DissectArgs
+pub fn wrex::cli::DissectArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::DissectArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::DissectArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::DissectArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::DissectArgs
+pub fn wrex::cli::DissectArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::DissectArgs
+impl core::marker::Send for wrex::cli::DissectArgs
+impl core::marker::Sync for wrex::cli::DissectArgs
+impl core::marker::Unpin for wrex::cli::DissectArgs
+impl core::marker::UnsafeUnpin for wrex::cli::DissectArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::DissectArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::DissectArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::DissectArgs where U: core::convert::From<T>
+pub fn wrex::cli::DissectArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::DissectArgs where U: core::convert::Into<T>
+pub type wrex::cli::DissectArgs::Error = never
+pub fn wrex::cli::DissectArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::DissectArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::DissectArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::DissectArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::DissectArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::DissectArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::DissectArgs where T: ?core::marker::Sized
+pub fn wrex::cli::DissectArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::DissectArgs where T: ?core::marker::Sized
+pub fn wrex::cli::DissectArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::DissectArgs
+pub fn wrex::cli::DissectArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::DissectArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::DissectArgs
+pub struct wrex::cli::FieldsArgs
+pub wrex::cli::FieldsArgs::common: wrex::cli::Common
+pub wrex::cli::FieldsArgs::kind: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::FieldsArgs
+pub fn wrex::cli::FieldsArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::FieldsArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::FieldsArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::FieldsArgs
+pub fn wrex::cli::FieldsArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::FieldsArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::FieldsArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::FieldsArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::FieldsArgs
+pub fn wrex::cli::FieldsArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::FieldsArgs
+impl core::marker::Send for wrex::cli::FieldsArgs
+impl core::marker::Sync for wrex::cli::FieldsArgs
+impl core::marker::Unpin for wrex::cli::FieldsArgs
+impl core::marker::UnsafeUnpin for wrex::cli::FieldsArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::FieldsArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::FieldsArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::FieldsArgs where U: core::convert::From<T>
+pub fn wrex::cli::FieldsArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::FieldsArgs where U: core::convert::Into<T>
+pub type wrex::cli::FieldsArgs::Error = never
+pub fn wrex::cli::FieldsArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::FieldsArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::FieldsArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::FieldsArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::FieldsArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::FieldsArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::FieldsArgs where T: ?core::marker::Sized
+pub fn wrex::cli::FieldsArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::FieldsArgs where T: ?core::marker::Sized
+pub fn wrex::cli::FieldsArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::FieldsArgs
+pub fn wrex::cli::FieldsArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::FieldsArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::FieldsArgs
+pub struct wrex::cli::FuzzArgs
+pub wrex::cli::FuzzArgs::baseline: bool
+pub wrex::cli::FuzzArgs::common: wrex::cli::Common
+pub wrex::cli::FuzzArgs::concurrent: core::option::Option<usize>
+pub wrex::cli::FuzzArgs::interval: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::jitter: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::mode: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::ports: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::rate: core::option::Option<u64>
+pub wrex::cli::FuzzArgs::retries: core::option::Option<u32>
+pub wrex::cli::FuzzArgs::rounds: core::option::Option<u32>
+pub wrex::cli::FuzzArgs::seed: core::option::Option<u64>
+pub wrex::cli::FuzzArgs::strategy: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::targets: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::FuzzArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::tls: bool
+pub wrex::cli::FuzzArgs::tls_ca: core::option::Option<alloc::string::String>
+pub wrex::cli::FuzzArgs::tls_insecure: bool
+impl clap_builder::derive::Args for wrex::cli::FuzzArgs
+pub fn wrex::cli::FuzzArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::FuzzArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::FuzzArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::FuzzArgs
+pub fn wrex::cli::FuzzArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::FuzzArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::FuzzArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::FuzzArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::FuzzArgs
+pub fn wrex::cli::FuzzArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::FuzzArgs
+impl core::marker::Send for wrex::cli::FuzzArgs
+impl core::marker::Sync for wrex::cli::FuzzArgs
+impl core::marker::Unpin for wrex::cli::FuzzArgs
+impl core::marker::UnsafeUnpin for wrex::cli::FuzzArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::FuzzArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::FuzzArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::FuzzArgs where U: core::convert::From<T>
+pub fn wrex::cli::FuzzArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::FuzzArgs where U: core::convert::Into<T>
+pub type wrex::cli::FuzzArgs::Error = never
+pub fn wrex::cli::FuzzArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::FuzzArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::FuzzArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::FuzzArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::FuzzArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::FuzzArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::FuzzArgs where T: ?core::marker::Sized
+pub fn wrex::cli::FuzzArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::FuzzArgs where T: ?core::marker::Sized
+pub fn wrex::cli::FuzzArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::FuzzArgs
+pub fn wrex::cli::FuzzArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::FuzzArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::FuzzArgs
+pub struct wrex::cli::HttpArgs
+pub wrex::cli::HttpArgs::common: wrex::cli::Common
+pub wrex::cli::HttpArgs::data: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::fail: bool
+pub wrex::cli::HttpArgs::header: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::HttpArgs::hpack: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::http_version: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::max_bytes: core::option::Option<u64>
+pub wrex::cli::HttpArgs::positional: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::HttpArgs::recipe: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::retries: core::option::Option<u32>
+pub wrex::cli::HttpArgs::source_port: core::option::Option<u16>
+pub wrex::cli::HttpArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::tls_ca: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::tls_insecure: bool
+impl clap_builder::derive::Args for wrex::cli::HttpArgs
+pub fn wrex::cli::HttpArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::HttpArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::HttpArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::HttpArgs
+pub fn wrex::cli::HttpArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::HttpArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::HttpArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::HttpArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::HttpArgs
+pub fn wrex::cli::HttpArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::HttpArgs
+impl core::marker::Send for wrex::cli::HttpArgs
+impl core::marker::Sync for wrex::cli::HttpArgs
+impl core::marker::Unpin for wrex::cli::HttpArgs
+impl core::marker::UnsafeUnpin for wrex::cli::HttpArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::HttpArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::HttpArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::HttpArgs where U: core::convert::From<T>
+pub fn wrex::cli::HttpArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::HttpArgs where U: core::convert::Into<T>
+pub type wrex::cli::HttpArgs::Error = never
+pub fn wrex::cli::HttpArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::HttpArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::HttpArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::HttpArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::HttpArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::HttpArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::HttpArgs where T: ?core::marker::Sized
+pub fn wrex::cli::HttpArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::HttpArgs where T: ?core::marker::Sized
+pub fn wrex::cli::HttpArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::HttpArgs
+pub fn wrex::cli::HttpArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::HttpArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::HttpArgs
+pub struct wrex::cli::IfaceArgs
+pub wrex::cli::IfaceArgs::common: wrex::cli::Common
+pub wrex::cli::IfaceArgs::name: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::IfaceArgs
+pub fn wrex::cli::IfaceArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::IfaceArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::IfaceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::IfaceArgs
+pub fn wrex::cli::IfaceArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::IfaceArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::IfaceArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::IfaceArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::IfaceArgs
+pub fn wrex::cli::IfaceArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::IfaceArgs
+impl core::marker::Send for wrex::cli::IfaceArgs
+impl core::marker::Sync for wrex::cli::IfaceArgs
+impl core::marker::Unpin for wrex::cli::IfaceArgs
+impl core::marker::UnsafeUnpin for wrex::cli::IfaceArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::IfaceArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::IfaceArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::IfaceArgs where U: core::convert::From<T>
+pub fn wrex::cli::IfaceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::IfaceArgs where U: core::convert::Into<T>
+pub type wrex::cli::IfaceArgs::Error = never
+pub fn wrex::cli::IfaceArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::IfaceArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::IfaceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::IfaceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::IfaceArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::IfaceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::IfaceArgs where T: ?core::marker::Sized
+pub fn wrex::cli::IfaceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::IfaceArgs where T: ?core::marker::Sized
+pub fn wrex::cli::IfaceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::IfaceArgs
+pub fn wrex::cli::IfaceArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::IfaceArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::IfaceArgs
+pub struct wrex::cli::MutArgs
+pub wrex::cli::MutArgs::common: wrex::cli::Common
+pub wrex::cli::MutArgs::count: core::option::Option<u64>
+pub wrex::cli::MutArgs::frames: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::MutArgs::read: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::MutArgs::seed: core::option::Option<u64>
+pub wrex::cli::MutArgs::strategy: core::option::Option<alloc::string::String>
+pub wrex::cli::MutArgs::write: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::MutArgs
+pub fn wrex::cli::MutArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::MutArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::MutArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::MutArgs
+pub fn wrex::cli::MutArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::MutArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::MutArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::MutArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::MutArgs
+pub fn wrex::cli::MutArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::MutArgs
+impl core::marker::Send for wrex::cli::MutArgs
+impl core::marker::Sync for wrex::cli::MutArgs
+impl core::marker::Unpin for wrex::cli::MutArgs
+impl core::marker::UnsafeUnpin for wrex::cli::MutArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::MutArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::MutArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::MutArgs where U: core::convert::From<T>
+pub fn wrex::cli::MutArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::MutArgs where U: core::convert::Into<T>
+pub type wrex::cli::MutArgs::Error = never
+pub fn wrex::cli::MutArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::MutArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::MutArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::MutArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::MutArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::MutArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::MutArgs where T: ?core::marker::Sized
+pub fn wrex::cli::MutArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::MutArgs where T: ?core::marker::Sized
+pub fn wrex::cli::MutArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::MutArgs
+pub fn wrex::cli::MutArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::MutArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::MutArgs
+pub struct wrex::cli::PatchArgs
+pub wrex::cli::PatchArgs::common: wrex::cli::Common
+pub wrex::cli::PatchArgs::delete: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::PatchArgs::filter: core::option::Option<alloc::string::String>
+pub wrex::cli::PatchArgs::frames: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::PatchArgs::index: core::option::Option<alloc::string::String>
+pub wrex::cli::PatchArgs::insert: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::PatchArgs::no_recompute: bool
+pub wrex::cli::PatchArgs::pcapng: bool
+pub wrex::cli::PatchArgs::read: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::PatchArgs::scope: core::option::Option<alloc::string::String>
+pub wrex::cli::PatchArgs::set: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::PatchArgs::write: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::PatchArgs
+pub fn wrex::cli::PatchArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::PatchArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::PatchArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::PatchArgs
+pub fn wrex::cli::PatchArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::PatchArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::PatchArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::PatchArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::PatchArgs
+pub fn wrex::cli::PatchArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::PatchArgs
+impl core::marker::Send for wrex::cli::PatchArgs
+impl core::marker::Sync for wrex::cli::PatchArgs
+impl core::marker::Unpin for wrex::cli::PatchArgs
+impl core::marker::UnsafeUnpin for wrex::cli::PatchArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::PatchArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::PatchArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::PatchArgs where U: core::convert::From<T>
+pub fn wrex::cli::PatchArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::PatchArgs where U: core::convert::Into<T>
+pub type wrex::cli::PatchArgs::Error = never
+pub fn wrex::cli::PatchArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::PatchArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::PatchArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::PatchArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::PatchArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::PatchArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::PatchArgs where T: ?core::marker::Sized
+pub fn wrex::cli::PatchArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::PatchArgs where T: ?core::marker::Sized
+pub fn wrex::cli::PatchArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::PatchArgs
+pub fn wrex::cli::PatchArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::PatchArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::PatchArgs
+pub struct wrex::cli::QueryArgs
+pub wrex::cli::QueryArgs::common: wrex::cli::Common
+pub wrex::cli::QueryArgs::name: alloc::string::String
+pub wrex::cli::QueryArgs::port: core::option::Option<u16>
+pub wrex::cli::QueryArgs::qclass: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::qtype: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::retries: core::option::Option<u32>
+pub wrex::cli::QueryArgs::seed: core::option::Option<u64>
+pub wrex::cli::QueryArgs::server: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::tcp: bool
+pub wrex::cli::QueryArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::tls: bool
+pub wrex::cli::QueryArgs::tls_ca: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::tls_insecure: bool
+impl clap_builder::derive::Args for wrex::cli::QueryArgs
+pub fn wrex::cli::QueryArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::QueryArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::QueryArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::QueryArgs
+pub fn wrex::cli::QueryArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::QueryArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::QueryArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::QueryArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::QueryArgs
+pub fn wrex::cli::QueryArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::QueryArgs
+impl core::marker::Send for wrex::cli::QueryArgs
+impl core::marker::Sync for wrex::cli::QueryArgs
+impl core::marker::Unpin for wrex::cli::QueryArgs
+impl core::marker::UnsafeUnpin for wrex::cli::QueryArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::QueryArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::QueryArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::QueryArgs where U: core::convert::From<T>
+pub fn wrex::cli::QueryArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::QueryArgs where U: core::convert::Into<T>
+pub type wrex::cli::QueryArgs::Error = never
+pub fn wrex::cli::QueryArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::QueryArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::QueryArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::QueryArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::QueryArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::QueryArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::QueryArgs where T: ?core::marker::Sized
+pub fn wrex::cli::QueryArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::QueryArgs where T: ?core::marker::Sized
+pub fn wrex::cli::QueryArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::QueryArgs
+pub fn wrex::cli::QueryArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::QueryArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::QueryArgs
+pub struct wrex::cli::RecvArgs
+pub wrex::cli::RecvArgs::common: wrex::cli::Common
+pub wrex::cli::RecvArgs::count: core::option::Option<u64>
+pub wrex::cli::RecvArgs::filter: core::option::Option<alloc::string::String>
+pub wrex::cli::RecvArgs::promisc: bool
+pub wrex::cli::RecvArgs::timeout: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::RecvArgs
+pub fn wrex::cli::RecvArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::RecvArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::RecvArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::RecvArgs
+pub fn wrex::cli::RecvArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::RecvArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::RecvArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::RecvArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::RecvArgs
+pub fn wrex::cli::RecvArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::RecvArgs
+impl core::marker::Send for wrex::cli::RecvArgs
+impl core::marker::Sync for wrex::cli::RecvArgs
+impl core::marker::Unpin for wrex::cli::RecvArgs
+impl core::marker::UnsafeUnpin for wrex::cli::RecvArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::RecvArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::RecvArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::RecvArgs where U: core::convert::From<T>
+pub fn wrex::cli::RecvArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::RecvArgs where U: core::convert::Into<T>
+pub type wrex::cli::RecvArgs::Error = never
+pub fn wrex::cli::RecvArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::RecvArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::RecvArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::RecvArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::RecvArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::RecvArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::RecvArgs where T: ?core::marker::Sized
+pub fn wrex::cli::RecvArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::RecvArgs where T: ?core::marker::Sized
+pub fn wrex::cli::RecvArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::RecvArgs
+pub fn wrex::cli::RecvArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::RecvArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::RecvArgs
+pub struct wrex::cli::ReplayArgs
+pub wrex::cli::ReplayArgs::common: wrex::cli::Common
+pub wrex::cli::ReplayArgs::count: core::option::Option<u64>
+pub wrex::cli::ReplayArgs::filter: core::option::Option<alloc::string::String>
+pub wrex::cli::ReplayArgs::interval: core::option::Option<alloc::string::String>
+pub wrex::cli::ReplayArgs::jitter: core::option::Option<alloc::string::String>
+pub wrex::cli::ReplayArgs::pcap: alloc::string::String
+pub wrex::cli::ReplayArgs::rate: core::option::Option<u64>
+pub wrex::cli::ReplayArgs::reassemble: bool
+pub wrex::cli::ReplayArgs::seed: core::option::Option<u64>
+impl clap_builder::derive::Args for wrex::cli::ReplayArgs
+pub fn wrex::cli::ReplayArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::ReplayArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::ReplayArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::ReplayArgs
+pub fn wrex::cli::ReplayArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::ReplayArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::ReplayArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::ReplayArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::ReplayArgs
+pub fn wrex::cli::ReplayArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::ReplayArgs
+impl core::marker::Send for wrex::cli::ReplayArgs
+impl core::marker::Sync for wrex::cli::ReplayArgs
+impl core::marker::Unpin for wrex::cli::ReplayArgs
+impl core::marker::UnsafeUnpin for wrex::cli::ReplayArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::ReplayArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::ReplayArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::ReplayArgs where U: core::convert::From<T>
+pub fn wrex::cli::ReplayArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::ReplayArgs where U: core::convert::Into<T>
+pub type wrex::cli::ReplayArgs::Error = never
+pub fn wrex::cli::ReplayArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::ReplayArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::ReplayArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::ReplayArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::ReplayArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::ReplayArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::ReplayArgs where T: ?core::marker::Sized
+pub fn wrex::cli::ReplayArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::ReplayArgs where T: ?core::marker::Sized
+pub fn wrex::cli::ReplayArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::ReplayArgs
+pub fn wrex::cli::ReplayArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::ReplayArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::ReplayArgs
+pub struct wrex::cli::ScanArgs
+pub wrex::cli::ScanArgs::common: wrex::cli::Common
+pub wrex::cli::ScanArgs::concurrent: core::option::Option<usize>
+pub wrex::cli::ScanArgs::interval: core::option::Option<alloc::string::String>
+pub wrex::cli::ScanArgs::jitter: core::option::Option<alloc::string::String>
+pub wrex::cli::ScanArgs::mode: core::option::Option<alloc::string::String>
+pub wrex::cli::ScanArgs::ports: core::option::Option<alloc::string::String>
+pub wrex::cli::ScanArgs::rate: core::option::Option<u64>
+pub wrex::cli::ScanArgs::retries: core::option::Option<u32>
+pub wrex::cli::ScanArgs::seed: core::option::Option<u64>
+pub wrex::cli::ScanArgs::targets: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::ScanArgs::timeout: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::ScanArgs
+pub fn wrex::cli::ScanArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::ScanArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::ScanArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::ScanArgs
+pub fn wrex::cli::ScanArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::ScanArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::ScanArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::ScanArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::ScanArgs
+pub fn wrex::cli::ScanArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::ScanArgs
+impl core::marker::Send for wrex::cli::ScanArgs
+impl core::marker::Sync for wrex::cli::ScanArgs
+impl core::marker::Unpin for wrex::cli::ScanArgs
+impl core::marker::UnsafeUnpin for wrex::cli::ScanArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::ScanArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::ScanArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::ScanArgs where U: core::convert::From<T>
+pub fn wrex::cli::ScanArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::ScanArgs where U: core::convert::Into<T>
+pub type wrex::cli::ScanArgs::Error = never
+pub fn wrex::cli::ScanArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::ScanArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::ScanArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::ScanArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::ScanArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::ScanArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::ScanArgs where T: ?core::marker::Sized
+pub fn wrex::cli::ScanArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::ScanArgs where T: ?core::marker::Sized
+pub fn wrex::cli::ScanArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::ScanArgs
+pub fn wrex::cli::ScanArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::ScanArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::ScanArgs
+pub struct wrex::cli::SendArgs
+pub wrex::cli::SendArgs::common: wrex::cli::Common
+pub wrex::cli::SendArgs::count: core::option::Option<u64>
+pub wrex::cli::SendArgs::filter: core::option::Option<alloc::string::String>
+pub wrex::cli::SendArgs::interval: core::option::Option<alloc::string::String>
+pub wrex::cli::SendArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::SendArgs::wait_reply: bool
+impl clap_builder::derive::Args for wrex::cli::SendArgs
+pub fn wrex::cli::SendArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::SendArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::SendArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::SendArgs
+pub fn wrex::cli::SendArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::SendArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::SendArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::SendArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::SendArgs
+pub fn wrex::cli::SendArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::SendArgs
+impl core::marker::Send for wrex::cli::SendArgs
+impl core::marker::Sync for wrex::cli::SendArgs
+impl core::marker::Unpin for wrex::cli::SendArgs
+impl core::marker::UnsafeUnpin for wrex::cli::SendArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::SendArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::SendArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::SendArgs where U: core::convert::From<T>
+pub fn wrex::cli::SendArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::SendArgs where U: core::convert::Into<T>
+pub type wrex::cli::SendArgs::Error = never
+pub fn wrex::cli::SendArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::SendArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::SendArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::SendArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::SendArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::SendArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::SendArgs where T: ?core::marker::Sized
+pub fn wrex::cli::SendArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::SendArgs where T: ?core::marker::Sized
+pub fn wrex::cli::SendArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::SendArgs
+pub fn wrex::cli::SendArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::SendArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::SendArgs
+pub const wrex::cli::CAPTURE_AFTER_HELP: &str
+pub const wrex::cli::CRAFT_SEND_AFTER_HELP: &str
+pub const wrex::cli::DIFF_AFTER_HELP: &str
+pub const wrex::cli::DISSECT_AFTER_HELP: &str
+pub const wrex::cli::FUZZ_AFTER_HELP: &str
+pub const wrex::cli::HTTP_AFTER_HELP: &str
+pub const wrex::cli::MUT_AFTER_HELP: &str
+pub const wrex::cli::PATCH_AFTER_HELP: &str
+pub const wrex::cli::QUERY_AFTER_HELP: &str
+pub const wrex::cli::RECV_AFTER_HELP: &str
+pub const wrex::cli::REPLAY_AFTER_HELP: &str
+pub const wrex::cli::ROOT_AFTER_HELP: &str
+pub const wrex::cli::SCAN_AFTER_HELP: &str
+pub fn wrex::cli::build_cli() -> clap_builder::builder::command::Command
+pub fn wrex::cli::field_args(&wrex_core::codec::Registry) -> alloc::vec::Vec<clap_builder::builder::arg::Arg>
+pub fn wrex::cli::init_tracing(u8)
+pub mod wrex::edit
+pub enum wrex::edit::EditError
+pub wrex::edit::EditError::Runtime(alloc::string::String)
+pub wrex::edit::EditError::Usage(alloc::string::String)
+impl core::clone::Clone for wrex::edit::EditError
+pub fn wrex::edit::EditError::clone(&self) -> Self
+impl core::cmp::Eq for wrex::edit::EditError
+impl core::cmp::PartialEq for wrex::edit::EditError
+pub fn wrex::edit::EditError::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex::edit::EditError
+pub fn wrex::edit::EditError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex::edit::EditError
+pub fn wrex::edit::EditError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex::edit::EditError
+impl core::marker::Freeze for wrex::edit::EditError
+impl core::marker::Send for wrex::edit::EditError
+impl core::marker::Sync for wrex::edit::EditError
+impl core::marker::Unpin for wrex::edit::EditError
+impl core::marker::UnsafeUnpin for wrex::edit::EditError
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::edit::EditError
+impl core::panic::unwind_safe::UnwindSafe for wrex::edit::EditError
+impl<T, U> core::convert::Into<U> for wrex::edit::EditError where U: core::convert::From<T>
+pub fn wrex::edit::EditError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::edit::EditError where U: core::convert::Into<T>
+pub type wrex::edit::EditError::Error = never
+pub fn wrex::edit::EditError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::edit::EditError where U: core::convert::TryFrom<T>
+pub type wrex::edit::EditError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::edit::EditError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex::edit::EditError where T: core::clone::Clone
+pub type wrex::edit::EditError::Owned = T
+pub fn wrex::edit::EditError::clone_into(&self, &mut T)
+pub fn wrex::edit::EditError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for wrex::edit::EditError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex::edit::EditError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex::edit::EditError where T: 'static + ?core::marker::Sized
+pub fn wrex::edit::EditError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::edit::EditError where T: ?core::marker::Sized
+pub fn wrex::edit::EditError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::edit::EditError where T: ?core::marker::Sized
+pub fn wrex::edit::EditError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex::edit::EditError where T: core::clone::Clone
+pub unsafe fn wrex::edit::EditError::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex::edit::EditError
+pub fn wrex::edit::EditError::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::edit::EditError
+impl<T> tracing::instrument::WithSubscriber for wrex::edit::EditError
+pub struct wrex::edit::EditSet
+impl wrex::edit::EditSet
+pub fn wrex::edit::EditSet::is_empty(&self) -> bool
+pub fn wrex::edit::EditSet::materialize(&self, &wrex_core::dissect::DissectedPacket) -> core::result::Result<alloc::vec::Vec<wrex_core::patch::Edit>, wrex::edit::EditError>
+impl core::fmt::Debug for wrex::edit::EditSet
+pub fn wrex::edit::EditSet::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::edit::EditSet
+impl core::marker::Send for wrex::edit::EditSet
+impl core::marker::Sync for wrex::edit::EditSet
+impl core::marker::Unpin for wrex::edit::EditSet
+impl core::marker::UnsafeUnpin for wrex::edit::EditSet
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::edit::EditSet
+impl core::panic::unwind_safe::UnwindSafe for wrex::edit::EditSet
+impl<T, U> core::convert::Into<U> for wrex::edit::EditSet where U: core::convert::From<T>
+pub fn wrex::edit::EditSet::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::edit::EditSet where U: core::convert::Into<T>
+pub type wrex::edit::EditSet::Error = never
+pub fn wrex::edit::EditSet::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::edit::EditSet where U: core::convert::TryFrom<T>
+pub type wrex::edit::EditSet::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::edit::EditSet::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::edit::EditSet where T: 'static + ?core::marker::Sized
+pub fn wrex::edit::EditSet::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::edit::EditSet where T: ?core::marker::Sized
+pub fn wrex::edit::EditSet::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::edit::EditSet where T: ?core::marker::Sized
+pub fn wrex::edit::EditSet::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::edit::EditSet
+pub fn wrex::edit::EditSet::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::edit::EditSet
+impl<T> tracing::instrument::WithSubscriber for wrex::edit::EditSet
+pub fn wrex::edit::parse_edits(&wrex_core::codec::Registry, &wrex_core::patch::Scope, &[alloc::string::String], &[alloc::string::String], &[alloc::string::String]) -> core::result::Result<wrex::edit::EditSet, wrex::edit::EditError>
+pub fn wrex::edit::parse_indices(&str) -> core::result::Result<alloc::collections::btree::set::BTreeSet<usize>, wrex::edit::EditError>
+pub fn wrex::edit::parse_scope(core::option::Option<&str>, bool) -> core::result::Result<wrex_core::patch::Scope, wrex::edit::EditError>
+pub mod wrex::prelude
+pub use wrex::prelude::DissectedPacket
+pub use wrex::prelude::EncodeError
+pub use wrex::prelude::LayerSpec
+pub use wrex::prelude::PacketSpec
+pub use wrex::prelude::Registry
+pub use wrex::prelude::SpecError
+pub use wrex::prelude::Value
+pub mod wrex::spec
+pub fn wrex::spec::packet_spec_from_matches(&wrex_core::codec::Registry, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<wrex_core::spec::PacketSpec, wrex_core::error::SpecError>
+pub fn wrex::spec::render_value_flat(&wrex_core::value::Value) -> alloc::string::String
+pub mod wrex::verbs
+pub enum wrex::verbs::CliError
+pub wrex::verbs::CliError::Runtime(alloc::string::String)
+pub wrex::verbs::CliError::Usage(alloc::vec::Vec<alloc::string::String>)
+impl wrex::verbs::CliError
+pub fn wrex::verbs::CliError::exit_code(&self) -> i32
+pub fn wrex::verbs::CliError::lines(&self) -> alloc::vec::Vec<alloc::string::String>
+impl core::convert::From<wrex_core::error::EncodeError> for wrex::verbs::CliError
+pub fn wrex::verbs::CliError::from(wrex_core::error::EncodeError) -> Self
+impl core::convert::From<wrex_core::error::FilterError> for wrex::verbs::CliError
+pub fn wrex::verbs::CliError::from(wrex_core::error::FilterError) -> Self
+impl core::convert::From<wrex_core::error::SpecError> for wrex::verbs::CliError
+pub fn wrex::verbs::CliError::from(wrex_core::error::SpecError) -> Self
+impl core::convert::From<wrex_io::driver::DriverError> for wrex::verbs::CliError
+pub fn wrex::verbs::CliError::from(wrex_io::driver::DriverError) -> Self
+impl core::fmt::Debug for wrex::verbs::CliError
+pub fn wrex::verbs::CliError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::verbs::CliError
+impl core::marker::Send for wrex::verbs::CliError
+impl core::marker::Sync for wrex::verbs::CliError
+impl core::marker::Unpin for wrex::verbs::CliError
+impl core::marker::UnsafeUnpin for wrex::verbs::CliError
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::verbs::CliError
+impl core::panic::unwind_safe::UnwindSafe for wrex::verbs::CliError
+impl<T, U> core::convert::Into<U> for wrex::verbs::CliError where U: core::convert::From<T>
+pub fn wrex::verbs::CliError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::verbs::CliError where U: core::convert::Into<T>
+pub type wrex::verbs::CliError::Error = never
+pub fn wrex::verbs::CliError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::verbs::CliError where U: core::convert::TryFrom<T>
+pub type wrex::verbs::CliError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::verbs::CliError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::verbs::CliError where T: 'static + ?core::marker::Sized
+pub fn wrex::verbs::CliError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::verbs::CliError where T: ?core::marker::Sized
+pub fn wrex::verbs::CliError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::verbs::CliError where T: ?core::marker::Sized
+pub fn wrex::verbs::CliError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::verbs::CliError
+pub fn wrex::verbs::CliError::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::verbs::CliError
+impl<T> tracing::instrument::WithSubscriber for wrex::verbs::CliError
+pub enum wrex::verbs::Format
+pub wrex::verbs::Format::Hex
+pub wrex::verbs::Format::Json
+pub wrex::verbs::Format::Jsonl
+pub wrex::verbs::Format::Raw
+pub wrex::verbs::Format::Text
+impl wrex::verbs::Format
+pub fn wrex::verbs::Format::parse(&wrex::cli::Common, wrex::verbs::Format) -> core::result::Result<wrex::verbs::Format, wrex::verbs::CliError>
+pub fn wrex::verbs::Format::parse_opt(&wrex::cli::Common) -> core::result::Result<core::option::Option<wrex::verbs::Format>, wrex::verbs::CliError>
+impl core::clone::Clone for wrex::verbs::Format
+pub fn wrex::verbs::Format::clone(&self) -> Self
+impl core::cmp::Eq for wrex::verbs::Format
+impl core::cmp::PartialEq for wrex::verbs::Format
+pub fn wrex::verbs::Format::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex::verbs::Format
+pub fn wrex::verbs::Format::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex::verbs::Format
+impl core::marker::StructuralPartialEq for wrex::verbs::Format
+impl core::marker::Freeze for wrex::verbs::Format
+impl core::marker::Send for wrex::verbs::Format
+impl core::marker::Sync for wrex::verbs::Format
+impl core::marker::Unpin for wrex::verbs::Format
+impl core::marker::UnsafeUnpin for wrex::verbs::Format
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::verbs::Format
+impl core::panic::unwind_safe::UnwindSafe for wrex::verbs::Format
+impl<T, U> core::convert::Into<U> for wrex::verbs::Format where U: core::convert::From<T>
+pub fn wrex::verbs::Format::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::verbs::Format where U: core::convert::Into<T>
+pub type wrex::verbs::Format::Error = never
+pub fn wrex::verbs::Format::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::verbs::Format where U: core::convert::TryFrom<T>
+pub type wrex::verbs::Format::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::verbs::Format::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex::verbs::Format where T: core::clone::Clone
+pub type wrex::verbs::Format::Owned = T
+pub fn wrex::verbs::Format::clone_into(&self, &mut T)
+pub fn wrex::verbs::Format::to_owned(&self) -> T
+impl<T> core::any::Any for wrex::verbs::Format where T: 'static + ?core::marker::Sized
+pub fn wrex::verbs::Format::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::verbs::Format where T: ?core::marker::Sized
+pub fn wrex::verbs::Format::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::verbs::Format where T: ?core::marker::Sized
+pub fn wrex::verbs::Format::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex::verbs::Format where T: core::clone::Clone
+pub unsafe fn wrex::verbs::Format::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex::verbs::Format
+pub fn wrex::verbs::Format::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::verbs::Format
+impl<T> tracing::instrument::WithSubscriber for wrex::verbs::Format
+pub const wrex::verbs::MAX_STDIN: usize
+pub fn wrex::verbs::dispatch(&wrex::cli::Cli, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), wrex::verbs::CliError>
+pub fn wrex::standard() -> wrex_core::codec::Registry

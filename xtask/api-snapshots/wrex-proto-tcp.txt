@@ -1,0 +1,38 @@
+pub mod wrex_proto_tcp
+pub mod wrex_proto_tcp::strategy
+pub fn wrex_proto_tcp::strategy::strategy() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_tcp::TcpCodec
+impl wrex_core::codec::Codec for wrex_proto_tcp::TcpCodec
+pub fn wrex_proto_tcp::TcpCodec::derived(&self) -> &'static [wrex_core::schema::Derived]
+pub fn wrex_proto_tcp::TcpCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_tcp::TcpCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_tcp::TcpCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_tcp::TcpCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_tcp::TcpCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_tcp::TcpCodec
+impl core::marker::Send for wrex_proto_tcp::TcpCodec
+impl core::marker::Sync for wrex_proto_tcp::TcpCodec
+impl core::marker::Unpin for wrex_proto_tcp::TcpCodec
+impl core::marker::UnsafeUnpin for wrex_proto_tcp::TcpCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_tcp::TcpCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_tcp::TcpCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_tcp::TcpCodec where U: core::convert::From<T>
+pub fn wrex_proto_tcp::TcpCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_tcp::TcpCodec where U: core::convert::Into<T>
+pub type wrex_proto_tcp::TcpCodec::Error = never
+pub fn wrex_proto_tcp::TcpCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_tcp::TcpCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_tcp::TcpCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_tcp::TcpCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_tcp::TcpCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_tcp::TcpCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_tcp::TcpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_tcp::TcpCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_tcp::TcpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_tcp::TcpCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_tcp::TcpCodec
+pub fn wrex_proto_tcp::TcpCodec::from(T) -> T
+pub const wrex_proto_tcp::KIND: &str
+pub static wrex_proto_tcp::CODEC: wrex_proto_tcp::TcpCodec
+pub static wrex_proto_tcp::SCHEMA: wrex_core::schema::LayerSchema
+pub fn wrex_proto_tcp::register(&mut wrex_core::codec::Registry)

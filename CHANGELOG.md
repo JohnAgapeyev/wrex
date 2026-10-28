@@ -8,6 +8,76 @@ tranche.
 
 ## [Unreleased]
 
+### Added — hardening pass 3 (field-coverage doctrine)
+
+- **G1 strategy-completeness audit** (`wrex-test::gates`, gated in
+  `tests/field_coverage.rs`): the schema as the completion oracle —
+  every codec's own strategy must randomize every settable schema
+  field (derived/dissect-only/recorded exemptions aside). The first
+  run found 37 unrandomized fields across 9 codecs; the sweep fixed
+  the strategies and **caught two real bugs**: the ipv4 flags
+  renderer emitted the stale `[df,mf]` order and silently dropped
+  `res`, and **the T18a flags repair itself was wire-inverted** —
+  RFC 791 puts MF at word bit 13 (0x2000; Linux `IP_MF`,
+  etherparse `byte6&0x20`) with the reserved bit at 15, while the
+  landed schema mapped `mf` onto the reserved position; the committed
+  frag corpus self-confirmed (tshark: `ip.flags.rb=1`). The schema now
+  matches the RFC wire order `[res,df,mf]`, the frag carve + `ClearMf`
+  rewrite moved to 0x2000, and the corpus was regenerated.
+- **G2 bit-toggle sweep** (same gate file): every FlagSet aggregate,
+  every named bit — toggle-on renders exactly the bit, lands where the
+  span map says (aggregate window / byte-aligned / scattered sub-bit),
+  and passes both stack oracles; toggle-off clears. 23 bits across
+  7 aggregates. Also caught the MLDv2-query sources over-read
+  (8 payload bytes leaking into the region) and — with G6 — the dead
+  tshark dstopts arm.
+- **G3 RFC position vectors** (KAV): wire bytes at hand-computed
+  absolute offsets for every bit aggregate, RFC section per row (ipv4
+  ver/ihl/tos/flags/frag_off, tcp data_off/flags, vlan TCI, the ipv6
+  flow word, frag offset|M, hopopts len, icmpv6 na/ra flags, MLDv2
+  flags/QRV, dhcp broadcast, dns qr/rd, icmp type/code/echo).
+- **G6 differential key-completeness audit**: every scalar schema
+  field of a compared codec must appear in at least one oracle map's
+  attempted-comparison inventory (a new `compared` record on
+  `DiffReport`; `compare()` methods return the full report), with a
+  recorded-reason exemption table that is itself audited for
+  staleness. The maps grew to carry what the oracles render: ipv4
+  ver/ihl/tos/total_len/checksum/flags, tcp flags/data_off/urgent/
+  checksum, udp/icmp/icmpv6 checksums + echo bodies, ipv6 ver/tclass/
+  flow, ext lens, dhcp flags. The audit caught the **dead dstopts
+  arm** (tshark nests ext headers inside the ipv6 dict; the top-level
+  read never fired and the pass-2 drift guard checks key presence, not
+  access paths) and the tshark-oracle **pcap path race** under
+  parallel test threads (now unique per invocation).
+- **HP3-c executable golden workflows** (`tests/cli_workflows.rs`):
+  every `Today:` incantation of the use-case catalog runs in CI —
+  12 offline workflows per-commit (foreign captures, reassembly,
+  craft-by-hand, stream rewrite, normalize, stale checksums, spans,
+  the dns pointer-target, mutation, diff, TLS fuzz, recipe replay)
+  and 5 driver-dependent ones env-gated (scan, capture-then-inspect,
+  send, fuzz-probe, replay-probe — verified under the `unshare -Urn`
+  harness).
+- **HP3-d grammar consolidation**: `wrex-core::options` — the five
+  codec list grammars (ip/tcp/dhcp/dhcp6/icmpv6) ride one skeleton
+  (tokenization, the known-name-gated split — the uniform fix for the
+  bare-continuation-with-colon gotcha — pointed error mapping, the two
+  TLV shapes, grid padding); value encoders and pending semantics
+  stay codec-side. Net 57 lines retired; the skeleton's mutation
+  coverage is now wrex-core's (0 missed).
+- **HP3-e maintainability rails**: the mutants release gate extended
+  with per-crate advisory kill-strength scores for every proto codec
+  (`mutants-codecs` job; the wrex-core full-scope run promoted from
+  measurement to GATED at its 0-missed state); the suite-time ratchet
+  (`cargo xtask suitetime`, one capture-and-ratchet pass over the
+  verify tests, >2x growth fails with the pointed name); the API
+  surface ratchet (`cargo xtask api-snapshot`, per-crate
+  public-API snapshots under `xtask/api-snapshots/`, checked in CI
+  like the man pages — advisory while the snapshots settle).
+- wrex-core kill-strength pass (the pass before HP3-a's gates):
+  737 mutants, 312 missed → 0; `.cargo/mutants.toml` exclusions limited
+  to provably-unkillable classes; two-tier mutants workflow (gating
+  PR `--in-diff` run + full-scope release run).
+
 ### Added — 2026-10-23 extension planning pass (docs only)
 
 - Roadmap extension: mission scoreboard (fusion-parity audit),

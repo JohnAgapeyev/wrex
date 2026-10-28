@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 mod man;
 mod mcdc;
+mod scenarios;
 use clap::{Parser, Subcommand};
 
 const PROPTEST_RNG_SEED: &str = "31337";
@@ -40,6 +41,28 @@ enum Cmd {
     CorpusImport { pcap: PathBuf, name: String },
     /// generate man pages into man/: wrex(1) + wrex-<kind>(7) per protocol
     Man {},
+    /// run the workspace tests recording per-suite wall-clock, then
+    /// ratchet against xtask/suitetime-baseline.json (HP3-e)
+    Suitetime {
+        /// re-baseline: record this run's times as the new baseline
+        #[arg(long)]
+        update: bool,
+    },
+    /// regenerate the per-crate public-API snapshots into
+    /// xtask/api-snapshots/ (HP3-e; `--check` exits nonzero on drift)
+    ApiSnapshot {
+        /// fail on drift instead of writing
+        #[arg(long)]
+        check: bool,
+    },
+    /// HP3-b oracle-capture scenarios: foreign-tool traffic captured by
+    /// tcpdump into crates/wrex-test/corpus/scen-*/ (needs the
+    /// `unshare -Urn` sandbox — re-execs itself there)
+    CorpusCapture {
+        /// capture only this scenario (by name)
+        #[arg(long)]
+        only: Option<String>,
+    },
 }
 
 fn main() {
@@ -64,6 +87,47 @@ fn main() {
             let dir = man::generate(&root);
             println!("man pages written to {}", dir.display());
         }
+        Cmd::Suitetime { update } => {
+            suitetime(&root, update);
+        }
+        Cmd::ApiSnapshot { check } => {
+            api_snapshot(&root, check);
+        }
+        Cmd::CorpusCapture { only } => {
+            corpus_capture(&root, only.as_deref());
+        }
+    }
+}
+
+/// `cargo xtask corpus-capture` — re-exec under the user-namespace
+/// sandbox when not already inside one (the scenarios need
+/// CAP_NET_ADMIN/CAP_NET_RAW for veth pairs, tcpdump and arping;
+/// `unshare -Urn` provides them unprivileged — the README recipe).
+fn corpus_capture(root: &Path, only: Option<&str>) {
+    let in_sandbox = std::env::var("WREX_SCENARIO_SANDBOX").as_deref() == Ok("1");
+    if in_sandbox {
+        scenarios::capture(root, only);
+        return;
+    }
+    let mut cmd = String::from("export WREX_SCENARIO_SANDBOX=1; ");
+    if let Some(name) = only {
+        cmd.push_str(&format!(
+            "cargo run -p xtask -- corpus-capture --only {name}"
+        ));
+    } else {
+        cmd.push_str("cargo run -p xtask -- corpus-capture");
+    }
+    let status = Command::new("unshare")
+        .arg("-Urn")
+        .arg("sh")
+        .arg("-ec")
+        .arg(&cmd)
+        .current_dir(root)
+        .status()
+        .expect("spawn unshare (needs a kernel with user namespaces)");
+    if !status.success() {
+        eprintln!("xtask corpus-capture: sandbox run failed ({status})");
+        std::process::exit(1);
     }
 }
 
@@ -83,12 +147,12 @@ fn verify(root: &Path, with_miri: bool, with_differential: bool, with_fuzz: bool
             "warnings",
         ],
     );
-    run(
-        root,
-        "workspace tests",
-        "cargo",
-        &["test", "--workspace", "--all-features"],
-    );
+    // The workspace tests ride the suite-time ratchet (HP3-e): the
+    // same single cargo-test pass records per-suite wall-clock and
+    // gates >2x growth (the doctrine's pointed-name rule; the Miri
+    // precedent — a suite that quietly triples is a suite that moves
+    // to the extended gate).
+    suitetime(root, false);
     if with_miri {
         let pkgs = [
             "wrex-core",
@@ -286,6 +350,236 @@ fn workspace_root() -> PathBuf {
         .parent()
         .unwrap()
         .to_path_buf()
+}
+
+// --- HP3-e rails: suite-time ratchet + API-surface ratchet ----------------
+
+/// The committed suite-time baseline (the man-page pattern: regenerate
+/// with `cargo xtask suitetime --update`, review the diff, commit).
+const SUITETIME_BASELINE: &str = "xtask/suitetime-baseline.json";
+
+/// Run the workspace tests with captured output, recording per-suite
+/// wall-clock, then ratchet against the committed baseline.
+///
+/// The gate (>2x the recorded time, a pointed suite name) is
+/// noise-robust by design: absolute wall-clock varies across runners,
+/// and the doctrine's >20% class renders as a printed warning, not a
+/// red CI. `--update` rewrites the baseline.
+fn suitetime(root: &Path, update: bool) {
+    let out = Command::new("cargo")
+        .args(["test", "--workspace", "--all-features"])
+        .current_dir(root)
+        .env("PROPTEST_RNG_SEED", PROPTEST_RNG_SEED)
+        .output()
+        .expect("spawn cargo test");
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    if !out.status.success() {
+        eprint!("{stdout}{stderr}");
+        eprintln!("xtask: stage failed: workspace tests");
+        std::process::exit(out.status.code().unwrap_or(1));
+    }
+    // cargo prints the per-binary "Running …" status lines on stderr;
+    // libtest's "test result: … finished in" lands on stdout; binaries
+    // run SERIALLY, so the two ordered lists zip 1:1.
+    let times = parse_suite_times(&stdout, &stderr);
+    assert!(
+        !times.is_empty(),
+        "no per-suite timings parsed from cargo test"
+    );
+    let path = root.join(SUITETIME_BASELINE);
+    if update {
+        let mut map = std::collections::BTreeMap::new();
+        for (suite, t) in &times {
+            map.insert(suite.clone(), *t);
+        }
+        std::fs::write(&path, serde_json::to_string_pretty(&map).unwrap() + "\n")
+            .expect("write baseline");
+        println!(
+            "suite-time baseline rewritten ({} suites) — review the diff and commit",
+            times.len()
+        );
+        return;
+    }
+    let baseline: std::collections::BTreeMap<String, f64> = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    let mut slow = Vec::new();
+    let mut warnings = 0;
+    let mut new_suites = 0;
+    for (suite, t) in &times {
+        match baseline.get(suite) {
+            None => {
+                new_suites += 1;
+                println!("suitetime: NEW suite {suite}: {t:.1}s (baseline with --update)");
+            }
+            Some(b) => {
+                // Sub-100ms suites are noise-only: skip (a 40ms suite
+                // "doubling" is scheduler jitter, not bloat).
+                if *b < 0.1 && *t < 0.1 {
+                    continue;
+                }
+                if *t > b * 2.0 {
+                    slow.push(format!("{suite}: {t:.1}s (baseline {b:.1}s)"));
+                } else if *t > b * 1.2 {
+                    warnings += 1;
+                    println!("suitetime: {suite} grew >20%: {t:.1}s (baseline {b:.1}s)");
+                }
+            }
+        }
+    }
+    for suite in baseline.keys() {
+        if !times.iter().any(|(s, _)| s == suite) {
+            println!("suitetime: stale baseline entry `{suite}` (suite gone)");
+        }
+    }
+    println!(
+        "suitetime: {} suites, {warnings} growth warnings, {new_suites} new",
+        times.len()
+    );
+    if !slow.is_empty() {
+        eprintln!(
+            "suitetime RATCHET FAILED (>2x baseline — move the suite to the extended gate \
+             or re-baseline deliberately):\n  {}",
+            slow.join("\n  ")
+        );
+        std::process::exit(1);
+    }
+}
+
+/// Parse libtest's per-binary sections out of a `cargo test` run:
+/// stderr carries the ordered `Running <x> (target/.../deps/<stem>)`
+/// status lines, stdout the ordered `… finished in N.NNs` results —
+/// binaries run serially, so the two lists zip 1:1. Suite key = the
+/// binary stem with the hash stripped (integration tests) or the
+/// crate stem for unittest binaries.
+fn parse_suite_times(stdout: &str, stderr: &str) -> Vec<(String, f64)> {
+    let keys: Vec<String> = stderr
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("Running ")?;
+            let binary = rest.split('(').nth(1)?.split(')').next()?;
+            // target/debug/deps/<stem>-<hash> (or <stem>-<hash>.exe)
+            let file = binary.rsplit('/').next()?;
+            let stem = file.strip_suffix(".exe").unwrap_or(file);
+            stem.rsplit_once('-').map(|(name, _)| name.to_string())
+        })
+        .collect();
+    let times: Vec<f64> = stdout
+        .lines()
+        .filter_map(|line| {
+            let at = line.find("finished in ")?;
+            line[at + "finished in ".len()..]
+                .trim()
+                .strip_suffix('s')
+                .and_then(|s| s.parse::<f64>().ok())
+        })
+        .collect();
+    keys.into_iter().zip(times).map(|(k, t)| (k, t)).collect()
+}
+
+/// The per-crate public-API snapshot dir (the man-page pattern).
+const API_SNAPSHOTS: &str = "xtask/api-snapshots";
+
+/// Regenerate (or check) the per-crate public-API snapshots via
+/// `cargo public-api` (needs a nightly toolchain for rustdoc JSON —
+/// skip-with-notice when unavailable, the doctrine's advisory-first
+/// posture; CI installs the tool explicitly).
+fn api_snapshot(root: &Path, check: bool) {
+    let tool = Command::new("cargo")
+        .arg("public-api")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !tool {
+        eprintln!(
+            "xtask api-snapshot: SKIPPED (advisory): cargo-public-api not installed \
+             (cargo install cargo-public-api --locked; needs nightly rustdoc)"
+        );
+        return;
+    }
+    let dir = root.join(API_SNAPSHOTS);
+    if !check {
+        std::fs::create_dir_all(&dir).expect("mkdir snapshots");
+    }
+    let mut drift = Vec::new();
+    let mut written = 0;
+    for pkg in workspace_packages(root) {
+        let out = Command::new("cargo")
+            .args(["public-api", "-p", &pkg, "--all-features"])
+            .current_dir(root)
+            .output()
+            .unwrap_or_else(|e| panic!("spawn cargo public-api -p {pkg}: {e}"));
+        if !out.status.success() {
+            eprintln!(
+                "xtask api-snapshot: {pkg} FAILED: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            std::process::exit(1);
+        }
+        let api = String::from_utf8_lossy(&out.stdout).to_string();
+        let path = dir.join(format!("{pkg}.txt"));
+        if check {
+            match std::fs::read_to_string(&path) {
+                Ok(committed) if committed == api => {}
+                _ => drift.push(pkg),
+            }
+        } else {
+            std::fs::write(&path, &api).expect("write snapshot");
+            written += 1;
+        }
+    }
+    if check {
+        if drift.is_empty() {
+            println!(
+                "api-snapshot: {} crates, no drift",
+                workspace_packages(root).len()
+            );
+        } else {
+            eprintln!(
+                "api-snapshot DRIFT (regenerate with `cargo xtask api-snapshot` and review):\n  {}",
+                drift.join("\n  ")
+            );
+            std::process::exit(1);
+        }
+    } else {
+        println!("api-snapshot: wrote {written} snapshots to {API_SNAPSHOTS}/");
+    }
+}
+
+/// Every workspace member crate EXCEPT the binary-only dev tooling
+/// (`xtask` has no library target — no public API to snapshot).
+fn workspace_packages(root: &Path) -> Vec<String> {
+    let out = Command::new("cargo")
+        .arg("metadata")
+        .arg("--no-deps")
+        .arg("--format-version")
+        .arg("1")
+        .current_dir(root)
+        .output()
+        .expect("cargo metadata");
+    let meta: serde_json::Value = serde_json::from_slice(&out.stdout).expect("metadata json");
+    let mut names: Vec<String> = meta["packages"]
+        .as_array()
+        .expect("packages")
+        .iter()
+        .filter_map(|p| {
+            let name = p["name"].as_str()?;
+            // Binary-only members (the xtask dev tool) have no lib
+            // target — cargo public-api rejects them and they carry
+            // no SDK surface anyway.
+            let has_lib = p["targets"].as_array()?.iter().any(|t| {
+                t["kind"]
+                    .as_array()
+                    .is_some_and(|k| k.iter().any(|x| x == "lib"))
+            });
+            has_lib.then(|| name.to_string())
+        })
+        .collect();
+    names.sort();
+    names
 }
 
 fn run(root: &Path, label: &str, program: &str, args: &[&str]) {

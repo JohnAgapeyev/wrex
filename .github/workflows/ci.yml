@@ -46,8 +46,33 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
-      # Socket tests auto-skip (WREX_DRIVER_TESTS unset).
-      - run: PROPTEST_RNG_SEED=31337 cargo test --workspace --all-features
+      # Socket tests auto-skip (WREX_DRIVER_TESTS unset). The run rides
+      # the suite-time ratchet (HP3-e): one capture-and-ratchet pass,
+      # no extra test time — >2x baseline growth fails with the pointed
+      # suite name (the Miri-precedent rule; slow suites move to the
+      # extended gate).
+      - run: cargo xtask suitetime
+        env:
+          PROPTEST_RNG_SEED: 31337
+
+  api-surface:
+    # HP3-e API-surface ratchet: per-crate public-API snapshots
+    # (xtask/api-snapshots/), regenerated-and-diffed like the man pages
+    # — "would we freeze this?" now has a diff, so the 1.0 API review
+    # is a diff instead of an excavation. Advisory while the snapshots
+    # settle (continue-on-error); promotion to blocking follows the
+    # same review-the-drift cycle as the man pages did.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-public-api
+      - run: cargo xtask api-snapshot --check
+        continue-on-error: true
 
   lean-build:
     # ADR 3 (tranche 17-0): the feature graph closes through the codec

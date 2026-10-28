@@ -1,0 +1,38 @@
+pub mod wrex_proto_udp
+pub mod wrex_proto_udp::strategy
+pub fn wrex_proto_udp::strategy::strategy() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_udp::UdpCodec
+impl wrex_core::codec::Codec for wrex_proto_udp::UdpCodec
+pub fn wrex_proto_udp::UdpCodec::derived(&self) -> &'static [wrex_core::schema::Derived]
+pub fn wrex_proto_udp::UdpCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_udp::UdpCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_udp::UdpCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_udp::UdpCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_udp::UdpCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_udp::UdpCodec
+impl core::marker::Send for wrex_proto_udp::UdpCodec
+impl core::marker::Sync for wrex_proto_udp::UdpCodec
+impl core::marker::Unpin for wrex_proto_udp::UdpCodec
+impl core::marker::UnsafeUnpin for wrex_proto_udp::UdpCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_udp::UdpCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_udp::UdpCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_udp::UdpCodec where U: core::convert::From<T>
+pub fn wrex_proto_udp::UdpCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_udp::UdpCodec where U: core::convert::Into<T>
+pub type wrex_proto_udp::UdpCodec::Error = never
+pub fn wrex_proto_udp::UdpCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_udp::UdpCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_udp::UdpCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_udp::UdpCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_udp::UdpCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_udp::UdpCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_udp::UdpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_udp::UdpCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_udp::UdpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_udp::UdpCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_udp::UdpCodec
+pub fn wrex_proto_udp::UdpCodec::from(T) -> T
+pub const wrex_proto_udp::KIND: &str
+pub static wrex_proto_udp::CODEC: wrex_proto_udp::UdpCodec
+pub static wrex_proto_udp::SCHEMA: wrex_core::schema::LayerSchema
+pub fn wrex_proto_udp::register(&mut wrex_core::codec::Registry)

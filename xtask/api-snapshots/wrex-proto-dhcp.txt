@@ -1,0 +1,61 @@
+pub mod wrex_proto_dhcp
+pub mod wrex_proto_dhcp::options
+pub const wrex_proto_dhcp::options::MSG_TYPES: [(&str, u8); 8]
+pub const wrex_proto_dhcp::options::OPT_ADDRESS_TIME: u8
+pub const wrex_proto_dhcp::options::OPT_CLIENT_ID: u8
+pub const wrex_proto_dhcp::options::OPT_DNS_SERVERS: u8
+pub const wrex_proto_dhcp::options::OPT_DOMAIN_NAME: u8
+pub const wrex_proto_dhcp::options::OPT_END: u8
+pub const wrex_proto_dhcp::options::OPT_HOST_NAME: u8
+pub const wrex_proto_dhcp::options::OPT_MAX_MSG_SIZE: u8
+pub const wrex_proto_dhcp::options::OPT_MSG_TYPE: u8
+pub const wrex_proto_dhcp::options::OPT_PAD: u8
+pub const wrex_proto_dhcp::options::OPT_PARAM_REQ: u8
+pub const wrex_proto_dhcp::options::OPT_REBINDING_TIME: u8
+pub const wrex_proto_dhcp::options::OPT_RENEWAL_TIME: u8
+pub const wrex_proto_dhcp::options::OPT_REQUESTED_IP: u8
+pub const wrex_proto_dhcp::options::OPT_ROUTER: u8
+pub const wrex_proto_dhcp::options::OPT_SERVER_ID: u8
+pub const wrex_proto_dhcp::options::OPT_SUBNET_MASK: u8
+pub fn wrex_proto_dhcp::options::parse_msg_type(&str) -> core::option::Option<u8>
+pub fn wrex_proto_dhcp::options::render_msg_type(u8) -> alloc::string::String
+pub const fn wrex_proto_dhcp::options::scan_msg_type(&[u8]) -> bool
+pub mod wrex_proto_dhcp::strategy
+pub fn wrex_proto_dhcp::strategy::strategy() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_dhcp::DhcpCodec
+impl wrex_core::codec::Codec for wrex_proto_dhcp::DhcpCodec
+pub fn wrex_proto_dhcp::DhcpCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_dhcp::DhcpCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_dhcp::DhcpCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_dhcp::DhcpCodec::reencode(&self, &str, &[u8], core::ops::range::Range<usize>) -> core::option::Option<core::result::Result<alloc::vec::Vec<u8>, alloc::string::String>>
+pub fn wrex_proto_dhcp::DhcpCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_dhcp::DhcpCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_dhcp::DhcpCodec
+impl core::marker::Send for wrex_proto_dhcp::DhcpCodec
+impl core::marker::Sync for wrex_proto_dhcp::DhcpCodec
+impl core::marker::Unpin for wrex_proto_dhcp::DhcpCodec
+impl core::marker::UnsafeUnpin for wrex_proto_dhcp::DhcpCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_dhcp::DhcpCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_dhcp::DhcpCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_dhcp::DhcpCodec where U: core::convert::From<T>
+pub fn wrex_proto_dhcp::DhcpCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_dhcp::DhcpCodec where U: core::convert::Into<T>
+pub type wrex_proto_dhcp::DhcpCodec::Error = never
+pub fn wrex_proto_dhcp::DhcpCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_dhcp::DhcpCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_dhcp::DhcpCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_dhcp::DhcpCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_dhcp::DhcpCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_dhcp::DhcpCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_dhcp::DhcpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_dhcp::DhcpCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_dhcp::DhcpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_dhcp::DhcpCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_dhcp::DhcpCodec
+pub fn wrex_proto_dhcp::DhcpCodec::from(T) -> T
+pub const wrex_proto_dhcp::HEADER_LEN: usize
+pub const wrex_proto_dhcp::KIND: &str
+pub const wrex_proto_dhcp::MAGIC_COOKIE: u32
+pub static wrex_proto_dhcp::CODEC: wrex_proto_dhcp::DhcpCodec
+pub static wrex_proto_dhcp::SCHEMA: wrex_core::schema::LayerSchema
+pub fn wrex_proto_dhcp::register(&mut wrex_core::codec::Registry)

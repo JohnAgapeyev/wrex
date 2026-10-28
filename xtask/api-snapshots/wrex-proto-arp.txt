@@ -1,0 +1,37 @@
+pub mod wrex_proto_arp
+pub mod wrex_proto_arp::strategy
+pub fn wrex_proto_arp::strategy::strategy() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_arp::ArpCodec
+impl wrex_core::codec::Codec for wrex_proto_arp::ArpCodec
+pub fn wrex_proto_arp::ArpCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_arp::ArpCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_arp::ArpCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_arp::ArpCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_arp::ArpCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_arp::ArpCodec
+impl core::marker::Send for wrex_proto_arp::ArpCodec
+impl core::marker::Sync for wrex_proto_arp::ArpCodec
+impl core::marker::Unpin for wrex_proto_arp::ArpCodec
+impl core::marker::UnsafeUnpin for wrex_proto_arp::ArpCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_arp::ArpCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_arp::ArpCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_arp::ArpCodec where U: core::convert::From<T>
+pub fn wrex_proto_arp::ArpCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_arp::ArpCodec where U: core::convert::Into<T>
+pub type wrex_proto_arp::ArpCodec::Error = never
+pub fn wrex_proto_arp::ArpCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_arp::ArpCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_arp::ArpCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_arp::ArpCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_arp::ArpCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_arp::ArpCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_arp::ArpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_arp::ArpCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_arp::ArpCodec where T: ?core::marker::Sized
+pub fn wrex_proto_arp::ArpCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_arp::ArpCodec
+pub fn wrex_proto_arp::ArpCodec::from(T) -> T
+pub const wrex_proto_arp::KIND: &str
+pub static wrex_proto_arp::CODEC: wrex_proto_arp::ArpCodec
+pub static wrex_proto_arp::SCHEMA: wrex_core::schema::LayerSchema
+pub fn wrex_proto_arp::register(&mut wrex_core::codec::Registry)

@@ -1,0 +1,206 @@
+pub mod wrex_proto_ip6ext
+pub mod wrex_proto_ip6ext::strategy
+pub fn wrex_proto_ip6ext::strategy::ah() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_ip6ext::strategy::dstopts() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_ip6ext::strategy::esp() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_ip6ext::strategy::frag() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_ip6ext::strategy::hopopts() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_ip6ext::strategy::nonext() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_ip6ext::strategy::routing() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_ip6ext::AhCodec
+impl wrex_core::codec::Codec for wrex_proto_ip6ext::AhCodec
+pub fn wrex_proto_ip6ext::AhCodec::derived(&self) -> &'static [wrex_core::schema::Derived]
+pub fn wrex_proto_ip6ext::AhCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_ip6ext::AhCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_ip6ext::AhCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_ip6ext::AhCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_ip6ext::AhCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_ip6ext::AhCodec
+impl core::marker::Send for wrex_proto_ip6ext::AhCodec
+impl core::marker::Sync for wrex_proto_ip6ext::AhCodec
+impl core::marker::Unpin for wrex_proto_ip6ext::AhCodec
+impl core::marker::UnsafeUnpin for wrex_proto_ip6ext::AhCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_ip6ext::AhCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_ip6ext::AhCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_ip6ext::AhCodec where U: core::convert::From<T>
+pub fn wrex_proto_ip6ext::AhCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_ip6ext::AhCodec where U: core::convert::Into<T>
+pub type wrex_proto_ip6ext::AhCodec::Error = never
+pub fn wrex_proto_ip6ext::AhCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_ip6ext::AhCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_ip6ext::AhCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_ip6ext::AhCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_ip6ext::AhCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_ip6ext::AhCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_ip6ext::AhCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::AhCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_ip6ext::AhCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::AhCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_ip6ext::AhCodec
+pub fn wrex_proto_ip6ext::AhCodec::from(T) -> T
+pub struct wrex_proto_ip6ext::EspCodec
+impl wrex_core::codec::Codec for wrex_proto_ip6ext::EspCodec
+pub fn wrex_proto_ip6ext::EspCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_ip6ext::EspCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_ip6ext::EspCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_ip6ext::EspCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_ip6ext::EspCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_ip6ext::EspCodec
+impl core::marker::Send for wrex_proto_ip6ext::EspCodec
+impl core::marker::Sync for wrex_proto_ip6ext::EspCodec
+impl core::marker::Unpin for wrex_proto_ip6ext::EspCodec
+impl core::marker::UnsafeUnpin for wrex_proto_ip6ext::EspCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_ip6ext::EspCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_ip6ext::EspCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_ip6ext::EspCodec where U: core::convert::From<T>
+pub fn wrex_proto_ip6ext::EspCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_ip6ext::EspCodec where U: core::convert::Into<T>
+pub type wrex_proto_ip6ext::EspCodec::Error = never
+pub fn wrex_proto_ip6ext::EspCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_ip6ext::EspCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_ip6ext::EspCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_ip6ext::EspCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_ip6ext::EspCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_ip6ext::EspCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_ip6ext::EspCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::EspCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_ip6ext::EspCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::EspCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_ip6ext::EspCodec
+pub fn wrex_proto_ip6ext::EspCodec::from(T) -> T
+pub struct wrex_proto_ip6ext::FragCodec
+impl wrex_core::codec::Codec for wrex_proto_ip6ext::FragCodec
+pub fn wrex_proto_ip6ext::FragCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_ip6ext::FragCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_ip6ext::FragCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_ip6ext::FragCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_ip6ext::FragCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_ip6ext::FragCodec
+impl core::marker::Send for wrex_proto_ip6ext::FragCodec
+impl core::marker::Sync for wrex_proto_ip6ext::FragCodec
+impl core::marker::Unpin for wrex_proto_ip6ext::FragCodec
+impl core::marker::UnsafeUnpin for wrex_proto_ip6ext::FragCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_ip6ext::FragCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_ip6ext::FragCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_ip6ext::FragCodec where U: core::convert::From<T>
+pub fn wrex_proto_ip6ext::FragCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_ip6ext::FragCodec where U: core::convert::Into<T>
+pub type wrex_proto_ip6ext::FragCodec::Error = never
+pub fn wrex_proto_ip6ext::FragCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_ip6ext::FragCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_ip6ext::FragCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_ip6ext::FragCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_ip6ext::FragCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_ip6ext::FragCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_ip6ext::FragCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::FragCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_ip6ext::FragCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::FragCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_ip6ext::FragCodec
+pub fn wrex_proto_ip6ext::FragCodec::from(T) -> T
+pub struct wrex_proto_ip6ext::NonextCodec
+impl wrex_core::codec::Codec for wrex_proto_ip6ext::NonextCodec
+pub fn wrex_proto_ip6ext::NonextCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_ip6ext::NonextCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_ip6ext::NonextCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_ip6ext::NonextCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_ip6ext::NonextCodec
+impl core::marker::Send for wrex_proto_ip6ext::NonextCodec
+impl core::marker::Sync for wrex_proto_ip6ext::NonextCodec
+impl core::marker::Unpin for wrex_proto_ip6ext::NonextCodec
+impl core::marker::UnsafeUnpin for wrex_proto_ip6ext::NonextCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_ip6ext::NonextCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_ip6ext::NonextCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_ip6ext::NonextCodec where U: core::convert::From<T>
+pub fn wrex_proto_ip6ext::NonextCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_ip6ext::NonextCodec where U: core::convert::Into<T>
+pub type wrex_proto_ip6ext::NonextCodec::Error = never
+pub fn wrex_proto_ip6ext::NonextCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_ip6ext::NonextCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_ip6ext::NonextCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_ip6ext::NonextCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_ip6ext::NonextCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_ip6ext::NonextCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_ip6ext::NonextCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::NonextCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_ip6ext::NonextCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::NonextCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_ip6ext::NonextCodec
+pub fn wrex_proto_ip6ext::NonextCodec::from(T) -> T
+pub struct wrex_proto_ip6ext::OptsCodec
+impl wrex_core::codec::Codec for wrex_proto_ip6ext::OptsCodec
+pub fn wrex_proto_ip6ext::OptsCodec::derived(&self) -> &'static [wrex_core::schema::Derived]
+pub fn wrex_proto_ip6ext::OptsCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_ip6ext::OptsCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_ip6ext::OptsCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_ip6ext::OptsCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_ip6ext::OptsCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_ip6ext::OptsCodec
+impl core::marker::Send for wrex_proto_ip6ext::OptsCodec
+impl core::marker::Sync for wrex_proto_ip6ext::OptsCodec
+impl core::marker::Unpin for wrex_proto_ip6ext::OptsCodec
+impl core::marker::UnsafeUnpin for wrex_proto_ip6ext::OptsCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_ip6ext::OptsCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_ip6ext::OptsCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_ip6ext::OptsCodec where U: core::convert::From<T>
+pub fn wrex_proto_ip6ext::OptsCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_ip6ext::OptsCodec where U: core::convert::Into<T>
+pub type wrex_proto_ip6ext::OptsCodec::Error = never
+pub fn wrex_proto_ip6ext::OptsCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_ip6ext::OptsCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_ip6ext::OptsCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_ip6ext::OptsCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_ip6ext::OptsCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_ip6ext::OptsCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_ip6ext::OptsCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::OptsCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_ip6ext::OptsCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::OptsCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_ip6ext::OptsCodec
+pub fn wrex_proto_ip6ext::OptsCodec::from(T) -> T
+pub struct wrex_proto_ip6ext::RoutingCodec
+impl wrex_core::codec::Codec for wrex_proto_ip6ext::RoutingCodec
+pub fn wrex_proto_ip6ext::RoutingCodec::derived(&self) -> &'static [wrex_core::schema::Derived]
+pub fn wrex_proto_ip6ext::RoutingCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_ip6ext::RoutingCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_ip6ext::RoutingCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_ip6ext::RoutingCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_ip6ext::RoutingCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_ip6ext::RoutingCodec
+impl core::marker::Send for wrex_proto_ip6ext::RoutingCodec
+impl core::marker::Sync for wrex_proto_ip6ext::RoutingCodec
+impl core::marker::Unpin for wrex_proto_ip6ext::RoutingCodec
+impl core::marker::UnsafeUnpin for wrex_proto_ip6ext::RoutingCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_ip6ext::RoutingCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_ip6ext::RoutingCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_ip6ext::RoutingCodec where U: core::convert::From<T>
+pub fn wrex_proto_ip6ext::RoutingCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_ip6ext::RoutingCodec where U: core::convert::Into<T>
+pub type wrex_proto_ip6ext::RoutingCodec::Error = never
+pub fn wrex_proto_ip6ext::RoutingCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_ip6ext::RoutingCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_ip6ext::RoutingCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_ip6ext::RoutingCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_ip6ext::RoutingCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_ip6ext::RoutingCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_ip6ext::RoutingCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::RoutingCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_ip6ext::RoutingCodec where T: ?core::marker::Sized
+pub fn wrex_proto_ip6ext::RoutingCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_ip6ext::RoutingCodec
+pub fn wrex_proto_ip6ext::RoutingCodec::from(T) -> T
+pub const wrex_proto_ip6ext::KIND_AH: &str
+pub const wrex_proto_ip6ext::KIND_DSTOPTS: &str
+pub const wrex_proto_ip6ext::KIND_ESP: &str
+pub const wrex_proto_ip6ext::KIND_FRAG: &str
+pub const wrex_proto_ip6ext::KIND_HOPOPTS: &str
+pub const wrex_proto_ip6ext::KIND_NONEXT: &str
+pub const wrex_proto_ip6ext::KIND_ROUTING: &str
+pub static wrex_proto_ip6ext::AH_CODEC: wrex_proto_ip6ext::AhCodec
+pub static wrex_proto_ip6ext::DSTOPTS_CODEC: wrex_proto_ip6ext::OptsCodec
+pub static wrex_proto_ip6ext::ESP_CODEC: wrex_proto_ip6ext::EspCodec
+pub static wrex_proto_ip6ext::FRAG_CODEC: wrex_proto_ip6ext::FragCodec
+pub static wrex_proto_ip6ext::HOPOPTS_CODEC: wrex_proto_ip6ext::OptsCodec
+pub static wrex_proto_ip6ext::NONEXT_CODEC: wrex_proto_ip6ext::NonextCodec
+pub static wrex_proto_ip6ext::ROUTING_CODEC: wrex_proto_ip6ext::RoutingCodec
+pub fn wrex_proto_ip6ext::register(&mut wrex_core::codec::Registry)

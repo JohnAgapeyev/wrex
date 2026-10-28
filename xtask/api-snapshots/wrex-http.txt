@@ -1,0 +1,701 @@
+pub mod wrex_http
+pub use wrex_http::http
+pub mod wrex_http::recipe
+pub struct wrex_http::recipe::Recipe
+pub wrex_http::recipe::Recipe::body_framing: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::body_hex: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::body_text: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub wrex_http::recipe::Recipe::hpack: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::http_version: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::max_bytes: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::method: alloc::string::String
+pub wrex_http::recipe::Recipe::retries: core::option::Option<u32>
+pub wrex_http::recipe::Recipe::timeout_ms: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::tls_ca: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::tls_insecure: core::option::Option<bool>
+pub wrex_http::recipe::Recipe::url: alloc::string::String
+impl wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::into_request(self) -> core::result::Result<(wrex_http::request::HttpRequestSpec, wrex_http::recipe::RecipeOverrides), alloc::string::String>
+pub fn wrex_http::recipe::Recipe::parse_recipes(&str) -> core::result::Result<alloc::vec::Vec<wrex_http::recipe::Recipe>, alloc::string::String>
+impl core::clone::Clone for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::clone(&self) -> Self
+impl core::fmt::Debug for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_http::recipe::Recipe
+impl core::marker::Send for wrex_http::recipe::Recipe
+impl core::marker::Sync for wrex_http::recipe::Recipe
+impl core::marker::Unpin for wrex_http::recipe::Recipe
+impl core::marker::UnsafeUnpin for wrex_http::recipe::Recipe
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::recipe::Recipe
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::recipe::Recipe
+impl<T, U> core::convert::Into<U> for wrex_http::recipe::Recipe where U: core::convert::From<T>
+pub fn wrex_http::recipe::Recipe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::recipe::Recipe where U: core::convert::Into<T>
+pub type wrex_http::recipe::Recipe::Error = never
+pub fn wrex_http::recipe::Recipe::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::recipe::Recipe where U: core::convert::TryFrom<T>
+pub type wrex_http::recipe::Recipe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::recipe::Recipe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::recipe::Recipe where T: core::clone::Clone
+pub type wrex_http::recipe::Recipe::Owned = T
+pub fn wrex_http::recipe::Recipe::clone_into(&self, &mut T)
+pub fn wrex_http::recipe::Recipe::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::recipe::Recipe where T: 'static + ?core::marker::Sized
+pub fn wrex_http::recipe::Recipe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::recipe::Recipe where T: ?core::marker::Sized
+pub fn wrex_http::recipe::Recipe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::recipe::Recipe where T: ?core::marker::Sized
+pub fn wrex_http::recipe::Recipe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::recipe::Recipe where T: core::clone::Clone
+pub unsafe fn wrex_http::recipe::Recipe::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_http::recipe::Recipe where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct wrex_http::recipe::RecipeOverrides
+pub wrex_http::recipe::RecipeOverrides::hpack: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::RecipeOverrides::http_version: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::RecipeOverrides::max_bytes: core::option::Option<u64>
+pub wrex_http::recipe::RecipeOverrides::retries: core::option::Option<u32>
+pub wrex_http::recipe::RecipeOverrides::timeout_ms: core::option::Option<u64>
+pub wrex_http::recipe::RecipeOverrides::tls_ca: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::RecipeOverrides::tls_insecure: core::option::Option<bool>
+impl core::clone::Clone for wrex_http::recipe::RecipeOverrides
+pub fn wrex_http::recipe::RecipeOverrides::clone(&self) -> Self
+impl core::default::Default for wrex_http::recipe::RecipeOverrides
+pub fn wrex_http::recipe::RecipeOverrides::default() -> Self
+impl core::fmt::Debug for wrex_http::recipe::RecipeOverrides
+pub fn wrex_http::recipe::RecipeOverrides::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_http::recipe::RecipeOverrides
+impl core::marker::Send for wrex_http::recipe::RecipeOverrides
+impl core::marker::Sync for wrex_http::recipe::RecipeOverrides
+impl core::marker::Unpin for wrex_http::recipe::RecipeOverrides
+impl core::marker::UnsafeUnpin for wrex_http::recipe::RecipeOverrides
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::recipe::RecipeOverrides
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::recipe::RecipeOverrides
+impl<T, U> core::convert::Into<U> for wrex_http::recipe::RecipeOverrides where U: core::convert::From<T>
+pub fn wrex_http::recipe::RecipeOverrides::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::recipe::RecipeOverrides where U: core::convert::Into<T>
+pub type wrex_http::recipe::RecipeOverrides::Error = never
+pub fn wrex_http::recipe::RecipeOverrides::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::recipe::RecipeOverrides where U: core::convert::TryFrom<T>
+pub type wrex_http::recipe::RecipeOverrides::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::recipe::RecipeOverrides::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::recipe::RecipeOverrides where T: core::clone::Clone
+pub type wrex_http::recipe::RecipeOverrides::Owned = T
+pub fn wrex_http::recipe::RecipeOverrides::clone_into(&self, &mut T)
+pub fn wrex_http::recipe::RecipeOverrides::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::recipe::RecipeOverrides where T: 'static + ?core::marker::Sized
+pub fn wrex_http::recipe::RecipeOverrides::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::recipe::RecipeOverrides where T: ?core::marker::Sized
+pub fn wrex_http::recipe::RecipeOverrides::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::recipe::RecipeOverrides where T: ?core::marker::Sized
+pub fn wrex_http::recipe::RecipeOverrides::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::recipe::RecipeOverrides where T: core::clone::Clone
+pub unsafe fn wrex_http::recipe::RecipeOverrides::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::recipe::RecipeOverrides
+pub fn wrex_http::recipe::RecipeOverrides::from(T) -> T
+pub mod wrex_http::request
+pub enum wrex_http::request::RequestFraming
+pub wrex_http::request::RequestFraming::Chunked
+pub wrex_http::request::RequestFraming::Length
+impl core::clone::Clone for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::request::RequestFraming
+impl core::cmp::PartialEq for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::eq(&self, &Self) -> bool
+impl core::default::Default for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::default() -> Self
+impl core::fmt::Debug for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_http::request::RequestFraming
+impl core::marker::StructuralPartialEq for wrex_http::request::RequestFraming
+impl core::marker::Freeze for wrex_http::request::RequestFraming
+impl core::marker::Send for wrex_http::request::RequestFraming
+impl core::marker::Sync for wrex_http::request::RequestFraming
+impl core::marker::Unpin for wrex_http::request::RequestFraming
+impl core::marker::UnsafeUnpin for wrex_http::request::RequestFraming
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::request::RequestFraming
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::request::RequestFraming
+impl<T, U> core::convert::Into<U> for wrex_http::request::RequestFraming where U: core::convert::From<T>
+pub fn wrex_http::request::RequestFraming::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::request::RequestFraming where U: core::convert::Into<T>
+pub type wrex_http::request::RequestFraming::Error = never
+pub fn wrex_http::request::RequestFraming::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::request::RequestFraming where U: core::convert::TryFrom<T>
+pub type wrex_http::request::RequestFraming::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::request::RequestFraming::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::request::RequestFraming where T: core::clone::Clone
+pub type wrex_http::request::RequestFraming::Owned = T
+pub fn wrex_http::request::RequestFraming::clone_into(&self, &mut T)
+pub fn wrex_http::request::RequestFraming::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::request::RequestFraming where T: 'static + ?core::marker::Sized
+pub fn wrex_http::request::RequestFraming::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::request::RequestFraming where T: ?core::marker::Sized
+pub fn wrex_http::request::RequestFraming::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::request::RequestFraming where T: ?core::marker::Sized
+pub fn wrex_http::request::RequestFraming::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::request::RequestFraming where T: core::clone::Clone
+pub unsafe fn wrex_http::request::RequestFraming::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::from(T) -> T
+pub struct wrex_http::request::HttpRequestSpec
+pub wrex_http::request::HttpRequestSpec::body: bytes::bytes::Bytes
+pub wrex_http::request::HttpRequestSpec::chunk_size: usize
+pub wrex_http::request::HttpRequestSpec::framing: wrex_http::request::RequestFraming
+pub wrex_http::request::HttpRequestSpec::headers: alloc::vec::Vec<(http::header::name::HeaderName, http::header::value::HeaderValue)>
+pub wrex_http::request::HttpRequestSpec::method: http::method::Method
+pub wrex_http::request::HttpRequestSpec::url: http::uri::Uri
+impl wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::build(&str, &str, &[(&str, &str)], bytes::bytes::Bytes) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::serialize(&self) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::serialize_connection(&self, bool) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::with_framing(self, wrex_http::request::RequestFraming, usize) -> Self
+impl core::clone::Clone for wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::clone(&self) -> Self
+impl core::fmt::Debug for wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_http::request::HttpRequestSpec
+impl core::marker::Send for wrex_http::request::HttpRequestSpec
+impl core::marker::Sync for wrex_http::request::HttpRequestSpec
+impl core::marker::Unpin for wrex_http::request::HttpRequestSpec
+impl core::marker::UnsafeUnpin for wrex_http::request::HttpRequestSpec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::request::HttpRequestSpec
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::request::HttpRequestSpec
+impl<T, U> core::convert::Into<U> for wrex_http::request::HttpRequestSpec where U: core::convert::From<T>
+pub fn wrex_http::request::HttpRequestSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::request::HttpRequestSpec where U: core::convert::Into<T>
+pub type wrex_http::request::HttpRequestSpec::Error = never
+pub fn wrex_http::request::HttpRequestSpec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::request::HttpRequestSpec where U: core::convert::TryFrom<T>
+pub type wrex_http::request::HttpRequestSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::request::HttpRequestSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::request::HttpRequestSpec where T: core::clone::Clone
+pub type wrex_http::request::HttpRequestSpec::Owned = T
+pub fn wrex_http::request::HttpRequestSpec::clone_into(&self, &mut T)
+pub fn wrex_http::request::HttpRequestSpec::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::request::HttpRequestSpec where T: 'static + ?core::marker::Sized
+pub fn wrex_http::request::HttpRequestSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::request::HttpRequestSpec where T: ?core::marker::Sized
+pub fn wrex_http::request::HttpRequestSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::request::HttpRequestSpec where T: ?core::marker::Sized
+pub fn wrex_http::request::HttpRequestSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::request::HttpRequestSpec where T: core::clone::Clone
+pub unsafe fn wrex_http::request::HttpRequestSpec::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::from(T) -> T
+pub const wrex_http::request::DEFAULT_CHUNK_SIZE: usize
+pub const wrex_http::request::DEFAULT_USER_AGENT: &str
+pub mod wrex_http::response
+pub struct wrex_http::response::HttpResponse
+pub wrex_http::response::HttpResponse::body: bytes::bytes::Bytes
+pub wrex_http::response::HttpResponse::headers: http::header::map::HeaderMap
+pub wrex_http::response::HttpResponse::reason: alloc::string::String
+pub wrex_http::response::HttpResponse::status: http::status::StatusCode
+pub wrex_http::response::HttpResponse::version: http::version::Version
+impl wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::content_length(&self) -> core::option::Option<core::result::Result<u64, alloc::string::String>>
+pub fn wrex_http::response::HttpResponse::framing(&self, &http::method::Method) -> wrex_http::BodyFraming
+impl core::clone::Clone for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::response::HttpResponse
+impl core::cmp::PartialEq for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::response::HttpResponse
+impl !core::marker::Freeze for wrex_http::response::HttpResponse
+impl core::marker::Send for wrex_http::response::HttpResponse
+impl core::marker::Sync for wrex_http::response::HttpResponse
+impl core::marker::Unpin for wrex_http::response::HttpResponse
+impl core::marker::UnsafeUnpin for wrex_http::response::HttpResponse
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::response::HttpResponse
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::response::HttpResponse
+impl<T, U> core::convert::Into<U> for wrex_http::response::HttpResponse where U: core::convert::From<T>
+pub fn wrex_http::response::HttpResponse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::response::HttpResponse where U: core::convert::Into<T>
+pub type wrex_http::response::HttpResponse::Error = never
+pub fn wrex_http::response::HttpResponse::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::response::HttpResponse where U: core::convert::TryFrom<T>
+pub type wrex_http::response::HttpResponse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::response::HttpResponse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::response::HttpResponse where T: core::clone::Clone
+pub type wrex_http::response::HttpResponse::Owned = T
+pub fn wrex_http::response::HttpResponse::clone_into(&self, &mut T)
+pub fn wrex_http::response::HttpResponse::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::response::HttpResponse where T: 'static + ?core::marker::Sized
+pub fn wrex_http::response::HttpResponse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::response::HttpResponse where T: ?core::marker::Sized
+pub fn wrex_http::response::HttpResponse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::response::HttpResponse where T: ?core::marker::Sized
+pub fn wrex_http::response::HttpResponse::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::response::HttpResponse where T: core::clone::Clone
+pub unsafe fn wrex_http::response::HttpResponse::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::from(T) -> T
+pub mod wrex_http::session
+pub enum wrex_http::session::HttpOutcome
+pub wrex_http::session::HttpOutcome::Closed
+pub wrex_http::session::HttpOutcome::Malformed(alloc::string::String)
+pub wrex_http::session::HttpOutcome::Response(wrex_http::response::HttpResponse)
+pub wrex_http::session::HttpOutcome::Timeout
+pub wrex_http::session::HttpOutcome::TooLarge
+pub wrex_http::session::HttpOutcome::Truncated
+impl core::clone::Clone for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::session::HttpOutcome
+impl core::cmp::PartialEq for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::session::HttpOutcome
+impl !core::marker::Freeze for wrex_http::session::HttpOutcome
+impl core::marker::Send for wrex_http::session::HttpOutcome
+impl core::marker::Sync for wrex_http::session::HttpOutcome
+impl core::marker::Unpin for wrex_http::session::HttpOutcome
+impl core::marker::UnsafeUnpin for wrex_http::session::HttpOutcome
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::session::HttpOutcome
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::session::HttpOutcome
+impl<T, U> core::convert::Into<U> for wrex_http::session::HttpOutcome where U: core::convert::From<T>
+pub fn wrex_http::session::HttpOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::session::HttpOutcome where U: core::convert::Into<T>
+pub type wrex_http::session::HttpOutcome::Error = never
+pub fn wrex_http::session::HttpOutcome::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::session::HttpOutcome where U: core::convert::TryFrom<T>
+pub type wrex_http::session::HttpOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::session::HttpOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::session::HttpOutcome where T: core::clone::Clone
+pub type wrex_http::session::HttpOutcome::Owned = T
+pub fn wrex_http::session::HttpOutcome::clone_into(&self, &mut T)
+pub fn wrex_http::session::HttpOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::session::HttpOutcome where T: 'static + ?core::marker::Sized
+pub fn wrex_http::session::HttpOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::session::HttpOutcome where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpOutcome where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::session::HttpOutcome where T: core::clone::Clone
+pub unsafe fn wrex_http::session::HttpOutcome::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::from(T) -> T
+pub struct wrex_http::session::HttpClientSession
+impl wrex_http::session::HttpClientSession
+pub fn wrex_http::session::HttpClientSession::new(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::session::HttpClientSession::with_requests(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl wrex_session::Session for wrex_http::session::HttpClientSession
+pub type wrex_http::session::HttpClientSession::Output = wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpClientSession::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_http::session::HttpClientSession::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_http::session::HttpClientSession::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_http::session::HttpClientSession::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_http::session::HttpClientSession::poll_result(&mut self) -> core::option::Option<wrex_http::session::HttpOutcome>
+impl !core::marker::Freeze for wrex_http::session::HttpClientSession
+impl core::marker::Send for wrex_http::session::HttpClientSession
+impl core::marker::Sync for wrex_http::session::HttpClientSession
+impl core::marker::Unpin for wrex_http::session::HttpClientSession
+impl core::marker::UnsafeUnpin for wrex_http::session::HttpClientSession
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::session::HttpClientSession
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::session::HttpClientSession
+impl<T, U> core::convert::Into<U> for wrex_http::session::HttpClientSession where U: core::convert::From<T>
+pub fn wrex_http::session::HttpClientSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::session::HttpClientSession where U: core::convert::Into<T>
+pub type wrex_http::session::HttpClientSession::Error = never
+pub fn wrex_http::session::HttpClientSession::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::session::HttpClientSession where U: core::convert::TryFrom<T>
+pub type wrex_http::session::HttpClientSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::session::HttpClientSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_http::session::HttpClientSession where T: 'static + ?core::marker::Sized
+pub fn wrex_http::session::HttpClientSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::session::HttpClientSession where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpClientSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpClientSession where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpClientSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_http::session::HttpClientSession
+pub fn wrex_http::session::HttpClientSession::from(T) -> T
+pub struct wrex_http::session::HttpConfig
+pub wrex_http::session::HttpConfig::max_bytes: usize
+pub wrex_http::session::HttpConfig::timeout: core::time::Duration
+impl core::clone::Clone for wrex_http::session::HttpConfig
+pub fn wrex_http::session::HttpConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_http::session::HttpConfig
+pub fn wrex_http::session::HttpConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_http::session::HttpConfig
+impl core::marker::Freeze for wrex_http::session::HttpConfig
+impl core::marker::Send for wrex_http::session::HttpConfig
+impl core::marker::Sync for wrex_http::session::HttpConfig
+impl core::marker::Unpin for wrex_http::session::HttpConfig
+impl core::marker::UnsafeUnpin for wrex_http::session::HttpConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::session::HttpConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::session::HttpConfig
+impl<T, U> core::convert::Into<U> for wrex_http::session::HttpConfig where U: core::convert::From<T>
+pub fn wrex_http::session::HttpConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::session::HttpConfig where U: core::convert::Into<T>
+pub type wrex_http::session::HttpConfig::Error = never
+pub fn wrex_http::session::HttpConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::session::HttpConfig where U: core::convert::TryFrom<T>
+pub type wrex_http::session::HttpConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::session::HttpConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::session::HttpConfig where T: core::clone::Clone
+pub type wrex_http::session::HttpConfig::Owned = T
+pub fn wrex_http::session::HttpConfig::clone_into(&self, &mut T)
+pub fn wrex_http::session::HttpConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::session::HttpConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_http::session::HttpConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::session::HttpConfig where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpConfig where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::session::HttpConfig where T: core::clone::Clone
+pub unsafe fn wrex_http::session::HttpConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::session::HttpConfig
+pub fn wrex_http::session::HttpConfig::from(T) -> T
+pub enum wrex_http::BodyFraming
+pub wrex_http::BodyFraming::Chunked
+pub wrex_http::BodyFraming::ContentLength
+pub wrex_http::BodyFraming::None
+pub wrex_http::BodyFraming::UntilClose
+impl core::clone::Clone for wrex_http::BodyFraming
+pub fn wrex_http::BodyFraming::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::BodyFraming
+impl core::cmp::PartialEq for wrex_http::BodyFraming
+pub fn wrex_http::BodyFraming::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::BodyFraming
+pub fn wrex_http::BodyFraming::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_http::BodyFraming
+impl core::marker::StructuralPartialEq for wrex_http::BodyFraming
+impl core::marker::Freeze for wrex_http::BodyFraming
+impl core::marker::Send for wrex_http::BodyFraming
+impl core::marker::Sync for wrex_http::BodyFraming
+impl core::marker::Unpin for wrex_http::BodyFraming
+impl core::marker::UnsafeUnpin for wrex_http::BodyFraming
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::BodyFraming
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::BodyFraming
+impl<T, U> core::convert::Into<U> for wrex_http::BodyFraming where U: core::convert::From<T>
+pub fn wrex_http::BodyFraming::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::BodyFraming where U: core::convert::Into<T>
+pub type wrex_http::BodyFraming::Error = never
+pub fn wrex_http::BodyFraming::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::BodyFraming where U: core::convert::TryFrom<T>
+pub type wrex_http::BodyFraming::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::BodyFraming::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::BodyFraming where T: core::clone::Clone
+pub type wrex_http::BodyFraming::Owned = T
+pub fn wrex_http::BodyFraming::clone_into(&self, &mut T)
+pub fn wrex_http::BodyFraming::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::BodyFraming where T: 'static + ?core::marker::Sized
+pub fn wrex_http::BodyFraming::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::BodyFraming where T: ?core::marker::Sized
+pub fn wrex_http::BodyFraming::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::BodyFraming where T: ?core::marker::Sized
+pub fn wrex_http::BodyFraming::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::BodyFraming where T: core::clone::Clone
+pub unsafe fn wrex_http::BodyFraming::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::BodyFraming
+pub fn wrex_http::BodyFraming::from(T) -> T
+pub enum wrex_http::HttpOutcome
+pub wrex_http::HttpOutcome::Closed
+pub wrex_http::HttpOutcome::Malformed(alloc::string::String)
+pub wrex_http::HttpOutcome::Response(wrex_http::response::HttpResponse)
+pub wrex_http::HttpOutcome::Timeout
+pub wrex_http::HttpOutcome::TooLarge
+pub wrex_http::HttpOutcome::Truncated
+impl core::clone::Clone for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::session::HttpOutcome
+impl core::cmp::PartialEq for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::session::HttpOutcome
+impl !core::marker::Freeze for wrex_http::session::HttpOutcome
+impl core::marker::Send for wrex_http::session::HttpOutcome
+impl core::marker::Sync for wrex_http::session::HttpOutcome
+impl core::marker::Unpin for wrex_http::session::HttpOutcome
+impl core::marker::UnsafeUnpin for wrex_http::session::HttpOutcome
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::session::HttpOutcome
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::session::HttpOutcome
+impl<T, U> core::convert::Into<U> for wrex_http::session::HttpOutcome where U: core::convert::From<T>
+pub fn wrex_http::session::HttpOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::session::HttpOutcome where U: core::convert::Into<T>
+pub type wrex_http::session::HttpOutcome::Error = never
+pub fn wrex_http::session::HttpOutcome::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::session::HttpOutcome where U: core::convert::TryFrom<T>
+pub type wrex_http::session::HttpOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::session::HttpOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::session::HttpOutcome where T: core::clone::Clone
+pub type wrex_http::session::HttpOutcome::Owned = T
+pub fn wrex_http::session::HttpOutcome::clone_into(&self, &mut T)
+pub fn wrex_http::session::HttpOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::session::HttpOutcome where T: 'static + ?core::marker::Sized
+pub fn wrex_http::session::HttpOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::session::HttpOutcome where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpOutcome where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::session::HttpOutcome where T: core::clone::Clone
+pub unsafe fn wrex_http::session::HttpOutcome::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpOutcome::from(T) -> T
+pub enum wrex_http::RequestFraming
+pub wrex_http::RequestFraming::Chunked
+pub wrex_http::RequestFraming::Length
+impl core::clone::Clone for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::request::RequestFraming
+impl core::cmp::PartialEq for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::eq(&self, &Self) -> bool
+impl core::default::Default for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::default() -> Self
+impl core::fmt::Debug for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_http::request::RequestFraming
+impl core::marker::StructuralPartialEq for wrex_http::request::RequestFraming
+impl core::marker::Freeze for wrex_http::request::RequestFraming
+impl core::marker::Send for wrex_http::request::RequestFraming
+impl core::marker::Sync for wrex_http::request::RequestFraming
+impl core::marker::Unpin for wrex_http::request::RequestFraming
+impl core::marker::UnsafeUnpin for wrex_http::request::RequestFraming
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::request::RequestFraming
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::request::RequestFraming
+impl<T, U> core::convert::Into<U> for wrex_http::request::RequestFraming where U: core::convert::From<T>
+pub fn wrex_http::request::RequestFraming::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::request::RequestFraming where U: core::convert::Into<T>
+pub type wrex_http::request::RequestFraming::Error = never
+pub fn wrex_http::request::RequestFraming::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::request::RequestFraming where U: core::convert::TryFrom<T>
+pub type wrex_http::request::RequestFraming::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::request::RequestFraming::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::request::RequestFraming where T: core::clone::Clone
+pub type wrex_http::request::RequestFraming::Owned = T
+pub fn wrex_http::request::RequestFraming::clone_into(&self, &mut T)
+pub fn wrex_http::request::RequestFraming::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::request::RequestFraming where T: 'static + ?core::marker::Sized
+pub fn wrex_http::request::RequestFraming::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::request::RequestFraming where T: ?core::marker::Sized
+pub fn wrex_http::request::RequestFraming::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::request::RequestFraming where T: ?core::marker::Sized
+pub fn wrex_http::request::RequestFraming::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::request::RequestFraming where T: core::clone::Clone
+pub unsafe fn wrex_http::request::RequestFraming::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::request::RequestFraming
+pub fn wrex_http::request::RequestFraming::from(T) -> T
+pub struct wrex_http::HttpClientSession
+impl wrex_http::session::HttpClientSession
+pub fn wrex_http::session::HttpClientSession::new(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::session::HttpClientSession::with_requests(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+impl wrex_session::Session for wrex_http::session::HttpClientSession
+pub type wrex_http::session::HttpClientSession::Output = wrex_http::session::HttpOutcome
+pub fn wrex_http::session::HttpClientSession::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_http::session::HttpClientSession::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_http::session::HttpClientSession::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_http::session::HttpClientSession::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_http::session::HttpClientSession::poll_result(&mut self) -> core::option::Option<wrex_http::session::HttpOutcome>
+impl !core::marker::Freeze for wrex_http::session::HttpClientSession
+impl core::marker::Send for wrex_http::session::HttpClientSession
+impl core::marker::Sync for wrex_http::session::HttpClientSession
+impl core::marker::Unpin for wrex_http::session::HttpClientSession
+impl core::marker::UnsafeUnpin for wrex_http::session::HttpClientSession
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::session::HttpClientSession
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::session::HttpClientSession
+impl<T, U> core::convert::Into<U> for wrex_http::session::HttpClientSession where U: core::convert::From<T>
+pub fn wrex_http::session::HttpClientSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::session::HttpClientSession where U: core::convert::Into<T>
+pub type wrex_http::session::HttpClientSession::Error = never
+pub fn wrex_http::session::HttpClientSession::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::session::HttpClientSession where U: core::convert::TryFrom<T>
+pub type wrex_http::session::HttpClientSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::session::HttpClientSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_http::session::HttpClientSession where T: 'static + ?core::marker::Sized
+pub fn wrex_http::session::HttpClientSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::session::HttpClientSession where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpClientSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpClientSession where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpClientSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_http::session::HttpClientSession
+pub fn wrex_http::session::HttpClientSession::from(T) -> T
+pub struct wrex_http::HttpConfig
+pub wrex_http::HttpConfig::max_bytes: usize
+pub wrex_http::HttpConfig::timeout: core::time::Duration
+impl core::clone::Clone for wrex_http::session::HttpConfig
+pub fn wrex_http::session::HttpConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_http::session::HttpConfig
+pub fn wrex_http::session::HttpConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_http::session::HttpConfig
+impl core::marker::Freeze for wrex_http::session::HttpConfig
+impl core::marker::Send for wrex_http::session::HttpConfig
+impl core::marker::Sync for wrex_http::session::HttpConfig
+impl core::marker::Unpin for wrex_http::session::HttpConfig
+impl core::marker::UnsafeUnpin for wrex_http::session::HttpConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::session::HttpConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::session::HttpConfig
+impl<T, U> core::convert::Into<U> for wrex_http::session::HttpConfig where U: core::convert::From<T>
+pub fn wrex_http::session::HttpConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::session::HttpConfig where U: core::convert::Into<T>
+pub type wrex_http::session::HttpConfig::Error = never
+pub fn wrex_http::session::HttpConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::session::HttpConfig where U: core::convert::TryFrom<T>
+pub type wrex_http::session::HttpConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::session::HttpConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::session::HttpConfig where T: core::clone::Clone
+pub type wrex_http::session::HttpConfig::Owned = T
+pub fn wrex_http::session::HttpConfig::clone_into(&self, &mut T)
+pub fn wrex_http::session::HttpConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::session::HttpConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_http::session::HttpConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::session::HttpConfig where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpConfig where T: ?core::marker::Sized
+pub fn wrex_http::session::HttpConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::session::HttpConfig where T: core::clone::Clone
+pub unsafe fn wrex_http::session::HttpConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::session::HttpConfig
+pub fn wrex_http::session::HttpConfig::from(T) -> T
+pub struct wrex_http::HttpRequestSpec
+pub wrex_http::HttpRequestSpec::body: bytes::bytes::Bytes
+pub wrex_http::HttpRequestSpec::chunk_size: usize
+pub wrex_http::HttpRequestSpec::framing: wrex_http::request::RequestFraming
+pub wrex_http::HttpRequestSpec::headers: alloc::vec::Vec<(http::header::name::HeaderName, http::header::value::HeaderValue)>
+pub wrex_http::HttpRequestSpec::method: http::method::Method
+pub wrex_http::HttpRequestSpec::url: http::uri::Uri
+impl wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::build(&str, &str, &[(&str, &str)], bytes::bytes::Bytes) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::serialize(&self) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::serialize_connection(&self, bool) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::with_framing(self, wrex_http::request::RequestFraming, usize) -> Self
+impl core::clone::Clone for wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::clone(&self) -> Self
+impl core::fmt::Debug for wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_http::request::HttpRequestSpec
+impl core::marker::Send for wrex_http::request::HttpRequestSpec
+impl core::marker::Sync for wrex_http::request::HttpRequestSpec
+impl core::marker::Unpin for wrex_http::request::HttpRequestSpec
+impl core::marker::UnsafeUnpin for wrex_http::request::HttpRequestSpec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::request::HttpRequestSpec
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::request::HttpRequestSpec
+impl<T, U> core::convert::Into<U> for wrex_http::request::HttpRequestSpec where U: core::convert::From<T>
+pub fn wrex_http::request::HttpRequestSpec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::request::HttpRequestSpec where U: core::convert::Into<T>
+pub type wrex_http::request::HttpRequestSpec::Error = never
+pub fn wrex_http::request::HttpRequestSpec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::request::HttpRequestSpec where U: core::convert::TryFrom<T>
+pub type wrex_http::request::HttpRequestSpec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::request::HttpRequestSpec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::request::HttpRequestSpec where T: core::clone::Clone
+pub type wrex_http::request::HttpRequestSpec::Owned = T
+pub fn wrex_http::request::HttpRequestSpec::clone_into(&self, &mut T)
+pub fn wrex_http::request::HttpRequestSpec::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::request::HttpRequestSpec where T: 'static + ?core::marker::Sized
+pub fn wrex_http::request::HttpRequestSpec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::request::HttpRequestSpec where T: ?core::marker::Sized
+pub fn wrex_http::request::HttpRequestSpec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::request::HttpRequestSpec where T: ?core::marker::Sized
+pub fn wrex_http::request::HttpRequestSpec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::request::HttpRequestSpec where T: core::clone::Clone
+pub unsafe fn wrex_http::request::HttpRequestSpec::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::request::HttpRequestSpec
+pub fn wrex_http::request::HttpRequestSpec::from(T) -> T
+pub struct wrex_http::HttpResponse
+pub wrex_http::HttpResponse::body: bytes::bytes::Bytes
+pub wrex_http::HttpResponse::headers: http::header::map::HeaderMap
+pub wrex_http::HttpResponse::reason: alloc::string::String
+pub wrex_http::HttpResponse::status: http::status::StatusCode
+pub wrex_http::HttpResponse::version: http::version::Version
+impl wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::content_length(&self) -> core::option::Option<core::result::Result<u64, alloc::string::String>>
+pub fn wrex_http::response::HttpResponse::framing(&self, &http::method::Method) -> wrex_http::BodyFraming
+impl core::clone::Clone for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::response::HttpResponse
+impl core::cmp::PartialEq for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::response::HttpResponse
+impl !core::marker::Freeze for wrex_http::response::HttpResponse
+impl core::marker::Send for wrex_http::response::HttpResponse
+impl core::marker::Sync for wrex_http::response::HttpResponse
+impl core::marker::Unpin for wrex_http::response::HttpResponse
+impl core::marker::UnsafeUnpin for wrex_http::response::HttpResponse
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::response::HttpResponse
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::response::HttpResponse
+impl<T, U> core::convert::Into<U> for wrex_http::response::HttpResponse where U: core::convert::From<T>
+pub fn wrex_http::response::HttpResponse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::response::HttpResponse where U: core::convert::Into<T>
+pub type wrex_http::response::HttpResponse::Error = never
+pub fn wrex_http::response::HttpResponse::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::response::HttpResponse where U: core::convert::TryFrom<T>
+pub type wrex_http::response::HttpResponse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::response::HttpResponse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::response::HttpResponse where T: core::clone::Clone
+pub type wrex_http::response::HttpResponse::Owned = T
+pub fn wrex_http::response::HttpResponse::clone_into(&self, &mut T)
+pub fn wrex_http::response::HttpResponse::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::response::HttpResponse where T: 'static + ?core::marker::Sized
+pub fn wrex_http::response::HttpResponse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::response::HttpResponse where T: ?core::marker::Sized
+pub fn wrex_http::response::HttpResponse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::response::HttpResponse where T: ?core::marker::Sized
+pub fn wrex_http::response::HttpResponse::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::response::HttpResponse where T: core::clone::Clone
+pub unsafe fn wrex_http::response::HttpResponse::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::response::HttpResponse
+pub fn wrex_http::response::HttpResponse::from(T) -> T
+pub struct wrex_http::Recipe
+pub wrex_http::Recipe::body_framing: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::body_hex: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::body_text: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub wrex_http::Recipe::hpack: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::http_version: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::max_bytes: core::option::Option<u64>
+pub wrex_http::Recipe::method: alloc::string::String
+pub wrex_http::Recipe::retries: core::option::Option<u32>
+pub wrex_http::Recipe::timeout_ms: core::option::Option<u64>
+pub wrex_http::Recipe::tls_ca: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::tls_insecure: core::option::Option<bool>
+pub wrex_http::Recipe::url: alloc::string::String
+impl wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::into_request(self) -> core::result::Result<(wrex_http::request::HttpRequestSpec, wrex_http::recipe::RecipeOverrides), alloc::string::String>
+pub fn wrex_http::recipe::Recipe::parse_recipes(&str) -> core::result::Result<alloc::vec::Vec<wrex_http::recipe::Recipe>, alloc::string::String>
+impl core::clone::Clone for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::clone(&self) -> Self
+impl core::fmt::Debug for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::deserialize<__D>(__D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl core::marker::Freeze for wrex_http::recipe::Recipe
+impl core::marker::Send for wrex_http::recipe::Recipe
+impl core::marker::Sync for wrex_http::recipe::Recipe
+impl core::marker::Unpin for wrex_http::recipe::Recipe
+impl core::marker::UnsafeUnpin for wrex_http::recipe::Recipe
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::recipe::Recipe
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::recipe::Recipe
+impl<T, U> core::convert::Into<U> for wrex_http::recipe::Recipe where U: core::convert::From<T>
+pub fn wrex_http::recipe::Recipe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::recipe::Recipe where U: core::convert::Into<T>
+pub type wrex_http::recipe::Recipe::Error = never
+pub fn wrex_http::recipe::Recipe::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::recipe::Recipe where U: core::convert::TryFrom<T>
+pub type wrex_http::recipe::Recipe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::recipe::Recipe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::recipe::Recipe where T: core::clone::Clone
+pub type wrex_http::recipe::Recipe::Owned = T
+pub fn wrex_http::recipe::Recipe::clone_into(&self, &mut T)
+pub fn wrex_http::recipe::Recipe::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::recipe::Recipe where T: 'static + ?core::marker::Sized
+pub fn wrex_http::recipe::Recipe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::recipe::Recipe where T: ?core::marker::Sized
+pub fn wrex_http::recipe::Recipe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::recipe::Recipe where T: ?core::marker::Sized
+pub fn wrex_http::recipe::Recipe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::recipe::Recipe where T: core::clone::Clone
+pub unsafe fn wrex_http::recipe::Recipe::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::recipe::Recipe
+pub fn wrex_http::recipe::Recipe::from(T) -> T
+impl<T> serde_core::de::DeserializeOwned for wrex_http::recipe::Recipe where T: for<'de> serde_core::de::Deserialize<'de>
+pub const wrex_http::DEFAULT_CHUNK_SIZE: usize

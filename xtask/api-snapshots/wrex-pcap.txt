@@ -1,0 +1,240 @@
+pub mod wrex_pcap
+pub mod wrex_pcap::linktype
+pub const wrex_pcap::linktype::EN10MB: u32
+pub const wrex_pcap::linktype::LINUX_SLL: u32
+pub const wrex_pcap::linktype::RAW: u32
+pub enum wrex_pcap::PcapError
+pub wrex_pcap::PcapError::BadMagic
+pub wrex_pcap::PcapError::BadMagic::magic: u32
+pub wrex_pcap::PcapError::TooShort
+pub wrex_pcap::PcapError::TooShort::len: usize
+pub wrex_pcap::PcapError::TruncatedBlock
+pub wrex_pcap::PcapError::TruncatedBlock::index: usize
+pub wrex_pcap::PcapError::TruncatedRecord
+pub wrex_pcap::PcapError::TruncatedRecord::index: usize
+impl core::error::Error for wrex_pcap::PcapError
+impl core::fmt::Debug for wrex_pcap::PcapError
+pub fn wrex_pcap::PcapError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_pcap::PcapError
+pub fn wrex_pcap::PcapError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_pcap::PcapError
+impl core::marker::Send for wrex_pcap::PcapError
+impl core::marker::Sync for wrex_pcap::PcapError
+impl core::marker::Unpin for wrex_pcap::PcapError
+impl core::marker::UnsafeUnpin for wrex_pcap::PcapError
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_pcap::PcapError
+impl core::panic::unwind_safe::UnwindSafe for wrex_pcap::PcapError
+impl<T, U> core::convert::Into<U> for wrex_pcap::PcapError where U: core::convert::From<T>
+pub fn wrex_pcap::PcapError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_pcap::PcapError where U: core::convert::Into<T>
+pub type wrex_pcap::PcapError::Error = never
+pub fn wrex_pcap::PcapError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_pcap::PcapError where U: core::convert::TryFrom<T>
+pub type wrex_pcap::PcapError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_pcap::PcapError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for wrex_pcap::PcapError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_pcap::PcapError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_pcap::PcapError where T: 'static + ?core::marker::Sized
+pub fn wrex_pcap::PcapError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_pcap::PcapError where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_pcap::PcapError where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_pcap::PcapError
+pub fn wrex_pcap::PcapError::from(T) -> T
+pub enum wrex_pcap::TsResol
+pub wrex_pcap::TsResol::Micros
+pub wrex_pcap::TsResol::Nanos
+impl wrex_pcap::TsResol
+pub const fn wrex_pcap::TsResol::option_value(self) -> u8
+pub const fn wrex_pcap::TsResol::per_second(self) -> u64
+impl core::clone::Clone for wrex_pcap::TsResol
+pub fn wrex_pcap::TsResol::clone(&self) -> Self
+impl core::cmp::Eq for wrex_pcap::TsResol
+impl core::cmp::PartialEq for wrex_pcap::TsResol
+pub fn wrex_pcap::TsResol::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_pcap::TsResol
+pub fn wrex_pcap::TsResol::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_pcap::TsResol
+impl core::marker::StructuralPartialEq for wrex_pcap::TsResol
+impl core::marker::Freeze for wrex_pcap::TsResol
+impl core::marker::Send for wrex_pcap::TsResol
+impl core::marker::Sync for wrex_pcap::TsResol
+impl core::marker::Unpin for wrex_pcap::TsResol
+impl core::marker::UnsafeUnpin for wrex_pcap::TsResol
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_pcap::TsResol
+impl core::panic::unwind_safe::UnwindSafe for wrex_pcap::TsResol
+impl<T, U> core::convert::Into<U> for wrex_pcap::TsResol where U: core::convert::From<T>
+pub fn wrex_pcap::TsResol::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_pcap::TsResol where U: core::convert::Into<T>
+pub type wrex_pcap::TsResol::Error = never
+pub fn wrex_pcap::TsResol::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_pcap::TsResol where U: core::convert::TryFrom<T>
+pub type wrex_pcap::TsResol::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_pcap::TsResol::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_pcap::TsResol where T: core::clone::Clone
+pub type wrex_pcap::TsResol::Owned = T
+pub fn wrex_pcap::TsResol::clone_into(&self, &mut T)
+pub fn wrex_pcap::TsResol::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_pcap::TsResol where T: 'static + ?core::marker::Sized
+pub fn wrex_pcap::TsResol::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_pcap::TsResol where T: ?core::marker::Sized
+pub fn wrex_pcap::TsResol::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_pcap::TsResol where T: ?core::marker::Sized
+pub fn wrex_pcap::TsResol::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_pcap::TsResol where T: core::clone::Clone
+pub unsafe fn wrex_pcap::TsResol::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_pcap::TsResol
+pub fn wrex_pcap::TsResol::from(T) -> T
+pub struct wrex_pcap::PcapFile
+pub wrex_pcap::PcapFile::big_endian: bool
+pub wrex_pcap::PcapFile::linktype: u32
+pub wrex_pcap::PcapFile::nanosecond: bool
+pub wrex_pcap::PcapFile::pcapng: bool
+pub wrex_pcap::PcapFile::records: alloc::vec::Vec<wrex_pcap::PcapRecord>
+pub wrex_pcap::PcapFile::snaplen: u32
+impl core::clone::Clone for wrex_pcap::PcapFile
+pub fn wrex_pcap::PcapFile::clone(&self) -> Self
+impl core::fmt::Debug for wrex_pcap::PcapFile
+pub fn wrex_pcap::PcapFile::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_pcap::PcapFile
+impl core::marker::Send for wrex_pcap::PcapFile
+impl core::marker::Sync for wrex_pcap::PcapFile
+impl core::marker::Unpin for wrex_pcap::PcapFile
+impl core::marker::UnsafeUnpin for wrex_pcap::PcapFile
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_pcap::PcapFile
+impl core::panic::unwind_safe::UnwindSafe for wrex_pcap::PcapFile
+impl<T, U> core::convert::Into<U> for wrex_pcap::PcapFile where U: core::convert::From<T>
+pub fn wrex_pcap::PcapFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_pcap::PcapFile where U: core::convert::Into<T>
+pub type wrex_pcap::PcapFile::Error = never
+pub fn wrex_pcap::PcapFile::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_pcap::PcapFile where U: core::convert::TryFrom<T>
+pub type wrex_pcap::PcapFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_pcap::PcapFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_pcap::PcapFile where T: core::clone::Clone
+pub type wrex_pcap::PcapFile::Owned = T
+pub fn wrex_pcap::PcapFile::clone_into(&self, &mut T)
+pub fn wrex_pcap::PcapFile::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_pcap::PcapFile where T: 'static + ?core::marker::Sized
+pub fn wrex_pcap::PcapFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_pcap::PcapFile where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_pcap::PcapFile where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_pcap::PcapFile where T: core::clone::Clone
+pub unsafe fn wrex_pcap::PcapFile::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_pcap::PcapFile
+pub fn wrex_pcap::PcapFile::from(T) -> T
+pub struct wrex_pcap::PcapRecord
+pub wrex_pcap::PcapRecord::bytes: alloc::vec::Vec<u8>
+pub wrex_pcap::PcapRecord::iface: u32
+pub wrex_pcap::PcapRecord::orig_len: u32
+pub wrex_pcap::PcapRecord::ts: std::time::SystemTime
+impl wrex_pcap::PcapRecord
+pub fn wrex_pcap::PcapRecord::from_parts(std::time::SystemTime, alloc::vec::Vec<u8>, u32) -> Self
+pub fn wrex_pcap::PcapRecord::from_parts_iface(std::time::SystemTime, alloc::vec::Vec<u8>, u32, u32) -> Self
+impl core::clone::Clone for wrex_pcap::PcapRecord
+pub fn wrex_pcap::PcapRecord::clone(&self) -> Self
+impl core::cmp::Eq for wrex_pcap::PcapRecord
+impl core::cmp::PartialEq for wrex_pcap::PcapRecord
+pub fn wrex_pcap::PcapRecord::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_pcap::PcapRecord
+pub fn wrex_pcap::PcapRecord::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_pcap::PcapRecord
+impl core::marker::Freeze for wrex_pcap::PcapRecord
+impl core::marker::Send for wrex_pcap::PcapRecord
+impl core::marker::Sync for wrex_pcap::PcapRecord
+impl core::marker::Unpin for wrex_pcap::PcapRecord
+impl core::marker::UnsafeUnpin for wrex_pcap::PcapRecord
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_pcap::PcapRecord
+impl core::panic::unwind_safe::UnwindSafe for wrex_pcap::PcapRecord
+impl<T, U> core::convert::Into<U> for wrex_pcap::PcapRecord where U: core::convert::From<T>
+pub fn wrex_pcap::PcapRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_pcap::PcapRecord where U: core::convert::Into<T>
+pub type wrex_pcap::PcapRecord::Error = never
+pub fn wrex_pcap::PcapRecord::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_pcap::PcapRecord where U: core::convert::TryFrom<T>
+pub type wrex_pcap::PcapRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_pcap::PcapRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_pcap::PcapRecord where T: core::clone::Clone
+pub type wrex_pcap::PcapRecord::Owned = T
+pub fn wrex_pcap::PcapRecord::clone_into(&self, &mut T)
+pub fn wrex_pcap::PcapRecord::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_pcap::PcapRecord where T: 'static + ?core::marker::Sized
+pub fn wrex_pcap::PcapRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_pcap::PcapRecord where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_pcap::PcapRecord where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_pcap::PcapRecord where T: core::clone::Clone
+pub unsafe fn wrex_pcap::PcapRecord::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_pcap::PcapRecord
+pub fn wrex_pcap::PcapRecord::from(T) -> T
+pub struct wrex_pcap::PcapWriter<W: core::io::write::Write>
+impl<W: core::io::write::Write> wrex_pcap::PcapWriter<W>
+pub fn wrex_pcap::PcapWriter<W>::flush(&mut self) -> core::io::error::Result<()>
+pub fn wrex_pcap::PcapWriter<W>::into_inner(self) -> W
+pub fn wrex_pcap::PcapWriter<W>::new(W) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapWriter<W>::write_record(&mut self, std::time::SystemTime, &[u8], usize) -> core::io::error::Result<()>
+pub fn wrex_pcap::PcapWriter<W>::write_record_orig(&mut self, std::time::SystemTime, &[u8], u32, usize) -> core::io::error::Result<()>
+impl<W> core::marker::Freeze for wrex_pcap::PcapWriter<W> where W: core::marker::Freeze
+impl<W> core::marker::Send for wrex_pcap::PcapWriter<W> where W: core::marker::Send
+impl<W> core::marker::Sync for wrex_pcap::PcapWriter<W> where W: core::marker::Sync
+impl<W> core::marker::Unpin for wrex_pcap::PcapWriter<W> where W: core::marker::Unpin
+impl<W> core::marker::UnsafeUnpin for wrex_pcap::PcapWriter<W> where W: core::marker::UnsafeUnpin
+impl<W> core::panic::unwind_safe::RefUnwindSafe for wrex_pcap::PcapWriter<W> where W: core::panic::unwind_safe::RefUnwindSafe
+impl<W> core::panic::unwind_safe::UnwindSafe for wrex_pcap::PcapWriter<W> where W: core::panic::unwind_safe::UnwindSafe
+impl<T, U> core::convert::Into<U> for wrex_pcap::PcapWriter<W> where U: core::convert::From<T>
+pub fn wrex_pcap::PcapWriter<W>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_pcap::PcapWriter<W> where U: core::convert::Into<T>
+pub type wrex_pcap::PcapWriter<W>::Error = never
+pub fn wrex_pcap::PcapWriter<W>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_pcap::PcapWriter<W> where U: core::convert::TryFrom<T>
+pub type wrex_pcap::PcapWriter<W>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_pcap::PcapWriter<W>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_pcap::PcapWriter<W> where T: 'static + ?core::marker::Sized
+pub fn wrex_pcap::PcapWriter<W>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_pcap::PcapWriter<W> where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapWriter<W>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_pcap::PcapWriter<W> where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapWriter<W>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_pcap::PcapWriter<W>
+pub fn wrex_pcap::PcapWriter<W>::from(T) -> T
+pub struct wrex_pcap::PcapngWriter<W: core::io::write::Write>
+impl<W: core::io::write::Write> wrex_pcap::PcapngWriter<W>
+pub fn wrex_pcap::PcapngWriter<W>::flush(&mut self) -> core::io::error::Result<()>
+pub fn wrex_pcap::PcapngWriter<W>::into_inner(self) -> W
+pub fn wrex_pcap::PcapngWriter<W>::new(W) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapngWriter<W>::new_multi(W, &[u16]) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapngWriter<W>::with_resol(W, wrex_pcap::TsResol) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapngWriter<W>::write_record(&mut self, std::time::SystemTime, &[u8], usize) -> core::io::error::Result<()>
+pub fn wrex_pcap::PcapngWriter<W>::write_record_opts(&mut self, std::time::SystemTime, &[u8], u32, usize, u32) -> core::io::error::Result<()>
+pub fn wrex_pcap::PcapngWriter<W>::write_record_orig(&mut self, std::time::SystemTime, &[u8], u32, usize) -> core::io::error::Result<()>
+pub fn wrex_pcap::PcapngWriter<W>::write_record_orig_on(&mut self, std::time::SystemTime, &[u8], u32, usize, u32) -> core::io::error::Result<()>
+impl<W> core::marker::Freeze for wrex_pcap::PcapngWriter<W> where W: core::marker::Freeze
+impl<W> core::marker::Send for wrex_pcap::PcapngWriter<W> where W: core::marker::Send
+impl<W> core::marker::Sync for wrex_pcap::PcapngWriter<W> where W: core::marker::Sync
+impl<W> core::marker::Unpin for wrex_pcap::PcapngWriter<W> where W: core::marker::Unpin
+impl<W> core::marker::UnsafeUnpin for wrex_pcap::PcapngWriter<W> where W: core::marker::UnsafeUnpin
+impl<W> core::panic::unwind_safe::RefUnwindSafe for wrex_pcap::PcapngWriter<W> where W: core::panic::unwind_safe::RefUnwindSafe
+impl<W> core::panic::unwind_safe::UnwindSafe for wrex_pcap::PcapngWriter<W> where W: core::panic::unwind_safe::UnwindSafe
+impl<T, U> core::convert::Into<U> for wrex_pcap::PcapngWriter<W> where U: core::convert::From<T>
+pub fn wrex_pcap::PcapngWriter<W>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_pcap::PcapngWriter<W> where U: core::convert::Into<T>
+pub type wrex_pcap::PcapngWriter<W>::Error = never
+pub fn wrex_pcap::PcapngWriter<W>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_pcap::PcapngWriter<W> where U: core::convert::TryFrom<T>
+pub type wrex_pcap::PcapngWriter<W>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_pcap::PcapngWriter<W>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_pcap::PcapngWriter<W> where T: 'static + ?core::marker::Sized
+pub fn wrex_pcap::PcapngWriter<W>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_pcap::PcapngWriter<W> where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapngWriter<W>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_pcap::PcapngWriter<W> where T: ?core::marker::Sized
+pub fn wrex_pcap::PcapngWriter<W>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_pcap::PcapngWriter<W>
+pub fn wrex_pcap::PcapngWriter<W>::from(T) -> T
+pub const wrex_pcap::MAGIC_US_LE: u32
+pub const wrex_pcap::PCAPNG_SHB_TYPE: u32
+pub fn wrex_pcap::read(&[u8]) -> core::result::Result<wrex_pcap::PcapFile, wrex_pcap::PcapError>

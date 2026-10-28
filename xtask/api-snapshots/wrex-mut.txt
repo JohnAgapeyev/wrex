@@ -1,0 +1,78 @@
+pub mod wrex_mut
+pub enum wrex_mut::Strategy
+pub wrex_mut::Strategy::All
+pub wrex_mut::Strategy::Field
+pub wrex_mut::Strategy::Flip
+pub wrex_mut::Strategy::Len
+pub wrex_mut::Strategy::Raw
+pub wrex_mut::Strategy::Splice
+impl wrex_mut::Strategy
+pub fn wrex_mut::Strategy::as_str(self) -> &'static str
+pub fn wrex_mut::Strategy::parse(core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+impl core::clone::Clone for wrex_mut::Strategy
+pub fn wrex_mut::Strategy::clone(&self) -> Self
+impl core::cmp::Eq for wrex_mut::Strategy
+impl core::cmp::PartialEq for wrex_mut::Strategy
+pub fn wrex_mut::Strategy::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_mut::Strategy
+pub fn wrex_mut::Strategy::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_mut::Strategy
+impl core::marker::StructuralPartialEq for wrex_mut::Strategy
+impl core::marker::Freeze for wrex_mut::Strategy
+impl core::marker::Send for wrex_mut::Strategy
+impl core::marker::Sync for wrex_mut::Strategy
+impl core::marker::Unpin for wrex_mut::Strategy
+impl core::marker::UnsafeUnpin for wrex_mut::Strategy
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_mut::Strategy
+impl core::panic::unwind_safe::UnwindSafe for wrex_mut::Strategy
+impl<T, U> core::convert::Into<U> for wrex_mut::Strategy where U: core::convert::From<T>
+pub fn wrex_mut::Strategy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_mut::Strategy where U: core::convert::Into<T>
+pub type wrex_mut::Strategy::Error = never
+pub fn wrex_mut::Strategy::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_mut::Strategy where U: core::convert::TryFrom<T>
+pub type wrex_mut::Strategy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_mut::Strategy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_mut::Strategy where T: core::clone::Clone
+pub type wrex_mut::Strategy::Owned = T
+pub fn wrex_mut::Strategy::clone_into(&self, &mut T)
+pub fn wrex_mut::Strategy::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_mut::Strategy where T: 'static + ?core::marker::Sized
+pub fn wrex_mut::Strategy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_mut::Strategy where T: ?core::marker::Sized
+pub fn wrex_mut::Strategy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_mut::Strategy where T: ?core::marker::Sized
+pub fn wrex_mut::Strategy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_mut::Strategy where T: core::clone::Clone
+pub unsafe fn wrex_mut::Strategy::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_mut::Strategy
+pub fn wrex_mut::Strategy::from(T) -> T
+pub struct wrex_mut::Mutator<'a>
+impl<'a> wrex_mut::Mutator<'a>
+pub fn wrex_mut::Mutator<'a>::new(&'a wrex_core::codec::Registry, alloc::vec::Vec<alloc::vec::Vec<u8>>, wrex_mut::Strategy, u64) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_mut::Mutator<'a>::next_mutant(&mut self) -> alloc::vec::Vec<u8>
+pub fn wrex_mut::Mutator<'a>::strategy(&self) -> wrex_mut::Strategy
+impl<'a> core::marker::Freeze for wrex_mut::Mutator<'a>
+impl<'a> core::marker::Send for wrex_mut::Mutator<'a>
+impl<'a> core::marker::Sync for wrex_mut::Mutator<'a>
+impl<'a> core::marker::Unpin for wrex_mut::Mutator<'a>
+impl<'a> core::marker::UnsafeUnpin for wrex_mut::Mutator<'a>
+impl<'a> !core::panic::unwind_safe::RefUnwindSafe for wrex_mut::Mutator<'a>
+impl<'a> !core::panic::unwind_safe::UnwindSafe for wrex_mut::Mutator<'a>
+impl<T, U> core::convert::Into<U> for wrex_mut::Mutator<'a> where U: core::convert::From<T>
+pub fn wrex_mut::Mutator<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_mut::Mutator<'a> where U: core::convert::Into<T>
+pub type wrex_mut::Mutator<'a>::Error = never
+pub fn wrex_mut::Mutator<'a>::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_mut::Mutator<'a> where U: core::convert::TryFrom<T>
+pub type wrex_mut::Mutator<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_mut::Mutator<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_mut::Mutator<'a> where T: 'static + ?core::marker::Sized
+pub fn wrex_mut::Mutator<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_mut::Mutator<'a> where T: ?core::marker::Sized
+pub fn wrex_mut::Mutator<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_mut::Mutator<'a> where T: ?core::marker::Sized
+pub fn wrex_mut::Mutator<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_mut::Mutator<'a>
+pub fn wrex_mut::Mutator<'a>::from(T) -> T
+pub fn wrex_mut::spec_from_frame(&wrex_core::codec::Registry, &[u8]) -> core::option::Option<wrex_core::spec::PacketSpec>

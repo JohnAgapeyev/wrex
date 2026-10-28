@@ -1,0 +1,54 @@
+pub mod wrex_proto_dhcp6
+pub mod wrex_proto_dhcp6::options
+pub const wrex_proto_dhcp6::options::MSG_TYPES: [(&str, u8); 13]
+pub const wrex_proto_dhcp6::options::OPT_CLIENT_ID: u16
+pub const wrex_proto_dhcp6::options::OPT_DNS_SERVERS: u16
+pub const wrex_proto_dhcp6::options::OPT_DOMAIN_LIST: u16
+pub const wrex_proto_dhcp6::options::OPT_ELAPSED_TIME: u16
+pub const wrex_proto_dhcp6::options::OPT_IA_ADDR: u16
+pub const wrex_proto_dhcp6::options::OPT_IA_NA: u16
+pub const wrex_proto_dhcp6::options::OPT_ORO: u16
+pub const wrex_proto_dhcp6::options::OPT_RAPID_COMMIT: u16
+pub const wrex_proto_dhcp6::options::OPT_SERVER_ID: u16
+pub fn wrex_proto_dhcp6::options::decode_domain_names(&[u8]) -> core::option::Option<alloc::string::String>
+pub fn wrex_proto_dhcp6::options::encode_domain_name(&str) -> core::result::Result<alloc::vec::Vec<u8>, wrex_core::error::EncodeError>
+pub fn wrex_proto_dhcp6::options::parse_msg_type(&str) -> core::option::Option<u8>
+pub fn wrex_proto_dhcp6::options::render_msg_type(u8) -> alloc::string::String
+pub mod wrex_proto_dhcp6::strategy
+pub fn wrex_proto_dhcp6::strategy::strategy() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_dhcp6::Dhcp6Codec
+impl wrex_core::codec::Codec for wrex_proto_dhcp6::Dhcp6Codec
+pub fn wrex_proto_dhcp6::Dhcp6Codec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_dhcp6::Dhcp6Codec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_dhcp6::Dhcp6Codec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_dhcp6::Dhcp6Codec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_dhcp6::Dhcp6Codec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_dhcp6::Dhcp6Codec
+impl core::marker::Send for wrex_proto_dhcp6::Dhcp6Codec
+impl core::marker::Sync for wrex_proto_dhcp6::Dhcp6Codec
+impl core::marker::Unpin for wrex_proto_dhcp6::Dhcp6Codec
+impl core::marker::UnsafeUnpin for wrex_proto_dhcp6::Dhcp6Codec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_dhcp6::Dhcp6Codec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_dhcp6::Dhcp6Codec
+impl<T, U> core::convert::Into<U> for wrex_proto_dhcp6::Dhcp6Codec where U: core::convert::From<T>
+pub fn wrex_proto_dhcp6::Dhcp6Codec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_dhcp6::Dhcp6Codec where U: core::convert::Into<T>
+pub type wrex_proto_dhcp6::Dhcp6Codec::Error = never
+pub fn wrex_proto_dhcp6::Dhcp6Codec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_dhcp6::Dhcp6Codec where U: core::convert::TryFrom<T>
+pub type wrex_proto_dhcp6::Dhcp6Codec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_dhcp6::Dhcp6Codec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_dhcp6::Dhcp6Codec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_dhcp6::Dhcp6Codec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_dhcp6::Dhcp6Codec where T: ?core::marker::Sized
+pub fn wrex_proto_dhcp6::Dhcp6Codec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_dhcp6::Dhcp6Codec where T: ?core::marker::Sized
+pub fn wrex_proto_dhcp6::Dhcp6Codec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_dhcp6::Dhcp6Codec
+pub fn wrex_proto_dhcp6::Dhcp6Codec::from(T) -> T
+pub const wrex_proto_dhcp6::HEADER_LEN: usize
+pub const wrex_proto_dhcp6::KIND: &str
+pub const wrex_proto_dhcp6::RELAY_HEADER_LEN: usize
+pub static wrex_proto_dhcp6::CODEC: wrex_proto_dhcp6::Dhcp6Codec
+pub static wrex_proto_dhcp6::SCHEMA: wrex_core::schema::LayerSchema
+pub fn wrex_proto_dhcp6::register(&mut wrex_core::codec::Registry)

@@ -1,0 +1,613 @@
+pub mod wrex_h2
+pub mod wrex_h2::frame
+pub enum wrex_h2::frame::FrameStep
+pub wrex_h2::frame::FrameStep::Have
+pub wrex_h2::frame::FrameStep::Have::consumed: usize
+pub wrex_h2::frame::FrameStep::Have::header: wrex_h2::frame::FrameHeader
+pub wrex_h2::frame::FrameStep::Have::payload: bytes::bytes::Bytes
+pub wrex_h2::frame::FrameStep::Malformed(alloc::string::String)
+pub wrex_h2::frame::FrameStep::Need
+impl core::fmt::Debug for wrex_h2::frame::FrameStep
+pub fn wrex_h2::frame::FrameStep::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_h2::frame::FrameStep
+impl core::marker::Send for wrex_h2::frame::FrameStep
+impl core::marker::Sync for wrex_h2::frame::FrameStep
+impl core::marker::Unpin for wrex_h2::frame::FrameStep
+impl core::marker::UnsafeUnpin for wrex_h2::frame::FrameStep
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::frame::FrameStep
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::frame::FrameStep
+impl<T, U> core::convert::Into<U> for wrex_h2::frame::FrameStep where U: core::convert::From<T>
+pub fn wrex_h2::frame::FrameStep::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::frame::FrameStep where U: core::convert::Into<T>
+pub type wrex_h2::frame::FrameStep::Error = never
+pub fn wrex_h2::frame::FrameStep::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::frame::FrameStep where U: core::convert::TryFrom<T>
+pub type wrex_h2::frame::FrameStep::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::frame::FrameStep::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::frame::FrameStep where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::frame::FrameStep::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::frame::FrameStep where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameStep::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameStep where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameStep::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::frame::FrameStep
+pub fn wrex_h2::frame::FrameStep::from(T) -> T
+pub enum wrex_h2::frame::FrameType
+pub wrex_h2::frame::FrameType::Continuation
+pub wrex_h2::frame::FrameType::Data
+pub wrex_h2::frame::FrameType::Goaway
+pub wrex_h2::frame::FrameType::Headers
+pub wrex_h2::frame::FrameType::Ping
+pub wrex_h2::frame::FrameType::Priority
+pub wrex_h2::frame::FrameType::PushPromise
+pub wrex_h2::frame::FrameType::RstStream
+pub wrex_h2::frame::FrameType::Settings
+pub wrex_h2::frame::FrameType::Unknown(u8)
+pub wrex_h2::frame::FrameType::WindowUpdate
+impl wrex_h2::frame::FrameType
+pub const fn wrex_h2::frame::FrameType::from_u8(u8) -> Self
+pub const fn wrex_h2::frame::FrameType::to_u8(self) -> u8
+impl core::clone::Clone for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::clone(&self) -> Self
+impl core::cmp::Eq for wrex_h2::frame::FrameType
+impl core::cmp::PartialEq for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_h2::frame::FrameType
+impl core::marker::StructuralPartialEq for wrex_h2::frame::FrameType
+impl core::marker::Freeze for wrex_h2::frame::FrameType
+impl core::marker::Send for wrex_h2::frame::FrameType
+impl core::marker::Sync for wrex_h2::frame::FrameType
+impl core::marker::Unpin for wrex_h2::frame::FrameType
+impl core::marker::UnsafeUnpin for wrex_h2::frame::FrameType
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::frame::FrameType
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::frame::FrameType
+impl<T, U> core::convert::Into<U> for wrex_h2::frame::FrameType where U: core::convert::From<T>
+pub fn wrex_h2::frame::FrameType::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::frame::FrameType where U: core::convert::Into<T>
+pub type wrex_h2::frame::FrameType::Error = never
+pub fn wrex_h2::frame::FrameType::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::frame::FrameType where U: core::convert::TryFrom<T>
+pub type wrex_h2::frame::FrameType::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::frame::FrameType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_h2::frame::FrameType where T: core::clone::Clone
+pub type wrex_h2::frame::FrameType::Owned = T
+pub fn wrex_h2::frame::FrameType::clone_into(&self, &mut T)
+pub fn wrex_h2::frame::FrameType::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_h2::frame::FrameType where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::frame::FrameType::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::frame::FrameType where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameType::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameType where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameType::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameType where T: core::clone::Clone
+pub unsafe fn wrex_h2::frame::FrameType::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::from(T) -> T
+pub struct wrex_h2::frame::FrameHeader
+pub wrex_h2::frame::FrameHeader::flags: u8
+pub wrex_h2::frame::FrameHeader::stream_id: u32
+pub wrex_h2::frame::FrameHeader::ty: wrex_h2::frame::FrameType
+impl wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::encode(&self, u32, &mut bytes::bytes_mut::BytesMut)
+impl core::clone::Clone for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::clone(&self) -> Self
+impl core::cmp::Eq for wrex_h2::frame::FrameHeader
+impl core::cmp::PartialEq for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_h2::frame::FrameHeader
+impl core::marker::StructuralPartialEq for wrex_h2::frame::FrameHeader
+impl core::marker::Freeze for wrex_h2::frame::FrameHeader
+impl core::marker::Send for wrex_h2::frame::FrameHeader
+impl core::marker::Sync for wrex_h2::frame::FrameHeader
+impl core::marker::Unpin for wrex_h2::frame::FrameHeader
+impl core::marker::UnsafeUnpin for wrex_h2::frame::FrameHeader
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::frame::FrameHeader
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::frame::FrameHeader
+impl<T, U> core::convert::Into<U> for wrex_h2::frame::FrameHeader where U: core::convert::From<T>
+pub fn wrex_h2::frame::FrameHeader::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::frame::FrameHeader where U: core::convert::Into<T>
+pub type wrex_h2::frame::FrameHeader::Error = never
+pub fn wrex_h2::frame::FrameHeader::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::frame::FrameHeader where U: core::convert::TryFrom<T>
+pub type wrex_h2::frame::FrameHeader::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::frame::FrameHeader::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_h2::frame::FrameHeader where T: core::clone::Clone
+pub type wrex_h2::frame::FrameHeader::Owned = T
+pub fn wrex_h2::frame::FrameHeader::clone_into(&self, &mut T)
+pub fn wrex_h2::frame::FrameHeader::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_h2::frame::FrameHeader where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::frame::FrameHeader::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::frame::FrameHeader where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameHeader::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameHeader where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameHeader::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameHeader where T: core::clone::Clone
+pub unsafe fn wrex_h2::frame::FrameHeader::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::from(T) -> T
+pub const wrex_h2::frame::ACK: u8
+pub const wrex_h2::frame::DEFAULT_MAX_FRAME: u32
+pub const wrex_h2::frame::DEFAULT_WINDOW: i64
+pub const wrex_h2::frame::END_HEADERS: u8
+pub const wrex_h2::frame::END_STREAM: u8
+pub const wrex_h2::frame::HEADER_LEN: usize
+pub const wrex_h2::frame::MAX_WINDOW: i64
+pub const wrex_h2::frame::PADDED: u8
+pub const wrex_h2::frame::PREFACE: &[u8]
+pub const wrex_h2::frame::PRIORITY: u8
+pub const wrex_h2::frame::SETTINGS_HEADER_TABLE_SIZE: u16
+pub const wrex_h2::frame::SETTINGS_INITIAL_WINDOW_SIZE: u16
+pub const wrex_h2::frame::SETTINGS_MAX_CONCURRENT_STREAMS: u16
+pub const wrex_h2::frame::SETTINGS_MAX_FRAME_SIZE: u16
+pub fn wrex_h2::frame::data_frame(u32, &[u8], bool) -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::decode_frame(&[u8]) -> wrex_h2::frame::FrameStep
+pub fn wrex_h2::frame::encode(wrex_h2::frame::FrameType, u8, u32, &[u8]) -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::encode_settings(&mut bytes::bytes_mut::BytesMut, &[(u16, u32)])
+pub fn wrex_h2::frame::goaway_frame(u32, u32) -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::headers_frame(u32, &[u8], bool) -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::parse_settings(&[u8]) -> core::result::Result<alloc::vec::Vec<(u16, u32)>, alloc::string::String>
+pub fn wrex_h2::frame::parse_window_update(&[u8]) -> core::result::Result<u32, alloc::string::String>
+pub fn wrex_h2::frame::ping_ack_frame(&[u8]) -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::settings_ack_frame() -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::settings_frame() -> bytes::bytes::Bytes
+pub fn wrex_h2::frame::strip_padding(u8, &[u8]) -> core::result::Result<&[u8], alloc::string::String>
+pub fn wrex_h2::frame::window_update_frame(u32, u32) -> bytes::bytes::Bytes
+pub mod wrex_h2::hpack
+pub enum wrex_h2::hpack::HpackEncodePolicy
+pub wrex_h2::hpack::HpackEncodePolicy::Indexed
+pub wrex_h2::hpack::HpackEncodePolicy::Literal
+impl core::clone::Clone for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::clone(&self) -> Self
+impl core::cmp::Eq for wrex_h2::hpack::HpackEncodePolicy
+impl core::cmp::PartialEq for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::eq(&self, &Self) -> bool
+impl core::default::Default for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::default() -> Self
+impl core::fmt::Debug for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::StructuralPartialEq for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Freeze for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Send for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Sync for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Unpin for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::UnsafeUnpin for wrex_h2::hpack::HpackEncodePolicy
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::hpack::HpackEncodePolicy
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::hpack::HpackEncodePolicy
+impl<T, U> core::convert::Into<U> for wrex_h2::hpack::HpackEncodePolicy where U: core::convert::From<T>
+pub fn wrex_h2::hpack::HpackEncodePolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::hpack::HpackEncodePolicy where U: core::convert::Into<T>
+pub type wrex_h2::hpack::HpackEncodePolicy::Error = never
+pub fn wrex_h2::hpack::HpackEncodePolicy::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::hpack::HpackEncodePolicy where U: core::convert::TryFrom<T>
+pub type wrex_h2::hpack::HpackEncodePolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::hpack::HpackEncodePolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_h2::hpack::HpackEncodePolicy where T: core::clone::Clone
+pub type wrex_h2::hpack::HpackEncodePolicy::Owned = T
+pub fn wrex_h2::hpack::HpackEncodePolicy::clone_into(&self, &mut T)
+pub fn wrex_h2::hpack::HpackEncodePolicy::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_h2::hpack::HpackEncodePolicy where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncodePolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::hpack::HpackEncodePolicy where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncodePolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackEncodePolicy where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncodePolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_h2::hpack::HpackEncodePolicy where T: core::clone::Clone
+pub unsafe fn wrex_h2::hpack::HpackEncodePolicy::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::from(T) -> T
+pub struct wrex_h2::hpack::HpackDecoder
+impl wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::decode(&mut self, &[u8]) -> core::result::Result<wrex_h2::hpack::HeaderList, alloc::string::String>
+pub fn wrex_h2::hpack::HpackDecoder::dynamic_entries(&self) -> &alloc::collections::vec_deque::VecDeque<(alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)>
+pub fn wrex_h2::hpack::HpackDecoder::new(usize) -> Self
+pub fn wrex_h2::hpack::HpackDecoder::set_max_size(&mut self, usize)
+pub fn wrex_h2::hpack::HpackDecoder::size(&self) -> usize
+impl core::default::Default for wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::default() -> Self
+impl core::fmt::Debug for wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_h2::hpack::HpackDecoder
+impl core::marker::Send for wrex_h2::hpack::HpackDecoder
+impl core::marker::Sync for wrex_h2::hpack::HpackDecoder
+impl core::marker::Unpin for wrex_h2::hpack::HpackDecoder
+impl core::marker::UnsafeUnpin for wrex_h2::hpack::HpackDecoder
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::hpack::HpackDecoder
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::hpack::HpackDecoder
+impl<T, U> core::convert::Into<U> for wrex_h2::hpack::HpackDecoder where U: core::convert::From<T>
+pub fn wrex_h2::hpack::HpackDecoder::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::hpack::HpackDecoder where U: core::convert::Into<T>
+pub type wrex_h2::hpack::HpackDecoder::Error = never
+pub fn wrex_h2::hpack::HpackDecoder::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::hpack::HpackDecoder where U: core::convert::TryFrom<T>
+pub type wrex_h2::hpack::HpackDecoder::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::hpack::HpackDecoder::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::hpack::HpackDecoder where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackDecoder::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::hpack::HpackDecoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackDecoder::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackDecoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackDecoder::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::from(T) -> T
+pub struct wrex_h2::hpack::HpackEncoder
+impl wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::dynamic_entries(&self) -> &alloc::collections::vec_deque::VecDeque<(alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)>
+pub fn wrex_h2::hpack::HpackEncoder::encode(&mut self, &[(&str, &str)]) -> bytes::bytes::Bytes
+pub fn wrex_h2::hpack::HpackEncoder::new(wrex_h2::hpack::HpackEncodePolicy) -> Self
+pub fn wrex_h2::hpack::HpackEncoder::policy(&self) -> wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncoder::set_max_size(&mut self, usize)
+pub fn wrex_h2::hpack::HpackEncoder::size(&self) -> usize
+pub fn wrex_h2::hpack::HpackEncoder::with_max_size(wrex_h2::hpack::HpackEncodePolicy, usize) -> Self
+impl core::default::Default for wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::default() -> Self
+impl core::fmt::Debug for wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_h2::hpack::HpackEncoder
+impl core::marker::Send for wrex_h2::hpack::HpackEncoder
+impl core::marker::Sync for wrex_h2::hpack::HpackEncoder
+impl core::marker::Unpin for wrex_h2::hpack::HpackEncoder
+impl core::marker::UnsafeUnpin for wrex_h2::hpack::HpackEncoder
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::hpack::HpackEncoder
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::hpack::HpackEncoder
+impl<T, U> core::convert::Into<U> for wrex_h2::hpack::HpackEncoder where U: core::convert::From<T>
+pub fn wrex_h2::hpack::HpackEncoder::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::hpack::HpackEncoder where U: core::convert::Into<T>
+pub type wrex_h2::hpack::HpackEncoder::Error = never
+pub fn wrex_h2::hpack::HpackEncoder::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::hpack::HpackEncoder where U: core::convert::TryFrom<T>
+pub type wrex_h2::hpack::HpackEncoder::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::hpack::HpackEncoder::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::hpack::HpackEncoder where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncoder::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::hpack::HpackEncoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncoder::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackEncoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncoder::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::from(T) -> T
+pub const wrex_h2::hpack::DEFAULT_MAX_SIZE: usize
+pub const wrex_h2::hpack::MAX_STRING: usize
+pub static wrex_h2::hpack::STATIC_TABLE: [(&str, &str); 61]
+pub fn wrex_h2::hpack::decode_integer(&[u8], u8) -> core::result::Result<(u32, usize), alloc::string::String>
+pub fn wrex_h2::hpack::encode_header_block(&[(&str, &str)]) -> bytes::bytes::Bytes
+pub fn wrex_h2::hpack::encode_integer(&mut bytes::bytes_mut::BytesMut, u8, u32)
+pub const fn wrex_h2::hpack::static_entry(usize) -> core::option::Option<(&'static str, &'static str)>
+pub type wrex_h2::hpack::HeaderField = (alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)
+pub type wrex_h2::hpack::HeaderList = alloc::vec::Vec<wrex_h2::hpack::HeaderField>
+pub mod wrex_h2::huffman
+pub static wrex_h2::huffman::HUFFMAN_TABLE: [(u32, u32, u8); 257]
+pub fn wrex_h2::huffman::huffman_decode(&[u8]) -> core::result::Result<alloc::vec::Vec<u8>, alloc::string::String>
+pub fn wrex_h2::huffman::huffman_encode(&[u8]) -> alloc::vec::Vec<u8>
+pub const fn wrex_h2::huffman::huffman_encoded_len(&[u8]) -> usize
+pub mod wrex_h2::session
+pub struct wrex_h2::session::H2Session
+impl wrex_h2::session::H2Session
+pub fn wrex_h2::session::H2Session::new(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, wrex_h2::session::H2Error>
+pub fn wrex_h2::session::H2Session::with_policy(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant, wrex_h2::hpack::HpackEncodePolicy) -> core::result::Result<Self, wrex_h2::session::H2Error>
+impl core::fmt::Debug for wrex_h2::session::H2Session
+pub fn wrex_h2::session::H2Session::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl wrex_session::Session for wrex_h2::session::H2Session
+pub type wrex_h2::session::H2Session::Output = wrex_http::session::HttpOutcome
+pub fn wrex_h2::session::H2Session::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_h2::session::H2Session::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_h2::session::H2Session::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_h2::session::H2Session::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_h2::session::H2Session::poll_result(&mut self) -> core::option::Option<wrex_http::session::HttpOutcome>
+impl core::marker::Freeze for wrex_h2::session::H2Session
+impl core::marker::Send for wrex_h2::session::H2Session
+impl core::marker::Sync for wrex_h2::session::H2Session
+impl core::marker::Unpin for wrex_h2::session::H2Session
+impl core::marker::UnsafeUnpin for wrex_h2::session::H2Session
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::session::H2Session
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::session::H2Session
+impl<T, U> core::convert::Into<U> for wrex_h2::session::H2Session where U: core::convert::From<T>
+pub fn wrex_h2::session::H2Session::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::session::H2Session where U: core::convert::Into<T>
+pub type wrex_h2::session::H2Session::Error = never
+pub fn wrex_h2::session::H2Session::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::session::H2Session where U: core::convert::TryFrom<T>
+pub type wrex_h2::session::H2Session::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::session::H2Session::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::session::H2Session where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::session::H2Session::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::session::H2Session where T: ?core::marker::Sized
+pub fn wrex_h2::session::H2Session::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::session::H2Session where T: ?core::marker::Sized
+pub fn wrex_h2::session::H2Session::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::session::H2Session
+pub fn wrex_h2::session::H2Session::from(T) -> T
+pub const wrex_h2::session::MAX_STREAMS: usize
+pub fn wrex_h2::session::encode_request_headers(&wrex_http::request::HttpRequestSpec, &mut wrex_h2::hpack::HpackEncoder) -> core::result::Result<bytes::bytes::Bytes, wrex_h2::session::H2Error>
+pub type wrex_h2::session::H2Error = alloc::string::String
+pub enum wrex_h2::FrameStep
+pub wrex_h2::FrameStep::Have
+pub wrex_h2::FrameStep::Have::consumed: usize
+pub wrex_h2::FrameStep::Have::header: wrex_h2::frame::FrameHeader
+pub wrex_h2::FrameStep::Have::payload: bytes::bytes::Bytes
+pub wrex_h2::FrameStep::Malformed(alloc::string::String)
+pub wrex_h2::FrameStep::Need
+impl core::fmt::Debug for wrex_h2::frame::FrameStep
+pub fn wrex_h2::frame::FrameStep::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_h2::frame::FrameStep
+impl core::marker::Send for wrex_h2::frame::FrameStep
+impl core::marker::Sync for wrex_h2::frame::FrameStep
+impl core::marker::Unpin for wrex_h2::frame::FrameStep
+impl core::marker::UnsafeUnpin for wrex_h2::frame::FrameStep
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::frame::FrameStep
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::frame::FrameStep
+impl<T, U> core::convert::Into<U> for wrex_h2::frame::FrameStep where U: core::convert::From<T>
+pub fn wrex_h2::frame::FrameStep::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::frame::FrameStep where U: core::convert::Into<T>
+pub type wrex_h2::frame::FrameStep::Error = never
+pub fn wrex_h2::frame::FrameStep::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::frame::FrameStep where U: core::convert::TryFrom<T>
+pub type wrex_h2::frame::FrameStep::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::frame::FrameStep::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::frame::FrameStep where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::frame::FrameStep::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::frame::FrameStep where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameStep::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameStep where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameStep::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::frame::FrameStep
+pub fn wrex_h2::frame::FrameStep::from(T) -> T
+pub enum wrex_h2::FrameType
+pub wrex_h2::FrameType::Continuation
+pub wrex_h2::FrameType::Data
+pub wrex_h2::FrameType::Goaway
+pub wrex_h2::FrameType::Headers
+pub wrex_h2::FrameType::Ping
+pub wrex_h2::FrameType::Priority
+pub wrex_h2::FrameType::PushPromise
+pub wrex_h2::FrameType::RstStream
+pub wrex_h2::FrameType::Settings
+pub wrex_h2::FrameType::Unknown(u8)
+pub wrex_h2::FrameType::WindowUpdate
+impl wrex_h2::frame::FrameType
+pub const fn wrex_h2::frame::FrameType::from_u8(u8) -> Self
+pub const fn wrex_h2::frame::FrameType::to_u8(self) -> u8
+impl core::clone::Clone for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::clone(&self) -> Self
+impl core::cmp::Eq for wrex_h2::frame::FrameType
+impl core::cmp::PartialEq for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_h2::frame::FrameType
+impl core::marker::StructuralPartialEq for wrex_h2::frame::FrameType
+impl core::marker::Freeze for wrex_h2::frame::FrameType
+impl core::marker::Send for wrex_h2::frame::FrameType
+impl core::marker::Sync for wrex_h2::frame::FrameType
+impl core::marker::Unpin for wrex_h2::frame::FrameType
+impl core::marker::UnsafeUnpin for wrex_h2::frame::FrameType
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::frame::FrameType
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::frame::FrameType
+impl<T, U> core::convert::Into<U> for wrex_h2::frame::FrameType where U: core::convert::From<T>
+pub fn wrex_h2::frame::FrameType::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::frame::FrameType where U: core::convert::Into<T>
+pub type wrex_h2::frame::FrameType::Error = never
+pub fn wrex_h2::frame::FrameType::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::frame::FrameType where U: core::convert::TryFrom<T>
+pub type wrex_h2::frame::FrameType::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::frame::FrameType::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_h2::frame::FrameType where T: core::clone::Clone
+pub type wrex_h2::frame::FrameType::Owned = T
+pub fn wrex_h2::frame::FrameType::clone_into(&self, &mut T)
+pub fn wrex_h2::frame::FrameType::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_h2::frame::FrameType where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::frame::FrameType::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::frame::FrameType where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameType::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameType where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameType::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameType where T: core::clone::Clone
+pub unsafe fn wrex_h2::frame::FrameType::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_h2::frame::FrameType
+pub fn wrex_h2::frame::FrameType::from(T) -> T
+pub enum wrex_h2::HpackEncodePolicy
+pub wrex_h2::HpackEncodePolicy::Indexed
+pub wrex_h2::HpackEncodePolicy::Literal
+impl core::clone::Clone for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::clone(&self) -> Self
+impl core::cmp::Eq for wrex_h2::hpack::HpackEncodePolicy
+impl core::cmp::PartialEq for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::eq(&self, &Self) -> bool
+impl core::default::Default for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::default() -> Self
+impl core::fmt::Debug for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::StructuralPartialEq for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Freeze for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Send for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Sync for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::Unpin for wrex_h2::hpack::HpackEncodePolicy
+impl core::marker::UnsafeUnpin for wrex_h2::hpack::HpackEncodePolicy
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::hpack::HpackEncodePolicy
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::hpack::HpackEncodePolicy
+impl<T, U> core::convert::Into<U> for wrex_h2::hpack::HpackEncodePolicy where U: core::convert::From<T>
+pub fn wrex_h2::hpack::HpackEncodePolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::hpack::HpackEncodePolicy where U: core::convert::Into<T>
+pub type wrex_h2::hpack::HpackEncodePolicy::Error = never
+pub fn wrex_h2::hpack::HpackEncodePolicy::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::hpack::HpackEncodePolicy where U: core::convert::TryFrom<T>
+pub type wrex_h2::hpack::HpackEncodePolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::hpack::HpackEncodePolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_h2::hpack::HpackEncodePolicy where T: core::clone::Clone
+pub type wrex_h2::hpack::HpackEncodePolicy::Owned = T
+pub fn wrex_h2::hpack::HpackEncodePolicy::clone_into(&self, &mut T)
+pub fn wrex_h2::hpack::HpackEncodePolicy::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_h2::hpack::HpackEncodePolicy where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncodePolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::hpack::HpackEncodePolicy where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncodePolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackEncodePolicy where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncodePolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_h2::hpack::HpackEncodePolicy where T: core::clone::Clone
+pub unsafe fn wrex_h2::hpack::HpackEncodePolicy::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncodePolicy::from(T) -> T
+pub struct wrex_h2::FrameHeader
+pub wrex_h2::FrameHeader::flags: u8
+pub wrex_h2::FrameHeader::stream_id: u32
+pub wrex_h2::FrameHeader::ty: wrex_h2::frame::FrameType
+impl wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::encode(&self, u32, &mut bytes::bytes_mut::BytesMut)
+impl core::clone::Clone for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::clone(&self) -> Self
+impl core::cmp::Eq for wrex_h2::frame::FrameHeader
+impl core::cmp::PartialEq for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_h2::frame::FrameHeader
+impl core::marker::StructuralPartialEq for wrex_h2::frame::FrameHeader
+impl core::marker::Freeze for wrex_h2::frame::FrameHeader
+impl core::marker::Send for wrex_h2::frame::FrameHeader
+impl core::marker::Sync for wrex_h2::frame::FrameHeader
+impl core::marker::Unpin for wrex_h2::frame::FrameHeader
+impl core::marker::UnsafeUnpin for wrex_h2::frame::FrameHeader
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::frame::FrameHeader
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::frame::FrameHeader
+impl<T, U> core::convert::Into<U> for wrex_h2::frame::FrameHeader where U: core::convert::From<T>
+pub fn wrex_h2::frame::FrameHeader::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::frame::FrameHeader where U: core::convert::Into<T>
+pub type wrex_h2::frame::FrameHeader::Error = never
+pub fn wrex_h2::frame::FrameHeader::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::frame::FrameHeader where U: core::convert::TryFrom<T>
+pub type wrex_h2::frame::FrameHeader::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::frame::FrameHeader::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_h2::frame::FrameHeader where T: core::clone::Clone
+pub type wrex_h2::frame::FrameHeader::Owned = T
+pub fn wrex_h2::frame::FrameHeader::clone_into(&self, &mut T)
+pub fn wrex_h2::frame::FrameHeader::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_h2::frame::FrameHeader where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::frame::FrameHeader::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::frame::FrameHeader where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameHeader::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameHeader where T: ?core::marker::Sized
+pub fn wrex_h2::frame::FrameHeader::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameHeader where T: core::clone::Clone
+pub unsafe fn wrex_h2::frame::FrameHeader::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_h2::frame::FrameHeader
+pub fn wrex_h2::frame::FrameHeader::from(T) -> T
+pub struct wrex_h2::H2Session
+impl wrex_h2::session::H2Session
+pub fn wrex_h2::session::H2Session::new(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, wrex_h2::session::H2Error>
+pub fn wrex_h2::session::H2Session::with_policy(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant, wrex_h2::hpack::HpackEncodePolicy) -> core::result::Result<Self, wrex_h2::session::H2Error>
+impl core::fmt::Debug for wrex_h2::session::H2Session
+pub fn wrex_h2::session::H2Session::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl wrex_session::Session for wrex_h2::session::H2Session
+pub type wrex_h2::session::H2Session::Output = wrex_http::session::HttpOutcome
+pub fn wrex_h2::session::H2Session::next_timeout(&mut self) -> core::option::Option<std::time::Instant>
+pub fn wrex_h2::session::H2Session::on_frame(&mut self, wrex_io::driver::Frame, std::time::Instant)
+pub fn wrex_h2::session::H2Session::on_timeout(&mut self, std::time::Instant)
+pub fn wrex_h2::session::H2Session::poll_action(&mut self) -> core::option::Option<wrex_session::SessionAction>
+pub fn wrex_h2::session::H2Session::poll_result(&mut self) -> core::option::Option<wrex_http::session::HttpOutcome>
+impl core::marker::Freeze for wrex_h2::session::H2Session
+impl core::marker::Send for wrex_h2::session::H2Session
+impl core::marker::Sync for wrex_h2::session::H2Session
+impl core::marker::Unpin for wrex_h2::session::H2Session
+impl core::marker::UnsafeUnpin for wrex_h2::session::H2Session
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::session::H2Session
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::session::H2Session
+impl<T, U> core::convert::Into<U> for wrex_h2::session::H2Session where U: core::convert::From<T>
+pub fn wrex_h2::session::H2Session::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::session::H2Session where U: core::convert::Into<T>
+pub type wrex_h2::session::H2Session::Error = never
+pub fn wrex_h2::session::H2Session::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::session::H2Session where U: core::convert::TryFrom<T>
+pub type wrex_h2::session::H2Session::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::session::H2Session::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::session::H2Session where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::session::H2Session::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::session::H2Session where T: ?core::marker::Sized
+pub fn wrex_h2::session::H2Session::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::session::H2Session where T: ?core::marker::Sized
+pub fn wrex_h2::session::H2Session::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::session::H2Session
+pub fn wrex_h2::session::H2Session::from(T) -> T
+pub struct wrex_h2::HpackDecoder
+impl wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::decode(&mut self, &[u8]) -> core::result::Result<wrex_h2::hpack::HeaderList, alloc::string::String>
+pub fn wrex_h2::hpack::HpackDecoder::dynamic_entries(&self) -> &alloc::collections::vec_deque::VecDeque<(alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)>
+pub fn wrex_h2::hpack::HpackDecoder::new(usize) -> Self
+pub fn wrex_h2::hpack::HpackDecoder::set_max_size(&mut self, usize)
+pub fn wrex_h2::hpack::HpackDecoder::size(&self) -> usize
+impl core::default::Default for wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::default() -> Self
+impl core::fmt::Debug for wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_h2::hpack::HpackDecoder
+impl core::marker::Send for wrex_h2::hpack::HpackDecoder
+impl core::marker::Sync for wrex_h2::hpack::HpackDecoder
+impl core::marker::Unpin for wrex_h2::hpack::HpackDecoder
+impl core::marker::UnsafeUnpin for wrex_h2::hpack::HpackDecoder
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::hpack::HpackDecoder
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::hpack::HpackDecoder
+impl<T, U> core::convert::Into<U> for wrex_h2::hpack::HpackDecoder where U: core::convert::From<T>
+pub fn wrex_h2::hpack::HpackDecoder::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::hpack::HpackDecoder where U: core::convert::Into<T>
+pub type wrex_h2::hpack::HpackDecoder::Error = never
+pub fn wrex_h2::hpack::HpackDecoder::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::hpack::HpackDecoder where U: core::convert::TryFrom<T>
+pub type wrex_h2::hpack::HpackDecoder::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::hpack::HpackDecoder::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::hpack::HpackDecoder where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackDecoder::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::hpack::HpackDecoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackDecoder::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackDecoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackDecoder::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::hpack::HpackDecoder
+pub fn wrex_h2::hpack::HpackDecoder::from(T) -> T
+pub struct wrex_h2::HpackEncoder
+impl wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::dynamic_entries(&self) -> &alloc::collections::vec_deque::VecDeque<(alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)>
+pub fn wrex_h2::hpack::HpackEncoder::encode(&mut self, &[(&str, &str)]) -> bytes::bytes::Bytes
+pub fn wrex_h2::hpack::HpackEncoder::new(wrex_h2::hpack::HpackEncodePolicy) -> Self
+pub fn wrex_h2::hpack::HpackEncoder::policy(&self) -> wrex_h2::hpack::HpackEncodePolicy
+pub fn wrex_h2::hpack::HpackEncoder::set_max_size(&mut self, usize)
+pub fn wrex_h2::hpack::HpackEncoder::size(&self) -> usize
+pub fn wrex_h2::hpack::HpackEncoder::with_max_size(wrex_h2::hpack::HpackEncodePolicy, usize) -> Self
+impl core::default::Default for wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::default() -> Self
+impl core::fmt::Debug for wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_h2::hpack::HpackEncoder
+impl core::marker::Send for wrex_h2::hpack::HpackEncoder
+impl core::marker::Sync for wrex_h2::hpack::HpackEncoder
+impl core::marker::Unpin for wrex_h2::hpack::HpackEncoder
+impl core::marker::UnsafeUnpin for wrex_h2::hpack::HpackEncoder
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_h2::hpack::HpackEncoder
+impl core::panic::unwind_safe::UnwindSafe for wrex_h2::hpack::HpackEncoder
+impl<T, U> core::convert::Into<U> for wrex_h2::hpack::HpackEncoder where U: core::convert::From<T>
+pub fn wrex_h2::hpack::HpackEncoder::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_h2::hpack::HpackEncoder where U: core::convert::Into<T>
+pub type wrex_h2::hpack::HpackEncoder::Error = never
+pub fn wrex_h2::hpack::HpackEncoder::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_h2::hpack::HpackEncoder where U: core::convert::TryFrom<T>
+pub type wrex_h2::hpack::HpackEncoder::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_h2::hpack::HpackEncoder::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_h2::hpack::HpackEncoder where T: 'static + ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncoder::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_h2::hpack::HpackEncoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncoder::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackEncoder where T: ?core::marker::Sized
+pub fn wrex_h2::hpack::HpackEncoder::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncoder
+pub fn wrex_h2::hpack::HpackEncoder::from(T) -> T
+pub const wrex_h2::DEFAULT_MAX_FRAME: u32
+pub const wrex_h2::DEFAULT_USER_AGENT: &str
+pub const wrex_h2::DEFAULT_WINDOW: i64
+pub const wrex_h2::HEADER_LEN: usize
+pub const wrex_h2::MAX_STREAMS: usize
+pub const wrex_h2::PREFACE: &[u8]
+pub static wrex_h2::STATIC_TABLE: [(&str, &str); 61]
+pub fn wrex_h2::huffman_decode(&[u8]) -> core::result::Result<alloc::vec::Vec<u8>, alloc::string::String>
+pub fn wrex_h2::huffman_encode(&[u8]) -> alloc::vec::Vec<u8>

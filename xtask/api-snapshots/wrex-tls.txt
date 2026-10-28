@@ -1,0 +1,108 @@
+pub mod wrex_tls
+pub enum wrex_tls::TlsError
+pub wrex_tls::TlsError::Config(alloc::string::String)
+pub wrex_tls::TlsError::Driver(wrex_io::driver::DriverError)
+impl core::convert::From<wrex_io::driver::DriverError> for wrex_tls::TlsError
+pub fn wrex_tls::TlsError::from(wrex_io::driver::DriverError) -> Self
+impl core::error::Error for wrex_tls::TlsError
+pub fn wrex_tls::TlsError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for wrex_tls::TlsError
+pub fn wrex_tls::TlsError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_tls::TlsError
+pub fn wrex_tls::TlsError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_tls::TlsError
+impl core::marker::Send for wrex_tls::TlsError
+impl core::marker::Sync for wrex_tls::TlsError
+impl core::marker::Unpin for wrex_tls::TlsError
+impl core::marker::UnsafeUnpin for wrex_tls::TlsError
+impl !core::panic::unwind_safe::RefUnwindSafe for wrex_tls::TlsError
+impl !core::panic::unwind_safe::UnwindSafe for wrex_tls::TlsError
+impl<T, U> core::convert::Into<U> for wrex_tls::TlsError where U: core::convert::From<T>
+pub fn wrex_tls::TlsError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_tls::TlsError where U: core::convert::Into<T>
+pub type wrex_tls::TlsError::Error = never
+pub fn wrex_tls::TlsError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_tls::TlsError where U: core::convert::TryFrom<T>
+pub type wrex_tls::TlsError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_tls::TlsError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for wrex_tls::TlsError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_tls::TlsError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_tls::TlsError where T: 'static + ?core::marker::Sized
+pub fn wrex_tls::TlsError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_tls::TlsError where T: ?core::marker::Sized
+pub fn wrex_tls::TlsError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_tls::TlsError where T: ?core::marker::Sized
+pub fn wrex_tls::TlsError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_tls::TlsError
+pub fn wrex_tls::TlsError::from(T) -> T
+pub struct wrex_tls::TlsConfig
+pub wrex_tls::TlsConfig::alpn_protocols: alloc::vec::Vec<alloc::string::String>
+pub wrex_tls::TlsConfig::ca_der: core::option::Option<alloc::vec::Vec<alloc::vec::Vec<u8>>>
+pub wrex_tls::TlsConfig::insecure: bool
+pub wrex_tls::TlsConfig::server_name: alloc::string::String
+impl core::clone::Clone for wrex_tls::TlsConfig
+pub fn wrex_tls::TlsConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_tls::TlsConfig
+pub fn wrex_tls::TlsConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_tls::TlsConfig
+impl core::marker::Send for wrex_tls::TlsConfig
+impl core::marker::Sync for wrex_tls::TlsConfig
+impl core::marker::Unpin for wrex_tls::TlsConfig
+impl core::marker::UnsafeUnpin for wrex_tls::TlsConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_tls::TlsConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_tls::TlsConfig
+impl<T, U> core::convert::Into<U> for wrex_tls::TlsConfig where U: core::convert::From<T>
+pub fn wrex_tls::TlsConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_tls::TlsConfig where U: core::convert::Into<T>
+pub type wrex_tls::TlsConfig::Error = never
+pub fn wrex_tls::TlsConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_tls::TlsConfig where U: core::convert::TryFrom<T>
+pub type wrex_tls::TlsConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_tls::TlsConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_tls::TlsConfig where T: core::clone::Clone
+pub type wrex_tls::TlsConfig::Owned = T
+pub fn wrex_tls::TlsConfig::clone_into(&self, &mut T)
+pub fn wrex_tls::TlsConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_tls::TlsConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_tls::TlsConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_tls::TlsConfig where T: ?core::marker::Sized
+pub fn wrex_tls::TlsConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_tls::TlsConfig where T: ?core::marker::Sized
+pub fn wrex_tls::TlsConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_tls::TlsConfig where T: core::clone::Clone
+pub unsafe fn wrex_tls::TlsConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_tls::TlsConfig
+pub fn wrex_tls::TlsConfig::from(T) -> T
+pub struct wrex_tls::TlsDriver
+impl wrex_tls::TlsDriver
+pub fn wrex_tls::TlsDriver::alpn_protocol(&self) -> core::option::Option<&str>
+pub fn wrex_tls::TlsDriver::complete_handshake(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<&str>>
+pub fn wrex_tls::TlsDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration, &wrex_tls::TlsConfig) -> core::result::Result<Self, wrex_tls::TlsError>
+pub fn wrex_tls::TlsDriver::peer(&self) -> &str
+impl wrex_io::driver::Driver for wrex_tls::TlsDriver
+pub fn wrex_tls::TlsDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_tls::TlsDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_tls::TlsDriver
+impl core::marker::Send for wrex_tls::TlsDriver
+impl core::marker::Sync for wrex_tls::TlsDriver
+impl core::marker::Unpin for wrex_tls::TlsDriver
+impl core::marker::UnsafeUnpin for wrex_tls::TlsDriver
+impl !core::panic::unwind_safe::RefUnwindSafe for wrex_tls::TlsDriver
+impl !core::panic::unwind_safe::UnwindSafe for wrex_tls::TlsDriver
+impl<T, U> core::convert::Into<U> for wrex_tls::TlsDriver where U: core::convert::From<T>
+pub fn wrex_tls::TlsDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_tls::TlsDriver where U: core::convert::Into<T>
+pub type wrex_tls::TlsDriver::Error = never
+pub fn wrex_tls::TlsDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_tls::TlsDriver where U: core::convert::TryFrom<T>
+pub type wrex_tls::TlsDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_tls::TlsDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_tls::TlsDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_tls::TlsDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_tls::TlsDriver where T: ?core::marker::Sized
+pub fn wrex_tls::TlsDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_tls::TlsDriver where T: ?core::marker::Sized
+pub fn wrex_tls::TlsDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_tls::TlsDriver
+pub fn wrex_tls::TlsDriver::from(T) -> T
+pub fn wrex_tls::load_ca_file(&str) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, alloc::string::String>
