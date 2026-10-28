@@ -33,8 +33,38 @@ impl IfTable {
 
     /// Build from a sysfs-style root directory (`/sys/class/net` layout):
     /// one subdirectory per interface with `address`, `mtu`, `flags`,
-    /// `ifindex` files.
+    /// `ifindex` files. Live addresses come from ONE `get_if_addrs()`
+    /// pass (perf-pass 3c: the tranche-3 shape re-enumerated the
+    /// interface table per interface, per family — ~2N netlink dumps
+    /// at every raw-verb startup, ~10ms measured on the dev host; tests
+    /// pass a controlled address list).
     pub fn from_sysfs(root: &Path) -> Result<Self, std::io::Error> {
+        let addrs = if_addrs::get_if_addrs().unwrap_or_default();
+        Self::from_sysfs_with_addrs(root, &addrs)
+    }
+
+    /// [`IfTable::from_sysfs`] with the address enumeration supplied —
+    /// the testable core (fixtures own the sysfs tree; tests own the
+    /// addresses, so no live netlink rides the unit suite).
+    pub fn from_sysfs_with_addrs(
+        root: &Path,
+        addrs: &[if_addrs::Interface],
+    ) -> Result<Self, std::io::Error> {
+        // One pass over the address list, partitioned per interface.
+        let mut v4s: BTreeMap<&str, Vec<std::net::Ipv4Addr>> = BTreeMap::new();
+        let mut v6s: BTreeMap<&str, Vec<std::net::Ipv6Addr>> = BTreeMap::new();
+        for a in addrs {
+            match a.addr.ip() {
+                std::net::IpAddr::V4(v4) => v4s.entry(a.name.as_str()).or_default().push(v4),
+                std::net::IpAddr::V6(v6) => {
+                    // Link-local fe80::/10 never sources a scan/query
+                    // (tranche 7b's convention) — only routable v6s.
+                    if !is_link_local(v6) {
+                        v6s.entry(a.name.as_str()).or_default().push(v6)
+                    }
+                }
+            }
+        }
         let mut entries = BTreeMap::new();
         let dir = fs::read_dir(root)?;
         for dent in dir.flatten() {
@@ -54,8 +84,8 @@ impl IfTable {
             let ifindex: i32 = read_trim("ifindex")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0);
-            let ipv4s = crate::iface::system_ipv4s_for(&name);
-            let ipv6s = crate::iface::system_ipv6s_for(&name);
+            let ipv4s = v4s.get(name.as_str()).cloned().unwrap_or_default();
+            let ipv6s = v6s.get(name.as_str()).cloned().unwrap_or_default();
             entries.insert(
                 name.clone(),
                 IfEntry {
@@ -106,42 +136,6 @@ fn is_up(flags: &str) -> bool {
     u64::from_str_radix(hex, 16)
         .map(|f| f & 0x1 != 0)
         .unwrap_or(false)
-}
-
-/// Live IPv4 addresses for one interface via `if_addrs` (used by both
-/// `from_sysfs` fixtures and `from_system`).
-pub(crate) fn system_ipv4s_for(name: &str) -> Vec<std::net::Ipv4Addr> {
-    if_addrs::get_if_addrs()
-        .map(|addrs| {
-            addrs
-                .iter()
-                .filter(|a| a.name == name)
-                .filter_map(|a| match a.addr.ip() {
-                    std::net::IpAddr::V4(v4) => Some(v4),
-                    std::net::IpAddr::V6(_) => None,
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-/// Live IPv6 addresses for one interface via `if_addrs` (tranche 7b).
-/// Link-local `fe80::/10` addresses are skipped: a scan/`query --tcp`
-/// source wants a routable address.
-pub(crate) fn system_ipv6s_for(name: &str) -> Vec<std::net::Ipv6Addr> {
-    if_addrs::get_if_addrs()
-        .map(|addrs| {
-            addrs
-                .iter()
-                .filter(|a| a.name == name)
-                .filter_map(|a| match a.addr.ip() {
-                    std::net::IpAddr::V6(v6) => Some(v6),
-                    std::net::IpAddr::V4(_) => None,
-                })
-                .filter(|v6| !is_link_local(*v6))
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// The interface's link-local address (`fe80::/10`), if any — the NDP
@@ -236,5 +230,63 @@ mod tests {
             available: t.names().join(", "),
         };
         assert!(e.to_string().contains("eth0, lo"), "{}", e);
+    }
+
+    /// The perf-pass 3c core: one address list serves every interface —
+    /// v4 + routable v6 attach by name, link-local `fe80::/10` is
+    /// skipped (the tranche-7b routable-source convention), and an
+    /// interface absent from the list gets no addresses (never an
+    /// error). Hermetic: the address list is supplied, no live netlink.
+    #[test]
+    fn addrs_partition_one_pass() {
+        fn mk(name: &str, ip: std::net::IpAddr) -> if_addrs::Interface {
+            let addr = match ip {
+                std::net::IpAddr::V4(ip) => if_addrs::IfAddr::V4(if_addrs::Ifv4Addr {
+                    ip,
+                    netmask: std::net::Ipv4Addr::from([255, 255, 255, 0]),
+                    prefixlen: 24,
+                    broadcast: None,
+                }),
+                std::net::IpAddr::V6(ip) => if_addrs::IfAddr::V6(if_addrs::Ifv6Addr {
+                    ip,
+                    netmask: std::net::Ipv6Addr::from([
+                        0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    ]),
+                    prefixlen: 64,
+                    broadcast: None,
+                }),
+            };
+            if_addrs::Interface {
+                name: name.to_string(),
+                addr,
+                index: Some(1),
+                oper_status: if_addrs::IfOperStatus::Up,
+                is_p2p: false,
+            }
+        }
+        let addrs = vec![
+            mk("lo", "127.0.0.1".parse().unwrap()),
+            mk("lo", "fd00::1".parse().unwrap()),
+            mk("lo", "fe80::1".parse().unwrap()), // link-local: skipped
+            mk("eth0", "192.0.2.10".parse().unwrap()),
+            mk("wlan9", "198.51.100.7".parse().unwrap()), // not in sysfs: ignored
+        ];
+        let t = IfTable::from_sysfs_with_addrs(&fixture(), &addrs).unwrap();
+        let lo = t.get("lo").unwrap();
+        assert_eq!(
+            lo.ipv4s,
+            vec!["127.0.0.1".parse::<std::net::Ipv4Addr>().unwrap()]
+        );
+        assert_eq!(
+            lo.ipv6s,
+            vec!["fd00::1".parse::<std::net::Ipv6Addr>().unwrap()],
+            "the link-local must be skipped"
+        );
+        let eth0 = t.get("eth0").unwrap();
+        assert_eq!(
+            eth0.ipv4s,
+            vec!["192.0.2.10".parse::<std::net::Ipv4Addr>().unwrap()]
+        );
+        assert!(eth0.ipv6s.is_empty());
     }
 }

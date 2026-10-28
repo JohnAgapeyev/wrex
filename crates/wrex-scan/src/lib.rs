@@ -23,7 +23,7 @@ pub mod report;
 pub mod session;
 pub mod target;
 
-pub use config::{DEFAULT_RATE, DEFAULT_TCP_PORTS, ScanConfig, ScanMode};
+pub use config::{DEFAULT_INTERVAL, DEFAULT_TCP_PORTS, ScanConfig, ScanMode};
 pub use report::ScanResult;
 pub use session::ScanSession;
 pub use target::{Family, ScanAddr};

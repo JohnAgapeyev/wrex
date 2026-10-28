@@ -1123,7 +1123,7 @@ fn time_seed() -> u64 {
 /// `wrex scan`: build a [`wrex_scan::ScanSession`] over a
 /// [`RawIpDriver`] and run it under the sans-IO runtime loop.
 fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError> {
-    use wrex_scan::{DEFAULT_RATE, ScanConfig, ScanMode};
+    use wrex_scan::{DEFAULT_INTERVAL, ScanConfig, ScanMode};
 
     let common = &args.common;
     let Some(iface) = common.iface.as_deref() else {
@@ -1140,8 +1140,9 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
         }
     }
 
-    // Pacing: --rate and --interval are mutually exclusive; default rate
-    // 100/s (`--rate 0` / `--interval 0` = uncapped burst).
+    // Pacing: --rate and --interval are mutually exclusive; default
+    // uncapped burst bounded by --concurrent (the seeded pacing flags
+    // are opt-in politeness).
     let interval = match (args.rate, args.interval.as_deref()) {
         (Some(_), Some(_)) => {
             return Err(usage("scan: --rate and --interval are mutually exclusive"));
@@ -1157,7 +1158,7 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
             let d = duration_arg(Some(raw))?;
             d.unwrap_or(Duration::ZERO)
         }
-        (None, None) => Duration::from_secs_f64(1.0 / DEFAULT_RATE as f64),
+        (None, None) => DEFAULT_INTERVAL,
     };
     let jitter = duration_arg(args.jitter.as_deref())?.unwrap_or(Duration::ZERO);
     let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
@@ -1541,7 +1542,7 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
     let strategy = Strategy::parse(args.strategy.as_deref()).map_err(usage)?;
 
     // Pacing (same vocabulary as scan): --rate/--interval exclusive;
-    // default 100/s (`--rate 0` = uncapped burst).
+    // default uncapped burst bounded by --concurrent (opt-in pacing).
     let interval = match (args.rate, args.interval.as_deref()) {
         (Some(_), Some(_)) => {
             return Err(usage("fuzz: --rate and --interval are mutually exclusive"));
@@ -1554,7 +1555,7 @@ fn fuzz(registry: &Registry, args: &crate::cli::FuzzArgs) -> Result<(), CliError
             }
         }
         (None, Some(raw)) => duration_arg(Some(raw))?.unwrap_or(Duration::ZERO),
-        (None, None) => Duration::from_secs_f64(1.0 / wrex_scan::DEFAULT_RATE as f64),
+        (None, None) => wrex_scan::DEFAULT_INTERVAL,
     };
     let jitter = duration_arg(args.jitter.as_deref())?.unwrap_or(Duration::ZERO);
     let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);

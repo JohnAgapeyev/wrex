@@ -8,6 +8,23 @@ tranche.
 
 ## [Unreleased]
 
+### Changed — performance pass 3c: burst-by-default scan pacing + single-pass interface table
+
+- **Scan (and fuzz, same vocabulary) default pacing is uncapped
+  burst bounded by `--concurrent`** (`wrex_scan::DEFAULT_INTERVAL =
+  Duration::ZERO`, nmap's parallelism model): the first perf-diff
+  baseline measured the seeded 100pps default ~80× slower out of the
+  box than nmap's adaptive burst (200 ports: 2.0s vs 25ms — pure
+  policy; the burst rows proved the engine). `--rate`/`--interval`/
+  `--jitter` remain the opt-in seeded pacing knobs. After: the
+  defaults row runs **2003ms → 23ms** (nmap 23ms — parity).
+- **`IfTable` enumerates addresses in ONE `get_if_addrs()` pass**
+  (`from_sysfs_with_addrs` core; the tranche-3 shape re-enumerated
+  the whole interface table per interface, per family — ~2N netlink
+  dumps at every raw-verb startup, ~10ms measured). New hermetic
+  partition test (v4 + routable v6 by name, `fe80::/10` skipped);
+  the per-interface re-enumeration helpers are deleted.
+
 ### Changed — performance pass 3b: `wrex query` rides kernel UDP (dig parity)
 
 - **The default `wrex query` transport is a kernel UDP socket**

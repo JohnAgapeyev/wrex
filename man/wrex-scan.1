@@ -31,7 +31,7 @@ Scan mode: syn|connect|udp|icmp (default syn)
 Ports: comma list with ranges (default: top\-100 TCP for syn/connect; required for udp; illegal for icmp)
 .TP
 \fB\-\-rate\fR \fI<RATE>\fR
-Send rate in packets/sec (default 100; 0 = uncapped burst)
+Send rate in packets/sec (0 = uncapped burst; no pacing flag: uncapped, bounded by \-\-concurrent)
 .TP
 \fB\-\-interval\fR \fI<INTERVAL>\fR
 Pacing between sends (e.g. 200ms); overrides \-\-rate
@@ -81,8 +81,11 @@ PORTS (\-\-ports):
   udp REQUIRES \-\-ports; icmp takes none.
 
 TIMING:
-  \-\-rate N        packets/sec (default 100; 0 = uncapped burst)
+  \-\-rate N        packets/sec (0 = uncapped burst)
   \-\-interval DUR  explicit pacing (e.g. 200ms); overrides \-\-rate
+  (no pacing flags: uncapped burst, bounded by \-\-concurrent — nmap\*(Aqs
+   parallelism model; the seeded \-\-rate/\-\-interval/\-\-jitter are the
+   opt\-in politeness knobs)
   \-\-jitter DUR    seeded +/\- jitter on the pacing step
   \-\-seed U64      pins the RNG (default: time\-derived): probe source
                   ports, tcp seqs, icmp ids and the jitter schedule

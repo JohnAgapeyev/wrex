@@ -40,7 +40,7 @@ Send one unmutated baseline probe per slot first
 Mutation strategy for the rounds: field|len|flip|splice|raw|all
 .TP
 \fB\-\-rate\fR \fI<RATE>\fR
-Send rate in packets/sec (default 100; 0 = uncapped burst)
+Send rate in packets/sec (0 = uncapped burst; no pacing flag: uncapped, bounded by \-\-concurrent)
 .TP
 \fB\-\-interval\fR \fI<INTERVAL>\fR
 Pacing between sends (e.g. 200ms); overrides \-\-rate
@@ -117,10 +117,11 @@ PORTS (\-\-ports): comma list with ranges. tcp defaults to the
   takes none; http defaults to 80 (443 under \-\-tls); dns defaults to
   53 (853 under \-\-tls).
 
-TIMING (same vocabulary as scan): \-\-rate N (default 100; 0 = burst),
-  \-\-interval DUR, \-\-jitter DUR, \-\-seed U64 (identities, mutation
-  streams, jitter), \-\-timeout DUR (default 1s), \-\-retries N,
-  \-\-concurrent N (default 256; raw modes only).
+TIMING (same vocabulary as scan): \-\-rate N (0 = burst; no pacing
+  flags = uncapped burst bounded by \-\-concurrent), \-\-interval DUR,
+  \-\-jitter DUR, \-\-seed U64 (identities, mutation streams, jitter),
+  \-\-timeout DUR (default 1s), \-\-retries N, \-\-concurrent N
+  (default 256; raw modes only).
 
 FINDINGS: one line per probe — \-\-format text (default), json (array)
   or jsonl; every finding carries the exact probe bytes (hex), so

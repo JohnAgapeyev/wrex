@@ -88,10 +88,13 @@ impl ScanMode {
     }
 }
 
-/// Default send rate (packets/sec) when neither `--rate` nor `--interval`
-/// is given: raw-injection into untrusted segments stays polite by
-/// default. `--rate 0` (or `--interval 0`) removes the cap (burst).
-pub const DEFAULT_RATE: u64 = 100;
+/// Default pacing when neither `--rate` nor `--interval` is given:
+/// uncapped burst, throttled by `concurrent` — nmap's parallelism
+/// model (the perf-diff defaults row measured the old seeded 100pps
+/// default ~80x slower out of the box than nmap's adaptive burst on
+/// instant-RST loopback ports). `--rate`/`--interval`/`--jitter`
+/// remain opt-in seeded pacing for polite or stealth runs.
+pub const DEFAULT_INTERVAL: Duration = Duration::ZERO;
 
 /// Extra attempts per probe beyond the first.
 pub const DEFAULT_RETRIES: u32 = 1;

@@ -210,8 +210,11 @@ PORTS (--ports):
   udp REQUIRES --ports; icmp takes none.
 
 TIMING:
-  --rate N        packets/sec (default 100; 0 = uncapped burst)
+  --rate N        packets/sec (0 = uncapped burst)
   --interval DUR  explicit pacing (e.g. 200ms); overrides --rate
+  (no pacing flags: uncapped burst, bounded by --concurrent — nmap's
+   parallelism model; the seeded --rate/--interval/--jitter are the
+   opt-in politeness knobs)
   --jitter DUR    seeded +/- jitter on the pacing step
   --seed U64      pins the RNG (default: time-derived): probe source
                   ports, tcp seqs, icmp ids and the jitter schedule
@@ -787,10 +790,11 @@ PORTS (--ports): comma list with ranges. tcp defaults to the
   takes none; http defaults to 80 (443 under --tls); dns defaults to
   53 (853 under --tls).
 
-TIMING (same vocabulary as scan): --rate N (default 100; 0 = burst),
-  --interval DUR, --jitter DUR, --seed U64 (identities, mutation
-  streams, jitter), --timeout DUR (default 1s), --retries N,
-  --concurrent N (default 256; raw modes only).
+TIMING (same vocabulary as scan): --rate N (0 = burst; no pacing
+  flags = uncapped burst bounded by --concurrent), --interval DUR,
+  --jitter DUR, --seed U64 (identities, mutation streams, jitter),
+  --timeout DUR (default 1s), --retries N, --concurrent N
+  (default 256; raw modes only).
 
 FINDINGS: one line per probe — --format text (default), json (array)
   or jsonl; every finding carries the exact probe bytes (hex), so
@@ -984,7 +988,8 @@ pub struct FuzzArgs {
     /// Mutation strategy for the rounds: field|len|flip|splice|raw|all.
     #[arg(long)]
     pub strategy: Option<String>,
-    /// Send rate in packets/sec (default 100; 0 = uncapped burst).
+    /// Send rate in packets/sec (0 = uncapped burst; no pacing flag:
+    /// uncapped, bounded by --concurrent).
     #[arg(long)]
     pub rate: Option<u64>,
     /// Pacing between sends (e.g. 200ms); overrides --rate.
@@ -1072,7 +1077,8 @@ pub struct ScanArgs {
     /// syn/connect; required for udp; illegal for icmp).
     #[arg(long)]
     pub ports: Option<String>,
-    /// Send rate in packets/sec (default 100; 0 = uncapped burst).
+    /// Send rate in packets/sec (0 = uncapped burst; no pacing flag:
+    /// uncapped, bounded by --concurrent).
     #[arg(long)]
     pub rate: Option<u64>,
     /// Pacing between sends (e.g. 200ms); overrides --rate.

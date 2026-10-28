@@ -563,9 +563,10 @@ fn scan_rows(
                 "nmap",
                 &["-n", "-Pn", "-sT", "-p", &defaults_list, "127.0.0.1"],
             ),
-            "out-of-the-box knobs: wrex paces a seeded 100 probes/s by default (--rate 0 \
-             bursts); nmap's -T3 self-tunes parallelism — the defaults gap is pacing policy, \
-             not engine.",
+            "out-of-the-box knobs: since perf-pass 3c wrex bursts uncapped, bounded by \
+             --concurrent 256 (nmap's parallelism model — the first baseline measured the old \
+             seeded 100pps default ~80x slower out of the box); the seeded --rate/--interval/\
+             --jitter are the opt-in pacing knobs. nmap's -T3 self-tunes parallelism.",
             Some(two_hundred),
         ));
     }

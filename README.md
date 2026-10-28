@@ -139,9 +139,11 @@ wrex scan -i eth0 --mode icmp 10.0.0.1-10.0.0.99
 
 Results stream as they resolve (`--format text|json|jsonl`); a scan
 completes with exit 0 regardless of findings. Pacing defaults to
-100 packets/sec (`--rate 0` = uncapped burst), `--jitter` is seeded
-from `--seed`, and probe identities (source ports, tcp seqs, icmp
-ids) are bit-reproducible under a pinned seed.
+an uncapped burst bounded by `--concurrent` (256 in flight) since
+the perf-diff pass — nmap's parallelism model; `--rate`/`--interval`
+are the opt-in seeded pacing knobs, `--jitter` is seeded from
+`--seed`, and probe identities (source ports, tcp seqs, icmp ids)
+are bit-reproducible under a pinned seed.
 
 DNS (tranche 3; kernel sockets since the perf-diff pass — no caps, no `-i`):
 
