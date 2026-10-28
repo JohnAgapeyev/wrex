@@ -176,10 +176,12 @@ impl Codec for TcpCodec {
         ctx.buf.put_u16(int_or_default(spec, &FIELDS[8], af) as u16); // urgent
         ctx.buf.extend_from_slice(&opts);
         let pseudo = ctx.facts.net.map(|n| wrex_core::encode::l4_pseudo(n, 6));
-        // Tranche 17a: the checksum covers the upper-layer packet —
-        // with a v6 ext chain that includes the ext headers (RFC 8200
-        // §8.1); equals this layer's own start on ext-free stacks.
-        let ck_start = ctx.facts.upper_start.unwrap_or(start);
+        // The pseudo-header length is the L4 message length — the
+        // upper-layer packet EXCLUDES any v6 extension headers (RFC
+        // 8200 §8.1 as every real stack implements it; the HP3-b
+        // foreign-capture corpus caught the ext-inclusive T17a fold).
+        // The fold starts at this layer's own header.
+        let ck_start = start;
         ctx.defer(Patch::Checksum {
             at: at_ck,
             start: ck_start,
@@ -242,24 +244,19 @@ impl Codec for TcpCodec {
         // engine's frame lookback + a recorded upper_start the range
         // starts at the first ext header; the legacy `bytes` slice
         // otherwise (identical on ext-free stacks).
-        if let Some(net) = ctx.facts.net {
+        // SKIPPED on a fragment carrier: the pseudo-header length covers
+        // the ORIGINAL unfragmented packet — a single fragment can
+        // never verify (the HP3-b foreign-fragment corpus drove the
+        // skip; the reassembled datagram verifies instead).
+        if let (Some(net), false) = (ctx.facts.net, ctx.facts.fragmented) {
+            // The fold covers the L4 message only (the pseudo length is
+            // bytes.len(); the data starts at this layer — ext headers
+            // excluded, the kernel/interop reading of RFC 8200 §8.1).
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            let upper = ctx
-                .facts
-                .upper_start
-                .filter(|&u| u <= ctx.offset && u < ctx.frame.len());
-            if let (Some(upper), true) = (upper, !ctx.frame.is_empty()) {
-                let upper_len = ctx.frame.len() - upper;
-                wrex_core::encode::l4_pseudo(net, 6).accumulate_into(&mut acc, upper_len);
-                acc.add_bytes(&ctx.frame[upper..ctx.offset + 16]);
-                acc.add_u16(0);
-                acc.add_bytes(&ctx.frame[ctx.offset + 18..]);
-            } else {
-                wrex_core::encode::l4_pseudo(net, 6).accumulate_into(&mut acc, bytes.len());
-                acc.add_bytes(&bytes[..16]);
-                acc.add_u16(0);
-                acc.add_bytes(&bytes[18..]);
-            }
+            wrex_core::encode::l4_pseudo(net, 6).accumulate_into(&mut acc, bytes.len());
+            acc.add_bytes(&bytes[..16]);
+            acc.add_u16(0);
+            acc.add_bytes(&bytes[18..]);
             let computed = acc.value();
             if found_ck != computed {
                 ctx.anomalies.push(Anomaly::new(
@@ -481,10 +478,11 @@ mod tests {
         }
     }
 
-    /// Tranche 17a: tcp under a v6 extension chain — [ipv6, hopopts,
-    /// tcp] crafts with the ext bytes counted into the checksum
-    /// (RFC 8200 §8.1) and dissects anomaly-free through the real
-    /// codecs.
+    /// tcp under a v6 extension chain — [ipv6, hopopts, tcp] crafts
+    /// with the checksum covering the L4 message ONLY (RFC 8200 §8.1
+    /// as the kernel implements it — the ext bytes excluded; the
+    /// HP3-b foreign-capture convention fix) and dissects
+    /// anomaly-free through the real codecs.
     #[test]
     fn ext_chain_checksum_covers_hopopts() {
         let mut r = wrex_core::Registry::empty();

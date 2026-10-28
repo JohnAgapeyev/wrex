@@ -157,17 +157,23 @@ impl Codec for IcmpCodec {
         let icmp_type = bytes[0];
         let code = bytes[1];
         let found_ck = u16::from_be_bytes([bytes[2], bytes[3]]);
-        // Checksum verify (non-fatal anomaly on mismatch), ck field zeroed.
-        let mut acc = wrex_core::ChecksumAccumulator::new();
-        acc.add_bytes(&bytes[..2]);
-        acc.add_u16(0);
-        acc.add_bytes(&bytes[4..]);
-        let computed = acc.value();
-        if found_ck != computed {
-            ctx.anomalies.push(Anomaly::new(
-                "icmp.checksum",
-                format!("mismatch (computed 0x{computed:04x}, found 0x{found_ck:04x})"),
-            ));
+        // Checksum verify (non-fatal anomaly on mismatch), ck field
+        // zeroed. SKIPPED on a fragment carrier: the checksum was
+        // folded over the original unfragmented message (RFC 792) —
+        // a single fragment can never verify (the kernel/tshark verify
+        // post-reassembly; so does `replay --reassemble`).
+        if !ctx.facts.fragmented {
+            let mut acc = wrex_core::ChecksumAccumulator::new();
+            acc.add_bytes(&bytes[..2]);
+            acc.add_u16(0);
+            acc.add_bytes(&bytes[4..]);
+            let computed = acc.value();
+            if found_ck != computed {
+                ctx.anomalies.push(Anomaly::new(
+                    "icmp.checksum",
+                    format!("mismatch (computed 0x{computed:04x}, found 0x{found_ck:04x})"),
+                ));
+            }
         }
         let mut fields = std::collections::BTreeMap::new();
         fields.insert("type".into(), Value::Int(icmp_type as u128));

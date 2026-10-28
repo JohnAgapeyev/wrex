@@ -559,10 +559,13 @@ impl Codec for Icmp6Codec {
             }
             ctx.buf.extend_from_slice(&parse_ndp_options(raw)?);
         }
-        // Tranche 17a: the checksum covers the upper-layer packet —
-        // with a v6 ext chain that includes the ext headers (RFC 8200
-        // §8.1); equals this layer's own start on ext-free stacks.
-        let ck_start = ctx.facts.upper_start.unwrap_or(start);
+        // The pseudo-header length is the ICMPv6 message length — the
+        // upper-layer packet EXCLUDES any v6 extension headers (RFC
+        // 8200 §8.1 as every real stack implements it; the HP3-b
+        // foreign-capture corpus caught the ext-inclusive T17a fold
+        // disagreeing with the kernel's own MLD frames by a constant
+        // 0x4000). The fold starts at this layer's own header.
+        let ck_start = start;
         ctx.defer(Patch::Checksum {
             at: at_ck,
             start: ck_start,
@@ -848,24 +851,22 @@ impl Codec for Icmp6Codec {
         // With the engine's frame lookback + a recorded upper_start the
         // range starts at the first ext header; the legacy `bytes`
         // slice otherwise (identical on ext-free stacks).
-        if let Some(net) = ctx.facts.net {
+        // SKIPPED on a fragment carrier: the pseudo-header's
+        // upper-layer length covers the ORIGINAL unfragmented packet
+        // (§8.1) — unknowable from a single fragment, so the fold over
+        // the visible bytes is a different sum by construction (the
+        // HP3-b foreign-fragment corpus's false anomalies drove the
+        // skip; the reassembled datagram verifies instead).
+        if let (Some(net), false) = (ctx.facts.net, ctx.facts.fragmented) {
+            // The fold covers the ICMPv6 message only (the pseudo
+            // length is bytes.len(); the data starts at this layer —
+            // ext headers excluded, the kernel/interop reading of
+            // RFC 8200 §8.1).
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            let upper = ctx
-                .facts
-                .upper_start
-                .filter(|&u| u <= ctx.offset && u < ctx.frame.len());
-            if let (Some(upper), true) = (upper, !ctx.frame.is_empty()) {
-                let upper_len = ctx.frame.len() - upper;
-                l4_pseudo(net, 58).accumulate_into(&mut acc, upper_len);
-                acc.add_bytes(&ctx.frame[upper..ctx.offset + 2]);
-                acc.add_u16(0);
-                acc.add_bytes(&ctx.frame[ctx.offset + 4..]);
-            } else {
-                l4_pseudo(net, 58).accumulate_into(&mut acc, bytes.len());
-                acc.add_bytes(&bytes[..2]);
-                acc.add_u16(0);
-                acc.add_bytes(&bytes[4..]);
-            }
+            l4_pseudo(net, 58).accumulate_into(&mut acc, bytes.len());
+            acc.add_bytes(&bytes[..2]);
+            acc.add_u16(0);
+            acc.add_bytes(&bytes[4..]);
             let computed = acc.value();
             if found_ck != computed {
                 ctx.anomalies.push(Anomaly::new(
@@ -1240,10 +1241,12 @@ mod tests {
         );
     }
 
-    /// Tranche 17a: icmpv6 under a v6 extension chain — [ipv6,
-    /// hopopts, icmpv6] crafts with the ext bytes counted into the
-    /// checksum (RFC 8200 §8.1) and dissects anomaly-free through the
-    /// real codecs.
+    /// icmpv6 under a v6 extension chain — [ipv6, hopopts, icmpv6]
+    /// crafts with the checksum covering the ICMPv6 message ONLY
+    /// (RFC 8200 §8.1 as the kernel implements it — the ext bytes
+    /// excluded; the HP3-b foreign-capture convention fix, demanded
+    /// by the kernel's own MLD frames) and dissects anomaly-free
+    /// through the real codecs.
     #[test]
     fn ext_chain_checksum_covers_hopopts() {
         let mut r = wrex_core::Registry::empty();

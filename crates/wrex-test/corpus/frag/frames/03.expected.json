@@ -3,10 +3,6 @@
     {
       "message": "mismatch (expected 48 (0x0030), found 16 bytes)",
       "path": "udp.length"
-    },
-    {
-      "message": "mismatch (computed 0x0f3d, found 0x1af6)",
-      "path": "udp.checksum"
     }
   ],
   "layers": [

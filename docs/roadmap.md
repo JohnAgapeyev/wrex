@@ -1654,37 +1654,70 @@ parity work.**
 
 ### Hardening pass 3 — verification doctrine + consolidation
 
-Lands before T19. Full policy, rationale and case studies in
-[verification.md](verification.md); charter summary:
+**✅ delivered (2026-10-28)** — the doctrine gates are live and the
+foreign-capture corpora swept three real bugs out of the tree on
+their first runs. As-delivered, per sub-item (full policy and
+rationale in [verification.md](verification.md)):
 
-- **3a — field-coverage gates** (the mf-bug class): strategy
-  completeness audit (schema-driven, per codec — the mechanical
-  gate that would have caught the ipv4-flags bug at its first
-  run), bit-toggle sweep feeding the differential, mandatory RFC
-  position vectors per bit aggregate, differential key-completeness.
-  Retroactive sweep over every existing codec.
-- **3b — oracle-captured corpora**: one declarative scenario harness
-  (foreign server × foreign client × tcpdump on lo/veth in the
-  `unshare -Urn` sandbox) committing pcap + manifest + tshark-reviewed
-  expectations; generation on demand + release-gate freshness diff;
-  first-wave scenarios per the verification doc (delivers the
-  recorded foreign-fragment corpus deferral and pre-stages T20
-  EDNS, T22 options, T26 QUIC, T30 signatures).
-- **3c — executable golden workflows**: every use-case catalog
-  `Today:` line becomes a `WF-n` CLI test (offline per-commit,
-  driver-dependent env-gated).
-- **3d — grammar consolidation**: the five `options.rs` list-grammar
-  implementations (~1,674 lines: dhcp 375, dhcp6 571, icmpv6 388,
-  ip 187, tcp 153) extract their common skeleton to `wrex-core`
-  (ADR-3-legal); codec-specific value encoders stay codec-side —
-  over-generalizing dhcp6's nesting and icmpv6's plastering costs
-  more than the duplication saves.
-- **3e — maintainability rails**: API surface ratchet (advisory
-  per-crate public-API snapshots), suite-time ratchet, mutation
-  kill-list extended to codec crates (advisory scores first).
-- Verification: the gates verify the verifiers — mutation-kill
-  checks on seeded codec mutants, a drift-review dry run of the
-  scenario freshness job, census delta (net LOC retired).
+- **3a — field-coverage gates** ✅. `wrex-test::gates` +
+  `tests/field_coverage.rs`: the G1 strategy-completeness audit
+  (schema-driven, every settable field randomized — 37 gaps found
+  and fixed on the first run), the G2 bit-toggle sweep (23 bits,
+  toggle-on/-off through the span map and both oracles), the G3 RFC
+  position vectors (KAV tables for every bit aggregate, RFC sections
+  cited), the G6 differential key-completeness audit (every scalar
+  field in at least one map's attempted set, exemptions recorded
+  and themselves audited). **Bugs caught**: the ipv4 renderer dropped
+  `res` and emitted the stale order; **the T18a flags repair itself
+  was wire-inverted** (mf on the reserved bit — the corpus
+  self-confirmed; fixed to the RFC 791/Linux order, corpus
+  regenerated, tshark-verified); the MLDv2 sources over-read; a
+  dead tshark dstopts arm (the pass-2 drift guard checks key
+  presence, not access paths); the tshark oracle's pcap path race
+  under parallel tests; the icmpv6 router_lifetime u16 truncation;
+  the 143-zero-record craft gap.
+- **3b — oracle-capture corpora** ✅. `cargo xtask corpus-capture`:
+  one declarative harness (xtask/scenarios.rs), veth pair split
+  across TWO net namespaces inside the `unshare -Urn` sandbox (both
+  ends in one namespace route local→local through `lo` — diagnosed
+  live), tcpdump `--immediate-mode` + SIGTERM stop (the mmap ring's
+  block timeout never fires in the sandbox; a SIGKILLed capture
+  loses its buffer), veth checksum offload disabled on both ends
+  (captured-outbound frames otherwise carry unmaterialized checksum
+  fields — 30 false anomalies). Six first-wave corpora committed
+  (mf's own: kernel-carved v4 + v6 fragments, ICMP echo, ARP,
+  dig×dnsmasq DNS over UDP and TCP, curl×nc kernel-TCP): every
+  frame gates through the existing corpus sweeps. **The foreign
+  corpora demanded and got the two recorded correctness items**:
+  the L4 checksum convention (pseudo length = the L4 message, ext
+  headers excluded — the kernel's own MLD frames disagreed with
+  the T17a ext-inclusive fold by a constant 0x4000; fixed on encode,
+  verify and the patch walk) and the fragment-carrier verify skip
+  (`Facts::fragmented`; a single fragment can never verify — the
+  reassembled datagram does). The freshness job is advisory in the
+  release gate (open decision #9's posture).
+- **3c — executable golden workflows** ✅. `tests/cli_workflows.rs`:
+  17 workflows — every catalog `Today:` line offline per-commit,
+  the 5 driver-dependent ones env-gated (verified under
+  `unshare -Urn`).
+- **3d — grammar consolidation** ✅. `wrex-core::options`: the five
+  grammars ride one skeleton (tokens, the known-name-gated split,
+  error mapping, both TLV shapes, grid padding); value encoders and
+  pending semantics stay codec-side. Net 57 lines retired; the
+  skeleton's mutation coverage is wrex-core's (0 missed).
+- **3e — maintainability rails** ✅. `mutants-codecs` advisory
+  per-crate scores (first baseline recorded in verification.md G4;
+  wrex-core's full run promoted to GATED at 0-missed); the
+  suite-time ratchet (`cargo xtask suitetime` — one
+  capture-and-ratchet pass, >2x growth fails with the suite name);
+  the API-surface ratchet (`cargo xtask api-snapshot`, 27 crates,
+  CI-checked advisory, the man-page pattern).
+- Verification-of-the-verifiers: mutation-kill on the seeded
+  strategy gaps (the proptest regression seeds pin each), the
+  scenario freshness dry run (the harness's own regeneration diff
+  reviewed during delivery), census delta recorded (57 lines net
+  retired; the ~1,674-line grammar census is now 1,597 codec-side +
+  a 160-line shared skeleton).
 
 ### Wave 1 — verb parity
 

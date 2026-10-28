@@ -101,6 +101,7 @@ instead; open *decisions* live in the roadmap's extension section.
 | 6LoWPAN/NHC | T17a | Parked |
 | MLD codecs (v1 triad, v2 query/report) | T7b | Closed by T17b |
 | MLD probing (scan/fuzz mode) | T17b | Open, P3 (the T10b NDP-probe precedent) |
+| Parse-time span population for icmpv6 conditional bodies (mld.* / mld flags) | HP3-a (new) | Open, P2 — the fields are `None`-by-policy (no static layout; the conditional v1/v2 body position), patching is the pointed `UnsupportedPath`; the wire positions are pinned by the G3 KAV table + the G2 sweep instead |
 | Off-link NDP resolution | T7b | Closed by T10b |
 | NDP option crafting | T7b/T10b | Closed by T17b |
 | NDP probe fuzzing | T10b | Parked (the cache is best-effort infrastructure) |
@@ -113,8 +114,9 @@ instead; open *decisions* live in the roadmap's extension section.
 | Pathological-fragment hardening beyond the byte budget | T18a | Parked (the 1 MiB budget covers) |
 | Fragment *emission* | T18a | Won't-do (wrex never fragments on send — MTU is the kernel's) |
 | `dissect --reassemble` | T18a | Won't-do (dissect is a single-frame verb; streams live in replay) |
-| Foreign-fragment corpus | T18a | Open — HP3-b (the fragmentation capture scenario) |
-| v6 pseudo-header length convention under ext chains (RFC 8200 §8.1 upper-layer length vs `upper_start` region length) | T18a | Open, P1-correctness — its own pass if the HP3-b foreign-fragment corpus demands it (touches the frozen L4 checksum seam) |
+| Foreign-fragment corpus | T18a | Closed by HP3-b (the `scen-frag-v4`/`scen-frag-v6` oracle-capture scenarios: kernel-carved `ping -M want` fragments over a 1500-MTU veth, both families, the mf-bug's own corpus) |
+| v6 pseudo-header length convention under ext chains (RFC 8200 §8.1 upper-layer length vs `upper_start` region length) | T18a | Closed by HP3-b — the foreign corpus demanded it (the kernel's own MLDv2 reports through a Router-Alert hopopts dissected with a constant-delta false `icmpv6.checksum` anomaly): the L4 checksum now covers the L4 message only (pseudo length = L4 length, fold from the L4 header — the kernel/tshark reading of §8.1), on encode, verify, and the patch walk (`ChecksumStart::UpperPacket` collapses to `Layer`) |
+| L4 checksum verify on single-fragment carriers | HP3-b (new) | Closed by HP3-b: a fragment can never verify (the checksum folds over the original unfragmented message); `Facts::fragmented` records the carrier and icmp/icmpv6/udp/tcp skip the verify — the reassembled datagram verifies instead (the kernel/tshark behavior) |
 | v6 tail-shorthand ranges | T7b | Open, P3 |
 | IPv6 zone-ids in URL targets | T10a | Open, P2 |
 

@@ -387,6 +387,12 @@ impl Codec for IpCodec {
         // Tranche 17a: the upper-layer packet begins after the full
         // header (options included — `hlen` is ihl*4).
         ctx.facts.upper_start = Some(ctx.offset + hlen);
+        // A fragment carrier (mf set or a nonzero offset — RFC 791
+        // §2.3/§3.1): the L4 checksum was folded over the ORIGINAL
+        // unfragmented packet and can never verify from a single
+        // fragment. The L4 verifies skip (the HP3-b foreign-fragment
+        // corpus drove the fix; reassembled output verifies instead).
+        ctx.facts.fragmented = agg & 0b001 != 0 || (flags_frag & 0x1fff) != 0;
         let view = LayerView {
             kind: "ipv4",
             span: ctx.offset..ctx.offset + hlen,

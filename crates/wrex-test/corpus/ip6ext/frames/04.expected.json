@@ -46,7 +46,7 @@
     {
       "fields": {
         "ack": 0,
-        "checksum": 40117,
+        "checksum": 46322,
         "data_off": 5,
         "dport": 0,
         "flags": [],

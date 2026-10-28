@@ -1,0 +1,64 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "ca:c3:b5:94:1f:b7",
+        "src": "16:00:1b:66:a0:f2",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 32803,
+        "dst": "10.9.9.2",
+        "flags": [
+          "df"
+        ],
+        "frag_off": 0,
+        "id": 38028,
+        "ihl": 5,
+        "options": "",
+        "proto": "tcp",
+        "src": "10.9.9.1",
+        "tos": 0,
+        "total_len": 52,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "ack": 351303297,
+        "checksum": 11568,
+        "data_off": 8,
+        "dport": 8080,
+        "flags": [
+          "ack"
+        ],
+        "options": "0101080a0513da1a2d9d8b2f",
+        "seq": 1228468904,
+        "sport": 42076,
+        "urgent": 0,
+        "window": 63
+      },
+      "kind": "tcp",
+      "span": [
+        34,
+        66
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

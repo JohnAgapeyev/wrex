@@ -57,6 +57,19 @@ pub struct Facts {
     /// `None` = no net-layer parent recorded it (bare-layer craft, the
     /// pre-17a direct-parent value falls out as the layer's own start).
     pub upper_start: Option<usize>,
+    /// The L4 arrived via a FRAGMENT header (v4 `mf`/frag_off, or a
+    /// v6 frag header anywhere in the chain): its checksum was folded
+    /// over the ORIGINAL unfragmented upper-layer packet, so a single
+    /// fragment carrier can never verify — the fold over the visible
+    /// bytes is a *different* sum by construction. The kernel and
+    /// tshark verify after reassembly; so does `wrex replay
+    /// --reassemble` (the reassembled datagram re-dissects with no
+    /// frag header in the chain and the original checksum verifies).
+    /// The L4 dissect-side verifies skip when set — the foreign-capture
+    /// scenarios (HP3-b, the kernel-carved fragment corpus) drove the
+    /// fix: every frag0 dissected with a pointed false
+    /// `icmp/udp/tcp/icmpv6.checksum` anomaly before it.
+    pub fragmented: bool,
 }
 
 /// One dissected layer: kind, byte span in the input, local fields, and

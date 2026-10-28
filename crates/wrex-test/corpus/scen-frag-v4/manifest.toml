@@ -1,0 +1,11 @@
+source_url = "oracle-capture scenario "scen-frag-v4" (tcpdump on veth0; the HP3-b harness)"
+imported = "2026-10-28"
+start = "auto"
+frames = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+
+[scenario]
+about = "IPv4 fragmentation (the mf bug's own corpus): kernel-carved fragments of a 3000-byte ICMP echo over a 1500-MTU veth — the mf bit at its RFC 791 wire position, from the kernel's own fragmenter."
+clients = ["ping -4 -n -c 2 -W 1 -M want -s 3000 10.9.9.2"]
+tools = ["ping: ping from iputils 20250605", "tcpdump: tcpdump version 4.99.7"]
+quirks = "kernel-carved fragments: frag0 carries the full ICMP header; sizes are kernel-MTU-derived (quirk, not contract)"
+review = "tshark eyeball + the map differential over every frame (see xtask/scenarios.rs)"

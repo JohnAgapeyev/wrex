@@ -1,11 +1,23 @@
 # wrex — Verification doctrine
 
 How correctness is enforced as tranches keep landing. Adopted at the
-2026-10-23 extension pass; **the machinery is chartered as hardening
-pass 3 (HP3) in the [roadmap](roadmap.md) and lands before T19.** From
-T19 on, every codec/verb tranche lands with the gates below wired
-(the per-tranche checklist at the end) — the doctrine is a charter
+2026-10-23 extension pass; **chartered as hardening pass 3 (HP3) in
+the [roadmap](roadmap.md) and DELIVERED 2026-10-28 — the gates below
+are live (`tests/field_coverage.rs`, `xtask/scenarios.rs`,
+`tests/cli_workflows.rs`, the ratchets).** From T19 on, every
+codec/verb tranche lands with the gates below wired (the
+per-tranche checklist at the end) — the doctrine is a charter
 checklist item, not an aspiration.
+
+The delivery's own scorecard — what the asymmetric layer caught in
+its first live rounds — is recorded in the roadmap's HP3 section:
+the T18a flags repair was itself wire-inverted (a corpus
+self-confirmation the G1 sweep + the etherparse differential broke),
+the ipv4 renderer dropped `res`, a tshark map arm was silently dead
+under the pass-2 drift guard's key-presence check, the MLDv2
+sources region over-read, and the foreign-capture corpora demanded
+(and got) the two recorded checksum-seam fixes (the ext-inclusive
+pseudo-length convention; fragment-carrier verify skipping).
 
 ## Why this document exists: the mf bug
 

@@ -796,3 +796,202 @@ fn help_documents_field_flags_and_completions_emit() {
     .unwrap();
     assert!(!completions.is_empty() && completions.contains("wrex"));
 }
+
+// --- ip6ext corpus generator (dev-time) ------------------------------------
+//
+// Regenerates the golden `ip6ext` corpus (the T17a shapes — the same
+// seven frames the charter committed) after a checksum-convention
+// change: `cargo test -p wrex --test integration -- --ignored
+// generate_ip6ext_corpus` then commit the outputs.
+
+#[test]
+#[ignore = "dev-time corpus generator"]
+fn generate_ip6ext_corpus() {
+    use std::collections::BTreeMap as Map;
+    let reg = wrex::standard();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../wrex-test/corpus/ip6ext");
+    let frames_dir = root.join("frames");
+    std::fs::create_dir_all(&frames_dir).expect("mkdir");
+
+    let eth = || {
+        let mut m = Map::new();
+        m.insert("dst".to_string(), wrex_core::Value::Mac([0xff; 6]));
+        m.insert("src".to_string(), wrex_core::Value::Mac([0; 6]));
+        wrex_core::spec::LayerSpec::with_fields("eth", m)
+    };
+    let ip6 = wrex_core::spec::LayerSpec::new("ipv6");
+    fn layer(
+        kind: &'static str,
+        fields: &[(&'static str, wrex_core::Value)],
+    ) -> wrex_core::spec::LayerSpec {
+        let mut m = Map::new();
+        for (k, v) in fields {
+            m.insert(k.to_string(), v.clone());
+        }
+        wrex_core::spec::LayerSpec::with_fields(kind, m)
+    }
+    let bytes = |b: &[u8]| wrex_core::Value::Bytes(bytes::Bytes::copy_from_slice(b));
+
+    let shapes: Vec<(&str, wrex_core::PacketSpec)> = vec![
+        (
+            "hopopts + icmpv6 echo",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    layer(
+                        "hopopts",
+                        &[("options", bytes(&[0x01, 0x04, 0x00, 0x00, 0x00, 0x00]))],
+                    ),
+                    layer("icmpv6", &[("type", wrex_core::Value::Int(128_u128))]),
+                ],
+                None,
+            ),
+        ),
+        (
+            "dstopts twice + tcp",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    layer("dstopts", &[("options", bytes(&[0u8; 6]))]),
+                    layer("dstopts", &[("options", bytes(&[0u8; 6]))]),
+                    wrex_core::spec::LayerSpec::new("tcp"),
+                ],
+                None,
+            ),
+        ),
+        (
+            "routing + udp",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    layer(
+                        "routing",
+                        &[
+                            ("type", wrex_core::Value::Int(0_u128)),
+                            ("segs_left", wrex_core::Value::Int(1_u128)),
+                            (
+                                "segments",
+                                bytes(&[
+                                    0x00, 0x00, 0x00, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66,
+                                    0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0x00, 0x00, 0x00, 0x00,
+                                ]),
+                            ),
+                        ],
+                    ),
+                    layer(
+                        "udp",
+                        &[
+                            ("sport", wrex_core::Value::Int(1_u128)),
+                            ("dport", wrex_core::Value::Int(2_u128)),
+                        ],
+                    ),
+                ],
+                None,
+            ),
+        ),
+        (
+            "frag offset 0 + tcp",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    layer(
+                        "frag",
+                        &[
+                            ("offset", wrex_core::Value::Int(0_u128)),
+                            ("m", wrex_core::Value::Int(1_u128)),
+                            ("ident", wrex_core::Value::Int(0x1234_u128)),
+                        ],
+                    ),
+                    wrex_core::spec::LayerSpec::new("tcp"),
+                ],
+                None,
+            ),
+        ),
+        (
+            "ah + icmpv6 echo",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    layer(
+                        "ah",
+                        &[
+                            ("spi", wrex_core::Value::Int(0_u128)),
+                            ("seq", wrex_core::Value::Int(0_u128)),
+                            ("icv", bytes(&[0xaa, 0xbb, 0xcc, 0xdd])),
+                        ],
+                    ),
+                    layer("icmpv6", &[("type", wrex_core::Value::Int(128_u128))]),
+                ],
+                None,
+            ),
+        ),
+        (
+            "esp + payload",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    layer(
+                        "esp",
+                        &[
+                            ("spi", wrex_core::Value::Int(0x11223344_u128)),
+                            ("seq", wrex_core::Value::Int(7_u128)),
+                        ],
+                    ),
+                ],
+                Some(bytes(&[0xaa, 0x55])),
+            ),
+        ),
+        (
+            "nonext",
+            wrex_core::spec::PacketSpec::new(
+                vec![
+                    eth(),
+                    ip6.clone(),
+                    wrex_core::spec::LayerSpec::new("nonext"),
+                ],
+                Some(bytes(&[0x4d])),
+            ),
+        ),
+    ];
+
+    let mut names = Vec::new();
+    for (i, (about, spec)) in shapes.iter().enumerate() {
+        let enc = wrex_core::encode::encode(
+            &reg,
+            spec,
+            &wrex_core::encode::EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap_or_else(|e| panic!("{about}: {e}"));
+        let packet = wrex_core::dissect::dissect(&reg, &enc.bytes, "auto");
+        assert!(
+            packet.anomalies.is_empty(),
+            "{about}: anomalies {:?}",
+            packet.anomalies
+        );
+        let name = format!("{:02}", i + 1);
+        std::fs::write(frames_dir.join(format!("{name}.bin")), &enc.bytes).expect("bin");
+        let expected = serde_json::to_string_pretty(&wrex_core::render::dissect_to_json(&packet))
+            .expect("json");
+        std::fs::write(
+            frames_dir.join(format!("{name}.expected.json")),
+            expected + "\n",
+        )
+        .expect("json");
+        names.push(name);
+    }
+    let manifest = format!(
+        "source_url = \"handcrafted (wrex tests/integration.rs generator, tranche T17a; \
+         regenerated for the HP3-b checksum-convention fix)\"\nimported = \"2026-10-28\"\n\
+         start = \"auto\"\nframes = {names:?}\n"
+    );
+    std::fs::write(root.join("manifest.toml"), manifest).expect("manifest");
+}

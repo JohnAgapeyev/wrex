@@ -126,13 +126,13 @@ impl Codec for UdpCodec {
             explicit: len_explicit,
             path: "udp.length",
         });
-        // Tranche 17a: the checksum covers the upper-layer packet —
-        // with a v6 extension chain that includes the ext headers
-        // before this segment (RFC 8200 §8.1). The net parent recorded
-        // where the upper packet begins; without one (or directly
-        // stacked) it equals this layer's own start, so pre-17a wire
-        // bytes are identical.
-        let ck_start = ctx.facts.upper_start.unwrap_or(start);
+        // The pseudo-header length is the L4 message length — the
+        // upper-layer packet EXCLUDES any v6 extension headers (RFC
+        // 8200 §8.1 as every real stack implements it; the HP3-b
+        // foreign-capture corpus caught the ext-inclusive T17a fold
+        // disagreeing with the kernel's own MLD frames by a constant
+        // 0x4000). The fold starts at this layer's own header.
+        let ck_start = start;
         ctx.defer(Patch::Checksum {
             at: at_ck,
             start: ck_start,
@@ -179,24 +179,19 @@ impl Codec for UdpCodec {
         // upper_start the range starts at the first ext header; the
         // legacy `bytes` slice otherwise (identical on ext-free
         // stacks — `frame[offset..] == bytes`).
-        if let Some(net) = ctx.facts.net {
+        // SKIPPED on a fragment carrier: the pseudo-header length covers
+        // the ORIGINAL unfragmented packet — a single fragment can
+        // never verify (the HP3-b foreign-fragment corpus drove the
+        // skip; the reassembled datagram verifies instead).
+        if let (Some(net), false) = (ctx.facts.net, ctx.facts.fragmented) {
+            // The fold covers the L4 message only (the pseudo length is
+            // bytes.len(); the data starts at this layer — ext headers
+            // excluded, the kernel/interop reading of RFC 8200 §8.1).
             let mut acc = wrex_core::ChecksumAccumulator::new();
-            let upper = ctx
-                .facts
-                .upper_start
-                .filter(|&u| u <= ctx.offset && u < ctx.frame.len());
-            if let (Some(upper), true) = (upper, !ctx.frame.is_empty()) {
-                let upper_len = ctx.frame.len() - upper;
-                wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, upper_len);
-                acc.add_bytes(&ctx.frame[upper..ctx.offset + 6]);
-                acc.add_u16(0);
-                acc.add_bytes(&ctx.frame[ctx.offset + 8..]);
-            } else {
-                wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, bytes.len());
-                acc.add_bytes(&bytes[..6]);
-                acc.add_u16(0);
-                acc.add_bytes(&bytes[8..]);
-            }
+            wrex_core::encode::l4_pseudo(net, 17).accumulate_into(&mut acc, bytes.len());
+            acc.add_bytes(&bytes[..6]);
+            acc.add_u16(0);
+            acc.add_bytes(&bytes[8..]);
             let computed = acc.value();
             if found_ck != computed {
                 ctx.anomalies.push(Anomaly::new(
@@ -383,12 +378,14 @@ mod tests {
         }
     }
 
-    /// Tranche 17a: the udp checksum covers the upper-layer packet —
-    /// with a v6 ext chain that includes the hopopts bytes (RFC 8200
-    /// §8.1, the `Facts::upper_start` seam). Craft → dissect through
-    /// the real ipv6 + hopopts codecs, no anomalies, and the wire
-    /// checksum matches an independent fold over the ext bytes (the
-    /// T7b pattern).
+    /// The udp checksum covers the L4 message ONLY — the hopopts bytes
+    /// are excluded from both the pseudo-header length and the fold
+    /// (RFC 8200 §8.1 as the kernel and every real stack implement it;
+    /// the HP3-b foreign-capture corpus caught the ext-inclusive T17a
+    /// fold disagreeing with the kernel's own MLD frames by a
+    /// constant). Craft → dissect through the real ipv6 + hopopts
+    /// codecs, no anomalies, and the wire checksum matches the
+    /// independent fold (the io::ndp lineage).
     #[test]
     fn checksum_covers_ext_chain() {
         let mut r = wrex_core::Registry::empty();
@@ -430,24 +427,23 @@ mod tests {
         );
         // The dissect-side verify (frame lookback) agrees: no anomaly.
         assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
-        // Independent fold over the upper-layer packet (ext bytes
-        // included): src/dst ::1 (the ipv6 defaults), len = upper
-        // len, proto 17.
-        let upper = &enc.bytes[40..];
+        // Independent fold over the L4 message ONLY (src/dst ::1, the
+        // ipv6 defaults; len = the udp message length, proto 17): the
+        // hopopts bytes are excluded — the kernel/interop reading.
+        let l4 = &enc.bytes[40 + 8..]; // past ipv6(40) + hopopts(8)
         let mut acc = wrex_core::ChecksumAccumulator::new();
         acc.add_bytes(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
         acc.add_bytes(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-        acc.add_bytes(&(upper.len() as u32).to_be_bytes());
+        acc.add_bytes(&(l4.len() as u32).to_be_bytes());
         acc.add_bytes(&[0, 17]);
-        let udp_at = upper.len() - 10; // udp header 8 + payload 2
-        acc.add_bytes(&upper[..udp_at + 6]);
+        acc.add_bytes(&l4[..6]);
         acc.add_u16(0);
-        acc.add_bytes(&upper[udp_at + 8..]);
-        let ck = u16::from_be_bytes([enc.bytes[40 + udp_at + 6], enc.bytes[40 + udp_at + 7]]);
+        acc.add_bytes(&l4[8..]);
+        let ck = u16::from_be_bytes([enc.bytes[40 + 8 + 6], enc.bytes[40 + 8 + 7]]);
         assert_eq!(
             ck,
             acc.value(),
-            "the wire checksum must match the independent fold over the ext bytes"
+            "the wire checksum must match the independent L4-message fold"
         );
     }
 

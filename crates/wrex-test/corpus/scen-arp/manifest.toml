@@ -1,0 +1,11 @@
+source_url = "oracle-capture scenario "scen-arp" (tcpdump on veth0; the HP3-b harness)"
+imported = "2026-10-28"
+start = "auto"
+frames = ["01", "02", "03", "04", "05"]
+
+[scenario]
+about = "ARP on veth: arping's request/reply exchange (the third lineage beside the arp codec and the io::ndp hand-roll)."
+clients = ["arping -c 2 -w 2 -I veth0 10.9.9.2"]
+tools = ["arping: arping from iputils 20250605", "tcpdump: tcpdump version 4.99.7"]
+quirks = "arping pads to 46-byte frames (EtherType-era minimum, RFC-permitted)"
+review = "tshark eyeball + the map differential over every frame (see xtask/scenarios.rs)"

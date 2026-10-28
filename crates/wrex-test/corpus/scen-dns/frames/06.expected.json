@@ -1,0 +1,91 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "16:00:1b:66:a0:f2",
+        "src": "ca:c3:b5:94:1f:b7",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 61035,
+        "dst": "10.9.9.1",
+        "flags": [
+          "df"
+        ],
+        "frag_off": 0,
+        "id": 9740,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "10.9.9.2",
+        "tos": 0,
+        "total_len": 97,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 36916,
+        "dport": 38767,
+        "length": 77,
+        "sport": 53
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    },
+    {
+      "fields": {
+        "an.0.class": "IN",
+        "an.0.name": "v6.wrex.test",
+        "an.0.rdata": "fd00::2",
+        "an.0.ttl": 0,
+        "an.0.type": "AAAA",
+        "ancount": 1,
+        "ar.0.class": "CLASS1232",
+        "ar.0.name": "",
+        "ar.0.rdata": "",
+        "ar.0.ttl": 0,
+        "ar.0.type": "OPT",
+        "arcount": 1,
+        "flags": [
+          "qr",
+          "aa",
+          "rd",
+          "ra"
+        ],
+        "id": 33335,
+        "nscount": 0,
+        "opcode": 0,
+        "qd.0.class": "IN",
+        "qd.0.name": "v6.wrex.test",
+        "qd.0.type": "AAAA",
+        "qdcount": 1,
+        "rcode": 0
+      },
+      "kind": "dns",
+      "span": [
+        42,
+        111
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

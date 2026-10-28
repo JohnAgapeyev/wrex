@@ -7,10 +7,6 @@
     {
       "message": "mismatch (expected 32 (0x0020), found 8 bytes)",
       "path": "udp.length"
-    },
-    {
-      "message": "mismatch (computed 0x3fca, found 0xbb21)",
-      "path": "udp.checksum"
     }
   ],
   "layers": [

@@ -64,6 +64,30 @@ tranche.
   TLV shapes, grid padding); value encoders and pending semantics
   stay codec-side. Net 57 lines retired; the skeleton's mutation
   coverage is now wrex-core's (0 missed).
+- **HP3-b oracle-capture scenarios** (`cargo xtask corpus-capture`,
+  `xtask/scenarios.rs`): one declarative harness — a veth pair split
+  across two network namespaces inside the `unshare -Urn` sandbox,
+  tcpdump (`--immediate-mode` — the mmap ring's block timeout never
+  fires in the sandbox — and SIGTERM stops; a killed capture loses
+  its userspace buffer), checksum offload disabled on both ends
+  (captured-outbound veth frames otherwise carry unmaterialized
+  checksum fields). Six committed foreign-lineage corpora:
+  **kernel-carved v4 + v6 fragments** (the mf-bug's own corpus, the
+  recorded T18a foreign-fragment deferral), ICMP echo, ARP, real
+  DNS (dig × dnsmasq over UDP and TCP), kernel-TCP conversations —
+  every frame sweeps the existing corpus gates. **The corpora
+  demanded and delivered the two recorded correctness items**:
+  (1) the **L4 checksum convention** — the pseudo-header covers the
+  L4 message only, ext headers excluded (the kernel's own MLDv2
+  reports through a Router-Alert hopopts disagreed with the T17a
+  ext-inclusive fold by a constant; fixed on encode, verify and the
+  patch walk, `ChecksumStart::UpperPacket` collapsing to `Layer`);
+  (2) **fragment-carrier verify skipping** — `Facts::fragmented`
+  (set by ipv4 mf/frag_off and the v6 frag codec): a single
+  fragment can never verify (checksums fold over the original
+  unfragmented message); the reassembled datagram verifies instead.
+  The ip6ext + frag corpora regenerated under the corrected
+  convention (a dev-time generator, the frag-corpus pattern).
 - **HP3-e maintainability rails**: the mutants release gate extended
   with per-crate advisory kill-strength scores for every proto codec
   (`mutants-codecs` job; the wrex-core full-scope run promoted from

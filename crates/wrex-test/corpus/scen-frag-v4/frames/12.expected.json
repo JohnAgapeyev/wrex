@@ -1,0 +1,69 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "33:33:00:00:00:16",
+        "src": "16:00:1b:66:a0:f2",
+        "type": "ipv6"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "dst": "ff02::16",
+        "flow_label": 0,
+        "hop_limit": 1,
+        "next_header": 0,
+        "payload_len": 56,
+        "src": "::",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        14,
+        54
+      ]
+    },
+    {
+      "fields": {
+        "len": 0,
+        "next_header": 58,
+        "options": "050200000100"
+      },
+      "kind": "hopopts",
+      "span": [
+        54,
+        62
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 52246,
+        "code": 0,
+        "mcast.0.addr": "ff02::1:ff66:a0f2",
+        "mcast.0.nsrcs": 0,
+        "mcast.0.sources": "",
+        "mcast.0.type": 4,
+        "mcast.1.addr": "ff02::1:ff00:1",
+        "mcast.1.nsrcs": 0,
+        "mcast.1.sources": "",
+        "mcast.1.type": 4,
+        "rest": "00000002",
+        "type": 143
+      },
+      "kind": "icmpv6",
+      "span": [
+        62,
+        70
+      ]
+    }
+  ],
+  "payload_hex": "04000000ff0200000000000000000001ff66a0f204000000ff0200000000000000000001ff000001",
+  "start": "eth"
+}

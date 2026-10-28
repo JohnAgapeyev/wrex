@@ -1,0 +1,11 @@
+source_url = "oracle-capture scenario "scen-dns" (tcpdump on veth0; the HP3-b harness)"
+imported = "2026-10-28"
+start = "auto"
+frames = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16"]
+
+[scenario]
+about = "Real DNS: dig against dnsmasq (both foreign lineages — the client the resolver world actually uses), A + AAAA questions and replies over UDP 53."
+clients = ["dig +time=1 +tries=1 @10.9.9.2 wrex.test A", "dig +time=1 +tries=1 @10.9.9.2 v6.wrex.test AAAA", "dig +time=1 +tries=1 +tcp @10.9.9.2 wrex.test A"]
+tools = ["dnsmasq: Dnsmasq version 2.93  Copyright (c) 2000-2026 Simon Kelley", "dig: unknown", "tcpdump: tcpdump version 4.99.7"]
+quirks = "dnsmasq answers from its host-record table (A/AAAA both queried over separate exchanges); dig sends EDNS with a 4096 udp-size by default (quirk, not contract)"
+review = "tshark eyeball + the map differential over every frame (see xtask/scenarios.rs)"

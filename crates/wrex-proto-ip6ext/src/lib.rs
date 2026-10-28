@@ -767,6 +767,13 @@ impl Codec for FragCodec {
         let offset = word >> 3;
         let m = word & 1;
         let ident = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        // A frag header in the chain: the L4 checksum (when one
+        // follows at offset 0) was folded over the ORIGINAL
+        // unfragmented upper-layer packet (RFC 8200 §8.1) and can
+        // never verify from a single fragment — the L4 verifies skip
+        // (the HP3-b foreign-fragment corpus drove the fix; the
+        // reassembled datagram verifies instead).
+        ctx.facts.fragmented = true;
         let mut fields = BTreeMap::new();
         fields.insert("next_header".into(), Value::Int(next_header as u128));
         fields.insert("offset".into(), Value::Int(offset as u128));

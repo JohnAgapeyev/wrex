@@ -535,14 +535,16 @@ fn recompute(
             pseudo,
             ..
         } => {
-            // Tranche 17a: UpperPacket starts at the net layer's
-            // recorded upper-layer packet (the v6 ext headers count
-            // into the L4 checksum, RFC 8200 §8.1); Layer is the
-            // layer's own span. Equal on every ext-free stack.
+            // UpperPacket == Layer since the HP3-b convention fix: the
+            // L4 pseudo-header covers the L4 message ONLY — RFC 8200
+            // §8.1 as every real stack implements it (the kernel's own
+            // MLD frames disagree with the old ext-inclusive fold by a
+            // constant; the foreign-capture corpus demanded the fix).
+            // The arm stays for schema compatibility (pre-1.0 additive
+            // vocabulary) and resolves to the same start as Layer.
             let start = match start_sel {
-                crate::schema::ChecksumStart::Layer => layer.span.start,
-                crate::schema::ChecksumStart::UpperPacket => {
-                    fresh.facts.upper_start.unwrap_or(layer.span.start)
+                crate::schema::ChecksumStart::Layer | crate::schema::ChecksumStart::UpperPacket => {
+                    layer.span.start
                 }
             };
             let stop = match end {
@@ -550,7 +552,17 @@ fn recompute(
                 ChecksumEnd::Layer => layer.span.end,
             };
             let pos = layer.span.start + at;
-            if stop > frame.len() || pos + 2 > frame.len() || start >= stop || pos < start {
+            // The checksum field must live inside the covered range
+            // (pos ≥ start AND pos+2 ≤ stop): the UpperPacket/Layer
+            // collapse (HP3-b convention fix) means the guard can no
+            // longer lean on upper_start sitting past the field — the
+            // empty-covered-range mock caught the missing bound.
+            if stop > frame.len()
+                || pos + 2 > frame.len()
+                || start >= stop
+                || pos < start
+                || pos + 2 > stop
+            {
                 return Err(PatchError::OutOfBounds {
                     path: format!("{}.{}", layer.kind, d.field()),
                 });

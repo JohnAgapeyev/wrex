@@ -1,4 +1,4 @@
-source_url = "handcrafted (wrex craft, tranche 17a)"
-imported = "2026-10-22"
+source_url = "handcrafted (wrex tests/integration.rs generator, tranche T17a; regenerated for the HP3-b checksum-convention fix)"
+imported = "2026-10-28"
 start = "auto"
 frames = ["01", "02", "03", "04", "05", "06", "07"]

@@ -81,16 +81,21 @@ struct Capture {
 fn start_capture(dir: &Path, iface: &str, out: &str) -> Capture {
     let path = dir.join(out);
     let _ = std::fs::remove_file(&path);
-    let child = Command::new("tcpdump")
-        .arg("-i")
-        .arg(iface)
-        .arg("-U")
-        .arg("-s")
-        .arg("0")
-        .arg("-w")
-        .arg(&path)
+    // Spawned through sh -c 'exec tcpdump …' — the exact context the
+    // manual captures ran under: a directly-spawned tcpdump under the
+    // rust process in the sandbox never read a packet off the ring
+    // ("19 received by filter, 0 captured", while the identical
+    // flags from a shell background job captured everything — the
+    // libpcap ring-read path is sensitive to the spawn context in
+    // this environment).
+    let child = Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "exec tcpdump --immediate-mode -i {iface} -s 0 -w {}",
+            path.display()
+        ))
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .spawn()
         .unwrap_or_else(|e| panic!("spawn tcpdump: {e}"));
     // Let tcpdump open the interface and set the filter before the
@@ -102,9 +107,18 @@ fn start_capture(dir: &Path, iface: &str, out: &str) -> Capture {
 
 impl Capture {
     fn stop(mut self) -> PathBuf {
-        self.child.kill().expect("kill tcpdump");
-        self.child.wait().expect("wait tcpdump");
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // SIGTERM, not SIGKILL: tcpdump's clean-exit path FLUSHES the
+        // pcap before exiting — a killed capture loses everything
+        // still sitting in the userspace buffer (the first DNS round's
+        // 24-byte pcaps: "5 received by filter, 0 captured", diagnosed
+        // live). SIGTERM → wait for the clean exit.
+        let pid = self.child.id();
+        let _ = Command::new("sh")
+            .arg("-ec")
+            .arg(format!("kill -TERM {pid} 2>/dev/null; true"))
+            .status();
+        let _ = self.child.wait();
+        std::thread::sleep(std::time::Duration::from_millis(150));
         self.path
     }
 }
@@ -113,30 +127,102 @@ impl Capture {
 /// (10.9.9.1/2 + fd00::1/2) and loopback, MTU 1500 — MTU-sensitive
 /// scenarios fragment on real hardware semantics, not a loopback trick
 /// (the doctrine's veth-pair rule).
+/// The far-end namespace holder's PID file — the scenarios share one
+/// far netns (created in [`net_setup`], killed at [`net_teardown`]).
+const FAR_PID_FILE: &str = "/tmp/scen-far.pid";
+
+/// Run `line` inside the FAR network namespace (the veth1 side: the
+/// foreign server end). Dies loudly on failure.
+fn far(line: &str) {
+    let pid = std::fs::read_to_string(FAR_PID_FILE)
+        .expect("far namespace running (net_setup)")
+        .trim()
+        .to_string();
+    let status = Command::new("nsenter")
+        .arg(format!("--net=/proc/{pid}/ns/net"))
+        .arg("sh")
+        .arg("-ec")
+        .arg(line)
+        .status()
+        .unwrap_or_else(|e| panic!("spawn nsenter for `{line}`: {e}"));
+    if !status.success() {
+        panic!("far-side setup failed: `{line}` ({status})");
+    }
+}
+
+/// The sandbox-internal network every scenario shares: a veth pair
+/// SPLIT ACROSS TWO NETWORK NAMESPACES. Both ends in one namespace
+/// route local→local traffic through `lo` (the first capture round's
+/// 0-frame frag scenarios, diagnosed live: `ip route get 10.9.9.2` →
+/// `local … dev lo` — L3 traffic never touched the wire, only
+/// arping's L2 requests did). The far end (10.9.9.2 / fd00::2) lives
+/// in its own netns held by a sleep process; the near end captures on
+/// veth0, and every client packet traverses the pair for real.
 fn net_setup() {
     sh(Path::new("/"), "ip link set lo up");
+    // The far namespace: a child netns held by a sleeping process
+    // (a user-namespace root can unshare further net namespaces —
+    // CAP_SYS_ADMIN in the sandbox's own userns). `$!` from the
+    // spawning shell IS the holder: unshare execs the inner sh which
+    // execs sleep — one PID through the whole exec chain (the first
+    // round's pgrep matched a stale holder from a cancelled run).
+    let spawned = Command::new("sh")
+        .arg("-ec")
+        .arg(
+            "unshare -n sh -c 'ip link set lo up; exec sleep 600' >/dev/null 2>&1 & \\
+             echo $! > /tmp/scen-far.spawned",
+        )
+        .output()
+        .expect("spawn far ns");
+    assert!(spawned.status.success(), "far-ns spawn failed");
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    let far_pid = std::fs::read_to_string("/tmp/scen-far.spawned")
+        .expect("the spawning shell wrote the holder pid")
+        .trim()
+        .to_string();
+    assert!(!far_pid.is_empty(), "empty holder pid");
+    std::fs::write(FAR_PID_FILE, &far_pid).expect("write far pid");
     sh(
         Path::new("/"),
-        "ip link add veth0 type veth peer name veth1 2>/dev/null || true",
+        "ip link add veth0 type veth peer name veth1",
     );
     sh(Path::new("/"), "ip link set veth0 up mtu 1500");
-    sh(Path::new("/"), "ip link set veth1 up mtu 1500");
     sh(
         Path::new("/"),
-        "ip addr add 10.9.9.1/24 dev veth0 2>/dev/null || true",
+        &format!("ip link set veth1 netns {far_pid}"),
     );
-    sh(
-        Path::new("/"),
-        "ip addr add 10.9.9.2/24 dev veth1 2>/dev/null || true",
-    );
-    sh(
-        Path::new("/"),
-        "ip -6 addr add fd00::1/64 dev veth0 2>/dev/null || true",
-    );
-    sh(
-        Path::new("/"),
-        "ip -6 addr add fd00::2/64 dev veth1 2>/dev/null || true",
-    );
+    sh(Path::new("/"), "ip addr add 10.9.9.1/24 dev veth0");
+    // v6: `nodad` — a freshly added address sits in tentative DAD
+    // state for ~1s and every ping inside that window is lost.
+    sh(Path::new("/"), "ip -6 addr add fd00::1/64 dev veth0 nodad");
+    far("ip link set veth1 up mtu 1500");
+    far("ip addr add 10.9.9.2/24 dev veth1");
+    far("ip -6 addr add fd00::2/64 dev veth1 nodad");
+    // Disable veth TX/RX checksum offload on BOTH ends: an offloaded
+    // frame crosses the pair with the L4 checksum field left
+    // unmaterialized (the receive path validates without filling it),
+    // so captured packets carry garbage where the checksum belongs —
+    // the classic tcpdump-on-veth "bad checksum" artifact. With the
+    // offload off, the kernel writes REAL checksums on the wire and
+    // the corpus is wire-honest (diagnosed from the scenario round's
+    // 30 false udp/tcp/icmpv6 checksum anomalies — every kernel-SENT
+    // frame, regardless of protocol).
+    let off = "ethtool -K IFACE tx off rx off tso off gso off gro off >/dev/null 2>&1 || true";
+    if have_tool("ethtool") {
+        sh(Path::new("/"), &off.replace("IFACE", "veth0"));
+        far(&off.replace("IFACE", "veth1"));
+    }
+}
+
+/// Tear down the far namespace (its holder process) after all
+/// scenarios ran.
+fn net_teardown() {
+    let _ = Command::new("sh")
+        .arg("-ec")
+        .arg(format!(
+            "kill $(cat {FAR_PID_FILE}) 2>/dev/null; rm -f {FAR_PID_FILE} /tmp/scen-far.sh.pid; true"
+        ))
+        .status();
 }
 
 /// A scenario row: name, required tools, the setup (network + optional
@@ -149,6 +235,9 @@ struct Scenario {
     about: &'static str,
     /// Network-side setup run INSIDE the sandbox before the capture.
     setup: &'static [&'static str],
+    /// Far-namespace setup (the foreign server end) before the
+    /// capture — run via nsenter into the far netns.
+    far_setup: &'static [&'static str],
     /// Client invocations (foreign lineage) run while capturing.
     clients: &'static [&'static str],
     /// The interface tcpdump listens on.
@@ -166,6 +255,7 @@ const SCENARIOS: &[Scenario] = &[
                 the mf bit at its RFC 791 wire position, from the kernel's \
                 own fragmenter.",
         setup: &[],
+        far_setup: &[],
         clients: &["ping -4 -n -c 2 -W 1 -M want -s 3000 10.9.9.2"],
         iface: "veth0",
         quirks: "kernel-carved fragments: frag0 carries the full ICMP header; \
@@ -178,6 +268,7 @@ const SCENARIOS: &[Scenario] = &[
                 ICMPv6 echo over the veth pair — the frag header + \
                 next-header rewrite, real-kernel lineage.",
         setup: &[],
+        far_setup: &[],
         clients: &["ping -6 -n -c 2 -W 1 -M want -s 3000 fd00::2"],
         iface: "veth0",
         quirks: "the T18a-recorded v6 pseudo-header convention may show a \
@@ -191,6 +282,7 @@ const SCENARIOS: &[Scenario] = &[
                 (the kernel's own ICMP implementation — type/code/seq \
                 conventions).",
         setup: &[],
+        far_setup: &[],
         clients: &[
             "ping -4 -n -c 2 -W 1 10.9.9.2",
             "ping -6 -n -c 2 -W 1 fd00::2",
@@ -205,6 +297,7 @@ const SCENARIOS: &[Scenario] = &[
         about: "ARP on veth: arping's request/reply exchange (the third \
                 lineage beside the arp codec and the io::ndp hand-roll).",
         setup: &[],
+        far_setup: &[],
         clients: &["arping -c 2 -w 2 -I veth0 10.9.9.2"],
         iface: "veth0",
         quirks: "arping pads to 46-byte frames (EtherType-era minimum, \
@@ -216,9 +309,10 @@ const SCENARIOS: &[Scenario] = &[
         about: "Real DNS: dig against dnsmasq (both foreign lineages — the \
                 client the resolver world actually uses), A + AAAA \
                 questions and replies over UDP 53.",
-        setup: &[
+        setup: &[],
+        far_setup: &[
             "dnsmasq --no-daemon --listen-address=10.9.9.2 --bind-interfaces \
-             --port=53 --host-record=wrex.test,192.0.2.10 --host-record=v6.wrex.test,fd00::1 \
+             --port=53 --host-record=wrex.test,192.0.2.10 --host-record=v6.wrex.test,fd00::2 \
              --pid-file= >/tmp/scen-dnsmasq.log 2>&1 &",
             "sleep 0.4",
         ],
@@ -239,7 +333,8 @@ const SCENARIOS: &[Scenario] = &[
                 HTTP GET + data + orderly close against an nc listener — \
                 the kernel's own options (mss/ws/sack/ts) on the wire \
                 (the T22 read-side-typing + T30 fingerprint pre-stage).",
-        setup: &["(nc -l -p 8080 >/tmp/scen-nc.out) &", "sleep 0.3"],
+        setup: &[],
+        far_setup: &["(nc -l -p 8080 >/tmp/scen-nc.out) &", "sleep 0.3"],
         clients: &["curl -s --max-time 2 http://10.9.9.2:8080/hello"],
         iface: "veth0",
         quirks: "the kernel's SYN options set (mss, ws, sackok, ts) varies \
@@ -269,18 +364,33 @@ pub fn capture(root: &Path, only: Option<&str>) {
         for line in s.setup {
             sh(Path::new("/"), line);
         }
+        for line in s.far_setup {
+            far(line);
+        }
         let cap = start_capture(Path::new("/tmp"), s.iface, &format!("{}.pcap", s.name));
         for client in s.clients {
-            let _ = Command::new("sh")
+            let out = Command::new("sh")
                 .arg("-ec")
                 .arg(client)
                 .current_dir("/")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
+                .output();
+            match out {
+                Ok(o) => eprintln!(
+                    "scenario {}: client `{client}` exit {:?} ({} bytes out)",
+                    s.name,
+                    o.status.code(),
+                    o.stdout.len()
+                ),
+                Err(e) => panic!("scenario {}: client spawn failed: {e}", s.name),
+            }
         }
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        std::thread::sleep(std::time::Duration::from_millis(400));
         let pcap = cap.stop();
+        eprintln!(
+            "scenario {}: pcap {} bytes",
+            s.name,
+            std::fs::metadata(&pcap).map(|m| m.len()).unwrap_or(0)
+        );
         // stop background servers (dnsmasq/nc): everything listening in
         // this sandbox dies with it, but the next scenario wants clean
         // ports.
@@ -298,6 +408,7 @@ pub fn capture(root: &Path, only: Option<&str>) {
         review_with_tshark(root, s.name);
         ran += 1;
     }
+    net_teardown();
     println!("scenarios captured: {ran}");
     if ran == 0 {
         eprintln!("no scenarios ran (missing tools?)");
