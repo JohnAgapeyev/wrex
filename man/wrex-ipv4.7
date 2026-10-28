@@ -34,8 +34,8 @@ total length (autofill: computed) Type u16. Default: 0.
 identification (autofill: 0, deterministic) Type u16. Default: 0.
 .TP
 \fB\-\-ipv4\-flags\fR
-flags aggregate [mf,df,res] (RFC 791: mf=bit 15, df=bit 14); per\-bit subpaths flags.mf / flags.df / flags.res Type flagset. Default: 0.
-Bit names (MSB first): mf, df, res. Aggregate \fB\-\-ipv4\-flags\fR sets the whole unit; per-bit \-\-ipv4\-flags\-mf sets one bit.
+flags aggregate [res,df,mf] (RFC 791: res=bit 15, df=bit 14, mf=bit 13); per\-bit subpaths flags.res / flags.df / flags.mf Type flagset. Default: 0.
+Bit names (MSB first): res, df, mf. Aggregate \fB\-\-ipv4\-flags\fR sets the whole unit; per-bit \-\-ipv4\-flags\-res sets one bit.
 .TP
 \fB\-\-ipv4\-frag_off=\fIINT\fR\fR
 fragment offset Type u16. Default: 0.
