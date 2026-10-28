@@ -19,6 +19,7 @@
 //!    insert/delete, vlan insert/delete) against the independent
 //!    lineage oracle (ADR 2's inversion rule; wrex's zero-anomaly
 //!    re-dissection is the checksum ground truth).
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use bytes::Bytes;
@@ -269,7 +270,7 @@ proptest! {
 fn layer(kind: &'static str, fields: &[(&'static str, Value)]) -> LayerSpec {
     let mut map = std::collections::BTreeMap::new();
     for (k, v) in fields {
-        map.insert(k.to_string(), v.clone());
+        map.insert(Cow::Owned(k.to_string()), v.clone());
     }
     LayerSpec::with_fields(kind, map)
 }

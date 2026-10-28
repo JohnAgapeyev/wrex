@@ -25,7 +25,7 @@ use bytes::{Bytes, BytesMut};
 use crate::checksum::ChecksumAccumulator;
 use crate::codec::Registry;
 use crate::dissect::{DissectedPacket, FieldSpan};
-use crate::schema::{ChecksumEnd, Derived, PseudoSource};
+use crate::schema::{ChecksumEnd, Derived, PseudoSource, dotted_path};
 
 /// One byte-level edit against a dissected frame, in **pre-edit frame
 /// coordinates**.
@@ -436,7 +436,9 @@ pub fn patch(
     }
     out.extend_from_slice(&frame[cursor..]);
 
-    // --- wire→wire consistency walk: recompute scoped derived fields --
+    // --- wire→wire consistency walk: recompute scoped derived fields ---
+    // (&out: BytesMut — the re-dissect copies; patch's reassemble output
+    // is a fresh buffer by construction, no zero-copy to preserve here.)
     let fresh = crate::dissect::dissect(registry, &out, packet.start);
     let mut frame = out;
     for layer in &fresh.layers {
@@ -444,7 +446,7 @@ pub fn patch(
             continue;
         };
         for d in codec.derived() {
-            let path = format!("{}.{}", layer.kind, d.field());
+            let path = dotted_path(layer.kind, d.field());
             if !scope.selects(&path) {
                 continue;
             }
@@ -500,7 +502,7 @@ fn recompute(
                 crate::schema::LengthBase::Span => layer.span.end - layer.span.start,
             };
             let pos = layer.span.start + at;
-            let path = format!("{}.{}", layer.kind, d.field());
+            let path = dotted_path(layer.kind, d.field());
             match units {
                 crate::schema::LengthUnits::Bytes => {
                     let val = covered as u16;
@@ -564,7 +566,7 @@ fn recompute(
                 || pos + 2 > stop
             {
                 return Err(PatchError::OutOfBounds {
-                    path: format!("{}.{}", layer.kind, d.field()),
+                    path: dotted_path(layer.kind, d.field()),
                 });
             }
             // RFC 1071: the checksum's own bytes count as zero during
@@ -732,6 +734,7 @@ mod tests {
     use crate::spec::LayerSpec;
     use crate::value::Value;
     use bytes::Bytes;
+    use std::borrow::Cow;
 
     static FIELDS: &[FieldSchema] = &[
         FieldSchema {
@@ -815,18 +818,18 @@ mod tests {
             }
             let mut fields = std::collections::BTreeMap::new();
             fields.insert(
-                "a".to_string(),
+                "a".into(),
                 Value::Int(u16::from_be_bytes([bytes[0], bytes[1]]) as u128),
             );
-            fields.insert("len".to_string(), Value::Int(9u128));
-            fields.insert("ck".to_string(), Value::Int(7u128));
-            fields.insert("nib".to_string(), Value::Int((bytes[6] >> 4) as u128));
+            fields.insert("len".into(), Value::Int(9u128));
+            fields.insert("ck".into(), Value::Int(7u128));
+            fields.insert("nib".into(), Value::Int((bytes[6] >> 4) as u128));
             fields.insert(
-                "re".to_string(),
+                "re".into(),
                 Value::Bytes(Bytes::copy_from_slice(&bytes[7..9])),
             );
             fields.insert(
-                "rn".to_string(),
+                "rn".into(),
                 Value::Bytes(Bytes::copy_from_slice(&bytes[7..9])),
             );
             let view = crate::dissect::LayerView {
@@ -955,10 +958,10 @@ mod tests {
                 );
             }
             let mut fields = std::collections::BTreeMap::new();
-            fields.insert("qlen".to_string(), Value::Int(bytes[0] as u128));
+            fields.insert("qlen".into(), Value::Int(bytes[0] as u128));
             let mut spans = std::collections::BTreeMap::new();
             spans.insert(
-                "qlen".to_string(),
+                "qlen".into(),
                 crate::dissect::FieldSpan::Bytes(ctx.offset..ctx.offset + 1),
             );
             ReadOutcome::Layer(
@@ -1060,8 +1063,8 @@ mod tests {
                 );
             }
             let mut fields = std::collections::BTreeMap::new();
-            fields.insert("q7".to_string(), Value::Int(0));
-            fields.insert("q8".to_string(), Value::Int(0));
+            fields.insert("q7".into(), Value::Int(0));
+            fields.insert("q8".into(), Value::Int(0));
             let view = crate::dissect::LayerView {
                 kind: "mocke",
                 span: ctx.offset..ctx.offset + 8,
@@ -1453,8 +1456,8 @@ mod tests {
         let mut field_spans = std::collections::BTreeMap::new();
         let mut fields = std::collections::BTreeMap::new();
         for (name, span) in spans {
-            field_spans.insert(name.to_string(), span.clone());
-            fields.insert(name.to_string(), Value::Bytes(Bytes::new()));
+            field_spans.insert(Cow::Owned(name.to_string()), span.clone());
+            fields.insert(Cow::Owned(name.to_string()), Value::Bytes(Bytes::new()));
         }
         DissectedPacket {
             start: kind,
@@ -1863,20 +1866,17 @@ mod tests {
         let dst = std::net::Ipv4Addr::new(bytes[4], bytes[5], bytes[6], bytes[7]);
         let proto = bytes[8];
         let mut fields = std::collections::BTreeMap::new();
-        fields.insert("src".to_string(), Value::Ipv4(src));
-        fields.insert("dst".to_string(), Value::Ipv4(dst));
-        fields.insert("proto".to_string(), Value::Int(proto as u128));
+        fields.insert("src".into(), Value::Ipv4(src));
+        fields.insert("dst".into(), Value::Ipv4(dst));
+        fields.insert("proto".into(), Value::Int(proto as u128));
         let mut spans = std::collections::BTreeMap::new();
+        spans.insert("src".into(), FieldSpan::Bytes(ctx.offset..ctx.offset + 4));
         spans.insert(
-            "src".to_string(),
-            FieldSpan::Bytes(ctx.offset..ctx.offset + 4),
-        );
-        spans.insert(
-            "dst".to_string(),
+            "dst".into(),
             FieldSpan::Bytes(ctx.offset + 4..ctx.offset + 8),
         );
         spans.insert(
-            "proto".to_string(),
+            "proto".into(),
             FieldSpan::Bytes(ctx.offset + 8..ctx.offset + 9),
         );
         ctx.facts.net = Some(crate::dissect::NetFacts::V4 { src, dst, proto });
@@ -1903,11 +1903,11 @@ mod tests {
                 );
             }
             let mut fields = std::collections::BTreeMap::new();
-            fields.insert("ck".to_string(), Value::Int(0));
-            fields.insert("tlen".to_string(), Value::Int(0));
-            fields.insert("plen".to_string(), Value::Int(0));
-            fields.insert("q4".to_string(), Value::Int(0));
-            fields.insert("ckf".to_string(), Value::Int(0));
+            fields.insert("ck".into(), Value::Int(0));
+            fields.insert("tlen".into(), Value::Int(0));
+            fields.insert("plen".into(), Value::Int(0));
+            fields.insert("q4".into(), Value::Int(0));
+            fields.insert("ckf".into(), Value::Int(0));
             let view = crate::dissect::LayerView {
                 kind,
                 span: ctx.offset..ctx.offset + 12,
@@ -1930,8 +1930,8 @@ mod tests {
             );
         }
         let mut fields = std::collections::BTreeMap::new();
-        fields.insert("ck".to_string(), Value::Int(0));
-        fields.insert("c5".to_string(), Value::Int(0));
+        fields.insert("ck".into(), Value::Int(0));
+        fields.insert("c5".into(), Value::Int(0));
         let view = crate::dissect::LayerView {
             kind: "mockl5",
             span: ctx.offset..ctx.offset + 4,
@@ -2271,8 +2271,8 @@ mod tests {
                 );
             }
             let mut fields = std::collections::BTreeMap::new();
-            fields.insert("ck".to_string(), Value::Int(0));
-            fields.insert("ck4".to_string(), Value::Int(0));
+            fields.insert("ck".into(), Value::Int(0));
+            fields.insert("ck4".into(), Value::Int(0));
             let view = crate::dissect::LayerView {
                 kind: "mockbad",
                 span: ctx.offset..ctx.offset + 2,

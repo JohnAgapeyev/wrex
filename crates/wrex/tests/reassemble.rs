@@ -108,22 +108,21 @@ fn reassemble_corpus_frames() {
 fn reassemble_preserves_deliberate_invalidity() {
     let reg = registry();
     let mut eth = LayerSpec::new("eth");
-    eth.fields.insert("dst".to_string(), Value::Mac([0xff; 6]));
-    eth.fields.insert("src".to_string(), Value::Mac([0x00; 6]));
+    eth.fields.insert("dst".into(), Value::Mac([0xff; 6]));
+    eth.fields.insert("src".into(), Value::Mac([0x00; 6]));
     // eth.type derived from the next layer (autofill)
     let mut ipv4 = LayerSpec::new("ipv4");
     ipv4.fields.insert(
-        "src".to_string(),
+        "src".into(),
         Value::Ipv4("127.0.0.1".parse().expect("loopback")),
     );
     ipv4.fields.insert(
-        "dst".to_string(),
+        "dst".into(),
         Value::Ipv4("127.0.0.1".parse().expect("loopback")),
     );
-    ipv4.fields.insert("proto".to_string(), Value::Int(17));
+    ipv4.fields.insert("proto".into(), Value::Int(17));
     // Deliberate garbage: the explicit value wins over autofill.
-    ipv4.fields
-        .insert("checksum".to_string(), Value::Int(0x1234));
+    ipv4.fields.insert("checksum".into(), Value::Int(0x1234));
     let spec = PacketSpec::new(
         vec![eth, ipv4],
         Some(Value::Bytes(b"deadbeef".as_slice().into())),

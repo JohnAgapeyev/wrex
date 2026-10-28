@@ -377,14 +377,11 @@ pub mod strategy {
         )
             .prop_map(|(traffic_class, flow_label, hop_limit, src, dst)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert(
-                    "traffic_class".to_string(),
-                    Value::Int(traffic_class as u128),
-                );
-                fields.insert("flow_label".to_string(), Value::Int(flow_label as u128));
-                fields.insert("hop_limit".to_string(), Value::Int(hop_limit as u128));
-                fields.insert("src".to_string(), src);
-                fields.insert("dst".to_string(), dst);
+                fields.insert("traffic_class".into(), Value::Int(traffic_class as u128));
+                fields.insert("flow_label".into(), Value::Int(flow_label as u128));
+                fields.insert("hop_limit".into(), Value::Int(hop_limit as u128));
+                fields.insert("src".into(), src);
+                fields.insert("dst".into(), dst);
                 LayerSpec::with_fields("ipv6", fields)
             })
             .boxed()
@@ -393,6 +390,7 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     /// Schema invariant (const-eval pass): no duplicate field names in
     /// the table. `field_names_unique` is a const fn, but the table is a
     /// static (`Bytes` interior mutability blocks const eval), so the
@@ -421,7 +419,7 @@ mod tests {
     fn ip6_spec(fields: &[(&str, &str)]) -> LayerSpec {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("ipv6", map)
     }

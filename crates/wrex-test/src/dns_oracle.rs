@@ -165,7 +165,7 @@ pub fn dns_diff(input: &[u8], dns: &LayerView) -> Result<(), DiffReport> {
             let rdata_key = format!("{prefix}.rdata");
             let rtype = u16::from(rr.record_type());
             match rtype {
-                TYPE_A => match (&rr.data, dns.fields.get(&rdata_key)) {
+                TYPE_A => match (&rr.data, dns.fields.get(rdata_key.as_str())) {
                     (hickory_proto::rr::RData::A(a), Some(Value::Ipv4(ip))) => {
                         if a.0 != *ip {
                             report.push(

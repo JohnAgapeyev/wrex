@@ -612,6 +612,7 @@ fn parse_icmp_quote(family: Family, payload: &[u8]) -> Option<(ScanAddr, u16, u1
 mod tests {
     use super::*;
     use crate::config::FuzzConfig;
+    use std::borrow::Cow;
     use std::sync::Arc;
     use wrex_io::{Clock as _, FakeClock, ScriptedDriver};
     use wrex_mut::Strategy;
@@ -913,10 +914,10 @@ mod tests {
         // ipv4 + icmp, quote as the icmp payload).
         let quoted =
             wrex_scan::packet::udp(&reg, src(), probe.target, sport_of(&probe), 5353).unwrap();
-        let mk = |pairs: &[(&str, Value)]| -> std::collections::BTreeMap<String, Value> {
+        let mk = |pairs: &[(&str, Value)]| -> std::collections::BTreeMap<Cow<'static, str>, Value> {
             pairs
                 .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
+                .map(|(k, v)| (Cow::Owned((*k).to_string()), v.clone()))
                 .collect()
         };
         let as4 = |a: ScanAddr| match a {

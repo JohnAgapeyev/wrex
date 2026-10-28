@@ -32,6 +32,7 @@
 //! a width mismatch) falls through to the raw byte level, so a mutant
 //! stream is always producible and reproducible.
 
+use std::borrow::Cow;
 use wrex_core::Registry;
 use wrex_core::dissect::{FieldSpan, dissect};
 use wrex_core::encode::serialize_field_value;
@@ -215,14 +216,14 @@ impl<'a> Mutator<'a> {
         // length-bearing fields; the field strategy every other
         // field (derived fields stay out: the len split keeps the
         // T6 strategy semantics).
-        let mut candidates: Vec<(usize, String)> = Vec::new();
+        let mut candidates: Vec<(usize, Cow<'static, str>)> = Vec::new();
         for (li, l) in pkt.layers.iter().enumerate() {
             for name in l.fields.keys() {
                 if len_only {
-                    if !LENGTH_FIELDS.contains(&name.as_str()) {
+                    if !LENGTH_FIELDS.contains(&name.as_ref()) {
                         continue;
                     }
-                } else if DERIVED_FIELDS.contains(&name.as_str()) {
+                } else if DERIVED_FIELDS.contains(&name.as_ref()) {
                     continue;
                 }
                 // Only patchable geometry is a candidate: dynamic
@@ -234,7 +235,7 @@ impl<'a> Mutator<'a> {
                 // the pointer target), so `serialize_field_value`
                 // cannot speak it generically — the engine API and
                 // tests carry those patches instead.
-                match l.field_spans.get(name) {
+                match l.field_spans.get(name.as_ref()) {
                     Some(FieldSpan::Bytes(_) | FieldSpan::Bits { .. }) => {}
                     _ => continue,
                 }
@@ -246,8 +247,8 @@ impl<'a> Mutator<'a> {
         }
         let (li, name) = candidates[(self.rng.next_u64() as usize) % candidates.len()].clone();
         let layer = pkt.layers.get(li)?;
-        let old = layer.fields.get(&name)?.clone();
-        let bits = match layer.field_spans.get(&name)? {
+        let old = layer.fields.get(name.as_ref())?.clone();
+        let bits = match layer.field_spans.get(name.as_ref())? {
             FieldSpan::Bytes(r) => r.len() * 8,
             FieldSpan::Bits { width, .. } => *width as usize,
             FieldSpan::ReEncode(_) | FieldSpan::None => return None,
@@ -389,7 +390,7 @@ pub fn spec_from_frame(registry: &Registry, frame: &[u8]) -> Option<PacketSpec> 
     for l in &pkt.layers {
         let mut fields = std::collections::BTreeMap::new();
         for (name, v) in &l.fields {
-            if DERIVED_FIELDS.contains(&name.as_str()) {
+            if DERIVED_FIELDS.contains(&name.as_ref()) {
                 continue;
             }
             fields.insert(name.clone(), v.clone());
@@ -425,10 +426,10 @@ mod tests {
     /// A golden eth+ipv4+udp frame (the README recipe).
     fn golden_udp() -> Vec<u8> {
         let reg = registry();
-        let mk = |pairs: &[(&str, Value)]| -> std::collections::BTreeMap<String, Value> {
+        let mk = |pairs: &[(&str, Value)]| -> std::collections::BTreeMap<Cow<'static, str>, Value> {
             pairs
                 .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
+                .map(|(k, v)| (Cow::Owned((*k).to_string()), v.clone()))
                 .collect()
         };
         let spec = PacketSpec::new(
@@ -598,10 +599,10 @@ mod tests {
     /// A second, distinct seed frame (eth+ipv4+tcp) for splice tests.
     fn golden_tcp() -> Vec<u8> {
         let reg = registry();
-        let mk = |pairs: &[(&str, Value)]| -> std::collections::BTreeMap<String, Value> {
+        let mk = |pairs: &[(&str, Value)]| -> std::collections::BTreeMap<Cow<'static, str>, Value> {
             pairs
                 .iter()
-                .map(|(k, v)| (k.to_string(), v.clone()))
+                .map(|(k, v)| (Cow::Owned((*k).to_string()), v.clone()))
                 .collect()
         };
         let spec = PacketSpec::new(

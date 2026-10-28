@@ -267,7 +267,7 @@ pub fn audit_strategy(
             .expect("strategy generation must not fail");
         let spec = tree.current();
         for (k, v) in &spec.fields {
-            let entry = seen.entry(k.clone()).or_default();
+            let entry = seen.entry(k.clone().into_owned()).or_default();
             if !entry.contains(v) {
                 entry.push(v.clone());
             }

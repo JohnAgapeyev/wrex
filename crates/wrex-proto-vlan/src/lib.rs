@@ -231,11 +231,11 @@ pub mod strategy {
         )
             .prop_map(|(pcp, dei, vid, ty)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("pcp".to_string(), Value::Int(pcp as u128));
-                fields.insert("dei".to_string(), Value::Int(dei as u128));
-                fields.insert("vid".to_string(), Value::Int(vid as u128));
+                fields.insert("pcp".into(), Value::Int(pcp as u128));
+                fields.insert("dei".into(), Value::Int(dei as u128));
+                fields.insert("vid".into(), Value::Int(vid as u128));
                 if let Some(t) = ty {
-                    fields.insert("type".to_string(), t);
+                    fields.insert("type".into(), t);
                 }
                 LayerSpec::with_fields("vlan", fields)
             })
@@ -259,6 +259,7 @@ mod tests {
     /// are statics (Bytes interior mutability blocks const eval), so
     /// the proof runs here instead.
     use super::*;
+    use std::borrow::Cow;
     use std::collections::BTreeMap;
     use wrex_core::Registry;
     use wrex_core::encode::{EncodeOpts, encode};
@@ -272,7 +273,7 @@ mod tests {
     fn vlan_spec(fields: &[(&str, &str)]) -> LayerSpec {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("vlan", map)
     }

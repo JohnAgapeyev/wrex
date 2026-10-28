@@ -519,15 +519,15 @@ impl Codec for OptsCodec {
         );
         let mut spans = BTreeMap::new();
         spans.insert(
-            "next_header".to_string(),
+            "next_header".into(),
             FieldSpan::Bytes(ctx.offset..ctx.offset + 1),
         );
         spans.insert(
-            "len".to_string(),
+            "len".into(),
             FieldSpan::Bytes(ctx.offset + 1..ctx.offset + 2),
         );
         spans.insert(
-            "options".to_string(),
+            "options".into(),
             FieldSpan::Bytes(ctx.offset + 2..ctx.offset + total),
         );
 
@@ -656,23 +656,23 @@ impl Codec for RoutingCodec {
         );
         let mut spans = BTreeMap::new();
         spans.insert(
-            "next_header".to_string(),
+            "next_header".into(),
             FieldSpan::Bytes(ctx.offset..ctx.offset + 1),
         );
         spans.insert(
-            "len".to_string(),
+            "len".into(),
             FieldSpan::Bytes(ctx.offset + 1..ctx.offset + 2),
         );
         spans.insert(
-            "type".to_string(),
+            "type".into(),
             FieldSpan::Bytes(ctx.offset + 2..ctx.offset + 3),
         );
         spans.insert(
-            "segs_left".to_string(),
+            "segs_left".into(),
             FieldSpan::Bytes(ctx.offset + 3..ctx.offset + 4),
         );
         spans.insert(
-            "segments".to_string(),
+            "segments".into(),
             FieldSpan::Bytes(ctx.offset + 4..ctx.offset + total),
         );
 
@@ -781,12 +781,12 @@ impl Codec for FragCodec {
         fields.insert("ident".into(), Value::Int(ident as u128));
         let mut spans = BTreeMap::new();
         spans.insert(
-            "next_header".to_string(),
+            "next_header".into(),
             FieldSpan::Bytes(ctx.offset..ctx.offset + 1),
         );
         let container: Range<usize> = ctx.offset + 2..ctx.offset + 4;
         spans.insert(
-            "offset".to_string(),
+            "offset".into(),
             FieldSpan::Bits {
                 container: container.clone(),
                 shift: 0,
@@ -794,7 +794,7 @@ impl Codec for FragCodec {
             },
         );
         spans.insert(
-            "m".to_string(),
+            "m".into(),
             FieldSpan::Bits {
                 container,
                 shift: 13,
@@ -802,7 +802,7 @@ impl Codec for FragCodec {
             },
         );
         spans.insert(
-            "ident".to_string(),
+            "ident".into(),
             FieldSpan::Bytes(ctx.offset + 4..ctx.offset + 8),
         );
         let view = LayerView {
@@ -952,23 +952,23 @@ impl Codec for AhCodec {
         );
         let mut spans = BTreeMap::new();
         spans.insert(
-            "next_header".to_string(),
+            "next_header".into(),
             FieldSpan::Bytes(ctx.offset..ctx.offset + 1),
         );
         spans.insert(
-            "len".to_string(),
+            "len".into(),
             FieldSpan::Bytes(ctx.offset + 1..ctx.offset + 2),
         );
         spans.insert(
-            "spi".to_string(),
+            "spi".into(),
             FieldSpan::Bytes(ctx.offset + 4..ctx.offset + 8),
         );
         spans.insert(
-            "seq".to_string(),
+            "seq".into(),
             FieldSpan::Bytes(ctx.offset + 8..ctx.offset + 12),
         );
         spans.insert(
-            "icv".to_string(),
+            "icv".into(),
             FieldSpan::Bytes(ctx.offset + 12..ctx.offset + total),
         );
 
@@ -1056,12 +1056,9 @@ impl Codec for EspCodec {
         fields.insert("spi".into(), Value::Int(spi as u128));
         fields.insert("seq".into(), Value::Int(seq as u128));
         let mut spans = BTreeMap::new();
+        spans.insert("spi".into(), FieldSpan::Bytes(ctx.offset..ctx.offset + 4));
         spans.insert(
-            "spi".to_string(),
-            FieldSpan::Bytes(ctx.offset..ctx.offset + 4),
-        );
-        spans.insert(
-            "seq".to_string(),
+            "seq".into(),
             FieldSpan::Bytes(ctx.offset + 4..ctx.offset + 8),
         );
         let view = LayerView {
@@ -1138,7 +1135,7 @@ pub mod strategy {
             .prop_map(move |mut options| {
                 options.resize(options.len().div_ceil(8) * 8, 0);
                 let mut fields = BTreeMap::new();
-                fields.insert("options".to_string(), Value::Bytes(options.into()));
+                fields.insert("options".into(), Value::Bytes(options.into()));
                 LayerSpec::with_fields(kind, fields)
             })
             .boxed()
@@ -1165,9 +1162,9 @@ pub mod strategy {
                 let mut region = vec![0u8; 4];
                 region.extend_from_slice(&addresses);
                 let mut fields = BTreeMap::new();
-                fields.insert("type".to_string(), Value::Int(rtype));
-                fields.insert("segs_left".to_string(), Value::Int(segs_left));
-                fields.insert("segments".to_string(), Value::Bytes(region.into()));
+                fields.insert("type".into(), Value::Int(rtype));
+                fields.insert("segs_left".into(), Value::Int(segs_left));
+                fields.insert("segments".into(), Value::Bytes(region.into()));
                 LayerSpec::with_fields(super::KIND_ROUTING, fields)
             })
             .boxed()
@@ -1180,9 +1177,9 @@ pub mod strategy {
         (any::<u16>(), any::<bool>(), any::<u32>())
             .prop_map(|(offset, m, ident)| {
                 let mut fields = BTreeMap::new();
-                fields.insert("offset".to_string(), Value::Int((offset & 0x1fff) as u128));
-                fields.insert("m".to_string(), Value::Int(m as u128));
-                fields.insert("ident".to_string(), Value::Int(ident as u128));
+                fields.insert("offset".into(), Value::Int((offset & 0x1fff) as u128));
+                fields.insert("m".into(), Value::Int(m as u128));
+                fields.insert("ident".into(), Value::Int(ident as u128));
                 LayerSpec::with_fields(super::KIND_FRAG, fields)
             })
             .boxed()
@@ -1199,9 +1196,9 @@ pub mod strategy {
             .prop_map(|(mut icv, spi, seq)| {
                 icv.resize(icv.len().div_ceil(4) * 4, 0);
                 let mut fields = BTreeMap::new();
-                fields.insert("spi".to_string(), Value::Int(spi as u128));
-                fields.insert("seq".to_string(), Value::Int(seq as u128));
-                fields.insert("icv".to_string(), Value::Bytes(icv.into()));
+                fields.insert("spi".into(), Value::Int(spi as u128));
+                fields.insert("seq".into(), Value::Int(seq as u128));
+                fields.insert("icv".into(), Value::Bytes(icv.into()));
                 LayerSpec::with_fields(super::KIND_AH, fields)
             })
             .boxed()
@@ -1211,8 +1208,8 @@ pub mod strategy {
         (any::<u32>(), any::<u32>())
             .prop_map(|(spi, seq)| {
                 let mut fields = BTreeMap::new();
-                fields.insert("spi".to_string(), Value::Int(spi as u128));
-                fields.insert("seq".to_string(), Value::Int(seq as u128));
+                fields.insert("spi".into(), Value::Int(spi as u128));
+                fields.insert("seq".into(), Value::Int(seq as u128));
                 LayerSpec::with_fields(super::KIND_ESP, fields)
             })
             .boxed()
@@ -1225,6 +1222,7 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     /// Schema invariant (const-eval pass): the shared options-style
     /// field table carries no duplicate names (the per-kind schemas
     /// all reuse it). `field_names_unique` is a const fn, but the
@@ -1256,7 +1254,7 @@ mod tests {
                 }
                 _ => Value::Int(v.parse::<u128>().unwrap()),
             };
-            map.insert(k.to_string(), value);
+            map.insert(Cow::Owned(k.to_string()), value);
         }
         LayerSpec::with_fields(kind, map)
     }

@@ -273,8 +273,8 @@ pub mod strategy {
         (any::<u16>(), any::<u16>())
             .prop_map(|(sport, dport)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("sport".to_string(), Value::Int(sport as u128));
-                fields.insert("dport".to_string(), Value::Int(dport as u128));
+                fields.insert("sport".into(), Value::Int(sport as u128));
+                fields.insert("dport".into(), Value::Int(dport as u128));
                 LayerSpec::with_fields("udp", fields)
             })
             .boxed()
@@ -283,6 +283,7 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     /// Schema invariant (const-eval pass): no duplicate field names in
     /// the table. `field_names_unique` is a const fn, but the table is a
     /// static (`Bytes` interior mutability blocks const eval), so the
@@ -311,7 +312,7 @@ mod tests {
     fn udp_spec(fields: &[(&str, &str)]) -> LayerSpec {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("udp", map)
     }
@@ -392,7 +393,7 @@ mod tests {
         register(&mut r);
         let mut hf = std::collections::BTreeMap::new();
         hf.insert(
-            "options".to_string(),
+            "options".into(),
             wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
                 0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
             ])),
@@ -569,7 +570,7 @@ mod tests {
             fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
                 let mut fields = BTreeMap::new();
                 fields.insert(
-                    "stub".to_string(),
+                    "stub".into(),
                     Value::Bytes(bytes::Bytes::copy_from_slice(bytes)),
                 );
                 ReadOutcome::Layer(
@@ -681,7 +682,7 @@ mod tests {
             fn read<'a>(&self, bytes: &'a [u8], ctx: &mut DecodeCtx<'a>) -> ReadOutcome {
                 let mut fields = BTreeMap::new();
                 fields.insert(
-                    "stub".to_string(),
+                    "stub".into(),
                     Value::Bytes(bytes::Bytes::copy_from_slice(bytes)),
                 );
                 ReadOutcome::Layer(

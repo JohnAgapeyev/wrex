@@ -375,7 +375,7 @@ impl Codec for DhcpCodec {
         let mut fields = std::collections::BTreeMap::new();
         // Tranche 11b: parse-time spans for the dynamic options region
         // (the fixed header resolves through the static layouts table).
-        let mut spans: std::collections::BTreeMap<String, FieldSpan> =
+        let mut spans: std::collections::BTreeMap<Cow<'static, str>, FieldSpan> =
             std::collections::BTreeMap::new();
         let base = ctx.offset;
         fields.insert("op".into(), Value::Int(bytes[0] as u128));
@@ -475,31 +475,37 @@ impl Codec for DhcpCodec {
             let data = &bytes[cursor + 2..cursor + 2 + olen];
             let dat = base + cursor + 2;
             spans.insert(
-                format!("opt.{i}.code"),
+                format!("opt.{i}.code").into(),
                 FieldSpan::Bytes(base + cursor..base + cursor + 1),
             );
             spans.insert(
-                format!("opt.{i}.len"),
+                format!("opt.{i}.len").into(),
                 FieldSpan::Bytes(base + cursor + 1..base + cursor + 2),
             );
-            spans.insert(format!("opt.{i}.value"), FieldSpan::Bytes(dat..dat + olen));
-            fields.insert(format!("opt.{i}.code"), Value::Int(code as u128));
-            fields.insert(format!("opt.{i}.len"), Value::Int(olen as u128));
+            spans.insert(
+                format!("opt.{i}.value").into(),
+                FieldSpan::Bytes(dat..dat + olen),
+            );
+            fields.insert(format!("opt.{i}.code").into(), Value::Int(code as u128));
+            fields.insert(format!("opt.{i}.len").into(), Value::Int(olen as u128));
             fields.insert(
-                format!("opt.{i}.value"),
+                format!("opt.{i}.value").into(),
                 Value::Bytes(Bytes::copy_from_slice(data)),
             );
             // Typed subset per code (never fatal on bad lengths).
             match code {
                 OPT_MSG_TYPE if !data.is_empty() => {
-                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 1));
-                    fields.insert(format!("opt.{i}.num"), Value::Int(data[0] as u128));
+                    spans.insert(
+                        format!("opt.{i}.num").into(),
+                        FieldSpan::Bytes(dat..dat + 1),
+                    );
+                    fields.insert(format!("opt.{i}.num").into(), Value::Int(data[0] as u128));
                     if !hoisted {
                         hoisted = true;
                         // The hoisted msg_type spans its SOURCE (the
                         // option-53 value byte): patching `msg_type`
                         // writes the right TLV.
-                        spans.insert("msg_type".to_string(), FieldSpan::Bytes(dat..dat + olen));
+                        spans.insert("msg_type".into(), FieldSpan::Bytes(dat..dat + olen));
                         fields.insert(
                             "msg_type".into(),
                             Value::Str(render_msg_type(data[0]).into()),
@@ -507,39 +513,48 @@ impl Codec for DhcpCodec {
                     }
                 }
                 OPT_SUBNET_MASK | OPT_REQUESTED_IP | OPT_SERVER_ID if olen == 4 => {
-                    spans.insert(format!("opt.{i}.ip"), FieldSpan::Bytes(dat..dat + 4));
+                    spans.insert(format!("opt.{i}.ip").into(), FieldSpan::Bytes(dat..dat + 4));
                     fields.insert(
-                        format!("opt.{i}.ip"),
+                        format!("opt.{i}.ip").into(),
                         Value::Ipv4(Ipv4Addr::new(data[0], data[1], data[2], data[3])),
                     );
                 }
                 // Multi-address options: `ip` is the first address.
                 OPT_ROUTER | OPT_DNS_SERVERS if olen >= 4 && olen.is_multiple_of(4) => {
                     // `ip` is the first address of the region.
-                    spans.insert(format!("opt.{i}.ip"), FieldSpan::Bytes(dat..dat + 4));
+                    spans.insert(format!("opt.{i}.ip").into(), FieldSpan::Bytes(dat..dat + 4));
                     fields.insert(
-                        format!("opt.{i}.ip"),
+                        format!("opt.{i}.ip").into(),
                         Value::Ipv4(Ipv4Addr::new(data[0], data[1], data[2], data[3])),
                     );
                 }
                 OPT_ADDRESS_TIME | OPT_RENEWAL_TIME | OPT_REBINDING_TIME if olen == 4 => {
-                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 4));
+                    spans.insert(
+                        format!("opt.{i}.num").into(),
+                        FieldSpan::Bytes(dat..dat + 4),
+                    );
                     fields.insert(
-                        format!("opt.{i}.num"),
+                        format!("opt.{i}.num").into(),
                         Value::Int(u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as u128),
                     );
                 }
                 OPT_MAX_MSG_SIZE if olen == 2 => {
-                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 2));
+                    spans.insert(
+                        format!("opt.{i}.num").into(),
+                        FieldSpan::Bytes(dat..dat + 2),
+                    );
                     fields.insert(
-                        format!("opt.{i}.num"),
+                        format!("opt.{i}.num").into(),
                         Value::Int(u16::from_be_bytes([data[0], data[1]]) as u128),
                     );
                 }
                 OPT_HOST_NAME | OPT_DOMAIN_NAME => {
-                    spans.insert(format!("opt.{i}.text"), FieldSpan::Bytes(dat..dat + olen));
+                    spans.insert(
+                        format!("opt.{i}.text").into(),
+                        FieldSpan::Bytes(dat..dat + olen),
+                    );
                     fields.insert(
-                        format!("opt.{i}.text"),
+                        format!("opt.{i}.text").into(),
                         Value::Str(String::from_utf8_lossy(data).into_owned().into()),
                     );
                 }
@@ -696,36 +711,36 @@ pub mod strategy {
                     (xid, secs, ciaddr, yiaddr, siaddr, giaddr, msg_type, sname, file, opts),
                 )| {
                     let mut fields = std::collections::BTreeMap::new();
-                    fields.insert("op".to_string(), Value::Int(op as u128));
-                    fields.insert("htype".to_string(), Value::Int(htype as u128));
-                    fields.insert("hlen".to_string(), Value::Int(hlen as u128));
-                    fields.insert("hops".to_string(), Value::Int(hops as u128));
+                    fields.insert("op".into(), Value::Int(op as u128));
+                    fields.insert("htype".into(), Value::Int(htype as u128));
+                    fields.insert("hlen".into(), Value::Int(hlen as u128));
+                    fields.insert("hops".into(), Value::Int(hops as u128));
                     fields.insert(
-                        "flags".to_string(),
+                        "flags".into(),
                         Value::Int(if broadcast { 0b1 } else { 0 } as u128),
                     );
                     fields.insert(
-                        "chaddr".to_string(),
+                        "chaddr".into(),
                         Value::Bytes(bytes::Bytes::from(chaddr.to_vec())),
                     );
-                    fields.insert("xid".to_string(), Value::Int(xid as u128));
-                    fields.insert("secs".to_string(), Value::Int(secs as u128));
-                    fields.insert("ciaddr".to_string(), ciaddr);
-                    fields.insert("yiaddr".to_string(), yiaddr);
-                    fields.insert("siaddr".to_string(), siaddr);
-                    fields.insert("giaddr".to_string(), giaddr);
-                    fields.insert("msg_type".to_string(), msg_type);
+                    fields.insert("xid".into(), Value::Int(xid as u128));
+                    fields.insert("secs".into(), Value::Int(secs as u128));
+                    fields.insert("ciaddr".into(), ciaddr);
+                    fields.insert("yiaddr".into(), yiaddr);
+                    fields.insert("siaddr".into(), siaddr);
+                    fields.insert("giaddr".into(), giaddr);
+                    fields.insert("msg_type".into(), msg_type);
                     if let Some(s) = sname {
-                        fields.insert("sname".to_string(), s);
+                        fields.insert("sname".into(), s);
                     }
                     if let Some(fi) = file {
-                        fields.insert("file".to_string(), fi);
+                        fields.insert("file".into(), fi);
                     }
                     if let Some(o) = opts {
                         if matches!(&o, Value::Str(s) if s.is_empty()) {
                             // the empty-grammar sample is the no-options case
                         } else {
-                            fields.insert("options".to_string(), o);
+                            fields.insert("options".into(), o);
                         }
                     }
                     LayerSpec::with_fields("dhcp", fields)
@@ -780,7 +795,7 @@ mod tests {
     fn dhcp_spec(fields: &[(&str, &str)]) -> LayerSpec {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("dhcp", map)
     }
@@ -796,8 +811,8 @@ mod tests {
         let mut r = wrex_core::Registry::empty();
         register(&mut r);
         let mut uf = std::collections::BTreeMap::new();
-        uf.insert("sport".to_string(), wrex_core::Value::Int(68));
-        uf.insert("dport".to_string(), wrex_core::Value::Int(67));
+        uf.insert("sport".into(), wrex_core::Value::Int(68));
+        uf.insert("dport".into(), wrex_core::Value::Int(67));
         let spec = wrex_core::spec::PacketSpec::new(
             vec![
                 wrex_core::spec::LayerSpec::with_fields(wrex_proto_udp::KIND, uf),
@@ -1011,7 +1026,7 @@ mod tests {
         // hand-build: valid header + an option declaring more data than
         // present.
         let mut spec_fields = BTreeMap::new();
-        spec_fields.insert("xid".to_string(), Value::Int(1));
+        spec_fields.insert("xid".into(), Value::Int(1));
         let mut bytes = encode(
             &registry(),
             &PacketSpec::new(vec![LayerSpec::with_fields("dhcp", spec_fields)], None),

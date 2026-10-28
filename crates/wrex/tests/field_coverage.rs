@@ -40,7 +40,7 @@ fn registry() -> wrex_core::Registry {
 fn layer(kind: &'static str, fields: &[(&'static str, Value)]) -> LayerSpec {
     let mut map = BTreeMap::new();
     for (k, v) in fields {
-        map.insert(k.to_string(), v.clone());
+        map.insert((*k).into(), v.clone());
     }
     LayerSpec::with_fields(kind, map)
 }
@@ -268,7 +268,7 @@ fn g2_bit_toggle_sweep_feeds_the_differential() {
             let mut toggled = base.clone();
             for l in toggled.layers.iter_mut() {
                 if l.kind == kind {
-                    l.fields.insert(field.to_string(), int(1 << pos));
+                    l.fields.insert(field.into(), int(1 << pos));
                 }
             }
             let bytes = encode_af(&reg, &toggled);
@@ -326,7 +326,7 @@ fn g2_bit_toggle_sweep_feeds_the_differential() {
                     );
                 }
                 Some(FieldSpan::None) => {
-                    if let Some(sub) = l.field_spans.get(&format!("{field}.{bit}")) {
+                    if let Some(sub) = l.field_spans.get(format!("{field}.{bit}").as_str()) {
                         let v = read_window(&bytes, sub).expect("sub window in frame");
                         assert_eq!(v, 1, "{kind}.{field}.{bit}: sub-bit window reads {v}");
                     } else {
@@ -355,7 +355,7 @@ fn g2_bit_toggle_sweep_feeds_the_differential() {
             let mut cleared = base.clone();
             for l in cleared.layers.iter_mut() {
                 if l.kind == kind {
-                    l.fields.insert(field.to_string(), int(0));
+                    l.fields.insert(field.into(), int(0));
                 }
             }
             let bytes = encode_af(&reg, &cleared);

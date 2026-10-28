@@ -193,6 +193,7 @@ impl<'a> Session for DnsTcpSession<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
     use std::collections::BTreeMap;
 
     use wrex_core::encode::{EncodeOpts, encode};
@@ -206,9 +207,9 @@ mod tests {
     fn query_bytes() -> Bytes {
         // A minimal dns query through the real codec (id 0x1234).
         let mut fields = BTreeMap::new();
-        fields.insert("id".to_string(), Value::Int(0x1234));
-        fields.insert("qd.0.name".to_string(), Value::Str("example.com".into()));
-        fields.insert("qd.0.type".to_string(), Value::Str("A".into()));
+        fields.insert("id".into(), Value::Int(0x1234));
+        fields.insert("qd.0.name".into(), Value::Str("example.com".into()));
+        fields.insert("qd.0.type".into(), Value::Str("A".into()));
         let spec = PacketSpec::new(vec![LayerSpec::with_fields("dns", fields)], None);
         encode(
             &dns_registry(),
@@ -254,7 +255,7 @@ mod tests {
             ("qd.0.class", Value::Str("IN".into())),
         ]
         .iter()
-        .map(|(k, v)| (k.to_string(), v.clone()))
+        .map(|(k, v)| (Cow::Owned((*k).to_string()), v.clone()))
         .collect();
         let reply_spec = PacketSpec::new(
             vec![LayerSpec::with_fields("dns", fields)],

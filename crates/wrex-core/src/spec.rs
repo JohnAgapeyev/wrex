@@ -1,6 +1,7 @@
 //! Packet specification model (`PacketSpec`/`LayerSpec`) feeding the encode
 //! engine.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -15,7 +16,7 @@ use crate::value::Value;
 #[derive(Clone, Debug, Serialize)]
 pub struct LayerSpec {
     pub kind: &'static str,
-    pub fields: BTreeMap<String, Value>,
+    pub fields: BTreeMap<Cow<'static, str>, Value>,
 }
 
 impl LayerSpec {
@@ -26,7 +27,7 @@ impl LayerSpec {
         }
     }
 
-    pub fn with_fields(kind: &'static str, fields: BTreeMap<String, Value>) -> Self {
+    pub fn with_fields(kind: &'static str, fields: BTreeMap<Cow<'static, str>, Value>) -> Self {
         Self { kind, fields }
     }
 }
@@ -54,7 +55,7 @@ mod tests {
         assert_eq!(bare.kind, "eth");
         assert!(bare.fields.is_empty());
         let mut fields = BTreeMap::new();
-        fields.insert("dst".to_string(), Value::Int(1));
+        fields.insert("dst".into(), Value::Int(1));
         let with = LayerSpec::with_fields("eth", fields.clone());
         assert_eq!(with.kind, "eth");
         assert_eq!(with.fields.len(), 1);
@@ -79,7 +80,7 @@ mod tests {
     #[test]
     fn packet_spec_serializes() {
         let mut fields = BTreeMap::new();
-        fields.insert("type".to_string(), Value::Int(2048));
+        fields.insert("type".into(), Value::Int(2048));
         let p = PacketSpec::new(
             vec![LayerSpec::with_fields("eth", fields)],
             Some(Value::Int(1)),

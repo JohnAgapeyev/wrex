@@ -230,11 +230,11 @@ pub mod strategy {
         (oper, mac.clone(), ip.clone(), mac, ip)
             .prop_map(|(oper, sha, spa, tha, tpa)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("oper".to_string(), oper);
-                fields.insert("sha".to_string(), sha);
-                fields.insert("spa".to_string(), spa);
-                fields.insert("tha".to_string(), tha);
-                fields.insert("tpa".to_string(), tpa); // required: always set
+                fields.insert("oper".into(), oper);
+                fields.insert("sha".into(), sha);
+                fields.insert("spa".into(), spa);
+                fields.insert("tha".into(), tha);
+                fields.insert("tpa".into(), tpa); // required: always set
                 LayerSpec::with_fields("arp", fields)
             })
             .boxed()
@@ -243,6 +243,7 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     /// Schema invariant (const-eval pass): no duplicate field names in
     /// the table. `field_names_unique` is a const fn, but the table is a
     /// static (`Bytes` interior mutability blocks const eval), so the
@@ -271,7 +272,7 @@ mod tests {
     fn arp_spec(fields: &[(&str, &str)]) -> LayerSpec {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("arp", map)
     }

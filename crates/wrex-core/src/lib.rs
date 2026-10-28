@@ -19,7 +19,8 @@ pub mod value;
 pub use checksum::{ChecksumAccumulator, PseudoHeader, internet_checksum};
 pub use codec::{Codec, Next, ReadOutcome, Registry};
 pub use dissect::{
-    Anomaly, DecodeCtx, DissectedPacket, Facts, FieldSpan, LayerView, NetFacts, auto_start, dissect,
+    Anomaly, DecodeCtx, DissectedPacket, Facts, FieldSpan, IntoFrame, LayerView, NetFacts,
+    auto_start, dissect,
 };
 pub use encode::{EncodeCtx, EncodeOpts, Encoded, Patch, Violation, encode, serialize_field_value};
 pub use error::{DecodeError, EncodeError, FilterError, SpecError};

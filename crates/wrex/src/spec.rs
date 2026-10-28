@@ -6,6 +6,7 @@
 //! `--layer` order, or implied from the flags present, ranked, with
 //! sibling-conflict and parents validation).
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use clap::ArgMatches;
@@ -99,21 +100,22 @@ pub fn packet_spec_from_matches(
         .map(|raw| parse_value(&payload_field(), raw))
         .transpose()?;
 
-    let mut kind_fields: BTreeMap<&'static str, BTreeMap<String, Value>> = BTreeMap::new();
+    let mut kind_fields: BTreeMap<&'static str, BTreeMap<Cow<'static, str>, Value>> =
+        BTreeMap::new();
     for &kind in registry.kinds() {
         let schema = registry.schema(kind).expect("registered kind");
-        let mut fields: BTreeMap<String, Value> = BTreeMap::new();
+        let mut fields: BTreeMap<Cow<'static, str>, Value> = BTreeMap::new();
         for field in schema.fields {
             // Whole-field arg: value through the pinned value grammar.
             if let Some(raw) = matches.get_one::<String>(&flag_long(kind, field.name)) {
-                fields.insert(field.name.to_string(), parse_value(field, raw)?);
+                fields.insert(field.name.into(), parse_value(field, raw)?);
             }
             // Per-bit subpaths: boolean flags.
             if field.kind == wrex_core::FieldKind::FlagSet {
                 for &bit in field.bit_names {
                     let path = format!("{}.{}", field.name, bit);
                     if matches.get_flag(&flag_long(kind, &path)) {
-                        fields.insert(path, Value::Bool(true));
+                        fields.insert(path.into(), Value::Bool(true));
                     }
                 }
             }
@@ -128,7 +130,7 @@ pub fn packet_spec_from_matches(
                 let arg_id = flag_long(kind, &format!("{}.0.{}", record.name, field.name));
                 if let Some(raw) = matches.get_one::<String>(&arg_id) {
                     fields.insert(
-                        format!("{}.0.{}", record.name, field.name),
+                        format!("{}.0.{}", record.name, field.name).into(),
                         parse_value(field, raw)?,
                     );
                 }
@@ -146,7 +148,7 @@ pub fn packet_spec_from_matches(
 fn finalize(
     registry: &Registry,
     declared: Vec<&'static str>,
-    kind_fields: BTreeMap<&'static str, BTreeMap<String, Value>>,
+    kind_fields: BTreeMap<&'static str, BTreeMap<Cow<'static, str>, Value>>,
     payload: Option<Value>,
 ) -> Result<PacketSpec, SpecError> {
     // Determine the layer stack.

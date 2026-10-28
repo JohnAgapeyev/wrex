@@ -75,7 +75,10 @@ pub struct EncodeCtx<'a> {
     pub payload: Option<&'a [u8]>,
     /// Next layer kind in the stack, `None` when this layer is terminal.
     pub next: Option<&'static str>,
-    deferred: Vec<Patch>,
+    /// Deferred-field accumulator — engine-owned (one reserved Vec per
+    /// encode; codecs append via [`EncodeCtx::defer`], the engine
+    /// resolves the whole set after the stack walk).
+    deferred: &'a mut Vec<Patch>,
 }
 
 impl<'a> EncodeCtx<'a> {
@@ -146,8 +149,24 @@ pub fn encode(
         }
     };
 
-    let mut buf = BytesMut::new();
-    let mut patches: Vec<Patch> = Vec::new();
+    // Allocation budget (tripwire: reserve is ~14% of encode cycles
+    // without this): one `buf` sized by the `header_len` oracle (exact
+    // per-spec header sizes) + payload, and ONE engine-owned deferred
+    // vec — the per-layer `Vec::new()` + `extend` growth is gone; each
+    // codec appends into the engine's vec through the ctx borrow.
+    let buf_capacity = {
+        let mut est = payload.as_ref().map_or(0, |p| p.len());
+        for (layer, codec) in spec.layers.iter().zip(&codecs) {
+            // `Err` (bad options spec) falls back to a lazy buffer — the
+            // codec's own `write` surfaces the error shortly after.
+            est += codec.header_len(layer).unwrap_or(0);
+        }
+        est
+    };
+    let mut buf = BytesMut::with_capacity(buf_capacity);
+    // Observed defers: ~2 per layer (ipv4: 3, tcp/udp: 2, icmp: 1) —
+    // a flat heuristic; over-reserve is harmless (Patch is Copy, tiny).
+    let mut patches: Vec<Patch> = Vec::with_capacity(spec.layers.len() * 2);
     let mut facts = opts.facts;
     for (i, (layer, codec)) in spec.layers.iter().zip(&codecs).enumerate() {
         let next = spec
@@ -161,11 +180,10 @@ pub fn encode(
             autofill: opts.autofill,
             payload: payload.as_deref(),
             next,
-            deferred: Vec::new(),
+            deferred: &mut patches,
         };
         codec.write(layer, &mut ctx)?;
         facts = ctx.facts;
-        patches.extend(ctx.deferred);
     }
     if let Some(p) = &payload {
         buf.extend_from_slice(p);
@@ -509,6 +527,7 @@ mod tests {
     use crate::schema::{FieldKind, FieldSchema, LayerSchema};
     use crate::value::parse_value;
     use bytes::BufMut;
+    use std::borrow::Cow;
 
     // A tiny fixed-header protocol for engine tests:
     //   id u8 | len u16 | checksum u16      (5-byte header)
@@ -646,7 +665,7 @@ mod tests {
         for (k, v) in fields {
             let f = MOCK_SCHEMA.field(k.split('.').next().unwrap()).unwrap();
             spec.fields
-                .insert(k.to_string(), parse_value(f, v).unwrap());
+                .insert(Cow::Owned(k.to_string()), parse_value(f, v).unwrap());
         }
         PacketSpec::new(
             vec![spec],
@@ -1172,13 +1191,14 @@ mod tests {
         }
         // EncodeCtx helpers: put_bytes appends, defer records, facts land.
         let mut buf = BytesMut::new();
+        let mut deferred: Vec<Patch> = Vec::new();
         let mut ctx = EncodeCtx {
             buf: &mut buf,
             facts: Facts::default(),
             autofill: true,
             payload: None,
             next: None,
-            deferred: Vec::new(),
+            deferred: &mut deferred,
         };
         put_bytes(&mut ctx, &[1, 2]);
         put_bytes(&mut ctx, &[3]);
@@ -1380,7 +1400,7 @@ mod tests {
         for (k, v) in fields {
             let f = RIG_SCHEMA.field(k.split('.').next().unwrap()).unwrap();
             spec.fields
-                .insert(k.to_string(), parse_value(f, v).unwrap());
+                .insert(Cow::Owned(k.to_string()), parse_value(f, v).unwrap());
         }
         PacketSpec::new(
             vec![spec],

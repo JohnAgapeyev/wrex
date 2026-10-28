@@ -977,23 +977,23 @@ mod tests {
         let quoted = packet::udp(&reg, s.src, p.target, p.sport, p.port).unwrap();
         let mut ip_fields = std::collections::BTreeMap::new();
         ip_fields.insert(
-            "src".to_string(),
+            "src".into(),
             Value::Ipv4(match p.target {
                 ScanAddr::V4(a) => a,
                 ScanAddr::V6(_) => unreachable!("v4 test helper"),
             }),
         );
         ip_fields.insert(
-            "dst".to_string(),
+            "dst".into(),
             Value::Ipv4(match s.src {
                 ScanAddr::V4(a) => a,
                 ScanAddr::V6(_) => unreachable!("v4 test helper"),
             }),
         );
-        ip_fields.insert("ttl".to_string(), Value::Int(64));
+        ip_fields.insert("ttl".into(), Value::Int(64));
         let mut icmp_fields = std::collections::BTreeMap::new();
-        icmp_fields.insert("type".to_string(), Value::Int(3));
-        icmp_fields.insert("code".to_string(), Value::Int(code as u128));
+        icmp_fields.insert("type".into(), Value::Int(3));
+        icmp_fields.insert("code".into(), Value::Int(code as u128));
         let spec = PacketSpec::new(
             vec![
                 LayerSpec::with_fields("ipv4", ip_fields),
@@ -1065,22 +1065,22 @@ mod tests {
         let quoted = packet::udp(&reg2, s2.src, other, p.sport, p.port).unwrap();
         let mut ip_fields = std::collections::BTreeMap::new();
         ip_fields.insert(
-            "src".to_string(),
+            "src".into(),
             Value::Ipv4(match other {
                 ScanAddr::V4(a) => a,
                 _ => unreachable!(),
             }),
         );
         ip_fields.insert(
-            "dst".to_string(),
+            "dst".into(),
             Value::Ipv4(match s2.src {
                 ScanAddr::V4(a) => a,
                 _ => unreachable!(),
             }),
         );
         let mut icmp_fields = std::collections::BTreeMap::new();
-        icmp_fields.insert("type".to_string(), Value::Int(3));
-        icmp_fields.insert("code".to_string(), Value::Int(3));
+        icmp_fields.insert("type".into(), Value::Int(3));
+        icmp_fields.insert("code".into(), Value::Int(3));
         let spec = PacketSpec::new(
             vec![
                 LayerSpec::with_fields("ipv4", ip_fields),
@@ -1116,23 +1116,23 @@ mod tests {
         let quoted = packet::udp(&reg, s.src, p.target, p.sport, p.port).unwrap();
         let mut ip_fields = std::collections::BTreeMap::new();
         ip_fields.insert(
-            "src".to_string(),
+            "src".into(),
             Value::Ipv6(match p.target {
                 ScanAddr::V6(a) => a,
                 ScanAddr::V4(_) => unreachable!("v6 test helper"),
             }),
         );
         ip_fields.insert(
-            "dst".to_string(),
+            "dst".into(),
             Value::Ipv6(match s.src {
                 ScanAddr::V6(a) => a,
                 ScanAddr::V4(_) => unreachable!("v6 test helper"),
             }),
         );
-        ip_fields.insert("hop_limit".to_string(), Value::Int(64));
+        ip_fields.insert("hop_limit".into(), Value::Int(64));
         let mut icmp_fields = std::collections::BTreeMap::new();
-        icmp_fields.insert("type".to_string(), Value::Int(1));
-        icmp_fields.insert("code".to_string(), Value::Int(code as u128));
+        icmp_fields.insert("type".into(), Value::Int(1));
+        icmp_fields.insert("code".into(), Value::Int(code as u128));
         let spec = PacketSpec::new(
             vec![
                 LayerSpec::with_fields("ipv6", ip_fields),
@@ -1235,22 +1235,22 @@ mod tests {
             packet::udp(&reg3, s3.src, other, s3.probes[0].sport, s3.probes[0].port).unwrap();
         let mut ip_fields = std::collections::BTreeMap::new();
         ip_fields.insert(
-            "src".to_string(),
+            "src".into(),
             Value::Ipv6(match other {
                 ScanAddr::V6(a) => a,
                 ScanAddr::V4(_) => unreachable!(),
             }),
         );
         ip_fields.insert(
-            "dst".to_string(),
+            "dst".into(),
             Value::Ipv6(match s3.src {
                 ScanAddr::V6(a) => a,
                 ScanAddr::V4(_) => unreachable!(),
             }),
         );
         let mut icmp_fields = std::collections::BTreeMap::new();
-        icmp_fields.insert("type".to_string(), Value::Int(1));
-        icmp_fields.insert("code".to_string(), Value::Int(3));
+        icmp_fields.insert("type".into(), Value::Int(1));
+        icmp_fields.insert("code".into(), Value::Int(3));
         let spec = PacketSpec::new(
             vec![
                 LayerSpec::with_fields("ipv6", ip_fields),

@@ -195,10 +195,10 @@ pub mod strategy {
         (mac.clone(), mac, ty)
             .prop_map(|(dst, src, ty)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("dst".to_string(), dst);
-                fields.insert("src".to_string(), src);
+                fields.insert("dst".into(), dst);
+                fields.insert("src".into(), src);
                 if let Some(t) = ty {
-                    fields.insert("type".to_string(), t);
+                    fields.insert("type".into(), t);
                 }
                 LayerSpec::with_fields("eth", fields)
             })
@@ -222,6 +222,7 @@ mod tests {
     /// are statics (Bytes interior mutability blocks const eval), so
     /// the proof runs here instead.
     use super::*;
+    use std::borrow::Cow;
     use std::collections::BTreeMap;
     use wrex_core::dissect::DecodeCtx;
     use wrex_core::encode::{EncodeOpts, encode};
@@ -236,7 +237,7 @@ mod tests {
     fn eth_spec(fields: &[(&str, &str)]) -> LayerSpec {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("eth", map)
     }

@@ -87,7 +87,8 @@ fn field_json(layer_kind: &str, name: &str, value: &WValue) -> JsonValue {
 fn fields_json(layer: &LayerView) -> Map<String, JsonValue> {
     let mut out = Map::new();
     for (name, value) in &layer.fields {
-        out.insert(name.clone(), field_json(layer.kind, name, value));
+        let key: String = name.as_ref().to_string();
+        out.insert(key, field_json(layer.kind, name, value));
     }
     out
 }
@@ -124,7 +125,7 @@ pub fn field_span_json(span: &FieldSpan) -> JsonValue {
 fn spans_json(layer: &LayerView) -> Map<String, JsonValue> {
     let mut out = Map::new();
     for (name, span) in &layer.field_spans {
-        out.insert(name.clone(), field_span_json(span));
+        out.insert(name.as_ref().to_string(), field_span_json(span));
     }
     out
 }
@@ -323,11 +324,11 @@ mod tests {
 
     fn sample() -> DissectedPacket {
         let mut eth_fields = BTreeMap::new();
-        eth_fields.insert("dst".to_string(), WValue::Mac([0xff; 6]));
-        eth_fields.insert("src".to_string(), WValue::Mac([0; 6]));
-        eth_fields.insert("type".to_string(), WValue::Int(0x0800));
+        eth_fields.insert("dst".into(), WValue::Mac([0xff; 6]));
+        eth_fields.insert("src".into(), WValue::Mac([0; 6]));
+        eth_fields.insert("type".into(), WValue::Int(0x0800));
         let mut udp_fields = BTreeMap::new();
-        udp_fields.insert("sport".to_string(), WValue::Int(4444));
+        udp_fields.insert("sport".into(), WValue::Int(4444));
         DissectedPacket {
             start: "eth",
             layers: vec![
@@ -412,17 +413,17 @@ mod tests {
     #[test]
     fn name_arms_render_in_both_shapes() {
         let mut vlan_fields = BTreeMap::new();
-        vlan_fields.insert("type".to_string(), WValue::Int(0x8100));
+        vlan_fields.insert("type".into(), WValue::Int(0x8100));
         let mut vlan2_fields = BTreeMap::new();
-        vlan2_fields.insert("type".to_string(), WValue::Int(0x1234)); // unmapped
+        vlan2_fields.insert("type".into(), WValue::Int(0x1234)); // unmapped
         let mut ip_fields = BTreeMap::new();
-        ip_fields.insert("proto".to_string(), WValue::Int(6));
+        ip_fields.insert("proto".into(), WValue::Int(6));
         let mut ip2_fields = BTreeMap::new();
-        ip2_fields.insert("proto".to_string(), WValue::Int(253)); // unmapped
+        ip2_fields.insert("proto".into(), WValue::Int(253)); // unmapped
         let mut ip6_fields = BTreeMap::new();
-        ip6_fields.insert("next_header".to_string(), WValue::Int(58));
+        ip6_fields.insert("next_header".into(), WValue::Int(58));
         let mut ip6b_fields = BTreeMap::new();
-        ip6b_fields.insert("next_header".to_string(), WValue::Int(17));
+        ip6b_fields.insert("next_header".into(), WValue::Int(17));
         let p = DissectedPacket {
             start: "eth",
             layers: vec![
@@ -573,10 +574,10 @@ mod tests {
     fn spans_sample() -> DissectedPacket {
         let s = sample();
         let mut eth_spans = BTreeMap::new();
-        eth_spans.insert("dst".to_string(), FieldSpan::Bytes(0..6));
-        eth_spans.insert("src".to_string(), FieldSpan::Bytes(6..12));
+        eth_spans.insert("dst".into(), FieldSpan::Bytes(0..6));
+        eth_spans.insert("src".into(), FieldSpan::Bytes(6..12));
         eth_spans.insert(
-            "type".to_string(),
+            "type".into(),
             FieldSpan::Bits {
                 container: 12..14,
                 shift: 0,
@@ -584,9 +585,9 @@ mod tests {
             },
         );
         let mut udp_spans = BTreeMap::new();
-        udp_spans.insert("sport".to_string(), FieldSpan::None);
+        udp_spans.insert("sport".into(), FieldSpan::None);
         udp_spans.insert(
-            "flags.syn".to_string(),
+            "flags.syn".into(),
             FieldSpan::Bits {
                 container: 20..21,
                 shift: 0,

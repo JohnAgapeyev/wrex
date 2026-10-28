@@ -51,7 +51,7 @@ proptest! {
 
         // Roundtrip: every explicitly-set whole field reappears typed.
         for (k, v) in &spec.fields {
-            match k.as_str() {
+            match &**k {
                 "flags" => {
                     // aggregate mask → dissected sorted name list
                     let Value::Int(mask) = v else { continue };
@@ -123,13 +123,13 @@ proptest! {
 
         let reg = registry();
         let mut fields = BTreeMap::new();
-        fields.insert("id".to_string(), Value::Int(id as u128));
+        fields.insert("id".into(), Value::Int(id as u128));
         if rd {
-            fields.insert("flags.rd".to_string(), Value::Bool(true));
+            fields.insert("flags.rd".into(), Value::Bool(true));
         }
-        fields.insert("qd.0.name".to_string(), Value::Str(name.to_string().into()));
-        fields.insert("qd.0.type".to_string(), Value::Str(qtype.to_string().into()));
-        fields.insert("qd.0.class".to_string(), Value::Str("IN".into()));
+        fields.insert("qd.0.name".into(), Value::Str(name.to_string().into()));
+        fields.insert("qd.0.type".into(), Value::Str(qtype.to_string().into()));
+        fields.insert("qd.0.class".into(), Value::Str("IN".into()));
         let spec = wrex_core::LayerSpec::with_fields("dns", fields);
         let encoded = encode(
             &reg,

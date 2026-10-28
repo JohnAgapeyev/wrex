@@ -252,17 +252,17 @@ pub mod strategy {
         )
             .prop_map(|(is_echo, code, id, seq, rest)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("code".to_string(), Value::Int(code as u128));
+                fields.insert("code".into(), Value::Int(code as u128));
                 if is_echo {
                     // default type 8 (echo request) → echo id/seq fields
-                    fields.insert("type".to_string(), Value::Int(8));
-                    fields.insert("echo.id".to_string(), id);
-                    fields.insert("echo.seq".to_string(), seq);
+                    fields.insert("type".into(), Value::Int(8));
+                    fields.insert("echo.id".into(), id);
+                    fields.insert("echo.seq".into(), seq);
                 } else {
                     // non-echo type → raw 4-byte rest
-                    fields.insert("type".to_string(), Value::Int(3));
+                    fields.insert("type".into(), Value::Int(3));
                     if let Some(r) = rest {
-                        fields.insert("rest".to_string(), r);
+                        fields.insert("rest".into(), r);
                     }
                 }
                 LayerSpec::with_fields("icmp", fields)
@@ -273,6 +273,7 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     /// Schema invariant (const-eval pass): no duplicate field names in
     /// the table. `field_names_unique` is a const fn, but the table is a
     /// static (`Bytes` interior mutability blocks const eval), so the
@@ -303,14 +304,14 @@ mod tests {
         for (k, v) in fields {
             if *k == "rest" {
                 map.insert(
-                    k.to_string(),
+                    Cow::Owned(k.to_string()),
                     Value::Bytes(Bytes::from(
                         wrex_core::value::parse_hex_bytes(v.trim_start_matches("hex:")).unwrap(),
                     )),
                 );
                 continue;
             }
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("icmp", map)
     }

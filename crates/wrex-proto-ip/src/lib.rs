@@ -503,15 +503,15 @@ pub mod strategy {
         )
             .prop_map(|(tos, id, ttl, flags, frag, src, dst, opts)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("tos".to_string(), Value::Int(tos as u128));
-                fields.insert("id".to_string(), Value::Int(id as u128));
-                fields.insert("flags".to_string(), Value::Int(flags as u128));
-                fields.insert("ttl".to_string(), Value::Int(ttl as u128));
-                fields.insert("frag_off".to_string(), Value::Int(frag as u128));
-                fields.insert("src".to_string(), src);
-                fields.insert("dst".to_string(), dst);
+                fields.insert("tos".into(), Value::Int(tos as u128));
+                fields.insert("id".into(), Value::Int(id as u128));
+                fields.insert("flags".into(), Value::Int(flags as u128));
+                fields.insert("ttl".into(), Value::Int(ttl as u128));
+                fields.insert("frag_off".into(), Value::Int(frag as u128));
+                fields.insert("src".into(), src);
+                fields.insert("dst".into(), dst);
                 if let Some(o) = opts {
-                    fields.insert("options".to_string(), Value::Str(o.into()));
+                    fields.insert("options".into(), Value::Str(o.into()));
                 }
                 LayerSpec::with_fields("ipv4", fields)
             })
@@ -551,10 +551,13 @@ mod tests {
         for (k, v) in fields {
             if *k == "options" {
                 // Options use the list grammar, not the Bytes value grammar.
-                map.insert(k.to_string(), Value::Str((*v).to_string().into()));
+                map.insert(
+                    Cow::Owned(k.to_string()),
+                    Value::Str((*v).to_string().into()),
+                );
                 continue;
             }
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("ipv4", map)
     }

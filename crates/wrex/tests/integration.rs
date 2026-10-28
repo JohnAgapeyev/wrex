@@ -8,6 +8,7 @@
 #![cfg_attr(miri, ignore = "spawns the wrex binary; engine units cover Miri")]
 use assert_cmd::Command;
 use predicates::str::contains;
+use std::borrow::Cow;
 use wrex_core::Value;
 
 fn wrex() -> assert_cmd::Command {
@@ -815,8 +816,8 @@ fn generate_ip6ext_corpus() {
 
     let eth = || {
         let mut m = Map::new();
-        m.insert("dst".to_string(), wrex_core::Value::Mac([0xff; 6]));
-        m.insert("src".to_string(), wrex_core::Value::Mac([0; 6]));
+        m.insert("dst".into(), wrex_core::Value::Mac([0xff; 6]));
+        m.insert("src".into(), wrex_core::Value::Mac([0; 6]));
         wrex_core::spec::LayerSpec::with_fields("eth", m)
     };
     let ip6 = wrex_core::spec::LayerSpec::new("ipv6");
@@ -826,7 +827,7 @@ fn generate_ip6ext_corpus() {
     ) -> wrex_core::spec::LayerSpec {
         let mut m = Map::new();
         for (k, v) in fields {
-            m.insert(k.to_string(), v.clone());
+            m.insert(Cow::Owned(k.to_string()), v.clone());
         }
         wrex_core::spec::LayerSpec::with_fields(kind, m)
     }

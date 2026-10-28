@@ -111,7 +111,7 @@ impl EditSet {
                 .layers
                 .iter()
                 .find(|l| l.kind == s.kind)
-                .and_then(|l| l.field_spans.get(&s.field_path))
+                .and_then(|l| l.field_spans.get(s.field_path.as_str()))
                 .ok_or_else(|| runtime(format!("no dissected field at path `{}`", s.path)))?;
             let bytes = if let Some(raw) = &s.raw {
                 // wire:HEX — raw region bytes; the engine width-checks
@@ -447,6 +447,7 @@ pub fn parse_indices(raw: &str) -> Result<BTreeSet<usize>, EditError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
     use wrex_core::encode::{EncodeOpts, encode};
     use wrex_core::spec::{LayerSpec, PacketSpec};
     use wrex_core::{Scope, dissect};
@@ -458,7 +459,7 @@ mod tests {
     fn layer(kind: &'static str, fields: &[(&'static str, Value)]) -> LayerSpec {
         let mut map = std::collections::BTreeMap::new();
         for (k, v) in fields {
-            map.insert(k.to_string(), v.clone());
+            map.insert(Cow::Owned(k.to_string()), v.clone());
         }
         LayerSpec::with_fields(kind, map)
     }

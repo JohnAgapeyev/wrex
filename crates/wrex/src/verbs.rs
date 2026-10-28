@@ -560,16 +560,14 @@ fn apply_iface_autofill(spec: &mut PacketSpec, entry: &wrex_io::IfEntry, autofil
         match layer.kind {
             "eth" => {
                 if !layer.fields.contains_key("src") {
-                    layer
-                        .fields
-                        .insert("src".to_string(), Value::Mac(entry.mac));
+                    layer.fields.insert("src".into(), Value::Mac(entry.mac));
                 }
             }
             "ipv4" => {
                 if !layer.fields.contains_key("src")
                     && let Some(ip) = entry.ipv4s.first()
                 {
-                    layer.fields.insert("src".to_string(), Value::Ipv4(*ip));
+                    layer.fields.insert("src".into(), Value::Ipv4(*ip));
                 }
             }
             _ => {}
@@ -720,16 +718,22 @@ fn recv(
             // Timeout end → success (exit 0).
             return Ok(());
         };
-        let packet = dissect(registry, &frame.bytes, "auto");
-        if let Some(f) = &filter
-            && !f.matches(&packet)
+        // Dissect on demand: raw/hex output with no filter never reads
+        // the packet — the recv hot loop skips the whole dissect cost.
+        let packet = if filter.is_some() || !matches!(format, Format::Raw | Format::Hex) {
+            Some(dissect(registry, &frame.bytes, "auto"))
+        } else {
+            None
+        };
+        if let (Some(f), Some(p)) = (&filter, &packet)
+            && !f.matches(p)
         {
             continue;
         }
         seen += 1;
         match format {
             Format::Jsonl => {
-                let mut line = dissect_to_jsonl(&packet);
+                let mut line = dissect_to_jsonl(packet.as_ref().expect("dissected for output"));
                 line.push('\n');
                 write_stdout(line.as_bytes())?;
             }
@@ -737,13 +741,15 @@ fn recv(
                 write_stdout(&frame.bytes)?;
             }
             Format::Text => {
-                let mut out = dissect_to_text(&packet);
+                let mut out = dissect_to_text(packet.as_ref().expect("dissected for output"));
                 out.push('\n');
                 write_stdout(out.as_bytes())?;
             }
             Format::Json => {
-                let mut out = serde_json::to_string(&dissect_to_json(&packet))
-                    .map_err(|e| usage(format!("json: {e}")))?;
+                let mut out = serde_json::to_string(&dissect_to_json(
+                    packet.as_ref().expect("dissected for output"),
+                ))
+                .map_err(|e| usage(format!("json: {e}")))?;
                 out.push('\n');
                 write_stdout(out.as_bytes())?;
             }
@@ -909,17 +915,23 @@ fn capture(
                 .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
             return Ok(());
         };
-        let packet = dissect(registry, &frame.bytes, "auto");
-        if let Some(f) = &filter
-            && !f.matches(&packet)
+        // Dissect on demand: no filter and no tee → the capture hot
+        // loop never dissects (raw pcap writing only).
+        let packet = if filter.is_some() || tee.is_some() {
+            Some(dissect(registry, &frame.bytes, "auto"))
+        } else {
+            None
+        };
+        if let (Some(f), Some(p)) = (&filter, &packet)
+            && !f.matches(p)
         {
             continue;
         }
         writer
             .write_record(frame.ts, &frame.bytes, snaplen)
             .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
-        if let Some(fmt) = tee {
-            print_frame(fmt, &packet, &frame.bytes)?;
+        if let (Some(fmt), Some(p)) = (&tee, &packet) {
+            print_frame(*fmt, p, &frame.bytes)?;
         }
         seen += 1;
         if let Some(c) = args.count
@@ -2929,8 +2941,8 @@ mod tests {
     #[test]
     fn render_spec_text_shapes() {
         let mut fields = std::collections::BTreeMap::new();
-        fields.insert("src".to_string(), Value::Mac([1, 2, 3, 4, 5, 6]));
-        fields.insert("type".to_string(), Value::Int(2048));
+        fields.insert("src".into(), Value::Mac([1, 2, 3, 4, 5, 6]));
+        fields.insert("type".into(), Value::Int(2048));
         let spec = PacketSpec::new(
             vec![wrex_core::LayerSpec::with_fields("eth", fields)],
             Some(Value::Bytes(bytes::Bytes::from_static(&[0xde, 0xad]))),
@@ -3119,9 +3131,7 @@ mod tests {
             vec![
                 wrex_core::LayerSpec::with_fields(
                     "eth",
-                    [("dst".to_string(), Value::Mac([9; 6]))]
-                        .into_iter()
-                        .collect(),
+                    [("dst".into(), Value::Mac([9; 6]))].into_iter().collect(),
                 ),
                 wrex_core::LayerSpec::with_fields("ipv4", std::collections::BTreeMap::new()),
             ],
@@ -3144,9 +3154,7 @@ mod tests {
         let mut spec3 = PacketSpec::new(
             vec![wrex_core::LayerSpec::with_fields(
                 "eth",
-                [("src".to_string(), Value::Mac([7; 6]))]
-                    .into_iter()
-                    .collect(),
+                [("src".into(), Value::Mac([7; 6]))].into_iter().collect(),
             )],
             None,
         );

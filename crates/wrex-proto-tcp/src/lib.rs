@@ -365,15 +365,15 @@ pub mod strategy {
         )
             .prop_map(|(sport, dport, seq, ack, flags, window, urgent, opts)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("sport".to_string(), Value::Int(sport as u128));
-                fields.insert("dport".to_string(), Value::Int(dport as u128));
-                fields.insert("seq".to_string(), Value::Int(seq as u128));
-                fields.insert("ack".to_string(), Value::Int(ack as u128));
-                fields.insert("flags".to_string(), flags);
-                fields.insert("window".to_string(), Value::Int(window as u128));
-                fields.insert("urgent".to_string(), Value::Int(urgent as u128));
+                fields.insert("sport".into(), Value::Int(sport as u128));
+                fields.insert("dport".into(), Value::Int(dport as u128));
+                fields.insert("seq".into(), Value::Int(seq as u128));
+                fields.insert("ack".into(), Value::Int(ack as u128));
+                fields.insert("flags".into(), flags);
+                fields.insert("window".into(), Value::Int(window as u128));
+                fields.insert("urgent".into(), Value::Int(urgent as u128));
                 if let Some(o) = opts {
-                    fields.insert("options".to_string(), Value::Str(o.into()));
+                    fields.insert("options".into(), Value::Str(o.into()));
                 }
                 LayerSpec::with_fields("tcp", fields)
             })
@@ -383,6 +383,7 @@ pub mod strategy {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
     /// Schema invariant (const-eval pass): no duplicate field names in
     /// the table. `field_names_unique` is a const fn, but the table is a
     /// static (`Bytes` interior mutability blocks const eval), so the
@@ -408,7 +409,10 @@ mod tests {
         let mut map = BTreeMap::new();
         for (k, v) in fields {
             if *k == "options" {
-                map.insert(k.to_string(), Value::Str((*v).to_string().into()));
+                map.insert(
+                    Cow::Owned(k.to_string()),
+                    Value::Str((*v).to_string().into()),
+                );
                 continue;
             }
             let value = match SCHEMA.resolve(k) {
@@ -421,7 +425,7 @@ mod tests {
                 Some(wrex_core::ResolvedField::RecordField { .. }) => panic!("no field {k}"),
                 None => panic!("no field {k}"),
             };
-            map.insert(k.to_string(), value);
+            map.insert(Cow::Owned(k.to_string()), value);
         }
         LayerSpec::with_fields("tcp", map)
     }
@@ -489,7 +493,7 @@ mod tests {
         register(&mut r);
         let mut hf = std::collections::BTreeMap::new();
         hf.insert(
-            "options".to_string(),
+            "options".into(),
             wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
                 0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
             ])),

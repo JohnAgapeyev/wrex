@@ -633,7 +633,7 @@ impl Codec for Icmp6Codec {
                     // truncated capture from trailing garbage here.
                     break;
                 }
-                fields.insert(format!("opt.{i}.type"), Value::Int(otype as u128));
+                fields.insert(format!("opt.{i}.type").into(), Value::Int(otype as u128));
                 let data = &bytes[cursor + 2..cursor + ototal];
                 match otype {
                     OPT_SLLA | OPT_TLLA => {
@@ -641,7 +641,7 @@ impl Codec for Icmp6Codec {
                         for (j, b) in data.iter().take(6).enumerate() {
                             mac[j] = *b;
                         }
-                        fields.insert(format!("opt.{i}.addr"), Value::Mac(mac));
+                        fields.insert(format!("opt.{i}.addr").into(), Value::Mac(mac));
                     }
                     // Tranche 17b: the typed grammar surface — MTU and
                     // the plastered PI option (RFC 4861 §4.6.2/§4.6.4).
@@ -649,7 +649,7 @@ impl Codec for Icmp6Codec {
                         // Wire: type, len, reserved(2), mtu(4) — the
                         // value starts 2 bytes into the region.
                         fields.insert(
-                            format!("opt.{i}.mtu"),
+                            format!("opt.{i}.mtu").into(),
                             Value::Int(
                                 u32::from_be_bytes([data[2], data[3], data[4], data[5]]) as u128
                             ),
@@ -657,7 +657,7 @@ impl Codec for Icmp6Codec {
                     }
                     OPT_PI if data.len() >= 30 => {
                         fields.insert(
-                            format!("opt.{i}.prefix_len"),
+                            format!("opt.{i}.prefix_len").into(),
                             Value::Int(bytes[cursor + 2] as u128),
                         );
                         let fl = bytes[cursor + 3];
@@ -668,12 +668,12 @@ impl Codec for Icmp6Codec {
                         if fl & 0x40 != 0 {
                             names.push(Value::Str(Cow::Borrowed("a")));
                         }
-                        fields.insert(format!("opt.{i}.flags"), Value::List(names));
+                        fields.insert(format!("opt.{i}.flags").into(), Value::List(names));
                         // Wire after the TLV prefix: plen, flags,
                         // reserved(4), prefix(16), valid(4),
                         // preferred(4) — 30 bytes.
                         fields.insert(
-                            format!("opt.{i}.prefix"),
+                            format!("opt.{i}.prefix").into(),
                             Value::Ipv6(std::net::Ipv6Addr::from([
                                 data[6], data[7], data[8], data[9], data[10], data[11], data[12],
                                 data[13], data[14], data[15], data[16], data[17], data[18],
@@ -681,14 +681,14 @@ impl Codec for Icmp6Codec {
                             ])),
                         );
                         fields.insert(
-                            format!("opt.{i}.valid"),
+                            format!("opt.{i}.valid").into(),
                             Value::Int(
                                 u32::from_be_bytes([data[22], data[23], data[24], data[25]])
                                     as u128,
                             ),
                         );
                         fields.insert(
-                            format!("opt.{i}.preferred"),
+                            format!("opt.{i}.preferred").into(),
                             Value::Int(
                                 u32::from_be_bytes([data[26], data[27], data[28], data[29]])
                                     as u128,
@@ -697,7 +697,7 @@ impl Codec for Icmp6Codec {
                     }
                     _ => {
                         fields.insert(
-                            format!("opt.{i}.data"),
+                            format!("opt.{i}.data").into(),
                             Value::Bytes(Bytes::copy_from_slice(data)),
                         );
                     }
@@ -719,14 +719,14 @@ impl Codec for Icmp6Codec {
                 }
                 let rtype = bytes[cursor];
                 let nsrcs = u16::from_be_bytes([bytes[cursor + 2], bytes[cursor + 3]]);
-                fields.insert(format!("mcast.{n}.type"), Value::Int(rtype as u128));
-                fields.insert(format!("mcast.{n}.nsrcs"), Value::Int(nsrcs as u128));
+                fields.insert(format!("mcast.{n}.type").into(), Value::Int(rtype as u128));
+                fields.insert(format!("mcast.{n}.nsrcs").into(), Value::Int(nsrcs as u128));
                 let mut addr = [0u8; 16];
                 addr.copy_from_slice(&bytes[cursor + 4..cursor + 20]);
-                fields.insert(format!("mcast.{n}.addr"), Value::Ipv6(addr.into()));
+                fields.insert(format!("mcast.{n}.addr").into(), Value::Ipv6(addr.into()));
                 let src_end = (cursor + 20 + nsrcs as usize * 16).min(bytes.len());
                 fields.insert(
-                    format!("mcast.{n}.sources"),
+                    format!("mcast.{n}.sources").into(),
                     Value::Bytes(Bytes::copy_from_slice(&bytes[cursor + 20..src_end])),
                 );
                 cursor = src_end;
@@ -1038,83 +1038,72 @@ pub mod strategy {
                     (mld_flags, qrv, qqic, sources, mld_grammar, opts),
                 )| {
                     let mut fields = std::collections::BTreeMap::new();
-                    fields.insert("type".to_string(), Value::Int(t as u128));
-                    fields.insert("code".to_string(), Value::Int(code as u128));
+                    fields.insert("type".into(), Value::Int(t as u128));
+                    fields.insert("code".into(), Value::Int(code as u128));
                     let addr = std::net::Ipv6Addr::from(target);
                     match t {
                         T_ECHO_REQ | T_ECHO_REPLY => {
-                            fields.insert("echo.id".to_string(), Value::Int(id as u128));
-                            fields.insert("echo.seq".to_string(), Value::Int(seq as u128));
+                            fields.insert("echo.id".into(), Value::Int(id as u128));
+                            fields.insert("echo.seq".into(), Value::Int(seq as u128));
                         }
                         T_RA => {
-                            fields.insert("ndp.cur_hop_limit".to_string(), Value::Int(hop as u128));
-                            fields.insert("ndp.ra_flags".to_string(), Value::Int(ra_flags as u128));
-                            fields.insert(
-                                "ndp.router_lifetime".to_string(),
-                                Value::Int(lifetime as u128),
-                            );
-                            fields.insert(
-                                "ndp.reachable_time".to_string(),
-                                Value::Int(reachable as u128),
-                            );
-                            fields.insert(
-                                "ndp.retrans_timer".to_string(),
-                                Value::Int(retrans as u128),
-                            );
+                            fields.insert("ndp.cur_hop_limit".into(), Value::Int(hop as u128));
+                            fields.insert("ndp.ra_flags".into(), Value::Int(ra_flags as u128));
+                            fields
+                                .insert("ndp.router_lifetime".into(), Value::Int(lifetime as u128));
+                            fields
+                                .insert("ndp.reachable_time".into(), Value::Int(reachable as u128));
+                            fields.insert("ndp.retrans_timer".into(), Value::Int(retrans as u128));
                             if let Some(o) = opts {
-                                fields.insert("options".to_string(), Value::Str(o.into()));
+                                fields.insert("options".into(), Value::Str(o.into()));
                             }
                         }
                         T_NS | T_NA => {
                             if t == T_NA {
-                                fields.insert(
-                                    "ndp.na_flags".to_string(),
-                                    Value::Int(na_flags as u128),
-                                );
+                                fields.insert("ndp.na_flags".into(), Value::Int(na_flags as u128));
                             }
-                            fields.insert("ndp.target".to_string(), Value::Ipv6(addr));
+                            fields.insert("ndp.target".into(), Value::Ipv6(addr));
                             if let Some(o) = opts {
-                                fields.insert("options".to_string(), Value::Str(o.into()));
+                                fields.insert("options".into(), Value::Str(o.into()));
                             }
                         }
                         // RS: header + optional options.
                         T_RS => {
                             if let Some(o) = opts {
-                                fields.insert("options".to_string(), Value::Str(o.into()));
+                                fields.insert("options".into(), Value::Str(o.into()));
                             }
                         }
                         T_MLD_QUERY => {
-                            fields.insert("mld.addr".to_string(), Value::Ipv6(addr));
+                            fields.insert("mld.addr".into(), Value::Ipv6(addr));
                             if mld_v2 {
                                 // any v2 field discriminates the v2 shape;
                                 // nsrcs rides explicit (the add-a-record
                                 // rule: count fields are caller-decided).
-                                fields
-                                    .insert("mld.flags".to_string(), Value::Int(mld_flags as u128));
-                                fields.insert("mld.qrv".to_string(), Value::Int(qrv as u128));
-                                fields.insert("mld.qqic".to_string(), Value::Int(qqic as u128));
+                                fields.insert("mld.flags".into(), Value::Int(mld_flags as u128));
+                                fields.insert("mld.qrv".into(), Value::Int(qrv as u128));
+                                fields.insert("mld.qqic".into(), Value::Int(qqic as u128));
                                 let sources = sources.unwrap_or_default();
                                 let n = sources.len() / 16;
                                 if !sources.is_empty() {
                                     fields.insert(
-                                        "mld.sources".to_string(),
+                                        "mld.sources".into(),
                                         Value::Bytes(bytes::Bytes::from(sources.clone())),
                                     );
                                 }
-                                fields.insert("mld.nsrcs".to_string(), Value::Int(n as u128));
+                                fields.insert("mld.nsrcs".into(), Value::Int(n as u128));
                             }
                         }
                         T_MLD_REPORT | T_MLD_DONE => {
-                            fields.insert("mld.addr".to_string(), Value::Ipv6(addr));
+                            fields.insert("mld.addr".into(), Value::Ipv6(addr));
                         }
                         T_MLD_REPORT_V2 => {
                             if let Some(g) = mld_grammar {
-                                fields.insert("mld".to_string(), Value::Str(g.into()));
+                                fields.insert("mld".into(), Value::Str(g.into()));
                             }
                         }
                         _ => {
                             fields.insert(
-                                "rest".to_string(),
+                                "rest".into(),
                                 Value::Bytes(bytes::Bytes::from(vec![
                                     code, id as u8, seq as u8, hop,
                                 ])),
@@ -1163,14 +1152,14 @@ mod tests {
         for (k, v) in fields {
             if *k == "rest" {
                 map.insert(
-                    k.to_string(),
+                    Cow::Owned(k.to_string()),
                     Value::Bytes(Bytes::from(
                         wrex_core::value::parse_hex_bytes(v.trim_start_matches("hex:")).unwrap(),
                     )),
                 );
                 continue;
             }
-            map.insert(k.to_string(), parse_value(f(k), v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f(k), v).unwrap());
         }
         LayerSpec::with_fields("icmpv6", map)
     }
@@ -1253,7 +1242,7 @@ mod tests {
         register(&mut r);
         let mut hf = std::collections::BTreeMap::new();
         hf.insert(
-            "options".to_string(),
+            "options".into(),
             wrex_core::Value::Bytes(bytes::Bytes::from_static(&[
                 0x01, 0x04, 0x00, 0x00, 0x00, 0x00,
             ])),
@@ -1301,12 +1290,9 @@ mod tests {
         register(&mut r);
         for (t, code) in [(130u8, 10u8), (131, 0), (132, 0)] {
             let mut f = std::collections::BTreeMap::new();
-            f.insert("type".to_string(), Value::Int(t as u128));
-            f.insert("code".to_string(), Value::Int(code as u128));
-            f.insert(
-                "mld.addr".to_string(),
-                Value::Ipv6("ff02::1".parse().unwrap()),
-            );
+            f.insert("type".into(), Value::Int(t as u128));
+            f.insert("code".into(), Value::Int(code as u128));
+            f.insert("mld.addr".into(), Value::Ipv6("ff02::1".parse().unwrap()));
             let spec = wrex_core::spec::PacketSpec::new(
                 vec![
                     wrex_core::spec::LayerSpec::new(wrex_proto_ip6::KIND),
@@ -1349,19 +1335,16 @@ mod tests {
         let mut r = wrex_core::Registry::empty();
         register(&mut r);
         let mut f = std::collections::BTreeMap::new();
-        f.insert("type".to_string(), Value::Int(130));
-        f.insert("code".to_string(), Value::Int(125));
-        f.insert(
-            "mld.addr".to_string(),
-            Value::Ipv6("ff02::1".parse().unwrap()),
-        );
+        f.insert("type".into(), Value::Int(130));
+        f.insert("code".into(), Value::Int(125));
+        f.insert("mld.addr".into(), Value::Ipv6("ff02::1".parse().unwrap()));
         // FlagSet craft values pack as Int (bit_names MSB-first:
         // "s" = 1); the List form is the rendered output.
-        f.insert("mld.flags".to_string(), Value::Int(1));
-        f.insert("mld.qrv".to_string(), Value::Int(2));
-        f.insert("mld.qqic".to_string(), Value::Int(125));
+        f.insert("mld.flags".into(), Value::Int(1));
+        f.insert("mld.qrv".into(), Value::Int(2));
+        f.insert("mld.qqic".into(), Value::Int(125));
         f.insert(
-            "mld.sources".to_string(),
+            "mld.sources".into(),
             Value::Bytes(Bytes::from(
                 [
                     "2001:db8::1"
@@ -1408,8 +1391,8 @@ mod tests {
         assert_eq!(sources.len(), 32, "two 16-byte sources");
         // The v1 query keeps its 16-byte body (no v2 fields set).
         let mut v1 = std::collections::BTreeMap::new();
-        v1.insert("type".to_string(), Value::Int(130));
-        v1.insert("code".to_string(), Value::Int(10));
+        v1.insert("type".into(), Value::Int(130));
+        v1.insert("code".into(), Value::Int(10));
         let spec = wrex_core::spec::PacketSpec::new(
             vec![wrex_core::spec::LayerSpec::with_fields(KIND, v1)],
             None,
@@ -1435,9 +1418,9 @@ mod tests {
         let mut r = wrex_core::Registry::empty();
         register(&mut r);
         let mut f = std::collections::BTreeMap::new();
-        f.insert("type".to_string(), Value::Int(143));
+        f.insert("type".into(), Value::Int(143));
         f.insert(
-            "mld".to_string(),
+            "mld".into(),
             Value::Str(Cow::Borrowed(
                 "exclude:ff02::1, 2001:db8::1, include:ff02::2, allow:ff05::1",
             )),
@@ -1489,20 +1472,17 @@ mod tests {
         register(&mut r);
         let sn = wrex_io::ndp::solicited_node(target);
         let mut ef = std::collections::BTreeMap::new();
-        ef.insert("src".to_string(), Value::Mac(iface_mac));
-        ef.insert(
-            "dst".to_string(),
-            Value::Mac(wrex_io::ndp::multicast_mac(sn)),
-        );
+        ef.insert("src".into(), Value::Mac(iface_mac));
+        ef.insert("dst".into(), Value::Mac(wrex_io::ndp::multicast_mac(sn)));
         let mut ipf = std::collections::BTreeMap::new();
-        ipf.insert("src".to_string(), Value::Ipv6(src));
-        ipf.insert("dst".to_string(), Value::Ipv6(sn));
-        ipf.insert("hop_limit".to_string(), Value::Int(255));
+        ipf.insert("src".into(), Value::Ipv6(src));
+        ipf.insert("dst".into(), Value::Ipv6(sn));
+        ipf.insert("hop_limit".into(), Value::Int(255));
         let mut nf = std::collections::BTreeMap::new();
-        nf.insert("type".to_string(), Value::Int(135));
-        nf.insert("ndp.target".to_string(), Value::Ipv6(target));
+        nf.insert("type".into(), Value::Int(135));
+        nf.insert("ndp.target".into(), Value::Ipv6(target));
         nf.insert(
-            "options".to_string(),
+            "options".into(),
             Value::Str(format!("slla:{}", mac_str(slla)).into()),
         );
         let spec = wrex_core::spec::PacketSpec::new(
@@ -1541,13 +1521,10 @@ mod tests {
         let mut r = wrex_core::Registry::empty();
         register(&mut r);
         let mut ns = std::collections::BTreeMap::new();
-        ns.insert("type".to_string(), Value::Int(135));
+        ns.insert("type".into(), Value::Int(135));
+        ns.insert("ndp.target".into(), Value::Ipv6("fe80::1".parse().unwrap()));
         ns.insert(
-            "ndp.target".to_string(),
-            Value::Ipv6("fe80::1".parse().unwrap()),
-        );
-        ns.insert(
-            "options".to_string(),
+            "options".into(),
             Value::Str(
                 "slla:00:11:22:33:44:55, tlla:aa:bb:cc:dd:ee:ff, mtu:1500, prefix:64,2001:db8::1,3600,1800,l,a, raw:9:0102".into(),
             ),
@@ -1596,9 +1573,9 @@ mod tests {
         assert_eq!(f.get("opt.4.type"), Some(&Value::Int(9)));
         // Options on a non-NDP type: the pointed error.
         let mut echo = std::collections::BTreeMap::new();
-        echo.insert("type".to_string(), Value::Int(128));
+        echo.insert("type".into(), Value::Int(128));
         echo.insert(
-            "options".to_string(),
+            "options".into(),
             Value::Str(Cow::Borrowed("slla:00:11:22:33:44:55")),
         );
         let bad = encode(
@@ -1681,9 +1658,9 @@ mod tests {
         );
         // NS: 24 bytes, target + slla option dissects into opt.0.addr
         let mut fields = BTreeMap::new();
-        fields.insert("type".to_string(), Value::Int(135));
+        fields.insert("type".into(), Value::Int(135));
         fields.insert(
-            "ndp.target".to_string(),
+            "ndp.target".into(),
             Value::Ipv6("2001:db8::1".parse().unwrap()),
         );
         let spec = LayerSpec::with_fields("icmpv6", fields);
@@ -1715,12 +1692,9 @@ mod tests {
     #[test]
     fn na_flags_and_target() {
         let mut fields = BTreeMap::new();
-        fields.insert("type".to_string(), Value::Int(136));
-        fields.insert("ndp.na_flags".to_string(), Value::Int(0b100)); // r (aggregate bit 2)
-        fields.insert(
-            "ndp.target".to_string(),
-            Value::Ipv6("fe80::1".parse().unwrap()),
-        );
+        fields.insert("type".into(), Value::Int(136));
+        fields.insert("ndp.na_flags".into(), Value::Int(0b100)); // r (aggregate bit 2)
+        fields.insert("ndp.target".into(), Value::Ipv6("fe80::1".parse().unwrap()));
         let spec = LayerSpec::with_fields("icmpv6", fields);
         let enc = encode(&registry(), &PacketSpec::new(vec![spec], None), &lo6_opts()).unwrap();
         assert_eq!(enc.bytes[4], 0x80);

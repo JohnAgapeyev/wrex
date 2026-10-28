@@ -355,16 +355,16 @@ impl Codec for DnsCodec {
         let mut fields = BTreeMap::new();
         // Tranche 11b: parse-time field spans (codec-side entries the
         // engine merge honors over the static layouts table).
-        let mut spans: BTreeMap<String, FieldSpan> = BTreeMap::new();
+        let mut spans: BTreeMap<Cow<'static, str>, FieldSpan> = BTreeMap::new();
         // The flags aggregate is SCATTERED (qr=bit15, aa=10, tc=9,
         // rd=8, ra=7 of one word): not one contiguous window, so the
         // aggregate itself carries `None` (use the per-bit subpaths)
         // and each subbit gets its real single-bit window.
         let base = ctx.offset;
-        spans.insert("flags".to_string(), FieldSpan::None);
+        spans.insert("flags".into(), FieldSpan::None);
         for (bit, shift) in [("qr", 0u8), ("aa", 5), ("tc", 6), ("rd", 7), ("ra", 8)] {
             spans.insert(
-                format!("flags.{bit}"),
+                format!("flags.{bit}").into(),
                 FieldSpan::Bits {
                     container: base + 2..base + 4,
                     shift,
@@ -413,19 +413,22 @@ impl Codec for DnsCodec {
             match question_at(bytes, cursor) {
                 Ok((q, next)) => {
                     spans.insert(
-                        format!("qd.{i}.name"),
+                        format!("qd.{i}.name").into(),
                         name_span(base, cursor, q.name_used, q.name_region),
                     );
                     let at = base + cursor + q.name_used;
-                    spans.insert(format!("qd.{i}.type"), FieldSpan::Bytes(at..at + 2));
-                    spans.insert(format!("qd.{i}.class"), FieldSpan::Bytes(at + 2..at + 4));
-                    fields.insert(format!("qd.{i}.name"), Value::Str(q.name.into()));
+                    spans.insert(format!("qd.{i}.type").into(), FieldSpan::Bytes(at..at + 2));
+                    spans.insert(
+                        format!("qd.{i}.class").into(),
+                        FieldSpan::Bytes(at + 2..at + 4),
+                    );
+                    fields.insert(format!("qd.{i}.name").into(), Value::Str(q.name.into()));
                     fields.insert(
-                        format!("qd.{i}.type"),
+                        format!("qd.{i}.type").into(),
                         Value::Str(render_type(q.qtype).into()),
                     );
                     fields.insert(
-                        format!("qd.{i}.class"),
+                        format!("qd.{i}.class").into(),
                         Value::Str(render_class(q.qclass).into()),
                     );
                     cursor = next;
@@ -443,35 +446,44 @@ impl Codec for DnsCodec {
                 match record_at(bytes, cursor) {
                     Ok((r, next)) => {
                         spans.insert(
-                            format!("{section}.{i}.name"),
+                            format!("{section}.{i}.name").into(),
                             name_span(base, cursor, r.name_used, r.name_region),
                         );
                         let at = base + cursor + r.name_used;
-                        spans.insert(format!("{section}.{i}.type"), FieldSpan::Bytes(at..at + 2));
                         spans.insert(
-                            format!("{section}.{i}.class"),
+                            format!("{section}.{i}.type").into(),
+                            FieldSpan::Bytes(at..at + 2),
+                        );
+                        spans.insert(
+                            format!("{section}.{i}.class").into(),
                             FieldSpan::Bytes(at + 2..at + 4),
                         );
                         spans.insert(
-                            format!("{section}.{i}.ttl"),
+                            format!("{section}.{i}.ttl").into(),
                             FieldSpan::Bytes(at + 4..at + 8),
                         );
                         spans.insert(
-                            format!("{section}.{i}.rdata"),
+                            format!("{section}.{i}.rdata").into(),
                             FieldSpan::Bytes(base + r.rdata_at..base + r.rdata_at + r.rdata.len()),
                         );
-                        fields.insert(format!("{section}.{i}.name"), Value::Str(r.name.into()));
                         fields.insert(
-                            format!("{section}.{i}.type"),
+                            format!("{section}.{i}.name").into(),
+                            Value::Str(r.name.into()),
+                        );
+                        fields.insert(
+                            format!("{section}.{i}.type").into(),
                             Value::Str(render_type(r.rtype).into()),
                         );
                         fields.insert(
-                            format!("{section}.{i}.class"),
+                            format!("{section}.{i}.class").into(),
                             Value::Str(render_class(r.rclass).into()),
                         );
-                        fields.insert(format!("{section}.{i}.ttl"), Value::Int(r.ttl as u128));
                         fields.insert(
-                            format!("{section}.{i}.rdata"),
+                            format!("{section}.{i}.ttl").into(),
+                            Value::Int(r.ttl as u128),
+                        );
+                        fields.insert(
+                            format!("{section}.{i}.rdata").into(),
                             typed_rdata(r.rtype, &r.rdata, bytes, r.rdata_at, ctx, section, i),
                         );
                         cursor = next;
@@ -582,8 +594,8 @@ fn name_span(
 /// Build a partial (never-fatal) layer view for `bytes[..consumed]`.
 fn partial(
     ctx: &mut DecodeCtx<'_>,
-    fields: BTreeMap<String, Value>,
-    spans: BTreeMap<String, FieldSpan>,
+    fields: BTreeMap<Cow<'static, str>, Value>,
+    spans: BTreeMap<Cow<'static, str>, FieldSpan>,
     consumed: usize,
 ) -> ReadOutcome {
     ReadOutcome::Layer(
@@ -793,19 +805,19 @@ pub mod strategy {
         )
             .prop_map(|(id, mask, opcode, rcode, name, qtype, qclass)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("id".to_string(), Value::Int(id as u128));
-                fields.insert("flags".to_string(), Value::Int(mask as u128));
+                fields.insert("id".into(), Value::Int(id as u128));
+                fields.insert("flags".into(), Value::Int(mask as u128));
                 // G1 sweep: opcode/rcode are real 4-bit wire windows
                 // (RFC 1035 §4.1.1) — never sampled before.
-                fields.insert("opcode".to_string(), Value::Int(opcode as u128));
-                fields.insert("rcode".to_string(), Value::Int(rcode as u128));
-                fields.insert("qd.0.name".to_string(), Value::Str(name.into()));
+                fields.insert("opcode".into(), Value::Int(opcode as u128));
+                fields.insert("rcode".into(), Value::Int(rcode as u128));
+                fields.insert("qd.0.name".into(), Value::Str(name.into()));
                 fields.insert(
-                    "qd.0.type".to_string(),
+                    "qd.0.type".into(),
                     Value::Str(render_type(parse_type(qtype).unwrap()).into()),
                 );
                 fields.insert(
-                    "qd.0.class".to_string(),
+                    "qd.0.class".into(),
                     Value::Str(render_class(parse_class(qclass).unwrap()).into()),
                 );
                 LayerSpec::with_fields("dns", fields)
@@ -860,7 +872,7 @@ mod tests {
                 }
                 _ => Value::Int(v.parse::<u128>().unwrap()),
             };
-            map.insert(k.to_string(), value);
+            map.insert(Cow::Owned(k.to_string()), value);
         }
         LayerSpec::with_fields("dns", map)
     }
@@ -875,8 +887,8 @@ mod tests {
         let mut r = wrex_core::Registry::empty();
         register(&mut r);
         let mut uf = std::collections::BTreeMap::new();
-        uf.insert("sport".to_string(), wrex_core::Value::Int(40000));
-        uf.insert("dport".to_string(), wrex_core::Value::Int(53));
+        uf.insert("sport".into(), wrex_core::Value::Int(40000));
+        uf.insert("dport".into(), wrex_core::Value::Int(53));
         let spec = wrex_core::spec::PacketSpec::new(
             vec![
                 wrex_core::spec::LayerSpec::with_fields(wrex_proto_udp::KIND, uf),

@@ -31,7 +31,7 @@ fn registry() -> Registry {
 fn layer(kind: &'static str, fields: &[(&'static str, Value)]) -> LayerSpec {
     let mut map = BTreeMap::new();
     for (k, v) in fields {
-        map.insert(k.to_string(), v.clone());
+        map.insert((*k).into(), v.clone());
     }
     LayerSpec::with_fields(kind, map)
 }
@@ -112,7 +112,7 @@ fn population_gate_total_presence() {
                     for bit in f.bit_names {
                         let path = format!("{}.{bit}", f.name);
                         assert!(
-                            l.field_spans.contains_key(&path),
+                            l.field_spans.contains_key(path.as_str()),
                             "corpus {}.{}: layer {} flag subpath {path:?} missing",
                             corpus.name,
                             frame.name,

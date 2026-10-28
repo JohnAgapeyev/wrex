@@ -332,7 +332,7 @@ fn matches_term(packet: &DissectedPacket, t: &Term) -> bool {
     let Some(layer) = packet.layers.iter().find(|l| l.kind == t.layer) else {
         return false;
     };
-    let Some(value) = layer.fields.get(&t.field) else {
+    let Some(value) = layer.fields.get(t.field.as_str()) else {
         return false;
     };
     eval(value, t)
@@ -546,6 +546,7 @@ mod tests {
     use crate::error::EncodeError;
     use crate::schema::{LayerSchema, RecordSchema};
     use crate::spec::LayerSpec;
+    use std::borrow::Cow;
     use std::collections::BTreeMap;
 
     static TCP_FLAGS: &[&str] = &["cwr", "ece", "urg", "ack", "psh", "rst", "syn", "fin"];
@@ -756,7 +757,7 @@ mod tests {
                 .map(|(kind, fields)| {
                     let mut map = BTreeMap::new();
                     for (k, v) in fields {
-                        map.insert(k.to_string(), v);
+                        map.insert(Cow::Owned(k.to_string()), v);
                     }
                     LayerView {
                         kind,

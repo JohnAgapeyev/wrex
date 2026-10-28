@@ -6,6 +6,7 @@
 //! and the network-layer protocol derive from the stack via autofill —
 //! no codec or engine changes.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use bytes::Bytes;
@@ -26,10 +27,10 @@ pub const ICMPV6_ECHO_REQ: u8 = 128;
 /// ICMPv6 echo reply type.
 pub const ICMPV6_ECHO_REPLY: u8 = 129;
 
-fn fields(pairs: &[(&str, Value)]) -> BTreeMap<String, Value> {
+fn fields(pairs: &[(&str, Value)]) -> BTreeMap<Cow<'static, str>, Value> {
     pairs
         .iter()
-        .map(|(k, v)| (k.to_string(), v.clone()))
+        .map(|(k, v)| (Cow::Owned(k.to_string()), v.clone()))
         .collect()
 }
 

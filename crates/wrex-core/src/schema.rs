@@ -136,6 +136,17 @@ impl RecordSchema {
     }
 }
 
+/// Dotted field path (`"flags" + "syn"` → `"flags.syn"`) — manual build,
+/// not `format!` machinery (the per-packet hot paths: sub-bit keys in
+/// [`crate::dissect`], derived paths in [`crate::patch`]).
+pub fn dotted_path(head: &str, tail: &str) -> String {
+    let mut s = String::with_capacity(head.len() + tail.len() + 1);
+    s.push_str(head);
+    s.push('.');
+    s.push_str(tail);
+    s
+}
+
 /// Const proof helper (the schema invariant): a field table carries no
 /// duplicate names. Every codec's `FIELDS`/record table asserts this at
 /// compile time via `const _` — wrong tables fail the build, not first use.

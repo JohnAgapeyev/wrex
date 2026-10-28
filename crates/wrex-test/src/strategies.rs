@@ -2,6 +2,7 @@
 //! packet specs. New protocols plug in by adding a stack name here.
 
 use proptest::prelude::*;
+use std::borrow::Cow;
 use wrex_core::spec::{LayerSpec, PacketSpec};
 use wrex_core::value::Value;
 
@@ -86,8 +87,8 @@ fn eth_derived() -> BoxedStrategy<LayerSpec> {
 fn udp_for_dhcp() -> BoxedStrategy<LayerSpec> {
     wrex_proto_udp::strategy::strategy()
         .prop_map(|mut udp| {
-            udp.fields.insert("sport".to_string(), Value::Int(68));
-            udp.fields.insert("dport".to_string(), Value::Int(67));
+            udp.fields.insert("sport".into(), Value::Int(68));
+            udp.fields.insert("dport".into(), Value::Int(67));
             udp
         })
         .boxed()
@@ -99,8 +100,8 @@ fn udp_for_dhcp() -> BoxedStrategy<LayerSpec> {
 fn udp_for_dhcp6() -> BoxedStrategy<LayerSpec> {
     wrex_proto_udp::strategy::strategy()
         .prop_map(|mut udp| {
-            udp.fields.insert("sport".to_string(), Value::Int(546));
-            udp.fields.insert("dport".to_string(), Value::Int(547));
+            udp.fields.insert("sport".into(), Value::Int(546));
+            udp.fields.insert("dport".into(), Value::Int(547));
             udp
         })
         .boxed()
@@ -112,8 +113,8 @@ fn udp_for_dhcp6() -> BoxedStrategy<LayerSpec> {
 fn frag_unfragmented() -> BoxedStrategy<LayerSpec> {
     wrex_proto_ip6ext::strategy::frag()
         .prop_map(|mut frag| {
-            frag.fields.insert("offset".to_string(), Value::Int(0));
-            frag.fields.insert("m".to_string(), Value::Int(0));
+            frag.fields.insert("offset".into(), Value::Int(0));
+            frag.fields.insert("m".into(), Value::Int(0));
             frag
         })
         .boxed()
@@ -517,7 +518,7 @@ pub fn packet_strategy(stack: &str) -> BoxedStrategy<PacketSpec> {
 pub fn layer(kind: &'static str, fields: &[(&'static str, Value)]) -> LayerSpec {
     let mut map = std::collections::BTreeMap::new();
     for (k, v) in fields {
-        map.insert(k.to_string(), v.clone());
+        map.insert(Cow::Owned(k.to_string()), v.clone());
     }
     LayerSpec::with_fields(kind, map)
 }

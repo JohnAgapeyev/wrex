@@ -8,6 +8,41 @@ tranche.
 
 ## [Unreleased]
 
+### Changed — performance pass 1 (allocation-profile tripwires)
+
+Measured first (criterion tripwires + perf/callgrind/dhat attribution),
+then optimized — every number below is from `cargo bench -p wrex-core`
+(release profile; a runtime guard refuses dev-profile runs whose numbers
+are meaningless).
+
+- **Tripwire benches** (`benches/hotpaths.rs`): `render/{jsonl,text}`,
+  `recv/jsonl` (end-to-end), `filter/matches`, `patch/setfield+scope-all`
+  (the doctrine-mandated patch-engine tripwire), `retention/unknown-{1500B,
+  9000B}` — the allocation-heavy hot paths were previously unbenched.
+- **Encode budget** (`wrex-core/src/encode.rs`): the output buffer is sized
+  up front via the `header_len` oracle (+ payload) — `BytesMut::with_capacity`
+  replaces realloc-by-doubling (`RawVecInner::reserve` was **13.7% of encode
+  cycles**); the deferred-`Patch` vec is engine-owned (`&mut Vec` in
+  `EncodeCtx`) with the per-layer `Vec::new()`/`extend` growth removed.
+  Encode: **−23%** (criterion: ~720ns → 555ns per eth+ipv4+udp+512B).
+- **Zero-copy retention** (`dissect`): `IntoFrame` transfer trait — a caller
+  holding a `Bytes` (the io drivers) hands it over by refcount; `frame` and
+  `payload` are refcount slices, the per-packet full-frame + payload-region
+  memcpys are gone (`retention/unknown-9000B`: **−30%**). Borrowed callers
+  copy once up front, exactly as before.
+- **`Cow<'static, str>` field keys** (`LayerView::fields`/`field_spans`,
+  `LayerSpec::fields`): codecs insert their schema's `&'static str` names
+  **borrowed** — the per-field `String` key allocation, key-content memcpy,
+  and drop-glue teardown are deleted (dissect/corpus: **−30%**, patch:
+  **−34%**). Ordering, serde, and output bytes identical (differential
+  suites pass); dynamic keys (`opt.{i}.code`, `flags.syn`) stay `Owned`.
+- **`format!` hoists**: sub-bit keys (`dissect`) and derived-field paths
+  (`patch`) build via `schema::dotted_path` (manual `String` build), not
+  the `format!` machinery (~3.5%/1.8% of their respective paths).
+- **`recv`/`capture` dissect-on-demand** (`wrex/src/verbs.rs`): `--format
+  raw|hex` with no `--filter`/`--tee` never dissects — the whole dissect
+  cost was pure waste on that path.
+
 ### Added — hardening pass 3 (field-coverage doctrine)
 
 - **G1 strategy-completeness audit** (`wrex-test::gates`, gated in

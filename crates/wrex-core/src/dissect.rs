@@ -1,11 +1,12 @@
 //! Dissection output model and chain-walk engine.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::ops::Range;
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 
 use crate::codec::{Next, ReadOutcome, Registry};
 use crate::error::DecodeError;
@@ -87,10 +88,10 @@ pub struct Facts {
 pub struct LayerView {
     pub kind: &'static str,
     pub span: Range<usize>,
-    pub fields: BTreeMap<String, Value>,
+    pub fields: BTreeMap<Cow<'static, str>, Value>,
     /// Per-field wire geometry (tranche 11b), populated by the engine
     /// from [`crate::codec::Codec::layouts`] after `read` returns.
-    pub field_spans: BTreeMap<String, FieldSpan>,
+    pub field_spans: BTreeMap<Cow<'static, str>, FieldSpan>,
 }
 
 /// Wire geometry of one dissected field path (tranche 11b): where the
@@ -278,23 +279,84 @@ pub const fn auto_start(bytes: &[u8]) -> &'static str {
     }
 }
 
-/// Synthesize the terminal `unknown` layer holding `bytes` as one `hex` field.
-fn unknown_layer(bytes: &[u8], offset: usize) -> LayerView {
+/// Synthesize the terminal `unknown` layer holding the frame bytes from
+/// `offset` on as one `hex` field (zero-copy: refcount slice).
+fn unknown_layer(frame: &Bytes, offset: usize) -> LayerView {
+    let len = frame.len();
     let mut fields = BTreeMap::new();
-    fields.insert(
-        "hex".to_string(),
-        Value::Bytes(Bytes::copy_from_slice(bytes)),
-    );
+    fields.insert("hex".into(), Value::Bytes(frame.slice(offset..)));
     let mut spans = BTreeMap::new();
     spans.insert(
-        "hex".to_string(),
-        FieldSpan::Bytes(offset..offset + bytes.len()),
+        "hex".into(),
+        FieldSpan::Bytes(offset..offset + (len - offset)),
     );
     LayerView {
         kind: "unknown",
-        span: offset..offset + bytes.len(),
+        span: offset..len,
         field_spans: spans,
         fields,
+    }
+}
+
+/// Frame ownership transfer into [`dissect`]: the hot paths hold a
+/// [`Bytes`] (the io drivers) and hand it over **zero-copy** —
+/// refcount clone, retention is refcount slices of the same backing;
+/// borrowed forms copy once up front (as they always did at retention).
+pub trait IntoFrame {
+    fn into_frame(self) -> Bytes;
+}
+
+impl IntoFrame for Bytes {
+    fn into_frame(self) -> Bytes {
+        self
+    }
+}
+
+impl IntoFrame for Vec<u8> {
+    fn into_frame(self) -> Bytes {
+        Bytes::from(self)
+    }
+}
+
+impl IntoFrame for Box<[u8]> {
+    fn into_frame(self) -> Bytes {
+        Bytes::from(self)
+    }
+}
+
+impl<'a> IntoFrame for &'a Bytes {
+    fn into_frame(self) -> Bytes {
+        self.clone()
+    }
+}
+
+impl<'a> IntoFrame for &'a [u8] {
+    fn into_frame(self) -> Bytes {
+        Bytes::copy_from_slice(self)
+    }
+}
+
+impl<'a, const N: usize> IntoFrame for &'a [u8; N] {
+    fn into_frame(self) -> Bytes {
+        Bytes::copy_from_slice(&self[..])
+    }
+}
+
+impl<'a> IntoFrame for &'a Vec<u8> {
+    fn into_frame(self) -> Bytes {
+        Bytes::copy_from_slice(self)
+    }
+}
+
+impl<'a> IntoFrame for &'a mut [u8] {
+    fn into_frame(self) -> Bytes {
+        Bytes::copy_from_slice(self)
+    }
+}
+
+impl<'a> IntoFrame for &'a BytesMut {
+    fn into_frame(self) -> Bytes {
+        Bytes::copy_from_slice(&self[..])
     }
 }
 
@@ -302,9 +364,15 @@ fn unknown_layer(bytes: &[u8], offset: usize) -> LayerView {
 ///
 /// `start` is resolved through the registry so [`DissectedPacket::start`] is
 /// always a registered `&'static str` (or the literal `"unknown"`).
-pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacket {
+///
+/// `bytes` takes anything [`IntoFrame`]: a caller holding a `Bytes`
+/// (the io drivers already do) retains **zero-copy** — `frame` and
+/// `payload` are refcount slices of the same backing; borrowed forms
+/// copy once up front (as they always did at retention).
+pub fn dissect(registry: &Registry, bytes: impl IntoFrame, start: &str) -> DissectedPacket {
+    let bytes = bytes.into_frame();
     let start: &'static str = if start == "auto" {
-        auto_start(bytes)
+        auto_start(&bytes)
     } else {
         match registry.get(start) {
             Some(codec) => codec.schema().kind,
@@ -328,7 +396,7 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
                 let rest = &bytes[offset.min(bytes.len())..];
                 match registry.get(kind) {
                     Some(codec) => {
-                        let mut ctx = DecodeCtx::with_frame(bytes, offset);
+                        let mut ctx = DecodeCtx::with_frame(&bytes, offset);
                         ctx.facts = facts;
                         match codec.read(rest, &mut ctx) {
                             ReadOutcome::Layer(mut view, next) => {
@@ -345,7 +413,7 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
                                 anomalies.push(anomaly_for(&err));
                                 // Structural failure: keep the remaining bytes
                                 // as partial data in a synthetic layer.
-                                layers.push(unknown_layer(rest, offset));
+                                layers.push(unknown_layer(&bytes, offset));
                                 offset = bytes.len();
                                 payload_start = Some(bytes.len());
                                 chain = None;
@@ -361,7 +429,7 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
                     None => {
                         // Unknown/unregistered kind (unknown ethertype, ipv6,
                         // `--start unknown`): synthetic hex layer, terminal.
-                        layers.push(unknown_layer(rest, offset));
+                        layers.push(unknown_layer(&bytes, offset));
                         offset = bytes.len();
                         payload_start = Some(bytes.len());
                         chain = None;
@@ -375,9 +443,10 @@ pub fn dissect(registry: &Registry, bytes: &[u8], start: &str) -> DissectedPacke
     DissectedPacket {
         start,
         layers,
-        payload: Bytes::copy_from_slice(&bytes[payload_at..]),
+        // Zero-copy retention: refcount slices of the caller's backing.
+        payload: bytes.slice(payload_at..),
         anomalies,
-        frame: Bytes::copy_from_slice(bytes),
+        frame: bytes,
         facts,
     }
 }
@@ -403,9 +472,9 @@ fn populate_field_spans(
     use crate::schema::Layout;
     let base = view.span.start;
     let lookup = |name: &str| layouts.iter().find(|(n, _)| *n == name).map(|(_, l)| *l);
-    let mut spans: BTreeMap<String, FieldSpan> = std::mem::take(&mut view.field_spans);
+    let mut spans: BTreeMap<Cow<'static, str>, FieldSpan> = std::mem::take(&mut view.field_spans);
     // Names the static table spanned (sub-bit derivation eligibility).
-    let mut layout_derived: Vec<String> = Vec::new();
+    let mut layout_derived: Vec<Cow<'static, str>> = Vec::new();
     for name in view.fields.keys() {
         if spans.contains_key(name) {
             continue;
@@ -447,7 +516,7 @@ fn populate_field_spans(
         }
         // Only aggregates the static table spanned into THIS view
         // (conditional fields stay out; codec-side subbits win).
-        if !layout_derived.iter().any(|n| n == f.name) {
+        if !layout_derived.iter().any(|n| n.as_ref() == f.name) {
             continue;
         }
         let Some(l) = lookup(f.name) else {
@@ -464,7 +533,7 @@ fn populate_field_spans(
             };
             let shift = window_shift + window_width.saturating_sub(1) - pos;
             spans.insert(
-                format!("{}.{bit}", f.name),
+                Cow::Owned(crate::schema::dotted_path(f.name, bit)),
                 FieldSpan::Bits {
                     container: FieldSpan::container(&spans[f.name]).expect("aggregate span"),
                     shift,
@@ -539,7 +608,7 @@ mod tests {
                 );
             }
             let mut fields = BTreeMap::new();
-            fields.insert("x".to_string(), Value::Int(bytes[0] as u128));
+            fields.insert("x".into(), Value::Int(bytes[0] as u128));
             let view = LayerView {
                 kind: "mocki",
                 span: ctx.offset..ctx.offset + 2,
@@ -613,12 +682,9 @@ mod tests {
                 );
             }
             let mut fields = BTreeMap::new();
-            fields.insert("f".to_string(), Value::Int(0x1234));
-            fields.insert("g".to_string(), Value::List(vec![Value::Str("a".into())]));
-            fields.insert(
-                "flags".to_string(),
-                Value::List(vec![Value::Str("syn".into())]),
-            );
+            fields.insert("f".into(), Value::Int(0x1234));
+            fields.insert("g".into(), Value::List(vec![Value::Str("a".into())]));
+            fields.insert("flags".into(), Value::List(vec![Value::Str("syn".into())]));
             let view = LayerView {
                 kind: "mocklay",
                 span: ctx.offset..ctx.offset + 3,
@@ -777,10 +843,7 @@ mod tests {
                 );
             }
             let mut fields = BTreeMap::new();
-            fields.insert(
-                "flags".to_string(),
-                Value::List(vec![Value::Str("syn".into())]),
-            );
+            fields.insert("flags".into(), Value::List(vec![Value::Str("syn".into())]));
             let view = LayerView {
                 kind: "mocksolo",
                 span: ctx.offset..ctx.offset + 1,

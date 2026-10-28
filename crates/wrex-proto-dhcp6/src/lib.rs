@@ -255,8 +255,8 @@ fn read_ia_sub_records(
     base: usize,
     at: usize,
     i: usize,
-    fields: &mut std::collections::BTreeMap<String, Value>,
-    spans: &mut std::collections::BTreeMap<String, FieldSpan>,
+    fields: &mut std::collections::BTreeMap<Cow<'static, str>, Value>,
+    spans: &mut std::collections::BTreeMap<Cow<'static, str>, FieldSpan>,
 ) {
     // RFC 8415 §21.21: the IA_NA fixed part is IAID + T1 + T2; the
     // sub-options follow. Shorter payloads carry no sub-records.
@@ -273,7 +273,7 @@ fn read_ia_sub_records(
         }
         let sub = &data[cursor + 4..cursor + 4 + slen];
         let sdat = base + at + cursor + 4;
-        let path = |f: &str| format!("opt.{i}.sub.{m}.{f}");
+        let path = |f: &str| Cow::Owned(format!("opt.{i}.sub.{m}.{f}"));
         spans.insert(
             path("code"),
             FieldSpan::Bytes(base + at + cursor..base + at + cursor + 2),
@@ -349,11 +349,11 @@ impl Codec for Dhcp6Codec {
             );
         }
         let base = ctx.offset;
-        let mut fields: std::collections::BTreeMap<String, Value> =
+        let mut fields: std::collections::BTreeMap<Cow<'static, str>, Value> =
             std::collections::BTreeMap::new();
         // Tranche 11b: parse-time spans for the dynamic options region
         // (the fixed header resolves through the static layouts table).
-        let mut spans: std::collections::BTreeMap<String, FieldSpan> =
+        let mut spans: std::collections::BTreeMap<Cow<'static, str>, FieldSpan> =
             std::collections::BTreeMap::new();
         let msg_type = bytes[0];
         fields.insert(
@@ -409,47 +409,62 @@ impl Codec for Dhcp6Codec {
             let data = &bytes[cursor + 4..cursor + 4 + olen];
             let dat = base + cursor + 4;
             spans.insert(
-                format!("opt.{i}.code"),
+                format!("opt.{i}.code").into(),
                 FieldSpan::Bytes(base + cursor..base + cursor + 2),
             );
             spans.insert(
-                format!("opt.{i}.len"),
+                format!("opt.{i}.len").into(),
                 FieldSpan::Bytes(base + cursor + 2..base + cursor + 4),
             );
-            spans.insert(format!("opt.{i}.value"), FieldSpan::Bytes(dat..dat + olen));
-            fields.insert(format!("opt.{i}.code"), Value::Int(code as u128));
-            fields.insert(format!("opt.{i}.len"), Value::Int(olen as u128));
+            spans.insert(
+                format!("opt.{i}.value").into(),
+                FieldSpan::Bytes(dat..dat + olen),
+            );
+            fields.insert(format!("opt.{i}.code").into(), Value::Int(code as u128));
+            fields.insert(format!("opt.{i}.len").into(), Value::Int(olen as u128));
             fields.insert(
-                format!("opt.{i}.value"),
+                format!("opt.{i}.value").into(),
                 Value::Bytes(Bytes::copy_from_slice(data)),
             );
             // Typed subset per code (never fatal on bad lengths).
             match code {
                 OPT_ORO if olen >= 2 && olen.is_multiple_of(2) => {
-                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 2));
+                    spans.insert(
+                        format!("opt.{i}.num").into(),
+                        FieldSpan::Bytes(dat..dat + 2),
+                    );
                     fields.insert(
-                        format!("opt.{i}.num"),
+                        format!("opt.{i}.num").into(),
                         Value::Int(u16::from_be_bytes([data[0], data[1]]) as u128),
                     );
                 }
                 OPT_ELAPSED_TIME if olen == 2 => {
-                    spans.insert(format!("opt.{i}.num"), FieldSpan::Bytes(dat..dat + 2));
+                    spans.insert(
+                        format!("opt.{i}.num").into(),
+                        FieldSpan::Bytes(dat..dat + 2),
+                    );
                     fields.insert(
-                        format!("opt.{i}.num"),
+                        format!("opt.{i}.num").into(),
                         Value::Int(u16::from_be_bytes([data[0], data[1]]) as u128),
                     );
                 }
                 OPT_DNS_SERVERS if olen >= 16 && olen.is_multiple_of(16) => {
                     // `ip` is the first address of the region.
-                    spans.insert(format!("opt.{i}.ip"), FieldSpan::Bytes(dat..dat + 16));
+                    spans.insert(
+                        format!("opt.{i}.ip").into(),
+                        FieldSpan::Bytes(dat..dat + 16),
+                    );
                     let mut addr = [0u8; 16];
                     addr.copy_from_slice(&data[..16]);
-                    fields.insert(format!("opt.{i}.ip"), Value::Ipv6(addr.into()));
+                    fields.insert(format!("opt.{i}.ip").into(), Value::Ipv6(addr.into()));
                 }
                 OPT_DOMAIN_LIST => {
                     if let Some(names) = decode_domain_names(data) {
-                        spans.insert(format!("opt.{i}.text"), FieldSpan::Bytes(dat..dat + olen));
-                        fields.insert(format!("opt.{i}.text"), Value::Str(names.into()));
+                        spans.insert(
+                            format!("opt.{i}.text").into(),
+                            FieldSpan::Bytes(dat..dat + olen),
+                        );
+                        fields.insert(format!("opt.{i}.text").into(), Value::Str(names.into()));
                     }
                 }
                 OPT_IA_NA => {
@@ -458,10 +473,13 @@ impl Codec for Dhcp6Codec {
                 }
                 OPT_IA_ADDR if olen >= 16 => {
                     // A top-level IAADDR (rare): address typed.
-                    spans.insert(format!("opt.{i}.ip"), FieldSpan::Bytes(dat..dat + 16));
+                    spans.insert(
+                        format!("opt.{i}.ip").into(),
+                        FieldSpan::Bytes(dat..dat + 16),
+                    );
                     let mut addr = [0u8; 16];
                     addr.copy_from_slice(&data[..16]);
-                    fields.insert(format!("opt.{i}.ip"), Value::Ipv6(addr.into()));
+                    fields.insert(format!("opt.{i}.ip").into(), Value::Ipv6(addr.into()));
                 }
                 _ => {}
             }
@@ -535,13 +553,13 @@ pub mod strategy {
         (0u32..0x100_0000, msg_type, opts)
             .prop_map(|(tid, msg_type, opts)| {
                 let mut fields = std::collections::BTreeMap::new();
-                fields.insert("msg_type".to_string(), msg_type);
-                fields.insert("trans_id".to_string(), Value::Int(tid as u128));
+                fields.insert("msg_type".into(), msg_type);
+                fields.insert("trans_id".into(), Value::Int(tid as u128));
                 if let Some(o) = opts {
                     if matches!(&o, Value::Str(s) if s.is_empty()) {
                         // the empty-grammar sample is the no-options case
                     } else {
-                        fields.insert("options".to_string(), o);
+                        fields.insert("options".into(), o);
                     }
                 }
                 LayerSpec::with_fields("dhcp6", fields)
@@ -591,7 +609,7 @@ mod tests {
         let mut map = std::collections::BTreeMap::new();
         for (k, v) in fields {
             let f = SCHEMA.field(k).expect("field in schema");
-            map.insert(k.to_string(), parse_value(f, v).unwrap());
+            map.insert(Cow::Owned(k.to_string()), parse_value(f, v).unwrap());
         }
         LayerSpec::with_fields(KIND, map)
     }
@@ -604,8 +622,8 @@ mod tests {
         let mut r = Registry::empty();
         register(&mut r);
         let mut uf = std::collections::BTreeMap::new();
-        uf.insert("sport".to_string(), Value::Int(546));
-        uf.insert("dport".to_string(), Value::Int(547));
+        uf.insert("sport".into(), Value::Int(546));
+        uf.insert("dport".into(), Value::Int(547));
         let s = PacketSpec::new(
             vec![
                 LayerSpec::with_fields(wrex_proto_udp::KIND, uf),
@@ -642,9 +660,7 @@ mod tests {
             &PacketSpec::new(
                 vec![LayerSpec::with_fields(
                     KIND,
-                    [("msg_type".to_string(), Value::Int(7))]
-                        .into_iter()
-                        .collect(),
+                    [("msg_type".into(), Value::Int(7))].into_iter().collect(),
                 )],
                 None,
             ),
@@ -683,8 +699,8 @@ mod tests {
                 vec![LayerSpec::with_fields(
                     KIND,
                     [
-                        ("msg_type".to_string(), Value::Str(Cow::Borrowed("solicit"))),
-                        ("trans_id".to_string(), Value::Int(0xaa_112233)),
+                        ("msg_type".into(), Value::Str(Cow::Borrowed("solicit"))),
+                        ("trans_id".into(), Value::Int(0xaa_112233)),
                     ]
                     .into_iter()
                     .collect(),
@@ -825,8 +841,8 @@ mod tests {
     fn udp_dispatch_is_port_keyed() {
         let r = registry();
         let mut uf = std::collections::BTreeMap::new();
-        uf.insert("sport".to_string(), Value::Int(546));
-        uf.insert("dport".to_string(), Value::Int(9999)); // not 546/547
+        uf.insert("sport".into(), Value::Int(546));
+        uf.insert("dport".into(), Value::Int(9999)); // not 546/547
         let s = PacketSpec::new(vec![LayerSpec::with_fields(wrex_proto_udp::KIND, uf)], None);
         let enc = encode(&r, &s, &Default::default()).unwrap();
         let p = wrex_core::dissect::dissect(&r, &enc.bytes, wrex_proto_udp::KIND);

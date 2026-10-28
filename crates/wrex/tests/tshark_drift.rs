@@ -238,9 +238,7 @@ fn tshark_comparisons_are_live() {
             .cloned()
             .unwrap_or_else(|| panic!("{family}: dissected {kind} has no field `{field}`"));
         // Corrupt: a value the wire bytes can never produce.
-        layer
-            .fields
-            .insert(field.to_string(), Value::Int(u128::MAX));
+        layer.fields.insert((*field).into(), Value::Int(u128::MAX));
         let report = wrex_test::oracle::TsharkOracle
             .dissect_diff(&frame.bytes, &packet)
             .expect_err("a corrupted field must mismatch");

@@ -53,9 +53,9 @@ fn our_broadcast(layer: &LayerView) -> bool {
 fn our_record_int(layer: &LayerView, code: u8) -> Option<u128> {
     let mut i = 0usize;
     loop {
-        match layer.fields.get(&format!("opt.{i}.code")) {
+        match layer.fields.get(format!("opt.{i}.code").as_str()) {
             Some(Value::Int(c)) if *c == code as u128 => {
-                return match layer.fields.get(&format!("opt.{i}.num")) {
+                return match layer.fields.get(format!("opt.{i}.num").as_str()) {
                     Some(Value::Int(v)) => Some(*v),
                     _ => None,
                 };
@@ -69,9 +69,9 @@ fn our_record_int(layer: &LayerView, code: u8) -> Option<u128> {
 fn our_record_ip(layer: &LayerView, code: u8) -> Option<Ipv4Addr> {
     let mut i = 0usize;
     loop {
-        match layer.fields.get(&format!("opt.{i}.code")) {
+        match layer.fields.get(format!("opt.{i}.code").as_str()) {
             Some(Value::Int(c)) if *c == code as u128 => {
-                return match layer.fields.get(&format!("opt.{i}.ip")) {
+                return match layer.fields.get(format!("opt.{i}.ip").as_str()) {
                     Some(Value::Ipv4(a)) => Some(*a),
                     _ => None,
                 };
@@ -86,9 +86,9 @@ fn our_record_ips(layer: &LayerView, code: u8) -> Option<Vec<Ipv4Addr>> {
     // `value` is the raw wire bytes for the option.
     let mut i = 0usize;
     loop {
-        match layer.fields.get(&format!("opt.{i}.code")) {
+        match layer.fields.get(format!("opt.{i}.code").as_str()) {
             Some(Value::Int(c)) if *c == code as u128 => {
-                return match layer.fields.get(&format!("opt.{i}.value")) {
+                return match layer.fields.get(format!("opt.{i}.value").as_str()) {
                     Some(Value::Bytes(b)) => {
                         if b.len() % 4 != 0 {
                             return None;
@@ -111,7 +111,7 @@ fn our_record_ips(layer: &LayerView, code: u8) -> Option<Vec<Ipv4Addr>> {
 fn our_record_text(layer: &LayerView, code: u8) -> Option<String> {
     let mut i = 0usize;
     loop {
-        match layer.fields.get(&format!("opt.{i}.code")) {
+        match layer.fields.get(format!("opt.{i}.code").as_str()) {
             Some(Value::Int(c)) if *c == code as u128 => {
                 return our_str(layer, &format!("opt.{i}.text")).map(str::to_string);
             }
@@ -294,9 +294,10 @@ pub fn dhcp_diff(input: &[u8], dhcp: &LayerView) -> Result<(), DiffReport> {
                 let ours: Option<Vec<u128>> = {
                     let mut i = 0usize;
                     loop {
-                        match dhcp.fields.get(&format!("opt.{i}.code")) {
+                        match dhcp.fields.get(format!("opt.{i}.code").as_str()) {
                             Some(Value::Int(c)) if *c == 55 => {
-                                let bytes = match dhcp.fields.get(&format!("opt.{i}.value")) {
+                                let bytes = match dhcp.fields.get(format!("opt.{i}.value").as_str())
+                                {
                                     Some(Value::Bytes(b)) => Some(b.to_vec()),
                                     _ => None,
                                 };
@@ -333,9 +334,9 @@ pub fn dhcp_diff(input: &[u8], dhcp: &LayerView) -> Result<(), DiffReport> {
             DhcpOption::ClientIdentifier(id) => {
                 let mut i = 0usize;
                 let ours: Option<Vec<u8>> = loop {
-                    match dhcp.fields.get(&format!("opt.{i}.code")) {
+                    match dhcp.fields.get(format!("opt.{i}.code").as_str()) {
                         Some(Value::Int(c)) if *c == 61 => {
-                            break match dhcp.fields.get(&format!("opt.{i}.value")) {
+                            break match dhcp.fields.get(format!("opt.{i}.value").as_str()) {
                                 Some(Value::Bytes(b)) => Some(b.to_vec()),
                                 _ => None,
                             };
@@ -356,7 +357,7 @@ pub fn dhcp_diff(input: &[u8], dhcp: &LayerView) -> Result<(), DiffReport> {
                 let code_num = u8::from(*code);
                 let mut i = 0usize;
                 let seen = loop {
-                    match dhcp.fields.get(&format!("opt.{i}.code")) {
+                    match dhcp.fields.get(format!("opt.{i}.code").as_str()) {
                         Some(Value::Int(c)) if *c == u128::from(code_num) => break true,
                         Some(_) => i += 1,
                         None => break false,

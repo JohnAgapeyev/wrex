@@ -294,19 +294,13 @@ pub fn build_tcp_query(
 ) -> Result<Bytes, String> {
     let _ = sport;
     let mut dns_fields = BTreeMap::new();
-    dns_fields.insert("id".to_string(), Value::Int(id as u128));
+    dns_fields.insert("id".into(), Value::Int(id as u128));
     if cfg.rd {
-        dns_fields.insert("flags.rd".to_string(), Value::Bool(true));
+        dns_fields.insert("flags.rd".into(), Value::Bool(true));
     }
-    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone().into()));
-    dns_fields.insert(
-        "qd.0.type".to_string(),
-        Value::Str(cfg.qtype.clone().into()),
-    );
-    dns_fields.insert(
-        "qd.0.class".to_string(),
-        Value::Str(cfg.qclass.clone().into()),
-    );
+    dns_fields.insert("qd.0.name".into(), Value::Str(cfg.name.clone().into()));
+    dns_fields.insert("qd.0.type".into(), Value::Str(cfg.qtype.clone().into()));
+    dns_fields.insert("qd.0.class".into(), Value::Str(cfg.qclass.clone().into()));
     let spec = PacketSpec::new(vec![LayerSpec::with_fields("dns", dns_fields)], None);
     let encoded = encode(
         registry,
@@ -334,14 +328,14 @@ fn build_query(
     let mut ip_fields = BTreeMap::new();
     match (&cfg.server, &src) {
         (IpAddr::V4(dst), IpAddr::V4(src)) => {
-            ip_fields.insert("src".to_string(), Value::Ipv4(*src));
-            ip_fields.insert("dst".to_string(), Value::Ipv4(*dst));
-            ip_fields.insert("ttl".to_string(), Value::Int(64));
+            ip_fields.insert("src".into(), Value::Ipv4(*src));
+            ip_fields.insert("dst".into(), Value::Ipv4(*dst));
+            ip_fields.insert("ttl".into(), Value::Int(64));
         }
         (IpAddr::V6(dst), IpAddr::V6(src)) => {
-            ip_fields.insert("src".to_string(), Value::Ipv6(*src));
-            ip_fields.insert("dst".to_string(), Value::Ipv6(*dst));
-            ip_fields.insert("hop_limit".to_string(), Value::Int(64));
+            ip_fields.insert("src".into(), Value::Ipv6(*src));
+            ip_fields.insert("dst".into(), Value::Ipv6(*dst));
+            ip_fields.insert("hop_limit".into(), Value::Int(64));
         }
         // One family per run: the caller picks `src` from the same
         // family as `server` (the CLI enforces it; mismatched configs
@@ -350,23 +344,17 @@ fn build_query(
     }
 
     let mut udp_fields = BTreeMap::new();
-    udp_fields.insert("sport".to_string(), Value::Int(sport as u128));
-    udp_fields.insert("dport".to_string(), Value::Int(cfg.port as u128));
+    udp_fields.insert("sport".into(), Value::Int(sport as u128));
+    udp_fields.insert("dport".into(), Value::Int(cfg.port as u128));
 
     let mut dns_fields = BTreeMap::new();
-    dns_fields.insert("id".to_string(), Value::Int(id as u128));
+    dns_fields.insert("id".into(), Value::Int(id as u128));
     if cfg.rd {
-        dns_fields.insert("flags.rd".to_string(), Value::Bool(true));
+        dns_fields.insert("flags.rd".into(), Value::Bool(true));
     }
-    dns_fields.insert("qd.0.name".to_string(), Value::Str(cfg.name.clone().into()));
-    dns_fields.insert(
-        "qd.0.type".to_string(),
-        Value::Str(cfg.qtype.clone().into()),
-    );
-    dns_fields.insert(
-        "qd.0.class".to_string(),
-        Value::Str(cfg.qclass.clone().into()),
-    );
+    dns_fields.insert("qd.0.name".into(), Value::Str(cfg.name.clone().into()));
+    dns_fields.insert("qd.0.type".into(), Value::Str(cfg.qtype.clone().into()));
+    dns_fields.insert("qd.0.class".into(), Value::Str(cfg.qclass.clone().into()));
 
     let spec = PacketSpec::new(
         vec![
@@ -472,12 +460,12 @@ mod tests {
         let mut ip_fields = BTreeMap::new();
         match (s.cfg.server, s.src) {
             (std::net::IpAddr::V4(server), std::net::IpAddr::V4(src)) => {
-                ip_fields.insert("src".to_string(), Value::Ipv4(server));
-                ip_fields.insert("dst".to_string(), Value::Ipv4(src));
+                ip_fields.insert("src".into(), Value::Ipv4(server));
+                ip_fields.insert("dst".into(), Value::Ipv4(src));
             }
             (std::net::IpAddr::V6(server), std::net::IpAddr::V6(src)) => {
-                ip_fields.insert("src".to_string(), Value::Ipv6(server));
-                ip_fields.insert("dst".to_string(), Value::Ipv6(src));
+                ip_fields.insert("src".into(), Value::Ipv6(server));
+                ip_fields.insert("dst".into(), Value::Ipv6(src));
             }
             _ => panic!("family mismatch in test reply"),
         }
@@ -486,24 +474,24 @@ mod tests {
             std::net::IpAddr::V6(_) => "ipv6",
         };
         let mut udp_fields = BTreeMap::new();
-        udp_fields.insert("sport".to_string(), Value::Int(53));
-        udp_fields.insert("dport".to_string(), Value::Int(s.sport as u128));
+        udp_fields.insert("sport".into(), Value::Int(53));
+        udp_fields.insert("dport".into(), Value::Int(s.sport as u128));
         let mut dns_fields = BTreeMap::new();
-        dns_fields.insert("id".to_string(), Value::Int(s.id as u128));
-        dns_fields.insert("flags.qr".to_string(), Value::Bool(true));
-        dns_fields.insert("flags.rd".to_string(), Value::Bool(true));
-        dns_fields.insert("flags.ra".to_string(), Value::Bool(true));
-        dns_fields.insert("rcode".to_string(), Value::Int(rcode as u128));
-        dns_fields.insert("qdcount".to_string(), Value::Int(1));
+        dns_fields.insert("id".into(), Value::Int(s.id as u128));
+        dns_fields.insert("flags.qr".into(), Value::Bool(true));
+        dns_fields.insert("flags.rd".into(), Value::Bool(true));
+        dns_fields.insert("flags.ra".into(), Value::Bool(true));
+        dns_fields.insert("rcode".into(), Value::Int(rcode as u128));
+        dns_fields.insert("qdcount".into(), Value::Int(1));
         if answer {
             // Counts may be set explicitly (kept as written); the answer
             // RR itself rides the payload below (records are not
             // craftable at tranche 3).
-            dns_fields.insert("ancount".to_string(), Value::Int(1));
+            dns_fields.insert("ancount".into(), Value::Int(1));
         }
-        dns_fields.insert("qd.0.name".to_string(), Value::Str("example.com".into()));
-        dns_fields.insert("qd.0.type".to_string(), Value::Str("A".into()));
-        dns_fields.insert("qd.0.class".to_string(), Value::Str("IN".into()));
+        dns_fields.insert("qd.0.name".into(), Value::Str("example.com".into()));
+        dns_fields.insert("qd.0.type".into(), Value::Str("A".into()));
+        dns_fields.insert("qd.0.class".into(), Value::Str("IN".into()));
         let _ = query;
         let dns = LayerSpec::with_fields("dns", dns_fields);
         let mut spec = PacketSpec::new(
