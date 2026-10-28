@@ -10,6 +10,12 @@ use wrex_core::value::Value;
 #[derive(Debug, Default)]
 pub struct DiffReport {
     pub mismatches: Vec<(String, String, String)>,
+    /// Every field path the map ATTEMPTED to compare (HP3-a G6: the
+    /// differential key-completeness audit reads this inventory — a
+    /// schema field absent from every oracle's attempted set is a
+    /// field whose mapping bugs are invisible, unless exempted with a
+    /// recorded reason).
+    pub compared: Vec<String>,
 }
 
 impl DiffReport {
@@ -17,6 +23,11 @@ impl DiffReport {
     /// oracle (tranche 3).
     pub fn push(&mut self, path: &str, ours: String, theirs: String) {
         self.mismatches.push((path.to_string(), ours, theirs));
+    }
+
+    /// Record one attempted comparison path (G6 inventory).
+    pub fn note_compared(&mut self, path: &str) {
+        self.compared.push(path.to_string());
     }
 }
 
@@ -31,6 +42,26 @@ pub trait Oracle: Send + Sync {
 /// In-process etherparse oracle (always available).
 pub struct EtherparseOracle;
 
+impl EtherparseOracle {
+    /// Run the map and return the FULL report (mismatches + the
+    /// attempted-comparison inventory) — the G6 audit reads
+    /// `compared`; `Oracle::dissect_diff` keeps the plain contract.
+    pub fn compare(&self, input: &[u8], actual: &DissectedPacket) -> DiffReport {
+        let mut report = DiffReport::default();
+        let parsed = etherparse::SlicedPacket::from_ethernet(input);
+        let parsed = match parsed {
+            Ok(p) => p,
+            Err(_) => {
+                // etherparse refuses (truncated etc): only compare when both
+                // sides claim a parse.
+                return report;
+            }
+        };
+        etherparse_map(&parsed, actual, &mut report);
+        report
+    }
+}
+
 impl Oracle for EtherparseOracle {
     fn name(&self) -> &'static str {
         "etherparse"
@@ -41,17 +72,7 @@ impl Oracle for EtherparseOracle {
     }
 
     fn dissect_diff(&self, input: &[u8], actual: &DissectedPacket) -> Result<(), DiffReport> {
-        let mut report = DiffReport::default();
-        let parsed = etherparse::SlicedPacket::from_ethernet(input);
-        let parsed = match parsed {
-            Ok(p) => p,
-            Err(_) => {
-                // etherparse refuses (truncated etc): only compare when both
-                // sides claim a parse.
-                return Ok(());
-            }
-        };
-        etherparse_map(&parsed, actual, &mut report);
+        let report = self.compare(input, actual);
         if report.mismatches.is_empty() {
             Ok(())
         } else {
@@ -120,6 +141,24 @@ fn etherparse_map(
     }
     if let (Some(etherparse::NetSlice::Ipv4(ip)), Some(ours)) = (&parsed.net, by_kind("ipv4")) {
         let ip = ip.header();
+        // tos = DSCP (6 bits) << 2 | ECN (2 bits) — the independent
+        // reassembly of the byte through etherparse's typed halves.
+        let tos = (u8::from(ip.dcp()) << 2) | u8::from(ip.ecn());
+        field_eq(report, "ipv4.ver", ours, &Value::Int(ip.version() as u128));
+        field_eq(report, "ipv4.ihl", ours, &Value::Int(ip.ihl() as u128));
+        field_eq(report, "ipv4.tos", ours, &Value::Int(tos as u128));
+        field_eq(
+            report,
+            "ipv4.total_len",
+            ours,
+            &Value::Int(ip.total_len() as u128),
+        );
+        field_eq(
+            report,
+            "ipv4.checksum",
+            ours,
+            &Value::Int(ip.header_checksum() as u128),
+        );
         field_eq(report, "ipv4.ttl", ours, &Value::Int(ip.ttl() as u128));
         field_eq(
             report,
@@ -170,6 +209,7 @@ fn etherparse_map(
     }
     if let (Some(etherparse::NetSlice::Ipv6(ip)), Some(ours)) = (&parsed.net, by_kind("ipv6")) {
         let ip = ip.header();
+        field_eq(report, "ipv6.ver", ours, &Value::Int(ip.version() as u128));
         field_eq(
             report,
             "ipv6.hop_limit",
@@ -338,6 +378,12 @@ fn etherparse_map(
             ours,
             &Value::Int(header.length() as u128),
         );
+        field_eq(
+            report,
+            "udp.checksum",
+            ours,
+            &Value::Int(header.checksum() as u128),
+        );
     }
     if let (Some(etherparse::TransportSlice::Tcp(header)), Some(ours)) =
         (&parsed.transport, by_kind("tcp"))
@@ -372,7 +418,61 @@ fn etherparse_map(
             ours,
             &Value::Int(header.window_size() as u128),
         );
+        field_eq(
+            report,
+            "tcp.data_off",
+            ours,
+            &Value::Int(header.data_offset() as u128),
+        );
+        field_eq(
+            report,
+            "tcp.urgent",
+            ours,
+            &Value::Int(header.urgent_pointer() as u128),
+        );
+        // flags: the 8-bit aggregate, RFC 9293 §3.1 order [cwr..fin]
+        // (the independent name build — the G2 toggle sweep feeds both
+        // sides).
+        let mut names = Vec::new();
+        if header.cwr() {
+            names.push(Value::Str("cwr".into()));
+        }
+        if header.ece() {
+            names.push(Value::Str("ece".into()));
+        }
+        if header.urg() {
+            names.push(Value::Str("urg".into()));
+        }
+        if header.ack() {
+            names.push(Value::Str("ack".into()));
+        }
+        if header.psh() {
+            names.push(Value::Str("psh".into()));
+        }
+        if header.rst() {
+            names.push(Value::Str("rst".into()));
+        }
+        if header.syn() {
+            names.push(Value::Str("syn".into()));
+        }
+        if header.fin() {
+            names.push(Value::Str("fin".into()));
+        }
+        field_eq(report, "tcp.flags", ours, &Value::List(names));
+        field_eq(
+            report,
+            "tcp.checksum",
+            ours,
+            &Value::Int(header.checksum() as u128),
+        );
     }
+}
+
+/// The dissected-field key for a report path: the suffix after the
+/// kind prefix (`"icmp.echo.id"` → `"echo.id"` — field keys may
+/// themselves contain dots, so the LAST segment would be wrong).
+fn field_key(path: &str) -> &str {
+    path.split_once('.').map(|(_, rest)| rest).unwrap_or(path)
 }
 
 fn field_eq(
@@ -381,9 +481,10 @@ fn field_eq(
     layer: &wrex_core::dissect::LayerView,
     want: &Value,
 ) {
+    report.note_compared(path);
     let ours = layer
         .fields
-        .get(path.rsplit('.').next().unwrap_or(path))
+        .get(field_key(path))
         .cloned()
         .unwrap_or(Value::Int(u64::MAX as u128));
     if &ours != want {
@@ -450,25 +551,24 @@ fn which_tshark() -> Option<std::path::PathBuf> {
         .find(|p| p.is_file())
 }
 
-impl Oracle for TsharkOracle {
-    fn name(&self) -> &'static str {
-        "tshark"
-    }
-
-    fn is_available(&self) -> bool {
-        TsharkOracle.available()
-    }
-
-    fn dissect_diff(&self, input: &[u8], actual: &DissectedPacket) -> Result<(), DiffReport> {
-        let Some(tshark) = which_tshark() else {
-            return Ok(()); // skip
-        };
+impl TsharkOracle {
+    /// Run the map and return the FULL report (mismatches + the
+    /// attempted-comparison inventory); `None` when tshark is absent
+    /// or refuses the bytes (the skip cases of `dissect_diff`).
+    pub fn compare(&self, input: &[u8], actual: &DissectedPacket) -> Option<DiffReport> {
+        let tshark = which_tshark()?;
         let mut pcap = PcapWriter::new();
         pcap.push_frame(input);
         let dir = std::env::temp_dir().join("wrex-tshark-diff");
         std::fs::create_dir_all(&dir).ok();
-        let pcap_path = dir.join(format!("diff-{}.pcap", std::process::id()));
-        std::fs::write(&pcap_path, pcap.finish()).map_err(|_| DiffReport::default())?;
+        // Unique per INVOCATION, not per process: parallel test threads
+        // share a pid, and a shared path lets one thread's tshark read
+        // another's half-written pcap (the HP3 gates run the oracles
+        // from concurrent tests).
+        static INVOCATIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = INVOCATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let pcap_path = dir.join(format!("diff-{}-{}.pcap", std::process::id(), n));
+        std::fs::write(&pcap_path, pcap.finish()).ok()?;
         let out = std::process::Command::new(&tshark)
             .arg("-r")
             .arg(&pcap_path)
@@ -484,13 +584,30 @@ impl Oracle for TsharkOracle {
             .arg("-o")
             .arg("tcp.relative_sequence_numbers:FALSE")
             .output()
-            .map_err(|_| DiffReport::default())?;
+            .ok()?;
         if !out.status.success() {
-            return Ok(()); // tshark refused the bytes: skip (never fatal)
+            return None; // tshark refused the bytes: skip (never fatal)
         }
-        let json: Json = serde_json::from_slice(&out.stdout).map_err(|_| DiffReport::default())?;
+        let json: Json = serde_json::from_slice(&out.stdout).ok()?;
         let mut report = DiffReport::default();
         tshark_map(&json, actual, &mut report);
+        Some(report)
+    }
+}
+
+impl Oracle for TsharkOracle {
+    fn name(&self) -> &'static str {
+        "tshark"
+    }
+
+    fn is_available(&self) -> bool {
+        TsharkOracle.available()
+    }
+
+    fn dissect_diff(&self, input: &[u8], actual: &DissectedPacket) -> Result<(), DiffReport> {
+        let Some(report) = self.compare(input, actual) else {
+            return Ok(()); // absent or refused: skip (never fatal)
+        };
         if report.mismatches.is_empty() {
             Ok(())
         } else {
@@ -555,22 +672,52 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         && let Some(ours) = by_kind("ipv4")
     {
         let get = |k: &str| ip_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "ipv4.ver", ours, get("ip.version"));
+        // ihl: tshark renders the header LENGTH IN BYTES (ip.hdr_len) —
+        // the translated compare (ours is the 32-bit-word nibble).
+        if let Some(h) = get("ip.hdr_len")
+            && let Some(Value::Int(ihl)) = ours.fields.get("ihl")
+        {
+            report.note_compared("ipv4.ihl");
+            let theirs = parse_int_value(&h);
+            if ihl * 4 != theirs {
+                report.push("ipv4.ihl", format!("{ihl}"), format!("{theirs}"));
+            }
+        }
         cmp_int_str(report, "ipv4.ttl", ours, get("ip.ttl"));
         cmp_int_str(report, "ipv4.proto", ours, get("ip.proto"));
         cmp_str(report, "ipv4.src", ours, get("ip.src"));
         cmp_str(report, "ipv4.dst", ours, get("ip.dst"));
         cmp_int_str(report, "ipv4.id", ours, get("ip.id"));
+        // tos: tshark's dsfield renders the whole byte ("0x…").
+        cmp_int_str(report, "ipv4.tos", ours, get("ip.dsfield"));
+        cmp_int_str(report, "ipv4.total_len", ours, get("ip.len"));
+        // flags: tshark's bitmask is the 3-bit field, RFC 791 order
+        // [res,df,mf] (rb=0x04, df=0x02, mf=0x01).
+        cmp_flagset_mask(
+            report,
+            "ipv4.flags",
+            &["res", "df", "mf"],
+            ours,
+            get("ip.flags"),
+        );
+        cmp_int_str(report, "ipv4.frag_off", ours, get("ip.frag_offset"));
+        cmp_int_str(report, "ipv4.checksum", ours, get("ip.checksum"));
     }
     // ipv6 (tranche 7b)
     if let Some(ip6_json) = layers.get("ipv6")
         && let Some(ours) = by_kind("ipv6")
     {
         let get = |k: &str| ip6_json[k].as_str().map(|s| s.to_string());
+        cmp_int_str(report, "ipv6.ver", ours, get("ipv6.version"));
         cmp_int_str(report, "ipv6.hop_limit", ours, get("ipv6.hlim"));
         cmp_int_str(report, "ipv6.next_header", ours, get("ipv6.nxt"));
         cmp_str(report, "ipv6.src", ours, get("ipv6.src"));
         cmp_str(report, "ipv6.dst", ours, get("ipv6.dst"));
         cmp_int_str(report, "ipv6.payload_len", ours, get("ipv6.plen"));
+        // tclass/flow render as "0x…" words of the flow word halves.
+        cmp_int_str(report, "ipv6.traffic_class", ours, get("ipv6.tclass"));
+        cmp_int_str(report, "ipv6.flow_label", ours, get("ipv6.flow"));
     }
     // v6 extension headers (tranche 17a): the reachable tshark arms —
     // hop-by-hop under `ipv6.hopopts`, destination options under
@@ -606,7 +753,13 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         );
         cmp_int_str_any(report, "hopopts.len", &ours, get("ipv6.hopopts.len"));
     }
-    if let Some(j) = layers.get("ipv6.dstopts")
+    // dstopts: like hopopts/routing/AH, tshark nests the ext-header
+    // fields INSIDE the ipv6 dict (verified against 4.7.4: the
+    // original top-level read never fired — a dead arm the G6 audit
+    // caught; the pass-2 drift guard checks key PRESENCE, not the
+    // access path, so it could not see it).
+    if let Some(v6) = layers.get("ipv6")
+        && let Some(j) = v6.get("ipv6.dstopts")
         && !all_of_kind("dstopts").is_empty()
     {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
@@ -631,6 +784,7 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
             &ours,
             get("ipv6.routing.nxt"),
         );
+        cmp_int_str_any(report, "routing.len", &ours, get("ipv6.routing.len"));
         cmp_int_str_any(
             report,
             "routing.segs_left",
@@ -645,6 +799,7 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         let get = |k: &str| j[k].as_str().map(|s| s.to_string());
         let ours = all_of_kind("ah");
         cmp_int_str_any(report, "ah.next_header", &ours, get("ah.next_header"));
+        cmp_int_str_any(report, "ah.len", &ours, get("ah.length"));
         cmp_int_str_any(report, "ah.spi", &ours, get("ah.spi"));
         cmp_int_str_any(report, "ah.seq", &ours, get("ah.sequence"));
     }
@@ -657,6 +812,20 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         let get = |k: &str| icmp6_json[k].as_str().map(|s| s.to_string());
         cmp_int_str(report, "icmpv6.type", ours, get("icmpv6.type"));
         cmp_int_str(report, "icmpv6.code", ours, get("icmpv6.code"));
+        cmp_int_str(report, "icmpv6.checksum", ours, get("icmpv6.checksum"));
+        // echo bodies render only on echo types (cmp skips on None).
+        cmp_int_str(
+            report,
+            "icmpv6.echo.id",
+            ours,
+            get("icmpv6.echo.identifier"),
+        );
+        cmp_int_str(
+            report,
+            "icmpv6.echo.seq",
+            ours,
+            get("icmpv6.echo.sequence_number"),
+        );
     }
     // dhcp (tranche 7c): fixed-header parity. The options space is the
     // in-process dhcproto oracle's job — tshark's repeated
@@ -677,6 +846,20 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_str(report, "dhcp.giaddr", ours, get("dhcp.ip.relay"));
         cmp_str(report, "dhcp.sname", ours, get("dhcp.server"));
         cmp_str(report, "dhcp.file", ours, get("dhcp.file"));
+        // flags: tshark renders the whole 16-bit word ("0x8000
+        // (Broadcast)"); our aggregate is the 1-bit broadcast mask
+        // (bit 15 of the word) — translated here, then compared
+        // semantically.
+        if let Some(f) = get("dhcp.flags") {
+            let word = parse_int_value(&f);
+            cmp_flagset_mask(
+                report,
+                "dhcp.flags",
+                &["broadcast"],
+                ours,
+                Some(format!("{}", word >> 15)),
+            );
+        }
         // chaddr: tshark renders the first `hlen` bytes as a MAC.
         if let Some(theirs) = get("dhcp.hw.mac_addr")
             && let Some(Value::Bytes(ch)) = ours.fields.get("chaddr")
@@ -684,6 +867,7 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
             && let hlen = usize::try_from(*hlen).unwrap_or(0)
             && hlen <= 6
         {
+            report.note_compared("dhcp.chaddr");
             let mut mac = [0u8; 6];
             for (i, b) in ch.iter().take(hlen).enumerate() {
                 mac[i] = *b;
@@ -731,6 +915,7 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_int_str(report, "udp.sport", ours, get("udp.srcport"));
         cmp_int_str(report, "udp.dport", ours, get("udp.dstport"));
         cmp_int_str(report, "udp.length", ours, get("udp.length"));
+        cmp_int_str(report, "udp.checksum", ours, get("udp.checksum"));
     }
     if let Some(tcp_json) = layers.get("tcp")
         && let Some(ours) = by_kind("tcp")
@@ -741,6 +926,15 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         cmp_int_str(report, "tcp.seq", ours, get("tcp.seq"));
         cmp_int_str(report, "tcp.ack", ours, get("tcp.ack"));
         cmp_int_str(report, "tcp.window", ours, get("tcp.window_size_value"));
+        // flags: tshark's bitmask is the raw byte, RFC 9293 §3.1 order.
+        cmp_flagset_mask(
+            report,
+            "tcp.flags",
+            &["cwr", "ece", "urg", "ack", "psh", "rst", "syn", "fin"],
+            ours,
+            get("tcp.flags"),
+        );
+        cmp_int_str(report, "tcp.checksum", ours, get("tcp.checksum"));
     }
     // arp
     if let Some(arp_json) = layers.get("arp")
@@ -758,7 +952,15 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         && let Some(ours) = by_kind("icmp")
         && let Some(t) = icmp_json["icmp.type"].as_str()
     {
+        let get = |k: &str| icmp_json[k].as_str().map(|s| s.to_string());
         cmp_int_str(report, "icmp.type", ours, Some(t.to_string()));
+        cmp_int_str(report, "icmp.code", ours, get("icmp.code"));
+        cmp_int_str(report, "icmp.checksum", ours, get("icmp.checksum"));
+        // echo bodies render only on echo types (cmp skips on None).
+        // Key names verified against tshark 4.7.4: `icmp.ident` /
+        // `icmp.seq` (sic — NOT icmp.identifier/icmp.sequence).
+        cmp_int_str(report, "icmp.echo.id", ours, get("icmp.ident"));
+        cmp_int_str(report, "icmp.echo.seq", ours, get("icmp.seq"));
     }
 }
 
@@ -777,6 +979,9 @@ fn cmp_vlan_tag(
     let (Some(pcp), Some(dei), Some(vid), Some(ethertype)) = (pcp, dei, vid, ethertype) else {
         return;
     };
+    for p in ["vlan.pcp", "vlan.dei", "vlan.vid", "vlan.type"] {
+        report.note_compared(p);
+    }
     let want = (
         parse_int_value(&pcp),
         parse_int_value(&dei),
@@ -814,8 +1019,9 @@ fn cmp_str(
     layer: &wrex_core::dissect::LayerView,
     theirs: Option<String>,
 ) {
-    let name = path.rsplit('.').next().unwrap_or(path);
+    let name = field_key(path);
     if let Some(theirs) = theirs {
+        report.note_compared(path);
         let ours_norm = match layer.fields.get(name) {
             Some(Value::Mac(m)) => wrex_core::mac_string(*m),
             Some(Value::Ipv4(a)) => a.to_string(),
@@ -847,8 +1053,9 @@ fn cmp_int_str_any(
     theirs: Option<String>,
 ) {
     let Some(theirs) = theirs else { return };
-    let name = path.rsplit('.').next().unwrap_or(path);
+    let name = field_key(path);
     let theirs_int: u128 = parse_int_value(&theirs);
+    report.note_compared(path);
     let hit = ours
         .iter()
         .any(|l| matches!(l.fields.get(name), Some(Value::Int(v)) if *v == theirs_int));
@@ -867,8 +1074,9 @@ fn cmp_int_str(
     layer: &wrex_core::dissect::LayerView,
     theirs: Option<String>,
 ) {
-    let name = path.rsplit('.').next().unwrap_or(path);
+    let name = field_key(path);
     if let Some(theirs) = theirs {
+        report.note_compared(path);
         let theirs_int: u128 = parse_int_value(&theirs);
         match layer.fields.get(name) {
             Some(Value::Int(v)) if *v == theirs_int => {}
@@ -895,6 +1103,44 @@ fn cmp_int_prefix(
     theirs: Option<String>,
 ) {
     cmp_int_str(report, path, layer, theirs)
+}
+
+/// Compare a FlagSet aggregate against an oracle RAW BITMASK (tshark's
+/// `ip.flags`: "0x04", `tcp.flags`: "0x…"): ours renders a name list;
+/// the expected names build from the bit order THIS table declares
+/// (RFC-derived, deliberately NOT read from the schema — the map is
+/// the independent side of the G2 toggle sweep; drift fails loudly).
+fn cmp_flagset_mask(
+    report: &mut DiffReport,
+    path: &str,
+    bit_names: &[&str],
+    layer: &wrex_core::dissect::LayerView,
+    theirs: Option<String>,
+) {
+    let Some(theirs) = theirs else { return };
+    report.note_compared(path);
+    let mask = parse_int_value(&theirs);
+    let n = bit_names.len();
+    let want: Vec<String> = bit_names
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| mask & (1u128 << (n - 1 - i)) != 0)
+        .map(|(_, b)| b.to_string())
+        .collect();
+    let name = field_key(path);
+    let got: Vec<String> = match layer.fields.get(name) {
+        Some(Value::List(items)) => items
+            .iter()
+            .filter_map(|v| match v {
+                Value::Str(s) => Some(s.to_string()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    if got != want {
+        report.push(path, format!("{got:?}"), format!("{want:?}"));
+    }
 }
 
 /// Run every available oracle against our dissection.

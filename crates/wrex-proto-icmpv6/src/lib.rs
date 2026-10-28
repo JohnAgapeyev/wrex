@@ -722,7 +722,7 @@ impl Codec for Icmp6Codec {
                 cursor = src_end;
             }
         }
-        // MLDv2 query extension (tranche 17b): body >= 20 bytes        // MLDv2 query extension (tranche 17b): body >= 20 bytes
+        // MLDv2 query extension (tranche 17b): body >= 20 bytes
         // discriminates the v2 shape from the v1 16-byte body
         // (RFC 3810 §5.1 — the v2 query is a superset).
         if t == T_MLD_QUERY && bytes.len() >= 8 + 20 {
@@ -739,7 +739,12 @@ impl Codec for Icmp6Codec {
             fields.insert("mld.qqic".into(), Value::Int(bytes[25] as u128));
             let n = u16::from_be_bytes([bytes[26], bytes[27]]);
             fields.insert("mld.nsrcs".into(), Value::Int(n as u128));
-            let src_end = (8 + 28 + n as usize * 16).min(bytes.len());
+            // The sources region is exactly n*16 bytes past offset 28
+            // (clamped to what is actually present — the lenient-stop
+            // precedent). The G1-populated strategy caught the old
+            // `8 + 28 + n*16` end leaking 8 payload bytes into the
+            // region whenever a payload followed.
+            let src_end = (28 + n as usize * 16).min(bytes.len());
             fields.insert(
                 "mld.sources".into(),
                 Value::Bytes(Bytes::copy_from_slice(&bytes[28..src_end])),
