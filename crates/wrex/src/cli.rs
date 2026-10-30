@@ -1239,6 +1239,56 @@ pub struct HttpArgs {
     /// a Basic-only 401 stays data).
     #[arg(long)]
     pub digest: bool,
+    /// Request compressed content (tranche 19a): advertise the four
+    /// codecs wrex decodes — `deflate, gzip, br, zstd` (curl's list,
+    /// byte-exact) — and decode `Content-Encoding` responses
+    /// (stacked codings right-to-left; the raw deflate fallback;
+    /// multi-member gzip). Decoded bytes count against --max-bytes
+    /// exactly like wire bytes (the bomb cap).
+    #[arg(long)]
+    pub compressed: bool,
+    /// Write the response BODY to FILE, one -o per URL in order
+    /// (curl -o); responses past the last -o go to stdout. Exclusive
+    /// with -O.
+    #[arg(short = 'o', long, value_name = "FILE")]
+    pub output: Vec<String>,
+    /// Write the body to the URL's remote basename in the CWD
+    /// (curl -O). Exclusive with -o.
+    #[arg(short = 'O', long)]
+    pub remote_name: bool,
+    /// Upload FILE: PUT with the file bytes as the body (curl -T;
+    /// exclusive with --data).
+    #[arg(short = 'T', long, value_name = "FILE")]
+    pub upload_file: Option<String>,
+    /// HEAD request (curl -I; exclusive with an explicit METHOD).
+    #[arg(short = 'I', long)]
+    pub head: bool,
+    /// Include the response head in raw output (curl -i; --format
+    /// text always carries it).
+    #[arg(long)]
+    pub include: bool,
+    /// Range request sugar: `Range: bytes=<SPEC>` (curl -r; SPEC is
+    /// `N-M`, `N-` or `-N`).
+    #[arg(short = 'r', long, value_name = "SPEC")]
+    pub range: Option<String>,
+    /// Pin a hostname to an address, bypassing resolution
+    /// (curl --resolve `HOST[:PORT]:ADDR`, repeatable; applies to
+    /// redirect hops too).
+    #[arg(long, value_name = "HOST[:PORT]:ADDR")]
+    pub resolve: Vec<String>,
+    /// Retry on transient response statuses: N extra attempts when a
+    /// completed response is 5xx (per request, fresh exchange — no
+    /// delay; curl's backoff is deliberately not implemented, the
+    /// lab-tool deviation).
+    #[arg(long, value_name = "N")]
+    pub retry: Option<u32>,
+    /// Add a `timing` object to each `--format json` response:
+    /// time_connect_ms / time_appconnect_ms (TLS, https only) /
+    /// time_starttransfer_ms / time_total_ms — the curl -w fields,
+    /// json-shaped. Per original request (a redirect chain's timings
+    /// span its hops).
+    #[arg(long)]
+    pub timing: bool,
 }
 
 #[derive(Args, Debug)]

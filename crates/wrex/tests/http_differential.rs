@@ -531,6 +531,110 @@ fn digest_differential_vs_curl() {
     }
 }
 
+// --- tranche 19a: content-decoding differential vs curl ------------------------
+
+/// `curl --version` feature tokens ("zlib", "brotli", "zstd") — the
+/// capability probe (the tshark missing-tool pattern): arms whose
+/// codec the runner's curl lacks skip with a notice.
+fn curl_features() -> Option<Vec<String>> {
+    let out = std::process::Command::new(which_curl()?)
+        .arg("--version")
+        .output()
+        .ok()?;
+    let line = String::from_utf8_lossy(&out.stdout);
+    Some(
+        line.split([' ', '/'])
+            .map(str::to_string)
+            .collect::<Vec<_>>(),
+    )
+}
+
+#[test]
+fn compressed_differential_vs_curl() {
+    if !curl_enabled() {
+        eprintln!(
+            "compressed_differential_vs_curl: skipping (curl not on PATH or WREX_DIFF_CURL unset)"
+        );
+        return;
+    }
+    let Some(features) = curl_features() else {
+        eprintln!("compressed_differential_vs_curl: skipping (cannot probe curl --version)");
+        return;
+    };
+    let has = |token: &str| features.iter().any(|f| f == token);
+    let fixtures_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../wrex-http/testdata/content");
+    for (encoding, file, needs) in [
+        ("gzip", "fixture.gz", "zlib"),
+        ("deflate", "fixture.zz", "zlib"),
+        ("br", "fixture.br", "brotli"),
+        ("zstd", "fixture.zst", "zstd"),
+    ] {
+        if !has(needs) {
+            eprintln!(
+                "compressed_differential_vs_curl: skipping {encoding} (this curl lacks {needs})"
+            );
+            continue;
+        }
+        let body = std::fs::read(format!("{fixtures_dir}/{file}")).expect("committed fixture");
+        let expected =
+            std::fs::read(format!("{fixtures_dir}/{file}.expected")).expect("committed fixture");
+        let mut response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Encoding: {encoding}\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        response.extend_from_slice(&body);
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let served = response;
+        std::thread::spawn(move || {
+            for _ in 0..4 {
+                let Ok((mut conn, _)) = listener.accept() else {
+                    return;
+                };
+                let mut chunk = [0u8; 8192];
+                let mut buf = Vec::new();
+                while let Ok(n) = conn.read(&mut chunk) {
+                    if n == 0 {
+                        break;
+                    }
+                    buf.extend_from_slice(&chunk[..n]);
+                    if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let _ = conn.write_all(&served);
+                let _ = conn.shutdown(std::net::Shutdown::Write);
+                let _ = conn.set_read_timeout(Some(Duration::from_millis(200)));
+                let _ = conn.read(&mut chunk);
+            }
+        });
+        let url = format!("http://{addr}/c");
+        // curl --compressed decodes
+        let out = std::process::Command::new(which_curl().unwrap())
+            .args(["-s", "--compressed", &url])
+            .output()
+            .expect("spawn curl");
+        assert!(out.status.success(), "{encoding}: curl failed");
+        assert_eq!(
+            out.stdout, expected,
+            "{encoding}: curl's decoded body differs from the committed fixture"
+        );
+        // wrex --compressed decodes identically
+        let out = assert_cmd::Command::new(env!("CARGO_BIN_EXE_wrex"))
+            .args(["http", "--compressed", "--format", "raw", &url])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        assert_eq!(
+            out, expected,
+            "{encoding}: wrex's decoded body differs from curl's"
+        );
+    }
+}
+
 #[test]
 fn recipe_replays_byte_identical() {
     let json = r#"{

@@ -23,6 +23,9 @@
 //!   resolution (tranche 19a; the verb drives the re-issue).
 //! - [`auth`]: `Basic`/`Bearer` headers + the RFC 7616 `Digest`
 //!   401-dance (tranche 19a).
+//! - [`content`]: `Content-Encoding` decode — gzip/deflate (zlib-rs),
+//!   br, zstd behind one dispatcher with the shared byte budget
+//!   (tranche 19a).
 //!
 //! Deliberate T4 deferrals (documented in the verb help): keep-alive
 //! (one exchange per connection), chunked *request* bodies
@@ -32,6 +35,7 @@
 //! driver living in the `wrex-tls` crate.
 
 pub mod auth;
+pub mod content;
 pub mod cookies;
 pub mod recipe;
 pub mod redirect;

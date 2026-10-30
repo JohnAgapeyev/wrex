@@ -41,6 +41,8 @@ pub struct RecipeOverrides {
     pub bearer: Option<String>,
     /// Answer Digest 401s via the RFC 7616 dance (with `user`).
     pub digest: Option<bool>,
+    /// Request/decode compressed content (tranche 19a).
+    pub compressed: Option<bool>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -93,6 +95,9 @@ pub struct Recipe {
     /// Answer Digest 401s via the RFC 7616 dance (with `user`).
     #[serde(default)]
     pub digest: Option<bool>,
+    /// Request/decode compressed content (tranche 19a).
+    #[serde(default)]
+    pub compressed: Option<bool>,
 }
 
 impl Recipe {
@@ -193,6 +198,7 @@ impl Recipe {
             user: self.user,
             bearer: self.bearer,
             digest: self.digest,
+            compressed: self.compressed,
         };
         Ok((spec, overrides))
     }

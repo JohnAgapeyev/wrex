@@ -1121,3 +1121,342 @@ fn md5_hex(data: &str) -> String {
     h.update(data.as_bytes());
     h.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
+
+// --- tranche 19a: content-decoding + sugar + timing ---------------------------
+
+/// The committed codec fixtures (byte-stable; generated with the
+/// system gzip/zlib/brotli/zstd — the golden-corpus pattern).
+fn fixture(name: &str) -> Vec<u8> {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../wrex-http/testdata/content");
+    std::fs::read(format!("{dir}/{name}")).expect("committed fixture")
+}
+
+#[test]
+fn compressed_decodes_all_four_codecs() {
+    for (encoding, file) in [
+        ("gzip", "fixture.gz"),
+        ("deflate", "fixture.zz"),
+        ("br", "fixture.br"),
+        ("zstd", "fixture.zst"),
+    ] {
+        let body = fixture(file);
+        let head = format!(
+            "HTTP/1.1 200 OK\r\nContent-Encoding: {encoding}\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        );
+        let mut response = head.into_bytes();
+        response.extend_from_slice(&body);
+        let (port, _seen) = spawn_routing_stub(vec![("/c", response)]);
+        // --compressed: the decoded plaintext
+        let out = wrex()
+            .args([
+                "http",
+                "--compressed",
+                "--format",
+                "raw",
+                &format!("http://127.0.0.1:{port}/c"),
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let expected = fixture(&format!("{file}.expected"));
+        assert_eq!(out, expected, "{encoding} decoded");
+        // without --compressed the bytes pass through verbatim (data)
+        let out = wrex()
+            .args([
+                "http",
+                "--format",
+                "raw",
+                &format!("http://127.0.0.1:{port}/c"),
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        assert_eq!(out, body, "{encoding} passes through without --compressed");
+    }
+}
+
+#[test]
+fn compressed_advertises_curls_list_and_bomb_budget() {
+    // The advertisement is curl's own value, byte-exact.
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args([
+            "http",
+            "--compressed",
+            &format!("http://127.0.0.1:{port}/x"),
+        ])
+        .assert()
+        .success();
+    assert!(
+        head.lock()
+            .unwrap()
+            .contains("accept-encoding: deflate, gzip, br, zstd"),
+        "{}",
+        head.lock().unwrap()
+    );
+    // An explicit -H Accept-Encoding wins (craft rule)
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args([
+            "http",
+            "--compressed",
+            "-H",
+            "Accept-Encoding: identity",
+            &format!("http://127.0.0.1:{port}/x"),
+        ])
+        .assert()
+        .success();
+    assert!(
+        head.lock().unwrap().contains("accept-encoding: identity"),
+        "{}",
+        head.lock().unwrap()
+    );
+    // The bomb: 100MB-of-zeros .gz against a small budget — decoded
+    // bytes count like wire bytes.
+    let bomb = fixture("bomb.gz");
+    let mut response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Length: {}\r\n\r\n",
+        bomb.len()
+    )
+    .into_bytes();
+    response.extend_from_slice(&bomb);
+    let (port, _seen) = spawn_routing_stub(vec![("/bomb", response)]);
+    let out = wrex()
+        .args([
+            "http",
+            "--compressed",
+            "--max-bytes",
+            "131072",
+            &format!("http://127.0.0.1:{port}/bomb"),
+        ])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("decoded content exceeded"),
+        "the decoded budget trips: {stderr}"
+    );
+}
+
+#[test]
+fn head_range_and_upload_sugar() {
+    // -I: HEAD on the wire (and --fail stays quiet on 200)
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\n");
+    wrex()
+        .args(["http", "-I", &format!("http://127.0.0.1:{port}/h")])
+        .assert()
+        .success();
+    assert!(
+        head.lock().unwrap().starts_with("HEAD /h"),
+        "{}",
+        head.lock().unwrap()
+    );
+    // -r: the Range header sugar
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 206 Partial\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args(["http", "-r", "10-20", &format!("http://127.0.0.1:{port}/r")])
+        .assert()
+        .success();
+    assert!(
+        head.lock().unwrap().contains("range: bytes=10-20"),
+        "{}",
+        head.lock().unwrap()
+    );
+    // bad range grammar is a usage error
+    let (code, stderr) = http_err(&["-r", "a-b", "http://x/"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("bad --range"), "{stderr}");
+    // -T: PUT with the file bytes as the body
+    let dir = std::env::temp_dir().join("wrex-http-cli-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let upload = dir.join("up.bin");
+    std::fs::write(&upload, b"upload body").unwrap();
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args([
+            "http",
+            "-T",
+            upload.to_str().unwrap(),
+            &format!("http://127.0.0.1:{port}/u"),
+        ])
+        .assert()
+        .success();
+    let captured = head.lock().unwrap().clone();
+    assert!(captured.starts_with("PUT /u"), "{captured}");
+    assert!(
+        captured.to_ascii_lowercase().contains("content-length: 11"),
+        "{captured}"
+    );
+    assert!(captured.ends_with("upload body"), "{captured}");
+    // -I/-T conflicts are usage errors
+    let (code, _) = http_err(&["-I", "POST", "http://x/"]);
+    assert_eq!(code, 2);
+    let (code, _) = http_err(&["-T", upload.to_str().unwrap(), "POST", "http://x/"]);
+    assert_eq!(code, 2);
+    let (code, _) = http_err(&["-T", upload.to_str().unwrap(), "--data", "x", "http://x/"]);
+    assert_eq!(code, 2);
+}
+
+#[test]
+fn output_capture_o_and_capital_o() {
+    let dir = std::env::temp_dir().join("wrex-http-cli-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let out_file = dir.join("cap.body");
+    let _ = std::fs::remove_file(&out_file);
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    // -o: the body lands in the file, stdout stays empty (raw)
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "-o",
+            out_file.to_str().unwrap(),
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert!(
+        out.is_empty(),
+        "captured responses are stdout-silent: {out:?}"
+    );
+    assert_eq!(std::fs::read(&out_file).unwrap(), b"done");
+    // -O: the remote basename in the CWD
+    let cwd = dir.join("o-test");
+    std::fs::create_dir_all(&cwd).unwrap();
+    let _ = std::fs::remove_file(cwd.join("next"));
+    let out = wrex()
+        .current_dir(&cwd)
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "-O",
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert!(out.is_empty());
+    assert_eq!(std::fs::read(cwd.join("next")).unwrap(), b"done");
+    // -o + -O conflict
+    let (code, stderr) = http_err(&["-o", "a", "-O", "http://x/"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("exclusive"), "{stderr}");
+}
+
+#[test]
+fn retry_on_5xx_status_class() {
+    // --retry N: a completed 5xx replays the request N extra times,
+    // the final 5xx stays data (exit 0 without --fail).
+    let (port, seen) = spawn_routing_stub(vec![(
+        "/flaky",
+        b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 3\r\n\r\nmeh".to_vec(),
+    )]);
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "--retry",
+            "2",
+            &format!("http://127.0.0.1:{port}/flaky"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"meh");
+    assert_eq!(seen.lock().unwrap().len(), 3, "1 + 2 retries");
+}
+
+#[test]
+fn resolve_pin_bypasses_resolution() {
+    // wrex.test does not resolve; the pin makes the connection.
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    wrex()
+        .args([
+            "http",
+            "--resolve",
+            &format!("wrex.test:{port}:127.0.0.1"),
+            &format!("http://wrex.test:{port}/next"),
+        ])
+        .assert()
+        .success();
+    // a portless pin matches every port of the host
+    wrex()
+        .args([
+            "http",
+            "--resolve",
+            "wrex.test:127.0.0.1",
+            &format!("http://wrex.test:{port}/next"),
+        ])
+        .assert()
+        .success();
+    // without the pin the name cannot resolve (runtime, not usage)
+    wrex()
+        .args(["http", &format!("http://wrex.test:{port}/next")])
+        .assert()
+        .code(1);
+    // bad grammar is a usage error
+    let (code, stderr) = http_err(&["--resolve", "noaddr", "http://x/"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("--resolve"), "{stderr}");
+}
+
+#[test]
+fn timing_object_in_json() {
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    let out = wrex()
+        .args([
+            "http",
+            "--timing",
+            "--format",
+            "json",
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    let t = &json["timing"];
+    assert!(t.is_object(), "{json}");
+    assert!(t["time_connect_ms"].as_u64().is_some(), "{json}");
+    assert!(t["time_starttransfer_ms"].as_u64().is_some(), "{json}");
+    assert!(t["time_total_ms"].as_u64().is_some(), "{json}");
+    assert!(
+        t.get("time_appconnect_ms").is_some(),
+        "the key is present (null on plain http): {json}"
+    );
+    // without --timing: no key (plain runs stay byte-identical)
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "json",
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert!(json.get("timing").is_none());
+}

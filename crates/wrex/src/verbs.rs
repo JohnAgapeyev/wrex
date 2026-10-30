@@ -1991,6 +1991,25 @@ struct ExchangeResult {
     /// elicited the hop, i.e. the response's own location.
     chain: Vec<(String, u16)>,
     final_url: String,
+    /// --timing capture (None without the flag).
+    timing: Option<HttpTiming>,
+    /// -o/-O wrote this body to a file (raw/text go silent for it).
+    captured: bool,
+}
+
+/// The --timing fields (curl -w's, json-shaped; milliseconds, per
+/// ORIGINAL request — a redirect chain's timings span its hops).
+#[derive(Clone, Debug)]
+struct HttpTiming {
+    /// TCP connect of the first connection.
+    time_connect_ms: u64,
+    /// TLS handshake completion (https only).
+    time_appconnect_ms: Option<u64>,
+    /// The first exchange outcome of this request (curl's
+    /// starttransfer analog: time to first response).
+    time_starttransfer_ms: u64,
+    /// The whole request (all hops, all retries).
+    time_total_ms: u64,
 }
 
 /// `wrex http`: HTTP/1.1 exchanges over a kernel TCP connection —
@@ -2070,6 +2089,22 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     let mut plan = HttpPlan::from_args(args, &cfgs)?;
     // …and the auth plan (basic/bearer preemptive, digest on 401).
     let auth = VerbAuth::from_args(args, &cfgs)?;
+    // …the --resolve pin table (per-connection; redirect hops ride it).
+    let resolve = ResolveTable::parse(&args.resolve)?;
+    // …and the content-coding switch (run-level: any recipe request
+    // opting in turns it on).
+    let compressed = args.compressed || cfgs.iter().any(|c| c.compressed);
+    // -o/-O output capture: one -o per response, in order.
+    if !args.output.is_empty() && args.remote_name {
+        return Err(usage("-o and -O are exclusive"));
+    }
+    if args.output.len() > specs.len() {
+        return Err(usage(format!(
+            "{} -o flags for {} URLs (one --output per URL, in order)",
+            args.output.len(),
+            specs.len()
+        )));
+    }
 
     // h2 keeps the T15 whole-queue runner (one H2Session per
     // connection, N concurrent streams — the pinned wire behavior)
@@ -2077,14 +2112,36 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     // following, the digest dance); an h2 hop under follow then
     // opens a fresh connection (stream-reuse across hops is a
     // recorded deferral).
-    let per_hop = plan.per_hop() || auth.digest;
-    let done = if want_h2 && !per_hop {
-        http_h2_whole_queue(args, specs, &cfgs, &mut plan, &auth, hpack_policy)?
+    let per_hop = plan.per_hop() || auth.digest || args.retry.is_some() || args.timing;
+    let mut done = if want_h2 && !per_hop {
+        http_h2_whole_queue(
+            args,
+            specs,
+            &cfgs,
+            &mut plan,
+            &auth,
+            &resolve,
+            compressed,
+            hpack_policy,
+        )?
     } else {
-        http_per_exchange(args, specs, &cfgs, &mut plan, &auth, want_h2, hpack_policy)?
+        http_per_exchange(
+            args,
+            specs,
+            &cfgs,
+            &mut plan,
+            &auth,
+            &resolve,
+            compressed,
+            want_h2,
+            hpack_policy,
+        )?
     };
 
     plan.save_jar()?;
+    // -o/-O capture: bodies to files (raw/text go silent for the
+    // captured responses; json keeps the full object).
+    capture_outputs(args, &mut done)?;
     render_http_exchanges(&done, format)?;
     // --fail: completed exchanges stay data (printed above), the
     // flag opts into a non-zero exit — decided on each chain's FINAL
@@ -2106,18 +2163,21 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
 /// `push_request`, everything else reconnects. Retries (`--retries`)
 /// replay the failing request only (not the queue — a completed POST
 /// never re-fires; the pre-19a whole-queue replay is retired).
+#[allow(clippy::too_many_arguments)]
 fn http_per_exchange(
     args: &crate::cli::HttpArgs,
     specs: Vec<wrex_http::HttpRequestSpec>,
     cfgs: &[HttpVerbConfig],
     plan: &mut HttpPlan,
     auth: &VerbAuth,
+    resolve: &ResolveTable,
+    compressed: bool,
     want_h2: bool,
     hpack: wrex_h2::HpackEncodePolicy,
 ) -> Result<Vec<ExchangeResult>, CliError> {
     use wrex_http::HttpOutcome;
 
-    let mut runner = HttpRunner::new(&args.common, args.source_port, want_h2, hpack);
+    let mut runner = HttpRunner::new(&args.common, args.source_port, want_h2, hpack, resolve);
     let mut done = Vec::with_capacity(specs.len());
     for (i, (spec, cfg)) in specs.iter().zip(cfgs).enumerate() {
         // First-request Connection header (the T9a wire shape): the
@@ -2131,13 +2191,22 @@ fn http_per_exchange(
         let mut digest_nc = 0u32;
         let mut digest_done_for: Option<String> = None;
         let mut is_reissue = false;
+        // --retry: N extra attempts on a completed 5xx (per request).
+        let mut status_retries = args.retry.unwrap_or(0);
+        if args.timing {
+            runner.begin_timing();
+        }
         let response = loop {
             inject_cookie_header(&mut spec, plan);
             inject_auth_header(&mut spec, auth, None);
+            inject_accept_encoding(&mut spec, compressed);
             let outcome = runner.run_with_retries(&spec, cfg, keep_alive, is_reissue)?;
+            if runner.timing_started() {
+                runner.mark_starttransfer();
+            }
             // A follow-up (if any) may itself be followed.
             keep_alive = true;
-            let HttpOutcome::Response(resp) = outcome else {
+            let HttpOutcome::Response(mut resp) = outcome else {
                 unreachable!("run_with_retries maps every failure")
             };
             plan.absorb_cookies(&resp, &spec.url);
@@ -2197,10 +2266,24 @@ fn http_per_exchange(
                 is_reissue = true;
                 continue;
             }
+            // --retry: a completed 5xx is transient — re-issue the
+            // same request (fresh exchange; no delay, the recorded
+            // lab-tool deviation from curl's backoff).
+            if resp.status.as_u16() >= 500 && status_retries > 0 {
+                status_retries -= 1;
+                is_reissue = true;
+                continue;
+            }
+            // Content-decoding: the FINAL response, when the client
+            // advertised (--compressed) — decoded bytes count against
+            // the same budget the wire bytes do.
+            decode_response_content(&mut resp, compressed, cfg)?;
             break ExchangeResult {
                 response: resp,
                 chain,
                 final_url: spec.url.to_string(),
+                timing: runner.take_timing(),
+                captured: false,
             };
         };
         done.push(response);
@@ -2219,6 +2302,8 @@ fn http_h2_whole_queue(
     cfgs: &[HttpVerbConfig],
     plan: &mut HttpPlan,
     auth: &VerbAuth,
+    resolve: &ResolveTable,
+    compressed: bool,
     hpack: wrex_h2::HpackEncodePolicy,
 ) -> Result<Vec<ExchangeResult>, CliError> {
     use wrex_http::HttpOutcome;
@@ -2226,6 +2311,7 @@ fn http_h2_whole_queue(
     for spec in &mut specs {
         inject_cookie_header(spec, plan);
         inject_auth_header(spec, auth, None);
+        inject_accept_encoding(spec, compressed);
     }
     let tls_cfg = if specs[0].url.scheme_str() == Some("https") {
         Some(tls_config_for(&specs[0].url, &cfgs[0], true)?)
@@ -2235,7 +2321,7 @@ fn http_h2_whole_queue(
     let attempts = cfgs[0].retries + 1;
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let peer = tcp_peer(&specs[0].url)?;
+        let peer = tcp_peer_with(&specs[0].url, resolve)?;
         let bind = tcp_bind(&args.common, args.source_port, peer.ip())?;
         let queue_cfgs: Vec<wrex_http::HttpConfig> = cfgs.iter().map(session_cfg).collect();
         let outcomes = {
@@ -2294,10 +2380,14 @@ fn http_h2_whole_queue(
                     unreachable!("checked above")
                 };
                 plan.absorb_cookies(&resp, &spec.url);
+                let mut resp = resp;
+                decode_response_content(&mut resp, compressed, &cfgs[0])?;
                 done.push(ExchangeResult {
                     response: resp,
                     chain: Vec::new(),
                     final_url: spec.url.to_string(),
+                    timing: None,
+                    captured: false,
                 });
             }
             return Ok(done);
@@ -2550,12 +2640,25 @@ struct HttpRunner<'a> {
     source_port: Option<u16>,
     want_h2: bool,
     hpack: wrex_h2::HpackEncodePolicy,
+    /// The --resolve pin table (per-connection).
+    resolve: &'a ResolveTable,
     /// Origin key of the held transport (`scheme`-normalized host:port).
     key: Option<String>,
     transport: Option<HttpTransport>,
     /// The held connection's session was built around the pending
     /// request (`connect` pairs them); the next exchange pushes.
     fresh: bool,
+    /// --timing capture, when active.
+    timing: Option<TimingCapture>,
+}
+
+/// Per-request timing state (HttpRunner's --timing plumbing).
+#[derive(Clone, Debug)]
+struct TimingCapture {
+    start: Instant,
+    connect: Option<u64>,
+    appconnect: Option<u64>,
+    starttransfer: Option<u64>,
 }
 
 impl<'a> HttpRunner<'a> {
@@ -2564,16 +2667,54 @@ impl<'a> HttpRunner<'a> {
         source_port: Option<u16>,
         want_h2: bool,
         hpack: wrex_h2::HpackEncodePolicy,
+        resolve: &'a ResolveTable,
     ) -> Self {
         Self {
             common,
             source_port,
             want_h2,
             hpack,
+            resolve,
             key: None,
             transport: None,
             fresh: false,
+            timing: None,
         }
+    }
+
+    /// Start the --timing capture for the next request.
+    fn begin_timing(&mut self) {
+        self.timing = Some(TimingCapture {
+            start: Instant::now(),
+            connect: None,
+            appconnect: None,
+            starttransfer: None,
+        });
+    }
+
+    fn timing_started(&self) -> bool {
+        self.timing.is_some()
+    }
+
+    /// First response of the request arrived (curl's starttransfer
+    /// analog — the first exchange outcome).
+    fn mark_starttransfer(&mut self) {
+        if let Some(t) = &mut self.timing
+            && t.starttransfer.is_none()
+        {
+            t.starttransfer = Some(t.start.elapsed().as_millis() as u64);
+        }
+    }
+
+    /// Finish the capture (total), consuming it.
+    fn take_timing(&mut self) -> Option<HttpTiming> {
+        let t = self.timing.take()?;
+        Some(HttpTiming {
+            time_connect_ms: t.connect.unwrap_or(0),
+            time_appconnect_ms: t.appconnect,
+            time_starttransfer_ms: t.starttransfer.unwrap_or(0),
+            time_total_ms: t.start.elapsed().as_millis() as u64,
+        })
     }
 
     /// Connect for `spec` (peer resolution, optional bind, TLS +
@@ -2589,17 +2730,26 @@ impl<'a> HttpRunner<'a> {
     ) -> Result<(), CliError> {
         self.transport = None;
         let key = wrex_http::redirect::authority_key(&spec.url);
-        let peer = tcp_peer(&spec.url)?;
+        let peer = tcp_peer_with(&spec.url, self.resolve)?;
         let bind = tcp_bind(self.common, self.source_port, peer.ip())?;
         let scheme = spec.url.scheme_str().unwrap_or("http");
+        if let Some(t) = &mut self.timing {
+            t.connect = Some(t.start.elapsed().as_millis() as u64);
+        }
         if scheme == "https" {
             let tcfg = tls_config_for(&spec.url, cfg, self.want_h2)?;
             let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfg.timeout, &tcfg)
                 .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+            // Drive the TLS handshake to completion before the first
+            // request byte (identical wire bytes, eager scheduling —
+            // and an honest --timing appconnect on every https run).
+            let negotiated = driver
+                .complete_handshake(Instant::now() + cfg.timeout)
+                .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+            if let Some(t) = &mut self.timing {
+                t.appconnect = Some(t.start.elapsed().as_millis() as u64);
+            }
             if self.want_h2 {
-                let negotiated = driver
-                    .complete_handshake(Instant::now() + cfg.timeout)
-                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
                 if negotiated == Some("h2") {
                     self.transport = Some(HttpTransport::H2 {
                         driver: Box::new(driver),
@@ -2922,6 +3072,172 @@ fn origin_parts(url: &wrex_http::http::Uri) -> (String, String, bool) {
     (host.to_string(), path.to_string(), secure)
 }
 
+/// The `--resolve` pin table: HOST[:PORT] → ADDR, bypassing
+/// resolution (curl's grammar; a pin without a port matches every
+/// port of the host). Applies per connection — redirect hops ride it.
+struct ResolveTable(Vec<(String, Option<u16>, std::net::IpAddr)>);
+
+impl ResolveTable {
+    fn parse(specs: &[String]) -> Result<Self, CliError> {
+        let mut out = Vec::with_capacity(specs.len());
+        for spec in specs {
+            let (head, addr) = spec.rsplit_once(':').ok_or_else(|| {
+                usage(format!(
+                    "bad --resolve `{spec}` (expected HOST[:PORT]:ADDR)"
+                ))
+            })?;
+            let addr: std::net::IpAddr = addr
+                .parse()
+                .map_err(|_| usage(format!("bad --resolve address `{addr}`")))?;
+            let (host, port) = match head.rsplit_once(':') {
+                // A second colon: HOST:PORT (v6 hosts must bracket).
+                Some((h, p)) => {
+                    let port = p
+                        .parse::<u16>()
+                        .map_err(|_| usage(format!("bad --resolve port `{p}`")))?;
+                    (h.to_string(), Some(port))
+                }
+                None => (head.to_string(), None),
+            };
+            let host = host
+                .strip_prefix('[')
+                .and_then(|h| h.strip_suffix(']'))
+                .map(str::to_string)
+                .unwrap_or(host)
+                .to_ascii_lowercase();
+            if host.is_empty() {
+                return Err(usage(format!("bad --resolve `{spec}` (empty host)")));
+            }
+            out.push((host, port, addr));
+        }
+        Ok(Self(out))
+    }
+
+    fn lookup(&self, host: &str, port: u16) -> Option<std::net::IpAddr> {
+        let host = host.to_ascii_lowercase();
+        self.0
+            .iter()
+            .find(|(h, p, _)| *h == host && p.is_none_or(|pin| pin == port))
+            .map(|(_, _, addr)| *addr)
+    }
+}
+
+/// Resolve the URI's authority to a socket address, consulting the
+/// --resolve pins first (the pin bypasses resolution; the port rides
+/// the URI's).
+fn tcp_peer_with(
+    uri: &wrex_http::http::Uri,
+    resolve: &ResolveTable,
+) -> Result<std::net::SocketAddr, CliError> {
+    if let Some(authority) = uri.authority() {
+        let host_raw = authority.host();
+        let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+            &host_raw[1..host_raw.len() - 1]
+        } else {
+            host_raw
+        };
+        let port = authority.port_u16().unwrap_or(match uri.scheme_str() {
+            Some("https") => 443,
+            _ => 80,
+        });
+        if let Some(addr) = resolve.lookup(host, port) {
+            return Ok(std::net::SocketAddr::new(addr, port));
+        }
+    }
+    tcp_peer(uri)
+}
+
+/// The Accept-Encoding advertisement under --compressed — curl's own
+/// list, byte-exact (pinned; the differential asserts it). An
+/// explicit -H Accept-Encoding wins (the craft rule).
+fn inject_accept_encoding(spec: &mut wrex_http::HttpRequestSpec, compressed: bool) {
+    if !compressed {
+        return;
+    }
+    if spec
+        .headers
+        .iter()
+        .any(|(n, _)| n.as_str() == "accept-encoding")
+    {
+        return;
+    }
+    if let Ok(hv) = wrex_http::http::HeaderValue::from_str(wrex_http::content::ACCEPT_ENCODING) {
+        spec.headers.push((
+            wrex_http::http::HeaderName::from_static("accept-encoding"),
+            hv,
+        ));
+    }
+}
+
+/// Decode a response's Content-Encoding when the client advertised
+/// (--compressed): tokens are trusted only when asked for; a
+/// Content-Encoding response WITHOUT --compressed passes through
+/// verbatim (documented — curl errors, wrex keeps it data). The
+/// decoded bytes count against the same --max-bytes budget the wire
+/// bytes do.
+fn decode_response_content(
+    resp: &mut wrex_http::HttpResponse,
+    compressed: bool,
+    cfg: &HttpVerbConfig,
+) -> Result<(), CliError> {
+    if !compressed {
+        return Ok(());
+    }
+    let Some(encoding) = resp
+        .headers
+        .get("content-encoding")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|e| !e.is_empty())
+    else {
+        return Ok(());
+    };
+    let decoded = wrex_http::content::decode(encoding, &resp.body, cfg.max_bytes as usize)
+        .map_err(|e| CliError::Runtime(format!("http: content-encoding `{encoding}`: {e}")))?;
+    resp.body = decoded.into();
+    Ok(())
+}
+
+/// -o/-O capture: response i's body goes to `args.output[i]` when
+/// present, else to the URL's remote basename under -O (a pathless
+/// URL is a pointed runtime error — curl's rule); the rest print
+/// normally. Captured responses go silent on raw/text (json keeps
+/// the full object, body_hex included).
+fn capture_outputs(
+    args: &crate::cli::HttpArgs,
+    done: &mut [ExchangeResult],
+) -> Result<(), CliError> {
+    if args.output.is_empty() && !args.remote_name {
+        return Ok(());
+    }
+    for (i, exchange) in done.iter_mut().enumerate() {
+        let target = if let Some(file) = args.output.get(i) {
+            std::path::PathBuf::from(file)
+        } else if args.remote_name {
+            let path = exchange
+                .final_url
+                .rsplit('/')
+                .next()
+                .filter(|s| !s.is_empty() && !s.contains(':'))
+                .map(str::to_string)
+                .ok_or_else(|| {
+                    CliError::Runtime(format!(
+                        "remote name has no path component: {}",
+                        exchange.final_url
+                    ))
+                })?;
+            let path = path.split('?').next().unwrap_or(&path).to_string();
+            std::path::PathBuf::from(path)
+        } else {
+            continue;
+        };
+        std::fs::write(&target, &exchange.response.body)
+            .map_err(|e| CliError::Runtime(format!("cannot write `{}`: {e}", target.display())))?;
+        exchange.captured = true;
+    }
+    Ok(())
+}
+
 /// Resolved request + the knobs a recipe may override.
 #[derive(Clone)]
 struct HttpVerbConfig {
@@ -2950,6 +3266,9 @@ struct HttpVerbConfig {
     bearer: Option<String>,
     /// Digest 401-dance (recipe `digest` or `--digest`).
     digest: bool,
+    /// Request/decode compressed content (recipe `compressed` or
+    /// `--compressed`).
+    compressed: bool,
 }
 
 /// One per queued request: the CLI defaults + that request's recipe
@@ -2983,6 +3302,7 @@ fn http_verb_cfg(
         user: overrides.user.or_else(|| args.user.clone()),
         bearer: overrides.bearer.or_else(|| args.bearer.clone()),
         digest: overrides.digest.unwrap_or(args.digest),
+        compressed: overrides.compressed.unwrap_or(args.compressed),
     })
 }
 
@@ -3003,6 +3323,16 @@ fn build_http_requests(
         }
         if args.data.is_some() {
             return Err(usage("--recipe is exclusive with --data"));
+        }
+        if args.upload_file.is_some() {
+            return Err(usage(
+                "--recipe is exclusive with -T (the recipe carries the body)",
+            ));
+        }
+        if args.head {
+            return Err(usage(
+                "--recipe is exclusive with -I (the recipe carries the method)",
+            ));
         }
         let raw = std::fs::read_to_string(path)
             .map_err(|e| usage(format!("cannot read recipe `{path}`: {e}")))?;
@@ -3043,19 +3373,64 @@ fn build_http_requests(
             "bad method `{method}` (http verbs are uppercase tokens)"
         )));
     }
-    let mut headers: Vec<(&str, &str)> = Vec::with_capacity(args.header.len());
+    // Tranche 19a sugar: -I forces HEAD, -T forces PUT with the file
+    // as the body (both exclusive with an explicit METHOD/--data).
+    if args.head && method != "GET" {
+        return Err(usage("-I (--head) is exclusive with an explicit METHOD"));
+    }
+    if args.upload_file.is_some() && args.data.is_some() {
+        return Err(usage("-T and --data are exclusive (one body)"));
+    }
+    if args.upload_file.is_some() && method != "GET" {
+        return Err(usage("-T sets PUT — exclusive with an explicit METHOD"));
+    }
+    let method = if args.head {
+        "HEAD"
+    } else if args.upload_file.is_some() {
+        "PUT"
+    } else {
+        method
+    };
+    let mut headers: Vec<(&str, &str)> = Vec::with_capacity(args.header.len() + 1);
     for h in &args.header {
         let (name, value) = h
             .split_once(':')
             .ok_or_else(|| usage(format!("bad header `{h}` (expected NAME:VALUE)")))?;
         headers.push((name.trim(), value.trim()));
     }
-    let body = args
-        .data
+    // The Range header must outlive the header borrows below.
+    let range_header = args
+        .range
         .as_deref()
-        .map(http_body)
-        .transpose()?
-        .unwrap_or_default();
+        .map(|range| {
+            let r = range.trim();
+            let ok = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+            let valid = match r.split_once('-') {
+                Some((a, b)) if ok(a) && b.is_empty() => true, // N-
+                Some((a, b)) if a.is_empty() && ok(b) => true, // -N
+                Some((a, b)) if ok(a) && ok(b) => true,        // N-M
+                _ => false,
+            };
+            if !valid {
+                return Err(usage(format!("bad --range `{r}` (expected N-M, N- or -N)")));
+            }
+            Ok::<String, CliError>(format!("bytes={r}"))
+        })
+        .transpose()?;
+    if let Some(value) = range_header.as_deref() {
+        headers.push(("Range", value));
+    }
+    let body: bytes::Bytes = if let Some(file) = args.upload_file.as_deref() {
+        std::fs::read(file)
+            .map_err(|e| usage(format!("cannot read upload file `{file}`: {e}")))?
+            .into()
+    } else {
+        args.data
+            .as_deref()
+            .map(http_body)
+            .transpose()?
+            .unwrap_or_default()
+    };
     // -H/--data apply to every URL (a shared request recipe).
     let mut specs = Vec::with_capacity(urls.len());
     for url in &urls {
@@ -3193,10 +3568,9 @@ fn http_response_json_ctx(
     exchange: Option<&ExchangeResult>,
 ) -> serde_json::Value {
     let mut v = http_response_json(resp);
-    if let Some(x) = exchange
-        && !x.chain.is_empty()
-    {
-        let obj = v.as_object_mut().expect("http_response_json is an object");
+    let Some(x) = exchange else { return v };
+    let obj = v.as_object_mut().expect("http_response_json is an object");
+    if !x.chain.is_empty() {
         obj.insert("url".to_string(), serde_json::json!(x.final_url));
         obj.insert(
             "redirects".to_string(),
@@ -3206,6 +3580,17 @@ fn http_response_json_ctx(
                     .map(|(url, status)| serde_json::json!({"url": url, "status": status}))
                     .collect(),
             ),
+        );
+    }
+    if let Some(t) = &x.timing {
+        obj.insert(
+            "timing".to_string(),
+            serde_json::json!({
+                "time_connect_ms": t.time_connect_ms,
+                "time_appconnect_ms": t.time_appconnect_ms,
+                "time_starttransfer_ms": t.time_starttransfer_ms,
+                "time_total_ms": t.time_total_ms,
+            }),
         );
     }
     v
@@ -3220,6 +3605,11 @@ fn http_response_json_ctx(
 /// byte-identical T4 shape).
 fn render_http_exchanges(done: &[ExchangeResult], format: Format) -> Result<(), CliError> {
     for exchange in done {
+        if exchange.captured && !matches!(format, Format::Json) {
+            // -o/-O captured this body to a file; raw/text stay
+            // silent for it (json keeps the full object).
+            continue;
+        }
         let resp = &exchange.response;
         let status = resp.status.as_u16();
         match format {

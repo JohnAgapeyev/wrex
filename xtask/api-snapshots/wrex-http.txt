@@ -50,6 +50,56 @@ pub fn wrex_http::auth::basic_authorization(&str, &str) -> alloc::string::String
 pub fn wrex_http::auth::deterministic_cnonce(&str, &str, &str, &str) -> alloc::string::String
 pub fn wrex_http::auth::digest_authorization(&wrex_http::auth::DigestChallenge, &str, &str, &str, &str, u32, &str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn wrex_http::auth::parse_digest_challenge(&str) -> core::option::Option<wrex_http::auth::DigestChallenge>
+pub mod wrex_http::content
+pub enum wrex_http::content::DecodeError
+pub wrex_http::content::DecodeError::Corrupt(alloc::string::String)
+pub wrex_http::content::DecodeError::TooLarge
+pub wrex_http::content::DecodeError::UnknownEncoding(alloc::string::String)
+impl core::clone::Clone for wrex_http::content::DecodeError
+pub fn wrex_http::content::DecodeError::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::content::DecodeError
+impl core::cmp::PartialEq for wrex_http::content::DecodeError
+pub fn wrex_http::content::DecodeError::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::content::DecodeError
+pub fn wrex_http::content::DecodeError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_http::content::DecodeError
+pub fn wrex_http::content::DecodeError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::content::DecodeError
+impl core::marker::Freeze for wrex_http::content::DecodeError
+impl core::marker::Send for wrex_http::content::DecodeError
+impl core::marker::Sync for wrex_http::content::DecodeError
+impl core::marker::Unpin for wrex_http::content::DecodeError
+impl core::marker::UnsafeUnpin for wrex_http::content::DecodeError
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::content::DecodeError
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::content::DecodeError
+impl<T, U> core::convert::Into<U> for wrex_http::content::DecodeError where U: core::convert::From<T>
+pub fn wrex_http::content::DecodeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::content::DecodeError where U: core::convert::Into<T>
+pub type wrex_http::content::DecodeError::Error = never
+pub fn wrex_http::content::DecodeError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::content::DecodeError where U: core::convert::TryFrom<T>
+pub type wrex_http::content::DecodeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::content::DecodeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::content::DecodeError where T: core::clone::Clone
+pub type wrex_http::content::DecodeError::Owned = T
+pub fn wrex_http::content::DecodeError::clone_into(&self, &mut T)
+pub fn wrex_http::content::DecodeError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for wrex_http::content::DecodeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_http::content::DecodeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_http::content::DecodeError where T: 'static + ?core::marker::Sized
+pub fn wrex_http::content::DecodeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::content::DecodeError where T: ?core::marker::Sized
+pub fn wrex_http::content::DecodeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::content::DecodeError where T: ?core::marker::Sized
+pub fn wrex_http::content::DecodeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::content::DecodeError where T: core::clone::Clone
+pub unsafe fn wrex_http::content::DecodeError::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::content::DecodeError
+pub fn wrex_http::content::DecodeError::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::content::DecodeError
+pub type wrex_http::content::DecodeError::Output = T
+pub const wrex_http::content::ACCEPT_ENCODING: &str
+pub fn wrex_http::content::decode(&str, &[u8], usize) -> core::result::Result<alloc::vec::Vec<u8>, wrex_http::content::DecodeError>
 pub mod wrex_http::cookies
 pub struct wrex_http::cookies::Cookie
 pub wrex_http::cookies::Cookie::creation: std::time::SystemTime
@@ -155,6 +205,7 @@ pub wrex_http::recipe::Recipe::body_framing: core::option::Option<alloc::string:
 pub wrex_http::recipe::Recipe::body_hex: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::body_text: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::compressed: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::digest: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::follow: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
@@ -212,6 +263,7 @@ impl<T> typenum::type_operators::Same for wrex_http::recipe::Recipe
 pub type wrex_http::recipe::Recipe::Output = T
 pub struct wrex_http::recipe::RecipeOverrides
 pub wrex_http::recipe::RecipeOverrides::bearer: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::RecipeOverrides::compressed: core::option::Option<bool>
 pub wrex_http::recipe::RecipeOverrides::digest: core::option::Option<bool>
 pub wrex_http::recipe::RecipeOverrides::follow: core::option::Option<bool>
 pub wrex_http::recipe::RecipeOverrides::hpack: core::option::Option<alloc::string::String>
@@ -986,6 +1038,7 @@ pub wrex_http::Recipe::body_framing: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_hex: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_text: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::Recipe::compressed: core::option::Option<bool>
 pub wrex_http::Recipe::digest: core::option::Option<bool>
 pub wrex_http::Recipe::follow: core::option::Option<bool>
 pub wrex_http::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>

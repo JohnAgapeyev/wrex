@@ -457,24 +457,34 @@ pub type wrex::cli::FuzzArgs::Output = T
 pub struct wrex::cli::HttpArgs
 pub wrex::cli::HttpArgs::bearer: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::common: wrex::cli::Common
+pub wrex::cli::HttpArgs::compressed: bool
 pub wrex::cli::HttpArgs::cookie: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::cookie_jar: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::data: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::digest: bool
 pub wrex::cli::HttpArgs::fail: bool
 pub wrex::cli::HttpArgs::follow: bool
+pub wrex::cli::HttpArgs::head: bool
 pub wrex::cli::HttpArgs::header: alloc::vec::Vec<alloc::string::String>
 pub wrex::cli::HttpArgs::hpack: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::http_version: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::include: bool
 pub wrex::cli::HttpArgs::max_bytes: core::option::Option<u64>
 pub wrex::cli::HttpArgs::max_redirs: core::option::Option<u32>
+pub wrex::cli::HttpArgs::output: alloc::vec::Vec<alloc::string::String>
 pub wrex::cli::HttpArgs::positional: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::HttpArgs::range: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::recipe: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::remote_name: bool
+pub wrex::cli::HttpArgs::resolve: alloc::vec::Vec<alloc::string::String>
 pub wrex::cli::HttpArgs::retries: core::option::Option<u32>
+pub wrex::cli::HttpArgs::retry: core::option::Option<u32>
 pub wrex::cli::HttpArgs::source_port: core::option::Option<u16>
 pub wrex::cli::HttpArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::timing: bool
 pub wrex::cli::HttpArgs::tls_ca: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::tls_insecure: bool
+pub wrex::cli::HttpArgs::upload_file: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::user: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for wrex::cli::HttpArgs
 pub fn wrex::cli::HttpArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command

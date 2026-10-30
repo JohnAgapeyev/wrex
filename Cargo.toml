@@ -75,6 +75,16 @@ http = "1"
 base64 = "0.22"
 md-5 = "0.10"
 sha2 = "0.10"
+# Content-Encoding decode (tranche 19): the zlib-rs backend is the
+# fastest pure-Rust DEFLATE (flate2 intends it as the future default;
+# no C toolchain in the product build). brotli-decompressor is
+# forbid(unsafe_code) in its default build, decode-only. ruzstd is
+# pure Rust (MSRV 1.87, under the 1.99 floor); libzstd-rs is the
+# recorded migration trigger once it leaves pre-release, the C `zstd`
+# crate the named fallback if the perf-diff delta ever matters.
+flate2 = { version = "1", default-features = false, features = ["zlib-rs", "runtime_detection"] }
+brotli-decompressor = "6"
+ruzstd = "0.9"
 # HTTP differential oracle (in-process; blocking client; rustls-tls so
 # the tranche-8a https differential shares an engine lineage — dev-only,
 # it never reaches a shipped binary).
