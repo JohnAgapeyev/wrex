@@ -1004,11 +1004,15 @@ pub mod strategy {
                 (0u8..=1),   // mld.flags mask [s]
                 (0u8..=7),   // mld.qrv
                 any::<u8>(), // mld.qqic
-                proptest::option::of(proptest::sample::select(vec![
-                    Vec::<u8>::new(),
-                    vec![0u8; 16],
-                    (0..16).map(|i| i as u8).collect(),
-                ])), // mld.sources (16-byte grid)
+                proptest::option::of(
+                    // Random 16-byte grid (one source): the G1 audit
+                    // demands >= 2 distinct values, and the old
+                    // 2-element select pool flaked whenever the
+                    // t=130 ∧ mld_v2 ∧ Some gate admitted only one
+                    // appearance in 512 samples (~10% of runs — pinned
+                    // by the CI flake of 2026-10-30).
+                    proptest::array::uniform16(any::<u8>()).prop_map(|a| a.to_vec()),
+                ), // mld.sources (16-byte grid)
                 proptest::option::of(proptest::sample::select(vec![
                     "include:ff02::1".to_string(),
                     "exclude:ff02::1,2001:db8::1".to_string(),

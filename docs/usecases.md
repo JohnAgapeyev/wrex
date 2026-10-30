@@ -76,7 +76,7 @@ documented as workflows. Every entry below is available today.
 | UC-26 | "Follow a redirect chain" | `wrex http -L --format json http://…/start` (RFC 9110 §15.4 method rules; same-origin hops ride one connection; the chain reports in json) | **WORKS** (WF-26) |
 | UC-27 | "Maintain a cookie-authenticated session" | `wrex http -c jar.txt http://…/login` then `wrex http -b jar.txt http://…/echo` (RFC 6265 jar; the jar owns the Cookie header) | **WORKS** (WF-27) |
 | UC-28 | "Debug DNS the way real resolvers speak it (EDNS/DO)" | `wrex query --server 192.168.1.1 --edns 1232 --edns-do --type HTTPS example.com` (the OPT record renders typed: `dns.ar.0.udp_size`, `.do`, TLVs `dns.ar.0.opt.M.*`) | **WORKS** (WF-28) |
-| UC-29 | "Resolve a .local name" | `wrex query --mdns --type PTR _services._dns-sd._udp.local` (multicast 224.0.0.251:5353; udp dispatches 5353→dns) | **WORKS** (WF-29) |
+| UC-29 | "Resolve a .local name" | `wrex query --mdns -i lo --type PTR _services._dns-sd._udp.local` (multicast 224.0.0.251:5353; `-i` pins the multicast interface; udp dispatches 5353→dns) | **WORKS** (WF-29) |
 | UC-30 | "Get out via DoH" | `wrex query --doh https://dns.example/dns-query --short example.com` (RFC 8484 POST, `application/dns-message`) | **WORKS** (WF-30) |
 
 ## Lab

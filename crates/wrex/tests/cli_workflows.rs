@@ -893,18 +893,23 @@ fn wf28_edns_do_on_the_wire() {
     );
 }
 
-/// **UC-29 / WF-29**: "Resolve a .local name" — `wrex query --mdns`
-/// speaks to the multicast group (224.0.0.251:5353 by default; a
-/// group-member stub on loopback answers — `--port` pins the stub's
-/// ephemeral port, the `--mdns` default is 5353): the verb renders the
-/// PTR target.
+/// **UC-29 / WF-29**: "Resolve a .local name" — `wrex query --mdns -i
+/// lo` speaks to the multicast group (224.0.0.251:ff02::fb on 5353;
+/// `-i lo` pins the multicast interface so the kernel routes the
+/// group over loopback — a default-route egress would strand the
+/// datagram off-host; `--port` pins the stub's ephemeral port, a dev
+/// box's avahi owns 5353): a group-member stub on loopback answers,
+/// the verb renders the PTR target. A preflight probe skips
+/// environments whose netns cannot loop multicast at all (the
+/// env-gated job's recorded limitation).
 #[test]
 fn wf29_mdns_multicast_query() {
     if !driver_tests_enabled() {
         eprintln!("wf29: skipping (driver tests disabled)");
         return;
     }
-    use std::net::{Ipv4Addr, UdpSocket};
+    use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+    const GROUP: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
     let port = {
         // An ephemeral port for the stub: --port overrides the 5353
         // default (a dev box's avahi owns 5353; CI's netns does not).
@@ -912,10 +917,10 @@ fn wf29_mdns_multicast_query() {
         probe.local_addr().unwrap().port()
     };
     let sock = UdpSocket::bind(("0.0.0.0", port)).expect("bind stub");
-    // Join the mDNS group on loopback; a send failure (no multicast
+    // Join the mDNS group on loopback; a join failure (no multicast
     // route in the namespace) skips gracefully.
     if sock
-        .join_multicast_v4(&Ipv4Addr::new(224, 0, 0, 251), &Ipv4Addr::LOCALHOST)
+        .join_multicast_v4(&GROUP, &Ipv4Addr::LOCALHOST)
         .is_err()
     {
         eprintln!("wf29: skipping (no loopback multicast)");
@@ -927,19 +932,45 @@ fn wf29_mdns_multicast_query() {
         let sock = sock2;
         let mut buf = [0u8; 4096];
         let _ = sock.set_read_timeout(Some(std::time::Duration::from_secs(10)));
-        let Ok((n, from)) = sock.recv_from(&mut buf) else {
-            return;
-        };
-        let query = buf[..n].to_vec();
-        let _ = tx.send(query.clone());
-        // A PTR answer: rdata = the target name (typed Str on our side).
-        let rdata = b"\x09_services\x07_dns-sd\x04_udp\x05local\x00".to_vec();
-        let reply = wf_dns_reply(&query, (&[0x00, 0x0C], &rdata));
-        let _ = sock.send_to(&reply, from);
+        // Probe + real query: answer dns-shaped datagrams with a PTR
+        // reply (the preflight probe is shorter — no reply).
+        for _ in 0..2 {
+            let Ok((n, from)) = sock.recv_from(&mut buf) else {
+                return;
+            };
+            let query = buf[..n].to_vec();
+            let _ = tx.send(query.clone());
+            if n < 12 {
+                continue;
+            }
+            // A PTR answer: rdata = the target name (typed Str on our side).
+            let rdata = b"\x09_services\x07_dns-sd\x04_udp\x05local\x00".to_vec();
+            let reply = wf_dns_reply(&query, (&[0x00, 0x0C], &rdata));
+            let _ = sock.send_to(&reply, from);
+        }
     });
+    // Preflight: can this environment loop a datagram to the group?
+    // (A netns without a loopback-capable multicast route strands the
+    // group datagram on the default egress — skip with a notice; the
+    // --mdns grammar and the udp 5353 dispatch are pinned elsewhere.)
+    {
+        let probe = UdpSocket::bind("127.0.0.1:0").expect("probe bind");
+        probe
+            .send_to(b"probe", SocketAddr::new(std::net::IpAddr::V4(GROUP), port))
+            .expect("probe send");
+        match rx.recv_timeout(std::time::Duration::from_secs(1)) {
+            Ok(_) => {}
+            Err(_) => {
+                eprintln!("wf29: skipping (no loopback multicast delivery in this netns)");
+                return;
+            }
+        }
+    }
     let out = wrex()
         .args([
             "query",
+            "-i",
+            "lo",
             "--mdns",
             "--port",
             &port.to_string(),

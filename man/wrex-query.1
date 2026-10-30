@@ -112,7 +112,8 @@ QUERY GRAMMAR:
   ext_rcode, version, do, z, and option TLVs ar.N.opt.M.*).
   \-\-edns\-do sets the DO bit. \-\-mdns (tranche 20b) asks the multicast
   group 224.0.0.251 / ff02::fb on port 5353 instead of a unicast
-  server. \-\-doh URL (tranche 20b) POSTs the bare message as
+  server; \-i pins the multicast interface (recommended — a default
+  egress would strand the group datagram off\-host). \-\-doh URL (tranche 20b) POSTs the bare message as
   application/dns\-message (RFC 8484; http/https URL, fresh connection
   per attempt — the h2 ALPN transport is a recorded deferral).
   \-\-reverse is dig \-x sugar (NAME is an IP; PTR under in\-addr.arpa /
