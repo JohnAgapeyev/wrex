@@ -17,6 +17,7 @@ pub wrex::cli::Cmd::Recv(wrex::cli::RecvArgs)
 pub wrex::cli::Cmd::Replay(wrex::cli::ReplayArgs)
 pub wrex::cli::Cmd::Scan(wrex::cli::ScanArgs)
 pub wrex::cli::Cmd::Send(wrex::cli::SendArgs)
+pub wrex::cli::Cmd::Trace(wrex::cli::TraceArgs)
 impl clap_builder::derive::FromArgMatches for wrex::cli::Cmd
 pub fn wrex::cli::Cmd::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
 pub fn wrex::cli::Cmd::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
@@ -824,8 +825,10 @@ pub wrex::cli::ScanArgs::ports: core::option::Option<alloc::string::String>
 pub wrex::cli::ScanArgs::rate: core::option::Option<u64>
 pub wrex::cli::ScanArgs::retries: core::option::Option<u32>
 pub wrex::cli::ScanArgs::seed: core::option::Option<u64>
+pub wrex::cli::ScanArgs::service: bool
 pub wrex::cli::ScanArgs::targets: alloc::vec::Vec<alloc::string::String>
 pub wrex::cli::ScanArgs::timeout: core::option::Option<alloc::string::String>
+pub wrex::cli::ScanArgs::timing: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for wrex::cli::ScanArgs
 pub fn wrex::cli::ScanArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn wrex::cli::ScanArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
@@ -909,6 +912,54 @@ impl<T> tracing::instrument::Instrument for wrex::cli::SendArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::SendArgs
 impl<T> typenum::type_operators::Same for wrex::cli::SendArgs
 pub type wrex::cli::SendArgs::Output = T
+pub struct wrex::cli::TraceArgs
+pub wrex::cli::TraceArgs::backoff: core::option::Option<u32>
+pub wrex::cli::TraceArgs::common: wrex::cli::Common
+pub wrex::cli::TraceArgs::max_hops: core::option::Option<u8>
+pub wrex::cli::TraceArgs::mode: core::option::Option<alloc::string::String>
+pub wrex::cli::TraceArgs::port: core::option::Option<u16>
+pub wrex::cli::TraceArgs::retries: core::option::Option<u32>
+pub wrex::cli::TraceArgs::seed: core::option::Option<u64>
+pub wrex::cli::TraceArgs::target: alloc::string::String
+pub wrex::cli::TraceArgs::wait: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for wrex::cli::TraceArgs
+pub fn wrex::cli::TraceArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::TraceArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn wrex::cli::TraceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for wrex::cli::TraceArgs
+pub fn wrex::cli::TraceArgs::from_arg_matches(&clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::TraceArgs::from_arg_matches_mut(&mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn wrex::cli::TraceArgs::update_from_arg_matches(&mut self, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn wrex::cli::TraceArgs::update_from_arg_matches_mut(&mut self, &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::fmt::Debug for wrex::cli::TraceArgs
+pub fn wrex::cli::TraceArgs::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex::cli::TraceArgs
+impl core::marker::Send for wrex::cli::TraceArgs
+impl core::marker::Sync for wrex::cli::TraceArgs
+impl core::marker::Unpin for wrex::cli::TraceArgs
+impl core::marker::UnsafeUnpin for wrex::cli::TraceArgs
+impl core::panic::unwind_safe::RefUnwindSafe for wrex::cli::TraceArgs
+impl core::panic::unwind_safe::UnwindSafe for wrex::cli::TraceArgs
+impl<T, U> core::convert::Into<U> for wrex::cli::TraceArgs where U: core::convert::From<T>
+pub fn wrex::cli::TraceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex::cli::TraceArgs where U: core::convert::Into<T>
+pub type wrex::cli::TraceArgs::Error = never
+pub fn wrex::cli::TraceArgs::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex::cli::TraceArgs where U: core::convert::TryFrom<T>
+pub type wrex::cli::TraceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex::cli::TraceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex::cli::TraceArgs where T: 'static + ?core::marker::Sized
+pub fn wrex::cli::TraceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex::cli::TraceArgs where T: ?core::marker::Sized
+pub fn wrex::cli::TraceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex::cli::TraceArgs where T: ?core::marker::Sized
+pub fn wrex::cli::TraceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex::cli::TraceArgs
+pub fn wrex::cli::TraceArgs::from(T) -> T
+impl<T> tracing::instrument::Instrument for wrex::cli::TraceArgs
+impl<T> tracing::instrument::WithSubscriber for wrex::cli::TraceArgs
+impl<T> typenum::type_operators::Same for wrex::cli::TraceArgs
+pub type wrex::cli::TraceArgs::Output = T
 pub const wrex::cli::CAPTURE_AFTER_HELP: &str
 pub const wrex::cli::CRAFT_SEND_AFTER_HELP: &str
 pub const wrex::cli::DIFF_AFTER_HELP: &str
@@ -922,6 +973,7 @@ pub const wrex::cli::RECV_AFTER_HELP: &str
 pub const wrex::cli::REPLAY_AFTER_HELP: &str
 pub const wrex::cli::ROOT_AFTER_HELP: &str
 pub const wrex::cli::SCAN_AFTER_HELP: &str
+pub const wrex::cli::TRACE_AFTER_HELP: &str
 pub fn wrex::cli::build_cli() -> clap_builder::builder::command::Command
 pub fn wrex::cli::field_args(&wrex_core::codec::Registry) -> alloc::vec::Vec<clap_builder::builder::arg::Arg>
 pub fn wrex::cli::init_tracing(u8)

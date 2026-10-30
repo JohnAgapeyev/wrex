@@ -38,7 +38,10 @@ wrex\-replay(1)
 Read a pcap (dissect to stdout) or re\-send it on an interface
 .TP
 wrex\-scan(1)
-Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
+Scan targets (TCP SYN/connect + variants, UDP, ICMP, ARP/NDP/MLD discovery) and classify ports/hosts
+.TP
+wrex\-trace(1)
+Traceroute: TTL\-walk a target (icmp/udp/tcp probes), per\-hop latency + ICMP quote attribution
 .TP
 wrex\-mut(1)
 Mutate seed frames (dissect\-aware, seeded) → stdout / pcap

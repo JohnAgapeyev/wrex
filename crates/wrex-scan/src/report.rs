@@ -4,19 +4,21 @@
 
 use std::time::Duration;
 
+use crate::service::ServiceMatch;
 use crate::target::ScanAddr;
 
 /// One resolved probe.
 ///
-/// States: `open` / `closed` / `filtered` (tcp), `open` / `closed` /
-/// `filtered` / `open|filtered` (udp), `alive` / `dead` (icmp).
+/// States: `open` / `closed` / `filtered` / `unfiltered` (tcp variants),
+/// `open` / `closed` / `filtered` / `open|filtered` (udp), `alive` /
+/// `dead` (icmp/arp/ndp/mld host discovery).
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct ScanResult {
     pub target: ScanAddr,
-    /// Probed port (`None` for icmp).
+    /// Probed port (`None` for icmp/arp/ndp/mld).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub port: Option<u16>,
-    /// Wire protocol: `tcp` / `udp` / `icmp`.
+    /// Wire protocol: `tcp` / `udp` / `icmp` / `icmpv6` / `arp`.
     pub proto: &'static str,
     /// Classification string (see type docs).
     pub state: &'static str,
@@ -25,15 +27,30 @@ pub struct ScanResult {
     /// Reply round-trip in milliseconds (`None` when no reply).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rtt_ms: Option<u64>,
+    /// Service/version match (`--service` post-pass over open TCP
+    /// ports; additive — absent unless the flag ran).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service: Option<ServiceMatch>,
 }
 
 impl ScanResult {
     /// Text rendering: `127.0.0.1  443/tcp  open` /
-    /// `127.0.0.1  icmp  alive`.
+    /// `127.0.0.1  icmp  alive`, with the service suffix when the
+    /// `--service` post-pass matched.
     pub fn text_line(&self) -> String {
-        match self.port {
+        let base = match self.port {
             Some(port) => format!("{}  {}/{}  {}", self.target, port, self.proto, self.state),
             None => format!("{}  {}  {}", self.target, self.proto, self.state),
+        };
+        match &self.service {
+            Some(m) => {
+                let svc = match &m.version {
+                    Some(v) => format!("{}/{}", m.service, v),
+                    None => m.service.to_string(),
+                };
+                format!("{base}  {svc}")
+            }
+            None => base,
         }
     }
 
@@ -61,6 +78,7 @@ mod tests {
             state: "open",
             attempts: 1,
             rtt_ms: Some(2),
+            service: None,
         };
         assert_eq!(r.text_line(), "127.0.0.1  443/tcp  open");
         let j = serde_json::to_value(&r).unwrap();
@@ -75,6 +93,7 @@ mod tests {
             state: "alive",
             attempts: 1,
             rtt_ms: None,
+            service: None,
         };
         assert_eq!(r2.text_line(), "10.0.0.1  icmp  alive");
         let j2 = serde_json::to_value(&r2).unwrap();
@@ -87,6 +106,7 @@ mod tests {
             state: "open",
             attempts: 1,
             rtt_ms: None,
+            service: None,
         };
         assert_eq!(r3.text_line(), "::1  53/udp  open");
         let j3 = serde_json::to_value(&r3).unwrap();

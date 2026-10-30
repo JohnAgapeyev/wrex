@@ -25,12 +25,12 @@ CLI sugar has a job to justify it.
 
 | UC | The job | How today | Status |
 |----|----------|-----------|--------|
-| UC-1 | "Which hosts are alive on my L2 segment?" | — | **GAP → T21a** (`scan --mode arp`: the arp codec exists, the orchestration arm doesn't) |
+| UC-1 | "Which hosts are alive on my L2 segment?" | `wrex scan -i eth0 --mode arp 192.168.1.0/24` (v4, L2-adjacent; `--mode ndp`/`--mode mld` for v6) | **WORKS** (WF-32; T21a) |
 | UC-2 | "What's listening on this host?" | `wrex scan -i eth0 --ports 22,80,443 192.168.1.10` | **WORKS** (WF-2) |
-| UC-3 | "Is this port closed or filtered?" | UDP/ICMP attribution works; FIN/NULL/XMAS/ACK variants absent | **GAP → T21a** (`unfiltered` outcome state) |
-| UC-4 | "What path does traffic take to X?" | — | **GAP → T21b** (`wrex trace`) |
+| UC-3 | "Is this port closed or filtered?" | `wrex scan -i eth0 --mode fin|null|xmas|ack --ports 22,80 10.0.0.9` (`unfiltered` outcome, `-T0..-T5` timing sugar) | **WORKS** (WF-31; T21a) |
+| UC-4 | "What path does traffic take to X?" | `wrex trace -i eth0 [--mode icmp|udp|tcp] 10.0.0.9` (per-hop latency + ICMP quote attribution) | **WORKS** (WF-33; T21b) |
 | UC-5 | "What OS/vendor is this?" | — | **GAP → T30** (fingerprinting) |
-| UC-6 | "What service *version* is behind this port?" | — | **GAP → backlog** (probe/match engine; candidate at T21 planning) |
+| UC-6 | "What service *version* is behind this port?" | `wrex scan -i eth0 --service --mode connect --ports 22 10.0.0.9` (committed probe table + regex match DSL over open TCP ports) | **WORKS** (WF-34; T21c) |
 
 ## Inspect (tshark-adjacent)
 

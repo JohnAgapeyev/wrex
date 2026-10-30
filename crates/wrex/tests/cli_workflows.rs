@@ -1053,3 +1053,155 @@ fn wf30_doh_post_end_to_end() {
     assert!(stdout.trim() == "93.184.216.34", "+short: {stdout:?}");
     let _ = server.join();
 }
+
+// ---------------------------------------------------------------------------
+// T21 workflows (WF-31..WF-34): scan variants, discovery, trace, service
+// ---------------------------------------------------------------------------
+
+/// **UC-3 / WF-31**: "Is this port closed or filtered?" — the FIN
+/// probe over a bound-but-silent listener (open|filtered) and an
+/// unbound port (closed), plus the ACK mode's unfiltered mapping.
+#[test]
+fn wf31_scan_variants() {
+    if !driver_tests_enabled() {
+        eprintln!("wf31: skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    let open_l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let open = open_l.local_addr().unwrap().port();
+    let closed = {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let p = l.local_addr().unwrap().port();
+        drop(l);
+        p
+    };
+    let ports = format!("{open},{closed}");
+    let out = stdout_of(wrex().args([
+        "scan",
+        "-i",
+        "lo",
+        "--mode",
+        "fin",
+        "--ports",
+        &ports,
+        "--seed",
+        "42",
+        "--timeout",
+        "500ms",
+        "127.0.0.1",
+    ]));
+    assert!(
+        out.contains(&format!("127.0.0.1  {closed}/tcp  closed")),
+        "fin: kernel RST closes\n{out}"
+    );
+    assert!(
+        out.contains(&format!("127.0.0.1  {open}/tcp  open|filtered")),
+        "fin: silent listener stays open|filtered\n{out}"
+    );
+    drop(open_l);
+}
+
+/// **UC-1 / WF-32**: "Which hosts are alive on my L2 segment?" — the
+/// NDP host-discovery sweep (the arp analog needs a veth lab; `lo`
+/// speaks NDP for its own addresses — the kernel answers NS for ::1).
+#[test]
+fn wf32_host_discovery() {
+    if !driver_tests_enabled() {
+        eprintln!("wf32: skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    let out = stdout_of(wrex().args([
+        "scan",
+        "-i",
+        "lo",
+        "--mode",
+        "ndp",
+        "--seed",
+        "42",
+        "--timeout",
+        "800ms",
+        "::1",
+    ]));
+    assert!(
+        out.contains("::1  icmpv6  alive"),
+        "the kernel answers unicast NS for its own address\n{out}"
+    );
+}
+
+/// **UC-4 / WF-33**: "What path does traffic take to X?" — the tracer
+/// walk to `lo`: one hop, reached.
+#[test]
+fn wf33_trace_the_path() {
+    if !driver_tests_enabled() {
+        eprintln!("wf33: skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    let out = stdout_of(wrex().args([
+        "trace",
+        "-i",
+        "lo",
+        "--seed",
+        "42",
+        "--wait",
+        "800ms",
+        "127.0.0.1",
+    ]));
+    assert!(
+        out.contains("127.0.0.1  reached"),
+        "loopback is reached at hop 1\n{out}"
+    );
+    assert!(
+        out.starts_with("1  127.0.0.1"),
+        "hop ordinal renders first\n{out}"
+    );
+}
+
+/// **UC-6 / WF-34**: "What service version is behind this port?" — the
+/// `--service` post-pass against a stub SSH banner.
+#[test]
+fn wf34_service_version_probe() {
+    if !driver_tests_enabled() {
+        eprintln!("wf34: skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port().to_string();
+    let stub = std::thread::spawn(move || {
+        // keep accepting (the scan's own connection + every service
+        // probe) until the deadline: banner to each.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let _ = listener.set_nonblocking(true);
+        while std::time::Instant::now() < deadline {
+            match listener.accept() {
+                Ok((mut s, _)) => {
+                    use std::io::Write as _;
+                    let _ = s.write_all(b"SSH-2.0-OpenSSH_9.6p1 wf34\r\n");
+                    let _ = s.flush();
+                }
+                Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            }
+        }
+    });
+    let out = stdout_of(wrex().args([
+        "scan",
+        "-i",
+        "lo",
+        "--mode",
+        "connect",
+        "--ports",
+        &port,
+        "--service",
+        "--seed",
+        "42",
+        "--timeout",
+        "800ms",
+        "127.0.0.1",
+    ]));
+    stub.join().expect("stub");
+    assert!(
+        out.contains(&format!(
+            "127.0.0.1  {port}/tcp  open  ssh/OpenSSH_9.6p1 wf34"
+        )),
+        "the banner renders service+version\n{out}"
+    );
+}

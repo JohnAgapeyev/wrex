@@ -197,17 +197,36 @@ MODES (--mode):
   syn      TCP SYN scan (default): SYN+ACK -> open (RST sent to kill
            the half-open), RST -> closed, silence -> filtered
   connect  full handshake: ACK then RST after SYN+ACK -> open
+  fin      TCP FIN probe (nmap -sF): RST -> closed, SYN+ACK ->
+           unfiltered, silence -> open|filtered
+  null     flagless TCP probe (nmap -sN): same rules as fin
+  xmas     FIN+PSH+URG probe (nmap -sX): same rules as fin
+  ack      bare ACK probe (nmap -sA): any RST -> unfiltered (this
+           maps filtering, not port state), silence -> filtered
   udp      empty datagrams: UDP reply -> open, ICMP 3/3 -> closed,
            ICMP 3/{1,2,9,10,13} -> filtered, silence -> open|filtered
            (v6 targets: ICMPv6 1/4 -> closed — the RFC 4443 §3.1 port-
            unreachable code — and 1/{0,1,2,3,5,6,7} -> filtered)
   icmp     echo sweep (no ports): reply -> alive, silence -> dead
            (v6 targets speak icmpv6 echo, type 128/129)
+  arp      ARP ping sweep (no ports, v4): broadcast request per
+           target on -i IFACE, reply -> alive, silence -> dead
+  ndp      NDP host discovery (no ports, v6): unicast NS per target
+           (SLLA carried), NA -> alive, silence -> dead
+  mld      MLD group discovery (no ports, v6): MLDv1 query per
+           target (a multicast group), report naming the group ->
+           alive, silence -> dead
 
 PORTS (--ports):
-  comma list with ranges (22,80,100-200). syn/connect default to a
-  committed top-100 TCP list (see wrex fields / the man page);
-  udp REQUIRES --ports; icmp takes none.
+  comma list with ranges (22,80,100-200). syn/connect/fin/null/xmas/
+  ack default to a committed top-100 TCP list (see wrex fields / the
+  man page); udp REQUIRES --ports; icmp/arp/ndp/mld take none.
+
+SERVICE (--service):
+  post-pass over the open TCP ports of a completed scan: one fresh
+  connection per committed probe (banner grab + HTTP GET), regex
+  match DSL over the replies — first hit renders service+version
+  (an additive key in json/jsonl, a suffix on text lines).
 
 TIMING:
   --rate N        packets/sec (0 = uncapped burst)
@@ -222,6 +241,9 @@ TIMING:
   --timeout DUR   per-attempt reply timeout (default 1s)
   --retries N     extra attempts per probe (default 1)
   --concurrent N  max in-flight probes (default 256)
+  -T0..-T5        timing templates (nmap's sugar): named bundles of
+                  the knobs above (T3 = the defaults); every explicit
+                  flag wins over the template; --seed is NEVER implied
 
 PROBES:
   Datagrams injected kernel-routed (raw-IP socket for v4, AF_PACKET
@@ -264,6 +286,7 @@ impl Cli {
             Cmd::Capture(a) => a.common.verbose,
             Cmd::Replay(a) => a.common.verbose,
             Cmd::Scan(a) => a.common.verbose,
+            Cmd::Trace(a) => a.common.verbose,
             Cmd::Mut(a) => a.common.verbose,
             Cmd::Patch(a) => a.common.verbose,
             Cmd::Fuzz(a) => a.common.verbose,
@@ -332,8 +355,13 @@ pub enum Cmd {
     /// Read a pcap (dissect to stdout) or re-send it on an interface.
     Replay(ReplayArgs),
 
-    /// Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts.
+    /// Scan targets (TCP SYN/connect + variants, UDP, ICMP, ARP/NDP/MLD
+    /// discovery) and classify ports/hosts.
     Scan(ScanArgs),
+
+    /// Traceroute: TTL-walk a target (icmp/udp/tcp probes), per-hop
+    /// latency + ICMP quote attribution.
+    Trace(TraceArgs),
 
     /// Mutate seed frames (dissect-aware, seeded) → stdout / pcap.
     Mut(MutArgs),
@@ -1095,7 +1123,8 @@ pub struct DiffArgs {
 pub struct ScanArgs {
     #[command(flatten)]
     pub common: Common,
-    /// Scan mode: syn|connect|udp|icmp (default syn).
+    /// Scan mode: syn|connect|fin|null|xmas|ack|udp|icmp|arp|ndp|mld
+    /// (default syn).
     #[arg(long)]
     pub mode: Option<String>,
     /// Targets: IPv4, CIDR or START-END ranges (repeatable).
@@ -1127,6 +1156,78 @@ pub struct ScanArgs {
     /// Max in-flight probes (default 256).
     #[arg(long)]
     pub concurrent: Option<usize>,
+    /// Timing template T0..T5 (nmap sugar; explicit flags win; T3 =
+    /// the defaults).
+    #[arg(short = 'T', long, value_name = "TEMPLATE")]
+    pub timing: Option<String>,
+    /// Service/version probe the open TCP ports (committed probe
+    /// table + regex match DSL; additive output key).
+    #[arg(long)]
+    pub service: bool,
+}
+
+/// Epilog for trace: modes, walk semantics and the pacing knobs.
+pub const TRACE_AFTER_HELP: &str = "\
+TARGET:
+  one host (IPv4 or IPv6; a spec resolving to more than one address is
+  a usage error — one walk per run).
+
+MODES (--mode):
+  icmp  echo probes (default): echo reply (id match) ends the walk
+  udp   datagrams to --port (default 33434): a UDP reply or an ICMP
+        port-unreachable quoting our datagram ends the walk
+  tcp   SYN to --port (default 80): SYN+ACK or RST ends the walk
+  every mode: an ICMP/ICMPv6 time-exceeded quoting OUR probe records
+  the quoting router as a hop (the quote's inner 4-tuple / echo id
+  must name our probe — anything else is cross-talk); a hop that
+  exhausts its attempts records as silent (`*`) and the walk moves on.
+
+WALK:
+  TTL 1..--max-hops (default 30), one probe in flight at a time;
+  --retries extra attempts per hop; --backoff N paces retransmissions
+  (wait x N^(attempt-1); 1 = none); --wait per-attempt reply timeout
+  (default 1s).
+
+OUTPUT:
+  one line/record per hop in walk order: `{ttl}  {addr|*}  {state}
+  ({rtt}ms)` in text; {hop, target, hop_addr, state, rtt_ms,
+  attempts} in json/jsonl (raw/hex reject — trace output is data).
+
+EXAMPLES:
+  wrex trace -i lo 127.0.0.1
+  wrex trace -i eth0 --mode udp --port 33434 --max-hops 12 10.0.0.9
+  wrex trace -i eth0 --mode tcp --port 443 --wait 2s 2001:db8::1";
+
+/// `wrex trace`: the traceroute verb (T21b).
+#[derive(Args, Debug)]
+#[command(after_help = TRACE_AFTER_HELP)]
+pub struct TraceArgs {
+    #[command(flatten)]
+    pub common: Common,
+    /// Probe mode: icmp|udp|tcp (default icmp).
+    #[arg(long)]
+    pub mode: Option<String>,
+    /// Single target (one walk per run).
+    #[arg(value_name = "TARGET", required = true)]
+    pub target: String,
+    /// Probed port (udp: default 33434; tcp: default 80; icmp: none).
+    #[arg(long)]
+    pub port: Option<u16>,
+    /// Walk length in hops (default 30).
+    #[arg(long)]
+    pub max_hops: Option<u8>,
+    /// Per-attempt reply wait (default 1s).
+    #[arg(long)]
+    pub wait: Option<String>,
+    /// Extra attempts per hop (default 1).
+    #[arg(long)]
+    pub retries: Option<u32>,
+    /// Retransmission backoff base (wait x N^(attempt-1); default 1).
+    #[arg(long)]
+    pub backoff: Option<u32>,
+    /// RNG seed (probe identities; default time-derived).
+    #[arg(long)]
+    pub seed: Option<u64>,
 }
 
 /// `wrex query`: one seeded DNS question over a kernel socket (UDP by

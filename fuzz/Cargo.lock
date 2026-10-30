@@ -2162,6 +2162,7 @@ name = "wrex-proto-dns"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "hex",
  "proptest",
  "wrex-core",
  "wrex-proto-udp",
@@ -2273,6 +2274,7 @@ name = "wrex-scan"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "regex",
  "serde",
  "wrex-core",
  "wrex-io",

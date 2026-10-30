@@ -45,6 +45,9 @@ wrex-frag = { path = "crates/wrex-frag", version = "0.1.0" }
 
 bytes = "1"
 thiserror = "2"
+# Service/version match DSL (T21c): ADR-2 reuse — matching is not wire
+# control; the probe bytes and rules are committed data.
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"

@@ -15,7 +15,7 @@ extension pass.
 
 | Item | P | Notes |
 |------|---|-------|
-| Service/version probe engine v1 (banner grab + committed probe table + match DSL) | P1 | Candidate to absorb at T21's planning pass; SSH/TLS/SMTP/FTP banner specializations ride it. The nmap-service-probes subset is the model |
+| Service/version probe engine v1 (banner grab + committed probe table + match DSL) | P1 | **Absorbed into T21c** (delivered 2026-10-30): `scan --service`, NULL/HTTPGet probes, regex match DSL |
 | Scan report extras (`--reason`, `--stats-every`, summary tables) | P2 | jsonl exists; presentation only |
 | Window-scan inference (window-size ≠ 0 ⇒ open heuristic) | P2 | Heuristic must be flagged, never asserted |
 | Decoy probes over raw TX | P2 | Probe identity stays wrex-derived |

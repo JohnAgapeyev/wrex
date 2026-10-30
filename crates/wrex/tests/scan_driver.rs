@@ -303,3 +303,155 @@ fn burst_scan_loses_no_replies() {
         start.elapsed()
     );
 }
+
+// --- T21: variant modes, timing templates, --service (ground truth) -----------
+
+/// A bound listener over `lo` answers nothing (no accept loop): a
+/// FIN/NULL/XMAS probe on it gets silence → `open|filtered`; an
+/// unbound port answers RST → `closed`. An ACK probe on the unbound
+/// port must classify `unfiltered`.
+#[test]
+fn fin_null_xmas_ack_ground_truth() {
+    if !driver_tests_enabled() {
+        skip("fin_null_xmas_ack_ground_truth");
+        return;
+    }
+    let open_l = tcp_listener();
+    let open = bound_port(&open_l);
+    let closed = {
+        let l = tcp_listener();
+        let p = bound_port(&l);
+        drop(l);
+        p
+    };
+    let ports = format!("{open},{closed}");
+    for mode in ["fin", "null", "xmas"] {
+        let (code, stdout) = scan_out("800ms", &["--mode", mode, "--ports", &ports, "127.0.0.1"]);
+        assert_eq!(code, 0, "{mode}");
+        assert!(
+            stdout.contains(&format!("127.0.0.1  {closed}/tcp  closed")),
+            "{mode}: unbound port must classify closed (kernel RST)\n{stdout}"
+        );
+        assert!(
+            stdout.contains(&format!("127.0.0.1  {open}/tcp  open|filtered")),
+            "{mode}: bound-but-silent listener classifies open|filtered\n{stdout}"
+        );
+    }
+    // ack: the kernel RST on the unbound port proves it unfiltered (the
+    // bound-but-silent port may answer RST or stay silent per stack
+    // mood — the mode's claim is only about the RST-answered case, so
+    // assert the certain half).
+    let (code, stdout) = scan_out("800ms", &["--mode", "ack", "--ports", &ports, "127.0.0.1"]);
+    assert_eq!(code, 0);
+    assert!(
+        stdout.contains(&format!("127.0.0.1  {closed}/tcp  unfiltered")),
+        "ack: RST → unfiltered\n{stdout}"
+    );
+}
+
+/// `-T4` sugar rides the same machinery: aggressive template, fast
+/// timeout, same classifications.
+#[test]
+fn timing_template_ground_truth() {
+    if !driver_tests_enabled() {
+        skip("timing_template_ground_truth");
+        return;
+    }
+    let closed = {
+        let l = tcp_listener();
+        let p = bound_port(&l);
+        drop(l);
+        p
+    };
+    let ports = closed.to_string();
+    let (code, stdout) = scan_out("800ms", &["-T", "4", "--ports", &ports, "127.0.0.1"]);
+    assert_eq!(code, 0);
+    assert!(
+        stdout.contains(&format!("127.0.0.1  {closed}/tcp  closed")),
+        "-T4 must reach the same classification\n{stdout}"
+    );
+}
+
+/// `--service` post-pass: a stub SSH banner on an open port renders
+/// the additive service suffix (text) and key (jsonl). The stub keeps
+/// accepting until the deadline — the scan's own connection and every
+/// service probe connection each consume one accept.
+#[test]
+fn service_probe_ground_truth() {
+    if !driver_tests_enabled() {
+        skip("service_probe_ground_truth");
+        return;
+    }
+    fn banner_stub(l: TcpListener) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+            let _ = l.set_nonblocking(true);
+            while std::time::Instant::now() < deadline {
+                match l.accept() {
+                    Ok((mut s, _)) => {
+                        use std::io::Write as _;
+                        let _ = s.write_all(b"SSH-2.0-OpenSSH_9.6p1 wrex-test\r\n");
+                        let _ = s.flush();
+                    }
+                    Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        })
+    }
+    // text pass
+    let l1 = tcp_listener();
+    let port1 = bound_port(&l1);
+    let jh1 = banner_stub(l1);
+    let ports1 = port1.to_string();
+    let (code, stdout) = scan_out(
+        "800ms",
+        &[
+            "--mode",
+            "connect",
+            "--ports",
+            &ports1,
+            "--service",
+            "--seed",
+            "42",
+            "127.0.0.1",
+        ],
+    );
+    let _ = jh1.join();
+    assert_eq!(code, 0);
+    assert!(
+        stdout.contains(&format!(
+            "127.0.0.1  {port1}/tcp  open  ssh/OpenSSH_9.6p1 wrex-test"
+        )),
+        "service suffix must render on the text line\n{stdout}"
+    );
+    // jsonl pass: the additive keys
+    let l2 = tcp_listener();
+    let port2 = bound_port(&l2);
+    let jh2 = banner_stub(l2);
+    let ports2 = port2.to_string();
+    let (code, out_jsonl) = scan_out(
+        "800ms",
+        &[
+            "--mode",
+            "connect",
+            "--ports",
+            &ports2,
+            "--service",
+            "--seed",
+            "42",
+            "--format",
+            "jsonl",
+            "127.0.0.1",
+        ],
+    );
+    let _ = jh2.join();
+    assert_eq!(code, 0);
+    assert!(
+        out_jsonl.contains("\"service\":\"ssh\""),
+        "service key must be additive in jsonl\n{out_jsonl}"
+    );
+    assert!(
+        out_jsonl.contains("\"version\":\"OpenSSH_9.6p1 wrex-test\""),
+        "version capture must ride\n{out_jsonl}"
+    );
+}

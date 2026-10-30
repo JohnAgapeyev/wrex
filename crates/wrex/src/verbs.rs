@@ -140,6 +140,7 @@ pub fn dispatch(cli: &Cli, matches: &ArgMatches) -> Result<(), CliError> {
         Cmd::Capture(args) => capture(&registry, &args.common, args),
         Cmd::Replay(args) => replay(&registry, &args.common, args),
         Cmd::Scan(args) => scan(&registry, args),
+        Cmd::Trace(args) => trace(&registry, args),
         Cmd::Mut(args) => mut_verb(&registry, &args.common, args),
         Cmd::Patch(args) => patch_verb(&registry, &args.common, args),
         Cmd::Fuzz(args) => fuzz(&registry, args),
@@ -1130,6 +1131,8 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
         return Err(usage("scan requires -i/--iface"));
     };
     let mode = ScanMode::parse(args.mode.as_deref()).map_err(usage)?;
+    // Timing template (-T0..T5): named defaults; explicit flags win.
+    let timing = wrex_scan::TimingTemplate::parse(args.timing.as_deref()).map_err(usage)?;
     // Registry gating up front (usage → exit 2).
     for kind in mode.needs() {
         if registry.get(kind).is_none() {
@@ -1161,9 +1164,14 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
         (None, None) => DEFAULT_INTERVAL,
     };
     let jitter = duration_arg(args.jitter.as_deref())?.unwrap_or(Duration::ZERO);
-    let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
-    let retries = args.retries.unwrap_or(1);
-    let concurrent = args.concurrent.unwrap_or(256);
+    // --timeout/--retries/--concurrent default from the -T template
+    // (T3 = the pre-T21 defaults); every explicit flag wins.
+    let timeout = match args.timeout.as_deref() {
+        Some(raw) => duration_arg(Some(raw))?.unwrap_or(SCAN_DEFAULT_TIMEOUT),
+        None => timing.timeout,
+    };
+    let retries = args.retries.unwrap_or(timing.retries);
+    let concurrent = args.concurrent.unwrap_or(timing.concurrent);
     let seed = args.seed.unwrap_or_else(time_seed);
 
     let cfg = ScanConfig::build(
@@ -1220,20 +1228,60 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
             })?,
     };
 
+    // The interface MAC: the arp probe's eth.src/sha, the ndp probe's
+    // SLLA (the host-discovery modes carry a link-layer identity).
+    let mac = entry.mac;
+
     let mut session =
-        wrex_scan::ScanSession::new(registry, cfg, src, Instant::now()).map_err(usage)?;
-    let results = match src {
-        wrex_scan::ScanAddr::V4(_) => {
-            let mut driver = RawIpDriver::open(iface, &table)?;
+        wrex_scan::ScanSession::with_mac(registry, cfg, src, Some(mac), Instant::now())
+            .map_err(usage)?;
+    let results = match mode {
+        // arp is L2: full frames through the Ethernet driver.
+        wrex_scan::ScanMode::Arp => {
+            let mut driver = wrex_io::RawEthDriver::open(iface, false, &table)?;
             wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 .map_err(|e| CliError::Runtime(format!("scan: {e}")))?
         }
-        wrex_scan::ScanAddr::V6(_) => {
-            let mut driver = wrex_io::RawIpv6Driver::open(iface, &table)?;
-            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
-                .map_err(|e| CliError::Runtime(format!("scan: {e}")))?
-        }
+        _ => match src {
+            wrex_scan::ScanAddr::V4(_) => {
+                let mut driver = RawIpDriver::open(iface, &table)?;
+                wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                    .map_err(|e| CliError::Runtime(format!("scan: {e}")))?
+            }
+            wrex_scan::ScanAddr::V6(_) => {
+                let mut driver = wrex_io::RawIpv6Driver::open(iface, &table)?;
+                wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                    .map_err(|e| CliError::Runtime(format!("scan: {e}")))?
+            }
+        },
     };
+    let mut results = results;
+
+    // `--service`: the T21c post-pass — committed probe table over the
+    // open TCP ports, one fresh connection per probe (data, exit 0
+    // whether or not anything matched).
+    if args.service {
+        const SERVICE_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+        for r in results.iter_mut() {
+            if r.proto != "tcp" || r.state != "open" {
+                continue;
+            }
+            let Some(port) = r.port else {
+                continue;
+            };
+            let ip = match r.target {
+                wrex_scan::ScanAddr::V4(a) => std::net::IpAddr::V4(a),
+                wrex_scan::ScanAddr::V6(a) => std::net::IpAddr::V6(a),
+            };
+            match wrex_scan::probe_service(ip, port, SERVICE_CONNECT_TIMEOUT) {
+                Ok(Some(m)) => r.service = Some(m),
+                Ok(None) => {}
+                // A probe failure is data (the port may have closed
+                // since the scan — racing reality), never exit 1.
+                Err(_) => {}
+            }
+        }
+    }
 
     let mut out = String::new();
     match format {
@@ -1264,6 +1312,124 @@ fn scan(registry: &Registry, args: &crate::cli::ScanArgs) -> Result<(), CliError
     }
     write_stdout(out.as_bytes())?;
     // Scan completed → exit 0 regardless of findings.
+    Ok(())
+}
+
+// --- trace (T21b) ---------------------------------------------------------------
+
+/// Trace defaults (mirror `wrex_scan::trace`'s).
+const TRACE_DEFAULT_WAIT: Duration = Duration::from_secs(1);
+
+/// `wrex trace`: TTL-walk one target over the raw-IP drivers, one
+/// probe in flight at a time, per-hop records streamed in walk order.
+fn trace(registry: &Registry, args: &crate::cli::TraceArgs) -> Result<(), CliError> {
+    use wrex_scan::{TraceConfig, TraceMode, TraceSession};
+
+    let common = &args.common;
+    let Some(iface) = common.iface.as_deref() else {
+        return Err(usage("trace requires -i/--iface"));
+    };
+    let mode = TraceMode::parse(args.mode.as_deref()).map_err(usage)?;
+
+    let wait = duration_arg(args.wait.as_deref())?.unwrap_or(TRACE_DEFAULT_WAIT);
+    let cfg = TraceConfig::build(
+        mode,
+        &args.target,
+        args.port,
+        args.max_hops,
+        wait,
+        args.retries.unwrap_or(wrex_scan::trace::DEFAULT_RETRIES),
+        args.backoff.unwrap_or(wrex_scan::trace::DEFAULT_BACKOFF),
+        args.seed.unwrap_or_else(time_seed),
+    )
+    .map_err(|e| usage(format!("trace: {e}")))?;
+    // Registry gating up front (usage → exit 2).
+    for kind in mode.needs_for(cfg.family()) {
+        if registry.get(kind).is_none() {
+            return Err(usage(format!(
+                "{kind} layer not registered (registered: {})",
+                registry.kinds().join(", ")
+            )));
+        }
+    }
+
+    let format = Format::parse(common, Format::Text)?;
+    if matches!(format, Format::Raw | Format::Hex) {
+        return Err(usage(
+            "trace --format supports text|json|jsonl (raw/hex carry no hop records)",
+        ));
+    }
+
+    let table = IfTable::from_system()
+        .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
+    let entry = table
+        .get(iface)
+        .ok_or_else(|| {
+            CliError::Runtime(format!(
+                "unknown iface `{iface}` (available: {})",
+                table.names().join(", ")
+            ))
+        })?
+        .clone();
+    let src = match cfg.family() {
+        wrex_scan::Family::V4 => entry
+            .ipv4s
+            .first()
+            .copied()
+            .map(wrex_scan::ScanAddr::V4)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv4 source address"))
+            })?,
+        wrex_scan::Family::V6 => entry
+            .ipv6s
+            .first()
+            .copied()
+            .map(wrex_scan::ScanAddr::V6)
+            .ok_or_else(|| {
+                CliError::Runtime(format!("iface `{iface}` has no IPv6 source address"))
+            })?,
+    };
+
+    let mut session = TraceSession::new(registry, cfg, src, Instant::now()).map_err(usage)?;
+    let hops = match src {
+        wrex_scan::ScanAddr::V4(_) => {
+            let mut driver = RawIpDriver::open(iface, &table)?;
+            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                .map_err(|e| CliError::Runtime(format!("trace: {e}")))?
+        }
+        wrex_scan::ScanAddr::V6(_) => {
+            let mut driver = wrex_io::RawIpv6Driver::open(iface, &table)?;
+            wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                .map_err(|e| CliError::Runtime(format!("trace: {e}")))?
+        }
+    };
+
+    let mut out = String::new();
+    match format {
+        Format::Json => {
+            let json = serde_json::to_string_pretty(&hops)
+                .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+            out.push_str(&json);
+            out.push('\n');
+        }
+        Format::Text => {
+            for h in &hops {
+                out.push_str(&h.text_line());
+                out.push('\n');
+            }
+        }
+        Format::Jsonl => {
+            for h in &hops {
+                let json = serde_json::to_string(h)
+                    .map_err(|e| CliError::Runtime(format!("json: {e}")))?;
+                out.push_str(&json);
+                out.push('\n');
+            }
+        }
+        Format::Raw | Format::Hex => unreachable!("rejected above"),
+    }
+    write_stdout(out.as_bytes())?;
+    // Walk completed (reached or exhausted) → exit 0 either way.
     Ok(())
 }
 

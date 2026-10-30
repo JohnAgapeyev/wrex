@@ -28,6 +28,17 @@
 //!   | udp (v6) | ICMPv6 1/{0,1,2,3,5,6,7} | `filtered` |
 //!   | icmp | echo reply (id match) | `alive` |
 //!   | icmp | exhausted | `dead` |
+//!   | fin/null/xmas | RST on our 4-tuple | `closed` |
+//!   | fin/null/xmas | SYN+ACK | `unfiltered` |
+//!   | fin/null/xmas | exhausted | `open\|filtered` |
+//!   | ack | any RST | `unfiltered` |
+//!   | ack | exhausted | `filtered` |
+//!   | arp | ARP reply (`spa` = target) | `alive` |
+//!   | arp | exhausted | `dead` |
+//!   | ndp | Neighbor Advertisement (src = target) | `alive` |
+//!   | ndp | exhausted | `dead` |
+//!   | mld | MLDv1 report naming the group | `alive` |
+//!   | mld | exhausted | `dead` |
 
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::time::{Duration, Instant};
@@ -66,6 +77,9 @@ enum ProbeKey {
     },
     /// icmp/icmpv6 echo: reply (src, echo id) == (target, probe id).
     Echo { src: ScanAddr, id: u16 },
+    /// arp/ndp/mld host discovery: reply resolves by target identity
+    /// (arp: `spa`, ndp: ip src, mld: the named group).
+    Host { src: ScanAddr },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,6 +123,10 @@ pub struct ScanSession<'a> {
     /// Our source address (the `-i` interface address; family matches
     /// the targets).
     src: ScanAddr,
+    /// Our link-layer address when known (the `-i` interface MAC): the
+    /// arp probe's `sha`/`eth.src`, the ndp probe's SLLA. `None` in
+    /// host modes = no L2 identity available.
+    mac: Option<[u8; 6]>,
     /// Latest observed instant (events carry time; `poll_action` stays
     /// clock-less per the frozen trait shape).
     now: Instant,
@@ -123,13 +141,25 @@ pub struct ScanSession<'a> {
 }
 
 impl<'a> ScanSession<'a> {
-    /// Build the session: validates the registry has the mode's codec
-    /// kinds, seeds probe identities and schedules every probe's first
-    /// send (pacing + jitter from the seed).
+    /// Build the session (no link-layer identity — the host-discovery
+    /// modes that need it refuse to construct; see [`with_mac`]).
     pub fn new(
         registry: &'a Registry,
         cfg: ScanConfig,
         src: ScanAddr,
+        t0: Instant,
+    ) -> Result<Self, String> {
+        Self::with_mac(registry, cfg, src, None, t0)
+    }
+
+    /// Build the session with our link-layer address (the `-i`
+    /// interface MAC): the `--mode arp` probe carries it as
+    /// `eth.src`/`sha`, `--mode ndp` as the SLLA option.
+    pub fn with_mac(
+        registry: &'a Registry,
+        cfg: ScanConfig,
+        src: ScanAddr,
+        mac: Option<[u8; 6]>,
         t0: Instant,
     ) -> Result<Self, String> {
         let family = cfg.family();
@@ -146,6 +176,9 @@ impl<'a> ScanSession<'a> {
                 "source address {src} does not match the target family ({})",
                 family.ip_kind()
             ));
+        }
+        if cfg.mode == ScanMode::Arp && mac.is_none() {
+            return Err("arp mode requires the interface MAC (a link-layer identity)".into());
         }
         let mut rng = Rng::new(cfg.seed);
 
@@ -176,7 +209,35 @@ impl<'a> ScanSession<'a> {
                     due = next_due(&mut rng, due, cfg.interval, cfg.jitter);
                 }
             }
-            ScanMode::Syn | ScanMode::Connect | ScanMode::Udp => {
+            ScanMode::Arp | ScanMode::Ndp | ScanMode::Mld => {
+                // Host discovery: one probe per target, matched by
+                // target identity (ProbeKey::Host).
+                for &target in &cfg.targets {
+                    let key = ProbeKey::Host { src: target };
+                    let probe = Probe {
+                        key,
+                        target,
+                        port: 0,
+                        sport: 0,
+                        seq: 0,
+                        due,
+                        deadline: t0,
+                        last_sent: t0,
+                        attempt: 0,
+                        phase: Phase::Pending,
+                    };
+                    pending.push(std::cmp::Reverse((probe.due, probes.len())));
+                    probes.push(probe);
+                    due = next_due(&mut rng, due, cfg.interval, cfg.jitter);
+                }
+            }
+            ScanMode::Syn
+            | ScanMode::Connect
+            | ScanMode::Fin
+            | ScanMode::Null
+            | ScanMode::Xmas
+            | ScanMode::Ack
+            | ScanMode::Udp => {
                 for &target in &cfg.targets {
                     for &port in &cfg.ports {
                         let sport = rng.range_u16(SPORT_LO, SPORT_HI);
@@ -210,6 +271,7 @@ impl<'a> ScanSession<'a> {
             registry,
             cfg,
             src,
+            mac,
             now: t0,
             probes,
             pending,
@@ -222,9 +284,10 @@ impl<'a> ScanSession<'a> {
     /// Classification on timeout per mode.
     const fn timeout_state(&self) -> &'static str {
         match self.cfg.mode {
-            ScanMode::Syn | ScanMode::Connect => "filtered",
+            ScanMode::Syn | ScanMode::Connect | ScanMode::Ack => "filtered",
+            ScanMode::Fin | ScanMode::Null | ScanMode::Xmas => "open|filtered",
             ScanMode::Udp => "open|filtered",
-            ScanMode::Icmp => "dead",
+            ScanMode::Icmp | ScanMode::Arp | ScanMode::Ndp | ScanMode::Mld => "dead",
         }
     }
 
@@ -243,6 +306,46 @@ impl<'a> ScanSession<'a> {
                 None,
                 packet::FLAG_SYN,
             ),
+            ScanMode::Fin => packet::tcp(
+                self.registry,
+                self.src,
+                p.target,
+                p.sport,
+                p.port,
+                p.seq,
+                None,
+                packet::FLAG_FIN,
+            ),
+            ScanMode::Null => packet::tcp(
+                self.registry,
+                self.src,
+                p.target,
+                p.sport,
+                p.port,
+                p.seq,
+                None,
+                packet::FLAG_NONE,
+            ),
+            ScanMode::Xmas => packet::tcp(
+                self.registry,
+                self.src,
+                p.target,
+                p.sport,
+                p.port,
+                p.seq,
+                None,
+                packet::FLAG_XMAS,
+            ),
+            ScanMode::Ack => packet::tcp(
+                self.registry,
+                self.src,
+                p.target,
+                p.sport,
+                p.port,
+                p.seq,
+                Some(1),
+                packet::FLAG_ACK,
+            ),
             ScanMode::Udp => packet::udp(self.registry, self.src, p.target, p.sport, p.port),
             ScanMode::Icmp => {
                 // The echo protocol follows the family (8/0 over v4,
@@ -260,6 +363,18 @@ impl<'a> ScanSession<'a> {
                     p.seq as u16,
                 )
             }
+            ScanMode::Arp => {
+                // Unreachable: the constructor refuses arp without a
+                // MAC (and the CLI passes the interface MAC).
+                let mac = self.mac.unwrap_or([0; 6]);
+                let src = match self.src {
+                    ScanAddr::V4(a) => a,
+                    ScanAddr::V6(_) => unreachable!("arp is v4-only (grammar-gated)"),
+                };
+                packet::arp_probe(self.registry, src, mac, p.target)
+            }
+            ScanMode::Ndp => packet::ndp_probe(self.registry, self.src, self.mac, p.target),
+            ScanMode::Mld => packet::mld_query(self.registry, self.src, p.target),
         }
     }
 
@@ -279,9 +394,10 @@ impl<'a> ScanSession<'a> {
         let probe = &mut self.probes[idx];
         probe.phase = Phase::Resolved;
         let attempts = probe.attempt;
-        let port = match self.cfg.mode {
-            ScanMode::Icmp => None,
-            _ => Some(probe.port),
+        let port = if self.cfg.mode.is_host_mode() {
+            None
+        } else {
+            Some(probe.port)
         };
         let target = probe.target;
         let key = probe.key;
@@ -294,6 +410,7 @@ impl<'a> ScanSession<'a> {
             state,
             attempts,
             rtt_ms: rtt.map(ScanResult::rtt_from),
+            service: None,
         });
     }
 
@@ -323,7 +440,10 @@ impl<'a> ScanSession<'a> {
         }
     }
 
-    /// Handle a dissected TCP reply (syn/connect modes).
+    /// Handle a dissected TCP reply (syn/connect/fin/null/xmas/ack
+    /// modes). Classification per the mode's semantics table:
+    /// syn/connect keep the T2 rules; fin/null/xmas close on RST and
+    /// mark SYN+ACK `unfiltered`; ack marks every RST `unfiltered`.
     fn on_tcp_reply(&mut self, pkt: &DissectedPacket, _ip: &LayerView, now: Instant) {
         let Some(tcp) = pkt.layers.iter().find(|l| l.kind == "tcp") else {
             return;
@@ -346,25 +466,57 @@ impl<'a> ScanSession<'a> {
             return; // cross-talk or late reply
         };
         let names = flag_names(tcp.fields.get("flags"));
-        let probe_seq = self.probes[idx].seq;
-        if names.contains(&"syn") && names.contains(&"ack") {
-            // SYN+ACK must acknowledge our seq (else cross-talk).
-            if (ack as u32) != probe_seq.wrapping_add(1) {
-                return;
+        let syn = names.contains(&"syn");
+        let rst = names.contains(&"rst");
+        let rtt = now - self.probes[idx].last_sent;
+
+        let state: Option<&'static str> = match self.cfg.mode {
+            ScanMode::Syn | ScanMode::Connect => {
+                if syn && names.contains(&"ack") {
+                    // SYN+ACK must acknowledge our seq (else cross-talk).
+                    if (ack as u32) != self.probes[idx].seq.wrapping_add(1) {
+                        return;
+                    }
+                    let their_seq = f_int(tcp, "seq").unwrap_or(0) as u32;
+                    match self.cfg.mode {
+                        ScanMode::Syn => self.queue_handshake_close(idx, their_seq, false),
+                        ScanMode::Connect => self.queue_handshake_close(idx, their_seq, true),
+                        _ => unreachable!(),
+                    }
+                    Some("open")
+                } else if rst {
+                    Some("closed")
+                } else {
+                    None // not a scan reply
+                }
             }
-            let their_seq = f_int(tcp, "seq").unwrap_or(0) as u32;
-            match self.cfg.mode {
-                ScanMode::Syn => self.queue_handshake_close(idx, their_seq, false),
-                ScanMode::Connect => self.queue_handshake_close(idx, their_seq, true),
-                ScanMode::Udp | ScanMode::Icmp => return,
+            // FIN/NULL/XMAS: RST closes; a SYN+ACK (or SYN) answers the
+            // open/closed question with "unfiltered" — the port is
+            // reachable but not classified (nmap -sF/-sN/-sX rule).
+            ScanMode::Fin | ScanMode::Null | ScanMode::Xmas => {
+                if rst {
+                    Some("closed")
+                } else if syn {
+                    Some("unfiltered")
+                } else {
+                    None
+                }
             }
-            let rtt = now - self.probes[idx].last_sent;
-            self.resolve(idx, "open", Some(rtt));
-        } else if names.contains(&"rst") {
-            let rtt = now - self.probes[idx].last_sent;
-            self.resolve(idx, "closed", Some(rtt));
+            // ACK: any RST proves the port unfiltered (the destination
+            // answered); the open/closed question is unanswerable by
+            // design (nmap -sA rule).
+            ScanMode::Ack => {
+                if rst || syn {
+                    Some("unfiltered")
+                } else {
+                    None
+                }
+            }
+            ScanMode::Udp | ScanMode::Icmp | ScanMode::Arp | ScanMode::Ndp | ScanMode::Mld => None,
+        };
+        if let Some(state) = state {
+            self.resolve(idx, state, Some(rtt));
         }
-        // Other flag combinations are not scan replies.
     }
 
     /// Handle a dissected UDP-mode reply (UDP reply or ICMP/ICMPv6 error).
@@ -478,6 +630,72 @@ impl<'a> ScanSession<'a> {
             self.resolve(idx, "alive", Some(rtt));
         }
     }
+
+    /// ARP-mode reply: an ARP reply whose `spa` names the probed target
+    /// resolves it alive (the target owns the address → it is up).
+    fn on_arp_reply(&mut self, pkt: &DissectedPacket, now: Instant) {
+        let Some(arp) = pkt.layers.iter().find(|l| l.kind == "arp") else {
+            return;
+        };
+        if f_int(arp, "oper") != Some(2) {
+            return; // replies only
+        }
+        let Some(spa) = arp.fields.get("spa") else {
+            return;
+        };
+        let target = match spa {
+            Value::Ipv4(a) => ScanAddr::V4(*a),
+            _ => return,
+        };
+        let key = ProbeKey::Host { src: target };
+        if let Some(&idx) = self.inflight.get(&key) {
+            let rtt = now - self.probes[idx].last_sent;
+            self.resolve(idx, "alive", Some(rtt));
+        }
+    }
+
+    /// NDP-mode reply: a Neighbor Advertisement from the probed
+    /// target resolves it alive.
+    fn on_ndp_reply(&mut self, pkt: &DissectedPacket, now: Instant) {
+        let Some(icmp6) = pkt.layers.iter().find(|l| l.kind == "icmpv6") else {
+            return;
+        };
+        if f_int(icmp6, "type") != Some(136) {
+            return; // Neighbor Advertisements only
+        }
+        let Some(src) = f_addr(pkt, crate::target::Family::V6, "src") else {
+            return;
+        };
+        let key = ProbeKey::Host { src };
+        if let Some(&idx) = self.inflight.get(&key) {
+            let rtt = now - self.probes[idx].last_sent;
+            self.resolve(idx, "alive", Some(rtt));
+        }
+    }
+
+    /// MLD-mode reply: an MLDv1 report (type 131) naming the probed
+    /// group in `mld.addr` resolves it alive (the group has members —
+    /// the report's own source address is a member, not the group).
+    fn on_mld_reply(&mut self, pkt: &DissectedPacket, now: Instant) {
+        let Some(icmp6) = pkt.layers.iter().find(|l| l.kind == "icmpv6") else {
+            return;
+        };
+        if f_int(icmp6, "type") != Some(131) {
+            return; // MLDv1 reports only
+        }
+        let Some(addr) = icmp6.fields.get("mld.addr") else {
+            return;
+        };
+        let group = match addr {
+            Value::Ipv6(a) => ScanAddr::V6(*a),
+            _ => return,
+        };
+        let key = ProbeKey::Host { src: group };
+        if let Some(&idx) = self.inflight.get(&key) {
+            let rtt = now - self.probes[idx].last_sent;
+            self.resolve(idx, "alive", Some(rtt));
+        }
+    }
 }
 
 impl<'a> Session for ScanSession<'a> {
@@ -486,16 +704,29 @@ impl<'a> Session for ScanSession<'a> {
     fn on_frame(&mut self, frame: Frame, now: Instant) {
         self.now = now;
         // Drivers yield datagrams starting at the network layer; the
-        // start kind follows the (grammar-pinned) target family.
-        let start = self.cfg.family().ip_kind();
+        // start kind follows the (grammar-pinned) target family. The
+        // one exception: arp rides the Ethernet driver — full frames,
+        // dissected from `eth`.
+        let start = match self.cfg.mode {
+            ScanMode::Arp => "eth",
+            _ => self.cfg.family().ip_kind(),
+        };
         let pkt = dissect(self.registry, &frame.bytes, start);
         let Some(_ip) = pkt.layers.iter().find(|l| l.kind == start) else {
             return; // cross-talk
         };
         match self.cfg.mode {
-            ScanMode::Syn | ScanMode::Connect => self.on_tcp_reply(&pkt, _ip, now),
+            ScanMode::Syn
+            | ScanMode::Connect
+            | ScanMode::Fin
+            | ScanMode::Null
+            | ScanMode::Xmas
+            | ScanMode::Ack => self.on_tcp_reply(&pkt, _ip, now),
             ScanMode::Udp => self.on_udp_reply(&pkt, now),
             ScanMode::Icmp => self.on_icmp_reply(&pkt, now),
+            ScanMode::Arp => self.on_arp_reply(&pkt, now),
+            ScanMode::Ndp => self.on_ndp_reply(&pkt, now),
+            ScanMode::Mld => self.on_mld_reply(&pkt, now),
         }
     }
 
@@ -1592,5 +1823,354 @@ mod tests {
             prop_assert_eq!(got, expected_sorted, "classifications must match the reference model");
             prop_assert!(s.next_timeout().is_none(), "session must go idle");
         }
+    }
+
+    // --- T21a: TCP port-state variants ---------------------------------------
+
+    #[test]
+    fn fin_null_xmas_classification() {
+        for mode in [ScanMode::Fin, ScanMode::Null, ScanMode::Xmas] {
+            let reg = registry();
+            let mut s = ScanSession::new(&reg, cfg_of(mode, &[1, 2, 3], 0), src(), t0()).unwrap();
+            drain_sends(&mut s);
+            s.on_frame(frame(rst(&s, 0)), t0() + 5 * MS);
+            s.on_frame(frame(synack(&s, 1)), t0() + 6 * MS);
+            s.on_timeout(t0() + 10 * SEC);
+            let out = drain_results(&mut s);
+            assert_eq!(out.len(), 3, "{mode:?}");
+            assert_eq!(out[0].state, "closed", "{mode:?}");
+            assert_eq!(out[1].state, "unfiltered", "{mode:?}");
+            assert_eq!(out[2].state, "open|filtered", "{mode:?}");
+            assert_eq!(out[0].proto, "tcp");
+        }
+    }
+
+    #[test]
+    fn variant_probe_shapes() {
+        let reg = registry();
+        let shapes: &[(ScanMode, u128, Value)] = &[
+            (
+                ScanMode::Fin,
+                packet::FLAG_FIN,
+                Value::List(vec![Value::Str("fin".into())]),
+            ),
+            (ScanMode::Null, packet::FLAG_NONE, Value::List(vec![])),
+            (
+                ScanMode::Xmas,
+                packet::FLAG_XMAS,
+                Value::List(vec![
+                    Value::Str("urg".into()),
+                    Value::Str("psh".into()),
+                    Value::Str("fin".into()),
+                ]),
+            ),
+            (
+                ScanMode::Ack,
+                packet::FLAG_ACK,
+                Value::List(vec![Value::Str("ack".into())]),
+            ),
+        ];
+        for &(mode, flags, ref want) in shapes {
+            let mut s = ScanSession::new(&reg, cfg_of(mode, &[443], 0), src(), t0()).unwrap();
+            let sent = drain_sends(&mut s);
+            assert_eq!(sent.len(), 1);
+            let p = dissect(&reg, &sent[0], "ipv4");
+            assert!(p.anomalies.is_empty(), "{mode:?}: {:?}", p.anomalies);
+            let tcp = &p.layers[1];
+            assert_eq!(tcp.fields.get("flags"), Some(want), "{mode:?}");
+            let _ = flags;
+        }
+    }
+
+    #[test]
+    fn ack_marks_rst_unfiltered() {
+        let reg = registry();
+        let mut s = ScanSession::new(&reg, cfg_of(ScanMode::Ack, &[1, 2], 0), src(), t0()).unwrap();
+        drain_sends(&mut s);
+        s.on_frame(frame(rst(&s, 0)), t0() + MS);
+        s.on_timeout(t0() + SEC);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].state, "unfiltered");
+        assert_eq!(out[1].state, "filtered", "silence is filtered in ack mode");
+    }
+
+    #[test]
+    fn variants_never_queue_handshake_followups() {
+        // A SYN+ACK must not RST-close in the variant modes: no TCP
+        // state was opened (that is the point of the probes).
+        for mode in [ScanMode::Fin, ScanMode::Null, ScanMode::Xmas, ScanMode::Ack] {
+            let reg = registry();
+            let mut s = ScanSession::new(&reg, cfg_of(mode, &[80], 0), src(), t0()).unwrap();
+            drain_sends(&mut s);
+            s.on_frame(frame(synack(&s, 0)), t0() + MS);
+            assert!(drain_sends(&mut s).is_empty(), "{mode:?}: no follow-ups");
+        }
+    }
+
+    #[test]
+    fn wrong_ack_still_closes_in_syn_mode() {
+        // Guard the untouched syn/connect paths: a SYN+ACK that does not
+        // acknowledge our seq stays cross-talk there (the fin/null/xmas
+        // arms answer `unfiltered` on any SYN-bearing reply — nmap's
+        // rule — pinned by fin_null_xmas_classification above).
+        let reg = registry();
+        let mut s = ScanSession::new(&reg, cfg_of(ScanMode::Syn, &[80], 0), src(), t0()).unwrap();
+        drain_sends(&mut s);
+        let bad = tcp_reply(
+            &s,
+            0,
+            packet::FLAG_SYN | packet::FLAG_ACK,
+            Some(s.probes[0].seq.wrapping_add(2)),
+        );
+        s.on_frame(frame(bad), t0() + MS);
+        assert!(s.poll_result().is_none(), "unacked SYN+ACK is cross-talk");
+    }
+    // --- T21a: host discovery (arp / ndp / mld) -------------------------------
+
+    fn eth_registry() -> Registry {
+        let mut r = registry();
+        r.register(&wrex_proto_eth::CODEC);
+        r.register(&wrex_proto_arp::CODEC);
+        r
+    }
+
+    const TEST_MAC: [u8; 6] = [0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff];
+    const TARGET_MAC: [u8; 6] = [0x02, 0x00, 0x00, 0x00, 0x00, 0x01];
+
+    fn arp_cfg() -> ScanConfig {
+        ScanConfig::build(
+            ScanMode::Arp,
+            &["127.0.0.1".to_string()],
+            None,
+            Duration::ZERO,
+            Duration::ZERO,
+            0xC0FFEE,
+            0,
+            SEC,
+            256,
+        )
+        .unwrap()
+    }
+
+    fn ndp_cfg() -> ScanConfig {
+        ScanConfig::build(
+            ScanMode::Ndp,
+            &["::1".to_string()],
+            None,
+            Duration::ZERO,
+            Duration::ZERO,
+            0xC0FFEE,
+            0,
+            SEC,
+            256,
+        )
+        .unwrap()
+    }
+
+    fn mld_cfg() -> ScanConfig {
+        ScanConfig::build(
+            ScanMode::Mld,
+            &["ff02::1".to_string()],
+            None,
+            Duration::ZERO,
+            Duration::ZERO,
+            0xC0FFEE,
+            0,
+            SEC,
+            256,
+        )
+        .unwrap()
+    }
+
+    /// ARP reply from `target` (full eth frame, the wire the Ethernet
+    /// driver yields).
+    fn arp_reply(s: &ScanSession<'_>) -> Vec<u8> {
+        let reg = eth_registry();
+        let eth = LayerSpec::with_fields("eth", {
+            let mut m = std::collections::BTreeMap::new();
+            m.insert("dst".into(), Value::Mac(TEST_MAC));
+            m.insert("src".into(), Value::Mac(TARGET_MAC));
+            m
+        });
+        let arp = LayerSpec::with_fields("arp", {
+            let mut m = std::collections::BTreeMap::new();
+            m.insert("oper".into(), Value::Int(2));
+            m.insert("sha".into(), Value::Mac(TARGET_MAC));
+            m.insert(
+                "spa".into(),
+                Value::Ipv4(match s.probes[0].target {
+                    ScanAddr::V4(a) => a,
+                    _ => unreachable!("arp helper"),
+                }),
+            );
+            m.insert("tha".into(), Value::Mac(TEST_MAC));
+            m.insert(
+                "tpa".into(),
+                Value::Ipv4(match s.src {
+                    ScanAddr::V4(a) => a,
+                    _ => unreachable!("arp helper"),
+                }),
+            );
+            m
+        });
+        wrex_core::encode::encode(
+            &reg,
+            &PacketSpec::new(vec![eth, arp], None),
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .bytes
+        .to_vec()
+    }
+
+    #[test]
+    fn arp_requires_mac_then_alive_dead() {
+        let reg = eth_registry();
+        // no MAC → pointed construction error
+        assert!(ScanSession::new(&reg, arp_cfg(), src(), t0()).is_err());
+
+        let mut s = ScanSession::with_mac(&reg, arp_cfg(), src(), Some(TEST_MAC), t0()).unwrap();
+        let sent = drain_sends(&mut s);
+        assert_eq!(sent.len(), 1);
+        // The probe is a broadcast ARP request.
+        let p = dissect(&reg, &sent[0], "eth");
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        assert_eq!(p.layers[0].fields.get("dst"), Some(&Value::Mac([0xff; 6])));
+        assert_eq!(p.layers[1].fields.get("oper"), Some(&Value::Int(1)));
+        assert_eq!(p.layers[1].fields.get("sha"), Some(&Value::Mac(TEST_MAC)));
+
+        s.on_frame(frame(arp_reply(&s)), t0() + 3 * MS);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].state, "alive");
+        assert_eq!(out[0].proto, "arp");
+        assert_eq!(out[0].port, None);
+        assert!(out[0].rtt_ms.unwrap() >= 3);
+
+        // silence → dead; a reply naming another address is cross-talk.
+        let mut s2 = ScanSession::with_mac(&reg, arp_cfg(), src(), Some(TEST_MAC), t0()).unwrap();
+        drain_sends(&mut s2);
+        s2.on_timeout(t0() + SEC);
+        assert_eq!(drain_results(&mut s2)[0].state, "dead");
+
+        let mut s3 = ScanSession::with_mac(&reg, arp_cfg(), src(), Some(TEST_MAC), t0()).unwrap();
+        drain_sends(&mut s3);
+        // request (oper 1) frames never resolve
+        s3.on_frame(frame(sent[0].clone()), t0() + MS);
+        assert!(s3.poll_result().is_none());
+    }
+
+    #[test]
+    fn ndp_ns_probe_and_na_reply() {
+        let reg = registry();
+        let mut s = ScanSession::new(&reg, ndp_cfg(), src6(), t0()).unwrap();
+        let sent = drain_sends(&mut s);
+        assert_eq!(sent.len(), 1);
+        let p = dissect(&reg, &sent[0], "ipv6");
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        assert_eq!(p.layers[1].fields.get("type"), Some(&Value::Int(135)));
+        assert_eq!(
+            p.layers[1].fields.get("ndp.target"),
+            Some(&Value::Ipv6("::1".parse().unwrap()))
+        );
+
+        // NA from the target → alive
+        let na = PacketSpec::new(
+            vec![
+                LayerSpec::with_fields("ipv6", {
+                    let mut m = std::collections::BTreeMap::new();
+                    m.insert("src".into(), Value::Ipv6("::1".parse().unwrap()));
+                    m.insert("dst".into(), Value::Ipv6("::1".parse().unwrap()));
+                    m
+                }),
+                LayerSpec::with_fields("icmpv6", {
+                    let mut m = std::collections::BTreeMap::new();
+                    m.insert("type".into(), Value::Int(136));
+                    m.insert("ndp.target".into(), Value::Ipv6("::1".parse().unwrap()));
+                    m
+                }),
+            ],
+            None,
+        );
+        let na = wrex_core::encode::encode(
+            &reg,
+            &na,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .bytes
+        .to_vec();
+        s.on_frame(frame(na), t0() + 3 * MS);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].state, "alive");
+        assert_eq!(out[0].proto, "icmpv6");
+        // silence → dead
+        let mut s2 = ScanSession::new(&reg, ndp_cfg(), src6(), t0()).unwrap();
+        drain_sends(&mut s2);
+        s2.on_timeout(t0() + SEC);
+        assert_eq!(drain_results(&mut s2)[0].state, "dead");
+    }
+
+    #[test]
+    fn mld_query_and_report() {
+        let reg = registry();
+        let mut s = ScanSession::new(&reg, mld_cfg(), src6(), t0()).unwrap();
+        let sent = drain_sends(&mut s);
+        assert_eq!(sent.len(), 1);
+        let p = dissect(&reg, &sent[0], "ipv6");
+        assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+        assert_eq!(p.layers[1].fields.get("type"), Some(&Value::Int(130)));
+        assert_eq!(
+            p.layers[1].fields.get("mld.addr"),
+            Some(&Value::Ipv6("ff02::1".parse().unwrap()))
+        );
+
+        // Report (131) naming the group → alive — from ANY member (the
+        // report's source is a member, not the group).
+        let report = PacketSpec::new(
+            vec![
+                LayerSpec::with_fields("ipv6", {
+                    let mut m = std::collections::BTreeMap::new();
+                    m.insert("src".into(), Value::Ipv6("::9".parse().unwrap()));
+                    m.insert("dst".into(), Value::Ipv6("::1".parse().unwrap()));
+                    m
+                }),
+                LayerSpec::with_fields("icmpv6", {
+                    let mut m = std::collections::BTreeMap::new();
+                    m.insert("type".into(), Value::Int(131));
+                    m.insert("mld.addr".into(), Value::Ipv6("ff02::1".parse().unwrap()));
+                    m
+                }),
+            ],
+            None,
+        );
+        let report = wrex_core::encode::encode(
+            &reg,
+            &report,
+            &EncodeOpts {
+                autofill: true,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .bytes
+        .to_vec();
+        s.on_frame(frame(report), t0() + 3 * MS);
+        let out = drain_results(&mut s);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].state, "alive");
+        // silence → dead
+        let mut s2 = ScanSession::new(&reg, mld_cfg(), src6(), t0()).unwrap();
+        drain_sends(&mut s2);
+        s2.on_timeout(t0() + SEC);
+        assert_eq!(drain_results(&mut s2)[0].state, "dead");
     }
 }

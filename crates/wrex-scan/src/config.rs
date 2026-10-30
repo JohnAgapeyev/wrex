@@ -14,6 +14,19 @@ pub enum ScanMode {
     /// TCP connect scan: complete the handshake (ACK) before
     /// classifying open, then RST to close.
     Connect,
+    /// TCP FIN scan (nmap -sF): bare FIN probe, RST → closed, any
+    /// SYN/ACK → unfiltered, exhaustion → open|filtered.
+    Fin,
+    /// TCP NULL scan (nmap -sN): flagless probe, same classification
+    /// as FIN.
+    Null,
+    /// TCP XMAS scan (nmap -sX): FIN+PSH+URG probe, same
+    /// classification as FIN.
+    Xmas,
+    /// TCP ACK scan (nmap -sA): bare ACK probe, any RST → unfiltered,
+    /// exhaustion → filtered (the port open/closed question is not
+    /// answered — this mode maps firewall filtering).
+    Ack,
     /// UDP scan: empty datagram; any UDP reply → open, ICMP
     /// port-unreachable → closed, other ICMP unreachables → filtered,
     /// exhaustion → open|filtered.
@@ -21,6 +34,18 @@ pub enum ScanMode {
     /// ICMP echo sweep (host discovery): ports are illegal. Over v6
     /// targets this is ICMPv6 echo (type 128/129).
     Icmp,
+    /// ARP ping sweep (host discovery): ARP request per target over
+    /// the Ethernet driver, reply → alive, exhaustion → dead. v4
+    /// targets only, L2-adjacent by contract (frames inject on `-i`).
+    Arp,
+    /// NDP host discovery (v6): unicast Neighbor Solicitation per
+    /// target (type 135, SLLA carried), Neighbor Advertisement →
+    /// alive, exhaustion → dead. v6 targets only.
+    Ndp,
+    /// MLD group discovery (v6): MLDv1 query (type 130) per target
+    /// (a multicast group address), MLDv1 report naming the group →
+    /// alive (the group has members), exhaustion → dead. v6 only.
+    Mld,
 }
 
 impl ScanMode {
@@ -32,10 +57,17 @@ impl ScanMode {
             None => Ok(Self::DEFAULT),
             Some("syn") => Ok(Self::Syn),
             Some("connect") => Ok(Self::Connect),
+            Some("fin") => Ok(Self::Fin),
+            Some("null") => Ok(Self::Null),
+            Some("xmas") => Ok(Self::Xmas),
+            Some("ack") => Ok(Self::Ack),
             Some("udp") => Ok(Self::Udp),
             Some("icmp") => Ok(Self::Icmp),
+            Some("arp") => Ok(Self::Arp),
+            Some("ndp") => Ok(Self::Ndp),
+            Some("mld") => Ok(Self::Mld),
             Some(other) => Err(format!(
-                "unknown scan mode `{other}` (syn|connect|udp|icmp)"
+                "unknown scan mode `{other}` (syn|connect|fin|null|xmas|ack|udp|icmp|arp|ndp|mld)"
             )),
         }
     }
@@ -44,9 +76,11 @@ impl ScanMode {
     /// mode speaks icmpv6 over v6 targets).
     pub const fn proto_for(self, family: Family) -> &'static str {
         match self {
-            Self::Syn | Self::Connect => "tcp",
+            Self::Syn | Self::Connect | Self::Fin | Self::Null | Self::Xmas | Self::Ack => "tcp",
             Self::Udp => "udp",
             Self::Icmp => family.echo_kind(),
+            Self::Arp => "arp",
+            Self::Ndp | Self::Mld => "icmpv6",
         }
     }
 
@@ -58,10 +92,12 @@ impl ScanMode {
     /// Registry kinds this mode needs registered over `family`.
     pub const fn needs_for(self, family: Family) -> &'static [&'static str] {
         match self {
-            Self::Syn | Self::Connect => match family {
-                Family::V4 => &["ipv4", "tcp"],
-                Family::V6 => &["ipv6", "tcp"],
-            },
+            Self::Syn | Self::Connect | Self::Fin | Self::Null | Self::Xmas | Self::Ack => {
+                match family {
+                    Family::V4 => &["ipv4", "tcp"],
+                    Family::V6 => &["ipv6", "tcp"],
+                }
+            }
             Self::Udp => match family {
                 Family::V4 => &["ipv4", "udp"],
                 Family::V6 => &["ipv6", "udp"],
@@ -70,6 +106,8 @@ impl ScanMode {
                 Family::V4 => &["ipv4", "icmp"],
                 Family::V6 => &["ipv6", "icmpv6"],
             },
+            Self::Arp => &["eth", "arp"],
+            Self::Ndp | Self::Mld => &["ipv6", "icmpv6"],
         }
     }
 
@@ -78,12 +116,34 @@ impl ScanMode {
         self.needs_for(Family::V4)
     }
 
+    /// Host-discovery modes take one probe per target (no ports).
+    pub const fn is_host_mode(self) -> bool {
+        matches!(self, Self::Icmp | Self::Arp | Self::Ndp | Self::Mld)
+    }
+
+    /// The only family a host-discovery mode may run over (`None` =
+    /// either family, the tcp/udp/icmp modes).
+    pub const fn family_gate(self) -> Option<Family> {
+        match self {
+            Self::Arp => Some(Family::V4),
+            Self::Ndp | Self::Mld => Some(Family::V6),
+            _ => None,
+        }
+    }
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Syn => "syn",
             Self::Connect => "connect",
+            Self::Fin => "fin",
+            Self::Null => "null",
+            Self::Xmas => "xmas",
+            Self::Ack => "ack",
             Self::Udp => "udp",
             Self::Icmp => "icmp",
+            Self::Arp => "arp",
+            Self::Ndp => "ndp",
+            Self::Mld => "mld",
         }
     }
 }
@@ -104,6 +164,94 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(1);
 
 /// Max in-flight probes.
 pub const DEFAULT_CONCURRENT: usize = 256;
+
+/// Timing templates `-T0..-T5` (nmap's `-T` sugar): each is a named
+/// bundle of the T2 pacing vocabulary — a pacing step, a reply
+/// timeout, extra attempts and a concurrency budget. Pure sugar:
+/// every explicit `--rate/--interval/--timeout/--retries/--concurrent`
+/// flag wins over the template (the recipe-over-CLI precedent).
+/// `--seed` is NEVER implied — reproducibility stays explicit.
+pub const TIMING_TEMPLATES: [TimingTemplate; 6] = [
+    TimingTemplate {
+        name: "T0",
+        doc: "polite serial: 1s pacing, 5s timeout, one retransmission, 16 in flight",
+        interval: Duration::from_secs(1),
+        timeout: Duration::from_secs(5),
+        retries: 2,
+        concurrent: 16,
+    },
+    TimingTemplate {
+        name: "T1",
+        doc: "cautious: 200ms pacing, 3s timeout, one retransmission, 64 in flight",
+        interval: Duration::from_millis(200),
+        timeout: Duration::from_secs(3),
+        retries: 1,
+        concurrent: 64,
+    },
+    TimingTemplate {
+        name: "T2",
+        doc: "polite parallel: 50ms pacing, 2s timeout, 128 in flight",
+        interval: Duration::from_millis(50),
+        timeout: Duration::from_secs(2),
+        retries: 1,
+        concurrent: 128,
+    },
+    TimingTemplate {
+        name: "T3",
+        doc: "normal: uncapped burst, 1s timeout, one retransmission, 256 in flight (the defaults)",
+        interval: DEFAULT_INTERVAL,
+        timeout: DEFAULT_TIMEOUT,
+        retries: DEFAULT_RETRIES,
+        concurrent: DEFAULT_CONCURRENT,
+    },
+    TimingTemplate {
+        name: "T4",
+        doc: "aggressive: uncapped burst, 500ms timeout, no retransmission, 512 in flight",
+        interval: DEFAULT_INTERVAL,
+        timeout: Duration::from_millis(500),
+        retries: 0,
+        concurrent: 512,
+    },
+    TimingTemplate {
+        name: "T5",
+        doc: "insane: uncapped burst, 250ms timeout, no retransmission, 1024 in flight",
+        interval: DEFAULT_INTERVAL,
+        timeout: Duration::from_millis(250),
+        retries: 0,
+        concurrent: 1024,
+    },
+];
+
+/// One `-T0..-T5` timing template (see [`TIMING_TEMPLATES`]).
+#[derive(Clone, Copy, Debug)]
+pub struct TimingTemplate {
+    pub name: &'static str,
+    pub doc: &'static str,
+    pub interval: Duration,
+    pub timeout: Duration,
+    pub retries: u32,
+    pub concurrent: usize,
+}
+
+impl TimingTemplate {
+    /// Parse a `-T0..-T5` template selector (`None` → default T3).
+    pub fn parse(raw: Option<&str>) -> Result<Self, String> {
+        let Some(raw) = raw else {
+            return Ok(TIMING_TEMPLATES[3]);
+        };
+        let upper = raw.to_ascii_uppercase();
+        for t in TIMING_TEMPLATES {
+            if t.name == upper {
+                return Ok(t);
+            }
+        }
+        Err(timing_error(raw))
+    }
+}
+
+fn timing_error(raw: &str) -> String {
+    format!("unknown timing template `{raw}` (T0..T5)")
+}
 
 /// Probe-count guard: targets × ports beyond this is almost certainly a
 /// typo (the single-threaded runtime would take hours) → usage error.
@@ -165,10 +313,32 @@ impl ScanConfig {
             return Err("no targets given".to_string());
         }
 
+        // Family gates: arp is Ethernet-adjacent v4 only; ndp/mld are
+        // NDP/MLD v6 only (the T10b/T17b machinery).
+        if let Some(gate) = mode.family_gate() {
+            let family = targets.first().map(|t| t.family()).unwrap_or(Family::V4);
+            if family != gate {
+                return Err(format!(
+                    "{} mode requires {} targets",
+                    mode.as_str(),
+                    gate.ip_kind()
+                ));
+            }
+        }
+
         // Port resolution is mode-dependent.
         let ports = match (mode, ports_raw) {
             (ScanMode::Icmp, Some(_)) => {
                 return Err("icmp mode takes no --ports (it is a host sweep)".to_string());
+            }
+            (ScanMode::Arp, Some(_)) => {
+                return Err("arp mode takes no --ports (it is a host sweep)".to_string());
+            }
+            (ScanMode::Ndp, Some(_)) => {
+                return Err("ndp mode takes no --ports (it is a host sweep)".to_string());
+            }
+            (ScanMode::Mld, Some(_)) => {
+                return Err("mld mode takes no --ports (it is a group sweep)".to_string());
             }
             (ScanMode::Udp, None) => {
                 return Err(
@@ -176,8 +346,16 @@ impl ScanConfig {
                 );
             }
             (_, Some(spec)) => parse_ports(spec)?,
-            (ScanMode::Syn | ScanMode::Connect, None) => DEFAULT_TCP_PORTS.to_vec(),
-            (ScanMode::Icmp, None) => Vec::new(),
+            (
+                ScanMode::Syn
+                | ScanMode::Connect
+                | ScanMode::Fin
+                | ScanMode::Null
+                | ScanMode::Xmas
+                | ScanMode::Ack,
+                None,
+            ) => DEFAULT_TCP_PORTS.to_vec(),
+            (ScanMode::Icmp | ScanMode::Arp | ScanMode::Ndp | ScanMode::Mld, None) => Vec::new(),
         };
 
         // Probe-count guard.
@@ -220,7 +398,7 @@ impl ScanConfig {
     /// Total number of probes this scan will run.
     pub fn probe_count(&self) -> usize {
         match self.mode {
-            ScanMode::Icmp => self.targets.len(),
+            ScanMode::Icmp | ScanMode::Arp | ScanMode::Ndp | ScanMode::Mld => self.targets.len(),
             _ => self.targets.len() * self.ports.len(),
         }
     }
@@ -248,9 +426,108 @@ mod tests {
     fn mode_parse() {
         assert_eq!(ScanMode::parse(None).unwrap(), ScanMode::Syn);
         assert_eq!(ScanMode::parse(Some("udp")).unwrap(), ScanMode::Udp);
+        assert_eq!(ScanMode::parse(Some("fin")).unwrap(), ScanMode::Fin);
+        assert_eq!(ScanMode::parse(Some("null")).unwrap(), ScanMode::Null);
+        assert_eq!(ScanMode::parse(Some("xmas")).unwrap(), ScanMode::Xmas);
+        assert_eq!(ScanMode::parse(Some("ack")).unwrap(), ScanMode::Ack);
+        assert_eq!(ScanMode::parse(Some("arp")).unwrap(), ScanMode::Arp);
+        assert_eq!(ScanMode::parse(Some("ndp")).unwrap(), ScanMode::Ndp);
+        assert_eq!(ScanMode::parse(Some("mld")).unwrap(), ScanMode::Mld);
         assert!(ScanMode::parse(Some("synn")).is_err());
         assert_eq!(ScanMode::Udp.proto(), "udp");
         assert_eq!(ScanMode::Connect.needs(), &["ipv4", "tcp"]);
+        assert_eq!(ScanMode::Fin.proto_for(Family::V6), "tcp");
+        assert_eq!(ScanMode::Ack.needs_for(Family::V6), &["ipv6", "tcp"]);
+        assert_eq!(ScanMode::Arp.needs(), &["eth", "arp"]);
+        assert_eq!(ScanMode::Ndp.needs_for(Family::V6), &["ipv6", "icmpv6"]);
+        assert_eq!(ScanMode::Mld.proto_for(Family::V6), "icmpv6");
+        assert!(ScanMode::Arp.is_host_mode());
+        assert_eq!(ScanMode::Arp.family_gate(), Some(Family::V4));
+        assert_eq!(ScanMode::Mld.family_gate(), Some(Family::V6));
+        assert_eq!(ScanMode::Syn.family_gate(), None);
+        assert_eq!(ScanMode::Xmas.as_str(), "xmas");
+    }
+
+    #[test]
+    fn timing_templates() {
+        // default = T3 = the scan defaults
+        let t3 = TimingTemplate::parse(None).unwrap();
+        assert_eq!(t3.name, "T3");
+        assert_eq!(t3.interval, DEFAULT_INTERVAL);
+        assert_eq!(t3.timeout, DEFAULT_TIMEOUT);
+        assert_eq!(t3.retries, DEFAULT_RETRIES);
+        assert_eq!(t3.concurrent, DEFAULT_CONCURRENT);
+        let t0 = TimingTemplate::parse(Some("T0")).unwrap();
+        assert_eq!(t0.interval, Duration::from_secs(1));
+        assert!(t0.concurrent < t3.concurrent);
+        // case-insensitive T prefix
+        assert_eq!(TimingTemplate::parse(Some("t5")).unwrap().name, "T5");
+        assert!(TimingTemplate::parse(Some("T6")).is_err());
+        assert!(TimingTemplate::parse(Some("fast")).is_err());
+        assert!(TimingTemplate::parse(Some("")).is_err());
+        // committed invariants: monotone aggression
+        let names: Vec<&str> = TIMING_TEMPLATES.iter().map(|t| t.name).collect();
+        assert_eq!(names, vec!["T0", "T1", "T2", "T3", "T4", "T5"]);
+    }
+
+    #[test]
+    fn host_mode_family_gates_and_ports() {
+        // arp: v4 only, no ports
+        let cfg = build(ScanMode::Arp, None).unwrap();
+        assert!(cfg.ports.is_empty());
+        assert_eq!(cfg.probe_count(), 1);
+        assert!(build(ScanMode::Arp, Some("22")).is_err());
+        let e = ScanConfig::build(
+            ScanMode::Arp,
+            &["::1".to_string()],
+            None,
+            Duration::ZERO,
+            Duration::ZERO,
+            1,
+            1,
+            Duration::from_secs(1),
+            256,
+        )
+        .unwrap_err();
+        assert!(e.contains("arp mode requires ipv4 targets"), "{e}");
+        // ndp/mld: v6 only, no ports
+        assert!(
+            ScanConfig::build(
+                ScanMode::Ndp,
+                &["::1".to_string()],
+                None,
+                Duration::ZERO,
+                Duration::ZERO,
+                1,
+                1,
+                Duration::from_secs(1),
+                256,
+            )
+            .is_ok()
+        );
+        for mode in [ScanMode::Ndp, ScanMode::Mld] {
+            let e = ScanConfig::build(
+                mode,
+                &["127.0.0.1".to_string()],
+                None,
+                Duration::ZERO,
+                Duration::ZERO,
+                1,
+                1,
+                Duration::from_secs(1),
+                256,
+            )
+            .unwrap_err();
+            assert!(e.contains("ipv6 targets"), "{e}");
+        }
+    }
+
+    #[test]
+    fn variant_modes_default_ports() {
+        for mode in [ScanMode::Fin, ScanMode::Null, ScanMode::Xmas, ScanMode::Ack] {
+            let cfg = build(mode, None).unwrap();
+            assert_eq!(cfg.ports, DEFAULT_TCP_PORTS.to_vec(), "{:?}", mode);
+        }
     }
 
     #[test]

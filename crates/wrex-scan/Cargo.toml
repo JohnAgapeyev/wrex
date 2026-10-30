@@ -11,9 +11,12 @@ wrex-core = { workspace = true }
 wrex-io = { workspace = true }
 wrex-session = { workspace = true }
 bytes = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
+wrex-proto-eth = { workspace = true }
+wrex-proto-arp = { workspace = true }
 wrex-proto-ip = { workspace = true }
 wrex-proto-ip6 = { workspace = true }
 wrex-proto-icmp = { workspace = true }

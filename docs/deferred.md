@@ -116,7 +116,7 @@ instead; open *decisions* live in the roadmap's extension section.
 | Mobility/HIP/Shim6 dispatch | T17a | Won't-do (deliberately undispatched) |
 | 6LoWPAN/NHC | T17a | Parked |
 | MLD codecs (v1 triad, v2 query/report) | T7b | Closed by T17b |
-| MLD probing (scan/fuzz mode) | T17b | Open, P3 (the T10b NDP-probe precedent) |
+| MLD probing (scan/fuzz mode) | T17b | Closed by T21a — `wrex scan --mode mld` (MLDv1 query per group, report → alive); fuzz-mode MLD rides the icmpv6 probe shapes |
 | Parse-time span population for icmpv6 conditional bodies (mld.* / mld flags) | HP3-a (new) | Open, P2 — the fields are `None`-by-policy (no static layout; the conditional v1/v2 body position), patching is the pointed `UnsupportedPath`; the wire positions are pinned by the G3 KAV table + the G2 sweep instead |
 | Off-link NDP resolution | T7b | Closed by T10b |
 | NDP option crafting | T7b/T10b | Closed by T17b |

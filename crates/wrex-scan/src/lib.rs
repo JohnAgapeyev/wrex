@@ -20,13 +20,19 @@
 pub mod config;
 pub mod packet;
 pub mod report;
+pub mod service;
 pub mod session;
 pub mod target;
+pub mod trace;
 
-pub use config::{DEFAULT_INTERVAL, DEFAULT_TCP_PORTS, ScanConfig, ScanMode};
+pub use config::{
+    DEFAULT_INTERVAL, DEFAULT_TCP_PORTS, ScanConfig, ScanMode, TIMING_TEMPLATES, TimingTemplate,
+};
 pub use report::ScanResult;
+pub use service::{PROBE_TABLE, ServiceMatch, ServiceProbe, probe_service};
 pub use session::ScanSession;
 pub use target::{Family, ScanAddr};
+pub use trace::{TraceConfig, TraceHop, TraceMode, TraceSession};
 
 /// Seeded jitter source (moved to `wrex-io` at tranche 3; re-exported
 /// for source compatibility).

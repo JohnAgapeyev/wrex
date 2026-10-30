@@ -1608,7 +1608,7 @@ for wave selection:
 |--------|-----------|-------------------------------|
 | curl | http/1.1 + h2 + h2c + TLS + recipes + queues + redirects (T19) + cookies (T19) + basic/bearer/digest auth (T19) + content-decoding gzip/deflate/br/zstd (T19) + proxies CONNECT/absolute-form/SOCKS5 (T19) + the sugar pack (T19) | HTTP/3; the long-tail flags |
 | dig | UDP/TCP/TLS query, v4/v6, records dissection, compression, EDNS0 crafting + typed OPT/TLVs + the full typed-rdata table + reverse/short sugar (T20), DoH + mDNS/LLMNR dispatch (T20) | DoH over h2; the long-tail dig output formats |
-| nmap | SYN/connect/UDP/ICMP scan, v4/v6, seeded pacing, top-100 defaults | scan variants (FIN/NULL/XMAS/ACK), ARP/NDP discovery, traceroute, service/version, OS fingerprint |
+| nmap | SYN/connect/UDP/ICMP scan + FIN/NULL/XMAS/ACK variants, v4/v6, ARP/NDP/MLD discovery, traceroute (T21), seeded pacing, top-100 defaults, `-T0..-T5` sugar, service/version probe table (T21) | OS fingerprint (T30) |
 | scapy | craft/dissect/send/recv/mut/patch across 20+ codecs, lossless dissection, span patching, fragment reassembly | read-side TCP/IPv4 options typing, tunnel/encapsulation recursion, most L2/app protocols, scripted conversations |
 | tshark | pcap/pcapng read+write, replay, diff, fragment reassembly | non-Ethernet linktypes, BPF, TCP stream follow, conversations/stats, name resolution |
 
@@ -1913,25 +1913,111 @@ rationale in [verification.md](verification.md)):
     HP3 gates (bit-toggle on DO/z) + the hickory-server/dig
     capture scenario.
 
-- **T21 — scan breadth + discovery + traceroute (nmap closure)** —
-  wave 1; rides the T2 scan session, T7b icmpv6, and the arp
-  codec. Closes UC-1/3/4.
-
-  - **21a — modes**: FIN/NULL/XMAS/ACK variants (a new `unfiltered`
-    outcome state — RST-ack vs silence classification);
-    `--mode arp` host discovery (ARP-ping sweep, gratuitous
-    option); `--mode ndp` v6 ping (NS-based); timing templates
-    `-T0..-T5` as sugar over the T2 vocabulary.
-  - **21b — `wrex trace`**: the traceroute verb — TTL-walk
-    orchestration (icmp/udp/tcp modes), per-hop latency + ICMP
-    attribution (TTL-exceeded quotes = the unreachable-quote
-    machinery transposed), `--backoff`.
-  - Verification: ScriptedDriver state-machine walkthroughs for
-    every new mode/outcome; env-gated `lo` ground truth; veth-pair
-    lab for trace; outcome-reachability per the doctrine's
-    state-machine analog. Open decision: absorb the
-    service/version probe engine (backlog P1) here or charter it
-    separately.
+- **T21 — scan breadth + discovery + traceroute + service probes (nmap
+  closure)** — ✅ delivered (2026-10-30; chartered at the T21 planning
+  pass as three sub-tranches, all additive, every pinned pre-T21 wire
+  byte and output contract byte-identical; open decision #4 resolved
+  at planning: the service/version probe engine **absorbed as 21c**).
+  Closes UC-1/3/4/6. As-delivered:
+  - **21a — port-state variants + host discovery + timing sugar**.
+    `ScanMode` grows `fin`/`null`/`xmas`/`ack` (the nmap -sF/-sN/-sX/-sA
+    rules): RST → closed (fin/null/xmas), any SYN-bearing reply →
+    `unfiltered`, silence → `open|filtered` (fin family) / `filtered`
+    (ack — the mode maps filtering, not port state); no handshake
+    follow-ups (that is the point of the probes). `--mode arp`: ARP
+    request sweep over the **Ethernet driver** (`AF_PACKET` full frames
+    — the one mode dissected from `eth`), broadcast `eth.dst`, iface
+    MAC as `eth.src`/`sha`, reply `spa == target` → alive, silence →
+    dead; v4-only, no ports, iface MAC required (a pointed construction
+    error without one — `ScanSession::with_mac`). `--mode ndp`:
+    unicast NS (type 135, `ndp.target`, SLLA carried from the iface MAC
+    through the icmpv6 options grammar), NA from the target → alive.
+    `--mode mld`: MLDv1 query (type 130, `mld.addr` = the group) per
+    target, a report naming the group → alive (any member replies —
+    the report's source is a member, not the group) — **the T17b
+    MLD-probing ledger deferral closed**. `ProbeKey` grows the `Host`
+    arm (target-identity matching; the L4/Echo shapes unchanged).
+    `-T0..-T5` timing templates: committed bundles of the T2 vocabulary
+    (T3 = the defaults; every explicit flag wins over the template;
+    `--seed` never implied). Family gates fire before the iface lookup
+    (arp v4, ndp/mld v6 — usage exit 2).
+  - **21b — `wrex trace`** (new verb; the man page enumerates
+    automatically): `wrex-scan::trace` — the T2 `Session` contract
+    transposed to a TTL walk. One probe in flight, TTL 1..`--max-hops`
+    (default 30), `--wait` per-attempt (default 1s), `--retries` (1),
+    `--backoff` exponential retransmission pacing (`wait × N^(attempt
+    -1)`; the gate opens through `on_timeout` — the Idle-gate design
+    the scripted walkthrough pinned). Modes icmp (default: echo reply,
+    id match, ends the walk) / udp (default port 33434: a UDP reply or
+    ICMP port-unreachable quoting our datagram ends it) / tcp (default
+    port 80: SYN+ACK acking our seq, or RST, ends it). Hop attribution =
+    the scan unreachable-quote machinery transposed: ICMP/ICMPv6
+    time-exceeded quotes carry the original datagram; the inner
+    4-tuple / echo id must name OUR probe (v6: the 40-byte fixed inner
+    header, inner next_header — icmpv6 is 58 — the family-aware
+    `Quote::matches`), anything else is cross-talk; silent hops record
+    `*`/`silent` and the walk continues. Output: per-hop `{hop, target,
+    hop_addr, state, rtt_ms, attempts}` text/json/jsonl in walk order
+    (raw/hex pointed usage errors). v4 + v6 drivers as usual (family
+    from the target).
+  - **21c — the service/version probe engine** (backlog P1 absorbed):
+    `wrex-scan::service` — a **committed, data-driven probe table**
+    (NULL banner-grab + HTTPGet) + a **regex-anchored match DSL**
+    (`regex` reused per ADR-2 — matching is not wire control) with
+    `$1..$9` capture substitution into version templates, first hit
+    wins, probes in table order, **one fresh kernel `TcpDriver`
+    connection per probe** (the T9b rule), replies collected to EOF /
+    deadline / 4096-byte budget. CLI: `wrex scan --service` — the
+    post-pass over a completed scan's open TCP ports; `ScanResult`
+    grows the additive `service: {probe, service, version}` key
+    (json/jsonl; a suffix on text lines; absent unless the flag ran).
+    Probe failures are silence (the port may have closed since the scan
+    — racing reality), never exit 1. Deliberate deferrals recorded in
+    the ledger: UDP service probes, RPC null-probe tiers,
+    TLS-inside-probe (the T32 door), full `softmatch`/fallback
+    chaining.
+  - Verification: config/packet/session/trace/service unit suites
+    (mode grammar + family/port gates, template table invariants,
+    probe shapes dissect back — fin/null/xmas flags, ARP broadcast
+    request, NS+`ndp.target`+SLLA, MLD query — per-mode state-machine
+    walkthroughs incl. outcome-reachability (every classification
+    reachable under ScriptedDriver), cross-talk guards (unacked
+    SYN+ACK, foreign quotes), quote attribution v4+v6, backoff gating,
+    the `run`-loop scripted walk, version-template substitution
+    vectors, banner match vectors per rule); CLI grammar suites
+    (`scan` mode/template/`--service` gates + help rendering, the new
+    `trace_cli` — usage-vs-runtime mapping); env-gated `lo` ground
+    truth (FIN/NULL/XMAS against the kernel RST + a bound-silent
+    listener, ACK unfiltered/filtered, `-T4` end-to-end, NDP `::1`
+    alive, `--service` against stub SSH banners end-to-end text +
+    jsonl keys, trace walks icmp/udp/v6 — reached on `lo`); WF-31..34
+    executable workflows (UC-1/3/4/6 GAP→WORKS). Man pages regenerated
+    (`wrex-trace.1` new; `wrex-scan.1`, `wrex.1` updated), API snapshots
+    regenerated (wrex-scan grew `with_mac`, `TimingTemplate`, `trace`,
+    `service`), ledger/backlog reconciled. Deliberate deferrals:
+    arp/ndp/mld on a veth lab corpus (ScriptedDriver units + the `lo`
+    NDP ground truth carry the paths; a dedicated netns veth scenario
+    is the HP3-b harness extended — recorded P3), MLD *fuzz*-mode
+    probing (the scan-mode shapes ride the icmpv6 probe builder), trace
+    pacing between hops (backoff covers retransmissions), per-hop port
+    variation for the udp/tcp walk, trace parallelism (one probe in
+    flight by design — hop semantics are ordinal).
+  - Charter sketch as planned (kept for the record):
+    - **21a**: FIN/NULL/XMAS/ACK variants (a new `unfiltered` outcome
+      state — RST-ack vs silence classification); `--mode arp` host
+      discovery (ARP-ping sweep, gratuitous option); `--mode ndp` v6
+      ping (NS-based); timing templates `-T0..-T5` as sugar over the
+      T2 vocabulary.
+    - **21b — `wrex trace`**: the traceroute verb — TTL-walk
+      orchestration (icmp/udp/tcp modes), per-hop latency + ICMP
+      attribution (TTL-exceeded quotes = the unreachable-quote
+      machinery transposed), `--backoff`.
+    - Verification: ScriptedDriver state-machine walkthroughs for
+      every new mode/outcome; env-gated `lo` ground truth; veth-pair
+      lab for trace; outcome-reachability per the doctrine's
+      state-machine analog. Open decision: absorb the
+      service/version probe engine (backlog P1) here or charter it
+      separately.
 
 - **T22 — L3/L4 options read-side typing** — wave 1; rides T11
   spans/layouts; feeds T30 (fingerprint signatures), HP3-b (kernel

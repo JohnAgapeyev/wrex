@@ -1,0 +1,82 @@
+.ie \n(.g .ds Aq \(aq
+.el .ds Aq '
+.TH trace 1  "trace " 
+.SH NAME
+trace \- Traceroute: TTL\-walk a target (icmp/udp/tcp probes), per\-hop latency + ICMP quote attribution
+.SH SYNOPSIS
+\fBtrace\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-mode\fR] [\fB\-\-port\fR] [\fB\-\-max\-hops\fR] [\fB\-\-wait\fR] [\fB\-\-retries\fR] [\fB\-\-backoff\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> 
+.SH DESCRIPTION
+Traceroute: TTL\-walk a target (icmp/udp/tcp probes), per\-hop latency + ICMP quote attribution
+.SH OPTIONS
+.TP
+\fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
+Interface for send/recv
+.TP
+\fB\-\-format\fR \fI<FORMAT>\fR
+Output format: raw|hex|text|json|jsonl
+.TP
+\fB\-v\fR
+Verbosity (repeatable: \-v info, \-vv debug, \-vvv trace)
+.TP
+\fB\-\-no\-autofill\fR
+Disable every autofill/derivation (unspecified numeric fields → 0)
+.TP
+\fB\-\-strict\fR
+Validate the crafted packet after encode (violations → exit 2)
+.TP
+\fB\-\-mode\fR \fI<MODE>\fR
+Probe mode: icmp|udp|tcp (default icmp)
+.TP
+\fB\-\-port\fR \fI<PORT>\fR
+Probed port (udp: default 33434; tcp: default 80; icmp: none)
+.TP
+\fB\-\-max\-hops\fR \fI<MAX_HOPS>\fR
+Walk length in hops (default 30)
+.TP
+\fB\-\-wait\fR \fI<WAIT>\fR
+Per\-attempt reply wait (default 1s)
+.TP
+\fB\-\-retries\fR \fI<RETRIES>\fR
+Extra attempts per hop (default 1)
+.TP
+\fB\-\-backoff\fR \fI<BACKOFF>\fR
+Retransmission backoff base (wait x N^(attempt\-1); default 1)
+.TP
+\fB\-\-seed\fR \fI<SEED>\fR
+RNG seed (probe identities; default time\-derived)
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+.TP
+<\fITARGET\fR>
+Single target (one walk per run)
+.SH EXTRA
+TARGET:
+  one host (IPv4 or IPv6; a spec resolving to more than one address is
+  a usage error — one walk per run).
+
+MODES (\-\-mode):
+  icmp  echo probes (default): echo reply (id match) ends the walk
+  udp   datagrams to \-\-port (default 33434): a UDP reply or an ICMP
+        port\-unreachable quoting our datagram ends the walk
+  tcp   SYN to \-\-port (default 80): SYN+ACK or RST ends the walk
+  every mode: an ICMP/ICMPv6 time\-exceeded quoting OUR probe records
+  the quoting router as a hop (the quote\*(Aqs inner 4\-tuple / echo id
+  must name our probe — anything else is cross\-talk); a hop that
+  exhausts its attempts records as silent (`*`) and the walk moves on.
+
+WALK:
+  TTL 1..\-\-max\-hops (default 30), one probe in flight at a time;
+  \-\-retries extra attempts per hop; \-\-backoff N paces retransmissions
+  (wait x N^(attempt\-1); 1 = none); \-\-wait per\-attempt reply timeout
+  (default 1s).
+
+OUTPUT:
+  one line/record per hop in walk order: `{ttl}  {addr|*}  {state}
+  ({rtt}ms)` in text; {hop, target, hop_addr, state, rtt_ms,
+  attempts} in json/jsonl (raw/hex reject — trace output is data).
+
+EXAMPLES:
+  wrex trace \-i lo 127.0.0.1
+  wrex trace \-i eth0 \-\-mode udp \-\-port 33434 \-\-max\-hops 12 10.0.0.9
+  wrex trace \-i eth0 \-\-mode tcp \-\-port 443 \-\-wait 2s 2001:db8::1

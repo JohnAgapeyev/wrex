@@ -3005,10 +3005,13 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "proptest",
+ "regex",
  "serde",
  "serde_json",
  "wrex-core",
  "wrex-io",
+ "wrex-proto-arp",
+ "wrex-proto-eth",
  "wrex-proto-icmp",
  "wrex-proto-icmpv6",
  "wrex-proto-ip",

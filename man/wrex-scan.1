@@ -2,11 +2,11 @@
 .el .ds Aq '
 .TH scan 1  "scan " 
 .SH NAME
-scan \- Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
+scan \- Scan targets (TCP SYN/connect + variants, UDP, ICMP, ARP/NDP/MLD discovery) and classify ports/hosts
 .SH SYNOPSIS
-\fBscan\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-mode\fR] [\fB\-\-ports\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-concurrent\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> 
+\fBscan\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-mode\fR] [\fB\-\-ports\fR] [\fB\-\-rate\fR] [\fB\-\-interval\fR] [\fB\-\-jitter\fR] [\fB\-\-seed\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-concurrent\fR] [\fB\-T\fR|\fB\-\-timing\fR] [\fB\-\-service\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fITARGET\fR> 
 .SH DESCRIPTION
-Scan targets (TCP SYN/connect, UDP, ICMP) and classify ports/hosts
+Scan targets (TCP SYN/connect + variants, UDP, ICMP, ARP/NDP/MLD discovery) and classify ports/hosts
 .SH OPTIONS
 .TP
 \fB\-i\fR, \fB\-\-iface\fR \fI<IFACE>\fR
@@ -25,7 +25,7 @@ Disable every autofill/derivation (unspecified numeric fields → 0)
 Validate the crafted packet after encode (violations → exit 2)
 .TP
 \fB\-\-mode\fR \fI<MODE>\fR
-Scan mode: syn|connect|udp|icmp (default syn)
+Scan mode: syn|connect|fin|null|xmas|ack|udp|icmp|arp|ndp|mld (default syn)
 .TP
 \fB\-\-ports\fR \fI<PORTS>\fR
 Ports: comma list with ranges (default: top\-100 TCP for syn/connect; required for udp; illegal for icmp)
@@ -51,6 +51,12 @@ Per\-attempt reply timeout (default 1s)
 \fB\-\-concurrent\fR \fI<CONCURRENT>\fR
 Max in\-flight probes (default 256)
 .TP
+\fB\-T\fR, \fB\-\-timing\fR \fI<TEMPLATE>\fR
+Timing template T0..T5 (nmap sugar; explicit flags win; T3 = the defaults)
+.TP
+\fB\-\-service\fR
+Service/version probe the open TCP ports (committed probe table + regex match DSL; additive output key)
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
 .TP
@@ -68,17 +74,36 @@ MODES (\-\-mode):
   syn      TCP SYN scan (default): SYN+ACK \-> open (RST sent to kill
            the half\-open), RST \-> closed, silence \-> filtered
   connect  full handshake: ACK then RST after SYN+ACK \-> open
+  fin      TCP FIN probe (nmap \-sF): RST \-> closed, SYN+ACK \->
+           unfiltered, silence \-> open|filtered
+  null     flagless TCP probe (nmap \-sN): same rules as fin
+  xmas     FIN+PSH+URG probe (nmap \-sX): same rules as fin
+  ack      bare ACK probe (nmap \-sA): any RST \-> unfiltered (this
+           maps filtering, not port state), silence \-> filtered
   udp      empty datagrams: UDP reply \-> open, ICMP 3/3 \-> closed,
            ICMP 3/{1,2,9,10,13} \-> filtered, silence \-> open|filtered
            (v6 targets: ICMPv6 1/4 \-> closed — the RFC 4443 §3.1 port\-
            unreachable code — and 1/{0,1,2,3,5,6,7} \-> filtered)
   icmp     echo sweep (no ports): reply \-> alive, silence \-> dead
            (v6 targets speak icmpv6 echo, type 128/129)
+  arp      ARP ping sweep (no ports, v4): broadcast request per
+           target on \-i IFACE, reply \-> alive, silence \-> dead
+  ndp      NDP host discovery (no ports, v6): unicast NS per target
+           (SLLA carried), NA \-> alive, silence \-> dead
+  mld      MLD group discovery (no ports, v6): MLDv1 query per
+           target (a multicast group), report naming the group \->
+           alive, silence \-> dead
 
 PORTS (\-\-ports):
-  comma list with ranges (22,80,100\-200). syn/connect default to a
-  committed top\-100 TCP list (see wrex fields / the man page);
-  udp REQUIRES \-\-ports; icmp takes none.
+  comma list with ranges (22,80,100\-200). syn/connect/fin/null/xmas/
+  ack default to a committed top\-100 TCP list (see wrex fields / the
+  man page); udp REQUIRES \-\-ports; icmp/arp/ndp/mld take none.
+
+SERVICE (\-\-service):
+  post\-pass over the open TCP ports of a completed scan: one fresh
+  connection per committed probe (banner grab + HTTP GET), regex
+  match DSL over the replies — first hit renders service+version
+  (an additive key in json/jsonl, a suffix on text lines).
 
 TIMING:
   \-\-rate N        packets/sec (0 = uncapped burst)
@@ -93,6 +118,9 @@ TIMING:
   \-\-timeout DUR   per\-attempt reply timeout (default 1s)
   \-\-retries N     extra attempts per probe (default 1)
   \-\-concurrent N  max in\-flight probes (default 256)
+  \-T0..\-T5        timing templates (nmap\*(Aqs sugar): named bundles of
+                  the knobs above (T3 = the defaults); every explicit
+                  flag wins over the template; \-\-seed is NEVER implied
 
 PROBES:
   Datagrams injected kernel\-routed (raw\-IP socket for v4, AF_PACKET

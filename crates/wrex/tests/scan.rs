@@ -151,3 +151,104 @@ fn default_top100_ports_reach_the_session() {
     // unknown iface short-circuits before probes. exit 1 = grammar ok.
     assert_eq!(scan_code(&["-i", "definitely-not-here", "127.0.0.1"]), 1);
 }
+
+// --- T21: variant modes, host discovery, timing templates, --service --------
+
+#[test]
+fn t21_variant_mode_grammar_errors() {
+    // unknown mode still 2
+    let (code, stderr) = scan_err(&["-i", "lo", "--mode", "finn", "127.0.0.1"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("unknown scan mode"), "{stderr}");
+    // every new mode parses (reaches the iface lookup: exit 1); ndp/mld
+    // over a v4 target stop earlier at the family gate (exit 2).
+    for mode in ["fin", "null", "xmas", "ack", "arp"] {
+        assert_eq!(
+            scan_code(&["-i", "definitely-not-here", "--mode", mode, "127.0.0.1"]),
+            1,
+            "{mode}"
+        );
+    }
+    for mode in ["ndp", "mld"] {
+        assert_eq!(
+            scan_code(&["-i", "definitely-not-here", "--mode", mode, "127.0.0.1"]),
+            2,
+            "{mode}"
+        );
+    }
+}
+
+#[test]
+fn t21_host_modes_reject_ports_and_wrong_family() {
+    // host-discovery modes take no ports (v4 target for arp; v6 for
+    // ndp/mld — the family gate fires first otherwise)
+    let (code, stderr) = scan_err(&["-i", "lo", "--mode", "arp", "--ports", "22", "127.0.0.1"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("takes no --ports"), "{stderr}");
+    for mode in ["ndp", "mld"] {
+        let (code, stderr) = scan_err(&["-i", "lo", "--mode", mode, "--ports", "22", "::1"]);
+        assert_eq!(code, 2, "{mode}");
+        assert!(stderr.contains("takes no --ports"), "{mode}: {stderr}");
+    }
+    // arp is v4-only; ndp/mld are v6-only (family gates → usage 2)
+    let (code, stderr) = scan_err(&["-i", "lo", "--mode", "arp", "::1"]);
+    assert_eq!(code, 2);
+    assert!(
+        stderr.contains("arp mode requires ipv4 targets"),
+        "{stderr}"
+    );
+    for mode in ["ndp", "mld"] {
+        let (code, stderr) = scan_err(&["-i", "lo", "--mode", mode, "127.0.0.1"]);
+        assert_eq!(code, 2, "{mode}");
+        assert!(stderr.contains("requires ipv6 targets"), "{mode}: {stderr}");
+    }
+}
+
+#[test]
+fn t21_timing_template_grammar() {
+    // unknown template → 2
+    let (code, stderr) = scan_err(&["-i", "lo", "-T", "9", "127.0.0.1"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("unknown timing template"), "{stderr}");
+    let (code, stderr) = scan_err(&["-i", "lo", "--timing", "fast", "127.0.0.1"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("timing template"), "{stderr}");
+    // T0..T5 parse (reach the iface lookup: exit 1)
+    for t in ["T0", "T1", "T2", "T3", "T4", "T5", "t3"] {
+        assert_eq!(
+            scan_code(&["-i", "definitely-not-here", "-T", t, "127.0.0.1"]),
+            1,
+            "{t}"
+        );
+    }
+    // --service parses alongside (additive flag; no open ports to probe
+    // without a driver)
+    assert_eq!(
+        scan_code(&["-i", "definitely-not-here", "--service", "127.0.0.1"]),
+        1
+    );
+}
+
+#[test]
+fn t21_help_renders_the_new_grammar() {
+    let out = wrex()
+        .args(["scan", "--help"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for want in [
+        "--timing",
+        "-T",
+        "--service",
+        "fin",
+        "xmas",
+        "arp",
+        "ndp",
+        "mld",
+        "unfiltered",
+    ] {
+        assert!(stdout.contains(want), "missing `{want}`:\n{stdout}");
+    }
+}

@@ -8,6 +8,39 @@ tranche.
 
 ## [Unreleased]
 
+### Added — tranche 21: the nmap closure (scan variants, ARP/NDP/MLD discovery, traceroute, service probes)
+
+Three sub-tranches, all additive: every pinned pre-T21 wire byte and
+output contract is byte-identical (`ScanResult` grows only the
+opt-in `service` key). Closes UC-1/3/4/6.
+
+- **Port-state variants (`--mode fin|null|xmas|ack`)** — the nmap
+  -sF/-sN/-sX/-sA rules over the T2 scan session: RST → `closed`
+  (fin family), any SYN-bearing reply → `unfiltered`, silence →
+  `open|filtered` (fin family) / `filtered` (ack — it maps filtering,
+  not port state); no handshake follow-ups.
+- **Host discovery (`--mode arp`, `--mode ndp`, `--mode mld`)**: ARP
+  request sweeps over the Ethernet driver (broadcast frames, the one
+  mode dissected from `eth`; reply `spa == target` → alive); NDP
+  unicast NS probes (SLLA carried from the iface MAC); MLDv1 group
+  queries (a report naming the group → alive) — closing the T17b
+  MLD-probing deferral. `ProbeKey` grows the `Host` arm;
+  family gates (arp v4, ndp/mld v6) fire before the iface lookup.
+- **`wrex trace`** (new verb): the TTL walk as a `Session` state
+  machine — icmp/udp/tcp probes, per-hop latency, ICMP
+  time-exceeded quote attribution (the unreachable-quote machinery
+  transposed; the inner 4-tuple/echo id must name our probe),
+  `--max-hops/--wait/--retries/--backoff` (exponential retransmission
+  pacing), per-hop records in text/json/jsonl.
+- **Timing templates (`-T0..-T5`)**: nmap-sugar bundles of the T2
+  pacing vocabulary (T3 = the defaults; explicit flags win; `--seed`
+  never implied).
+- **Service/version probes (`wrex scan --service`)**: the backlog P1
+  probe engine absorbed — a committed, data-driven probe table (NULL
+  banner grab + HTTPGet) + a regex match DSL (`regex` reused per
+  ADR-2) with `$1..$9` version-template substitution, one fresh
+  kernel connection per probe, additive output key/suffix.
+
 ### Added — tranche 19: the curl closure (redirects, cookies, auth, content-decoding, proxies)
 
 Four slices, all additive: every pinned pre-T19 wire byte is
