@@ -239,9 +239,15 @@ impl TimingTemplate {
         let Some(raw) = raw else {
             return Ok(TIMING_TEMPLATES[3]);
         };
+        // accept `T4`, `t4` and the bare `4` (clap hands the flag
+        // value through untouched)
         let upper = raw.to_ascii_uppercase();
+        let want = match upper.strip_prefix('T') {
+            Some(rest) => format!("T{rest}"),
+            None => format!("T{upper}"),
+        };
         for t in TIMING_TEMPLATES {
-            if t.name == upper {
+            if t.name == want {
                 return Ok(t);
             }
         }
@@ -460,11 +466,14 @@ mod tests {
         let t0 = TimingTemplate::parse(Some("T0")).unwrap();
         assert_eq!(t0.interval, Duration::from_secs(1));
         assert!(t0.concurrent < t3.concurrent);
-        // case-insensitive T prefix
+        // case-insensitive T prefix, and the bare digit form
         assert_eq!(TimingTemplate::parse(Some("t5")).unwrap().name, "T5");
+        assert_eq!(TimingTemplate::parse(Some("T4")).unwrap().name, "T4");
+        assert_eq!(TimingTemplate::parse(Some("4")).unwrap().name, "T4");
         assert!(TimingTemplate::parse(Some("T6")).is_err());
         assert!(TimingTemplate::parse(Some("fast")).is_err());
         assert!(TimingTemplate::parse(Some("")).is_err());
+        assert!(TimingTemplate::parse(Some("6")).is_err());
         // committed invariants: monotone aggression
         let names: Vec<&str> = TIMING_TEMPLATES.iter().map(|t| t.name).collect();
         assert_eq!(names, vec!["T0", "T1", "T2", "T3", "T4", "T5"]);

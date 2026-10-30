@@ -213,8 +213,8 @@ fn t21_timing_template_grammar() {
     let (code, stderr) = scan_err(&["-i", "lo", "--timing", "fast", "127.0.0.1"]);
     assert_eq!(code, 2);
     assert!(stderr.contains("timing template"), "{stderr}");
-    // T0..T5 parse (reach the iface lookup: exit 1)
-    for t in ["T0", "T1", "T2", "T3", "T4", "T5", "t3"] {
+    // T0..T5 parse in every spelling (reach the iface lookup: exit 1)
+    for t in ["T0", "T1", "T2", "T3", "T4", "T5", "t3", "0", "4"] {
         assert_eq!(
             scan_code(&["-i", "definitely-not-here", "-T", t, "127.0.0.1"]),
             1,
