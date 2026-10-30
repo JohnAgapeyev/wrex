@@ -69,6 +69,12 @@ dhcproto = "0.15.0"
 # vocabulary the reqwest oracle also speaks).
 httparse = "1"
 http = "1"
+# Content-coding decode (tranche 19) + auth plumbing: base64 for the
+# Basic scheme; md-5/sha2 for the RFC 7616 digest 401-dance
+# (challenge-response is not wire control — ADR-2 reuse).
+base64 = "0.22"
+md-5 = "0.10"
+sha2 = "0.10"
 # HTTP differential oracle (in-process; blocking client; rustls-tls so
 # the tranche-8a https differential shares an engine lineage — dev-only,
 # it never reaches a shipped binary).

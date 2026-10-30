@@ -16,6 +16,10 @@ serde = { workspace = true }
 # recipe file parsing (single object / array / {"requests": [...]}) —
 # the tranche-9a queue entry point lives in the library.
 serde_json = { workspace = true }
+# Tranche 19: Basic-auth encoding + the RFC 7616 digest hashes.
+base64 = { workspace = true }
+md-5 = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -35,6 +35,8 @@ impl<T> core::convert::From<T> for wrex_test::corpus::Corpus
 pub fn wrex_test::corpus::Corpus::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::corpus::Corpus
 impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::Corpus
+impl<T> typenum::type_operators::Same for wrex_test::corpus::Corpus
+pub type wrex_test::corpus::Corpus::Output = T
 pub struct wrex_test::corpus::CorpusFrame
 pub wrex_test::corpus::CorpusFrame::bytes: alloc::vec::Vec<u8>
 pub wrex_test::corpus::CorpusFrame::expected: serde_json::value::Value
@@ -66,6 +68,8 @@ impl<T> core::convert::From<T> for wrex_test::corpus::CorpusFrame
 pub fn wrex_test::corpus::CorpusFrame::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::corpus::CorpusFrame
 impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::CorpusFrame
+impl<T> typenum::type_operators::Same for wrex_test::corpus::CorpusFrame
+pub type wrex_test::corpus::CorpusFrame::Output = T
 pub struct wrex_test::corpus::Manifest
 pub wrex_test::corpus::Manifest::frames: alloc::vec::Vec<alloc::string::String>
 pub wrex_test::corpus::Manifest::imported: alloc::string::String
@@ -101,6 +105,8 @@ pub fn wrex_test::corpus::Manifest::from(T) -> T
 impl<T> serde_core::de::DeserializeOwned for wrex_test::corpus::Manifest where T: for<'de> serde_core::de::Deserialize<'de>
 impl<T> tracing::instrument::Instrument for wrex_test::corpus::Manifest
 impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::Manifest
+impl<T> typenum::type_operators::Same for wrex_test::corpus::Manifest
+pub type wrex_test::corpus::Manifest::Output = T
 pub const wrex_test::corpus::MAX_FRAMES: usize
 pub fn wrex_test::corpus::import(&std::path::Path, &str) -> core::result::Result<std::path::PathBuf, alloc::string::String>
 pub fn wrex_test::corpus::matches_expected(&wrex_test::corpus::CorpusFrame, &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), alloc::string::String>
@@ -147,6 +153,8 @@ impl<T> core::convert::From<T> for wrex_test::gates::StrategyAudit
 pub fn wrex_test::gates::StrategyAudit::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::gates::StrategyAudit
 impl<T> tracing::instrument::WithSubscriber for wrex_test::gates::StrategyAudit
+impl<T> typenum::type_operators::Same for wrex_test::gates::StrategyAudit
+pub type wrex_test::gates::StrategyAudit::Output = T
 pub const wrex_test::gates::STRATEGY_EXEMPT: &[(&str, &str, &str)]
 pub fn wrex_test::gates::audit_strategy(&wrex_core::codec::Registry, &str, usize, usize) -> core::option::Option<wrex_test::gates::StrategyAudit>
 pub fn wrex_test::gates::codec_strategy(&str) -> core::option::Option<proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>>
@@ -190,6 +198,8 @@ impl<T> core::convert::From<T> for wrex_test::h2_stub::AlpnPick
 pub fn wrex_test::h2_stub::AlpnPick::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::AlpnPick
 impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::AlpnPick
+impl<T> typenum::type_operators::Same for wrex_test::h2_stub::AlpnPick
+pub type wrex_test::h2_stub::AlpnPick::Output = T
 pub struct wrex_test::h2_stub::H2Stub
 pub wrex_test::h2_stub::H2Stub::addr: core::net::socket_addr::SocketAddr
 pub wrex_test::h2_stub::H2Stub::ca_der: alloc::vec::Vec<u8>
@@ -219,6 +229,8 @@ impl<T> core::convert::From<T> for wrex_test::h2_stub::H2Stub
 pub fn wrex_test::h2_stub::H2Stub::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::H2Stub
 impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::H2Stub
+impl<T> typenum::type_operators::Same for wrex_test::h2_stub::H2Stub
+pub type wrex_test::h2_stub::H2Stub::Output = T
 pub struct wrex_test::h2_stub::H2cStub
 pub wrex_test::h2_stub::H2cStub::addr: core::net::socket_addr::SocketAddr
 impl core::marker::Freeze for wrex_test::h2_stub::H2cStub
@@ -246,6 +258,8 @@ impl<T> core::convert::From<T> for wrex_test::h2_stub::H2cStub
 pub fn wrex_test::h2_stub::H2cStub::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::H2cStub
 impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::H2cStub
+impl<T> typenum::type_operators::Same for wrex_test::h2_stub::H2cStub
+pub type wrex_test::h2_stub::H2cStub::Output = T
 pub fn wrex_test::h2_stub::spawn_h2(u16, &[u8], usize, wrex_test::h2_stub::AlpnPick) -> wrex_test::h2_stub::H2Stub
 pub fn wrex_test::h2_stub::spawn_h2c(u16, &[u8], usize) -> wrex_test::h2_stub::H2cStub
 pub mod wrex_test::harness
@@ -290,6 +304,8 @@ impl<T> core::convert::From<T> for wrex_test::oracle::DiffReport
 pub fn wrex_test::oracle::DiffReport::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::DiffReport
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::DiffReport
+impl<T> typenum::type_operators::Same for wrex_test::oracle::DiffReport
+pub type wrex_test::oracle::DiffReport::Output = T
 pub struct wrex_test::oracle::EtherparseOracle
 impl wrex_test::oracle::EtherparseOracle
 pub fn wrex_test::oracle::EtherparseOracle::compare(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> wrex_test::oracle::DiffReport
@@ -322,6 +338,8 @@ impl<T> core::convert::From<T> for wrex_test::oracle::EtherparseOracle
 pub fn wrex_test::oracle::EtherparseOracle::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::EtherparseOracle
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::EtherparseOracle
+impl<T> typenum::type_operators::Same for wrex_test::oracle::EtherparseOracle
+pub type wrex_test::oracle::EtherparseOracle::Output = T
 pub struct wrex_test::oracle::PcapWriter
 impl wrex_test::oracle::PcapWriter
 pub fn wrex_test::oracle::PcapWriter::finish(self) -> alloc::vec::Vec<u8>
@@ -354,6 +372,8 @@ impl<T> core::convert::From<T> for wrex_test::oracle::PcapWriter
 pub fn wrex_test::oracle::PcapWriter::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::PcapWriter
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::PcapWriter
+impl<T> typenum::type_operators::Same for wrex_test::oracle::PcapWriter
+pub type wrex_test::oracle::PcapWriter::Output = T
 pub struct wrex_test::oracle::TsharkOracle
 impl wrex_test::oracle::TsharkOracle
 pub fn wrex_test::oracle::TsharkOracle::available(&self) -> bool
@@ -388,6 +408,8 @@ impl<T> core::convert::From<T> for wrex_test::oracle::TsharkOracle
 pub fn wrex_test::oracle::TsharkOracle::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::TsharkOracle
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::TsharkOracle
+impl<T> typenum::type_operators::Same for wrex_test::oracle::TsharkOracle
+pub type wrex_test::oracle::TsharkOracle::Output = T
 pub trait wrex_test::oracle::Oracle: core::marker::Send + core::marker::Sync
 pub fn wrex_test::oracle::Oracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
 pub fn wrex_test::oracle::Oracle::is_available(&self) -> bool
@@ -447,6 +469,8 @@ impl<T> core::convert::From<T> for wrex_test::tls_stub::StubRequest
 pub fn wrex_test::tls_stub::StubRequest::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::tls_stub::StubRequest
 impl<T> tracing::instrument::WithSubscriber for wrex_test::tls_stub::StubRequest
+impl<T> typenum::type_operators::Same for wrex_test::tls_stub::StubRequest
+pub type wrex_test::tls_stub::StubRequest::Output = T
 pub struct wrex_test::tls_stub::TlsStub
 pub wrex_test::tls_stub::TlsStub::addr: core::net::socket_addr::SocketAddr
 pub wrex_test::tls_stub::TlsStub::ca_der: alloc::vec::Vec<u8>
@@ -476,6 +500,8 @@ impl<T> core::convert::From<T> for wrex_test::tls_stub::TlsStub
 pub fn wrex_test::tls_stub::TlsStub::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::tls_stub::TlsStub
 impl<T> tracing::instrument::WithSubscriber for wrex_test::tls_stub::TlsStub
+impl<T> typenum::type_operators::Same for wrex_test::tls_stub::TlsStub
+pub type wrex_test::tls_stub::TlsStub::Output = T
 pub fn wrex_test::tls_stub::spawn(alloc::vec::Vec<u8>, usize, usize, wrex_test::tls_stub::StubRequest) -> wrex_test::tls_stub::TlsStub
 pub struct wrex_test::PcapWriter
 impl wrex_test::oracle::PcapWriter
@@ -509,6 +535,8 @@ impl<T> core::convert::From<T> for wrex_test::oracle::PcapWriter
 pub fn wrex_test::oracle::PcapWriter::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::PcapWriter
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::PcapWriter
+impl<T> typenum::type_operators::Same for wrex_test::oracle::PcapWriter
+pub type wrex_test::oracle::PcapWriter::Output = T
 pub trait wrex_test::Oracle: core::marker::Send + core::marker::Sync
 pub fn wrex_test::Oracle::dissect_diff(&self, &[u8], &wrex_core::dissect::DissectedPacket) -> core::result::Result<(), wrex_test::oracle::DiffReport>
 pub fn wrex_test::Oracle::is_available(&self) -> bool

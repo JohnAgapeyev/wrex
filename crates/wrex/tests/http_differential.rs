@@ -395,6 +395,142 @@ fn cookie_differential_vs_curl() {
     assert_eq!(curl_body, wrex_body, "the echoed Cookie headers differ");
 }
 
+/// A server-side Digest verifier: the first request gets a 401 +
+/// challenge; a request whose `Authorization: Digest` response hash
+/// matches the server's own computation (same RFC 7616 §3.4 walk over
+/// the challenge it issued) gets `200 authok`. Both curl and wrex
+/// must clear it — the differential proves conformance, not
+/// implementation sameness.
+#[test]
+fn digest_differential_vs_curl() {
+    if !curl_enabled() {
+        eprintln!(
+            "digest_differential_vs_curl: skipping (curl not on PATH or WREX_DIFF_CURL unset)"
+        );
+        return;
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    let challenge = "Digest realm=\"diffrealm\", qop=\"auth\", \
+                     nonce=\"8f1b0f2c9d4e6a8b0f2c9d4e6a8b0f2c\", algorithm=MD5";
+    std::thread::spawn(move || {
+        for _ in 0..4 {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let head = String::from_utf8_lossy(&buf).to_string();
+            let lower = head.to_ascii_lowercase();
+            let resp: Vec<u8> = if !lower.contains("authorization:") {
+                format!("HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: {challenge}\r\nContent-Length: 0\r\n\r\n").into_bytes()
+            } else {
+                // Server-side verification with the same RFC walk.
+                let auth_line = head
+                    .lines()
+                    .find(|l| l.to_ascii_lowercase().starts_with("authorization:"))
+                    .unwrap_or_default();
+                let sent_response = auth_line
+                    .split("response=\"")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .unwrap_or_default()
+                    .to_string();
+                let uri = auth_line
+                    .split("uri=\"")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .unwrap_or_default()
+                    .to_string();
+                let method = head.split(' ').next().unwrap_or("GET");
+                let c = wrex_http::auth::parse_digest_challenge(challenge).unwrap();
+                let cnonce = auth_line
+                    .split("cnonce=\"")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .unwrap_or_default()
+                    .to_string();
+                // The client's own nc counts its attempts (curl counts
+                // the dead first connection too) — verify with the
+                // client's value, the challenge is ours either way.
+                let nc = auth_line
+                    .split("nc=")
+                    .nth(1)
+                    .and_then(|rest| rest.split(',').next())
+                    .and_then(|v| v.trim().parse::<u32>().ok())
+                    .unwrap_or(1);
+                let expected = wrex_http::auth::digest_authorization(
+                    &c,
+                    "Mufasa",
+                    "Circle Of Life",
+                    method,
+                    &uri,
+                    nc,
+                    &cnonce,
+                )
+                .unwrap();
+                let expected_response = expected
+                    .split("response=\"")
+                    .nth(1)
+                    .and_then(|rest| rest.split('"').next())
+                    .unwrap_or_default()
+                    .to_string();
+                if sent_response == expected_response {
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nauthok".to_vec()
+                } else {
+                    b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n".to_vec()
+                }
+            };
+            let _ = conn.write_all(&resp);
+            let _ = conn.shutdown(std::net::Shutdown::Write);
+            let _ = conn.set_read_timeout(Some(Duration::from_millis(200)));
+            let _ = conn.read(&mut chunk);
+        }
+    });
+
+    for client in ["curl", "wrex"] {
+        let out = if client == "curl" {
+            std::process::Command::new(which_curl().unwrap())
+                .args([
+                    "-s",
+                    "--digest",
+                    "-u",
+                    "Mufasa:Circle Of Life",
+                    &format!("http://{addr}/dir/index.html"),
+                ])
+                .output()
+                .expect("spawn curl")
+        } else {
+            assert_cmd::Command::new(env!("CARGO_BIN_EXE_wrex"))
+                .args([
+                    "http",
+                    "-u",
+                    "Mufasa:Circle Of Life",
+                    "--digest",
+                    "--format",
+                    "raw",
+                    &format!("http://{addr}/dir/index.html"),
+                ])
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+        };
+        let body = String::from_utf8_lossy(&out.stdout).to_string();
+        assert_eq!(body, "authok", "{client} failed the digest verifier");
+        assert!(out.status.success(), "{client} exited nonzero");
+    }
+}
+
 #[test]
 fn recipe_replays_byte_identical() {
     let json = r#"{

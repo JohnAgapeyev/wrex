@@ -53,6 +53,8 @@ impl<T> core::convert::From<T> for wrex::cli::Cmd
 pub fn wrex::cli::Cmd::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::Cmd
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::Cmd
+impl<T> typenum::type_operators::Same for wrex::cli::Cmd
+pub type wrex::cli::Cmd::Output = T
 pub struct wrex::cli::CaptureArgs
 pub wrex::cli::CaptureArgs::common: wrex::cli::Common
 pub wrex::cli::CaptureArgs::count: core::option::Option<u64>
@@ -99,6 +101,8 @@ impl<T> core::convert::From<T> for wrex::cli::CaptureArgs
 pub fn wrex::cli::CaptureArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::CaptureArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::CaptureArgs
+impl<T> typenum::type_operators::Same for wrex::cli::CaptureArgs
+pub type wrex::cli::CaptureArgs::Output = T
 pub struct wrex::cli::Cli
 pub wrex::cli::Cli::cmd: wrex::cli::Cmd
 impl wrex::cli::Cli
@@ -141,6 +145,8 @@ impl<T> core::convert::From<T> for wrex::cli::Cli
 pub fn wrex::cli::Cli::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::Cli
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::Cli
+impl<T> typenum::type_operators::Same for wrex::cli::Cli
+pub type wrex::cli::Cli::Output = T
 pub struct wrex::cli::Common
 pub wrex::cli::Common::format: core::option::Option<alloc::string::String>
 pub wrex::cli::Common::iface: core::option::Option<alloc::string::String>
@@ -185,6 +191,8 @@ impl<T> core::convert::From<T> for wrex::cli::Common
 pub fn wrex::cli::Common::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::Common
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::Common
+impl<T> typenum::type_operators::Same for wrex::cli::Common
+pub type wrex::cli::Common::Output = T
 pub struct wrex::cli::CompletionsArgs
 pub wrex::cli::CompletionsArgs::shell: clap_complete::aot::shells::shell::Shell
 impl clap_builder::derive::Args for wrex::cli::CompletionsArgs
@@ -223,6 +231,8 @@ impl<T> core::convert::From<T> for wrex::cli::CompletionsArgs
 pub fn wrex::cli::CompletionsArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::CompletionsArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::CompletionsArgs
+impl<T> typenum::type_operators::Same for wrex::cli::CompletionsArgs
+pub type wrex::cli::CompletionsArgs::Output = T
 pub struct wrex::cli::CraftArgs
 pub wrex::cli::CraftArgs::common: wrex::cli::Common
 impl clap_builder::derive::Args for wrex::cli::CraftArgs
@@ -261,6 +271,8 @@ impl<T> core::convert::From<T> for wrex::cli::CraftArgs
 pub fn wrex::cli::CraftArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::CraftArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::CraftArgs
+impl<T> typenum::type_operators::Same for wrex::cli::CraftArgs
+pub type wrex::cli::CraftArgs::Output = T
 pub struct wrex::cli::DiffArgs
 pub wrex::cli::DiffArgs::common: wrex::cli::Common
 pub wrex::cli::DiffArgs::files: alloc::vec::Vec<alloc::string::String>
@@ -300,6 +312,8 @@ impl<T> core::convert::From<T> for wrex::cli::DiffArgs
 pub fn wrex::cli::DiffArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::DiffArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::DiffArgs
+impl<T> typenum::type_operators::Same for wrex::cli::DiffArgs
+pub type wrex::cli::DiffArgs::Output = T
 pub struct wrex::cli::DissectArgs
 pub wrex::cli::DissectArgs::common: wrex::cli::Common
 pub wrex::cli::DissectArgs::frame: bool
@@ -341,6 +355,8 @@ impl<T> core::convert::From<T> for wrex::cli::DissectArgs
 pub fn wrex::cli::DissectArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::DissectArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::DissectArgs
+impl<T> typenum::type_operators::Same for wrex::cli::DissectArgs
+pub type wrex::cli::DissectArgs::Output = T
 pub struct wrex::cli::FieldsArgs
 pub wrex::cli::FieldsArgs::common: wrex::cli::Common
 pub wrex::cli::FieldsArgs::kind: core::option::Option<alloc::string::String>
@@ -380,6 +396,8 @@ impl<T> core::convert::From<T> for wrex::cli::FieldsArgs
 pub fn wrex::cli::FieldsArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::FieldsArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::FieldsArgs
+impl<T> typenum::type_operators::Same for wrex::cli::FieldsArgs
+pub type wrex::cli::FieldsArgs::Output = T
 pub struct wrex::cli::FuzzArgs
 pub wrex::cli::FuzzArgs::baseline: bool
 pub wrex::cli::FuzzArgs::common: wrex::cli::Common
@@ -434,11 +452,15 @@ impl<T> core::convert::From<T> for wrex::cli::FuzzArgs
 pub fn wrex::cli::FuzzArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::FuzzArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::FuzzArgs
+impl<T> typenum::type_operators::Same for wrex::cli::FuzzArgs
+pub type wrex::cli::FuzzArgs::Output = T
 pub struct wrex::cli::HttpArgs
+pub wrex::cli::HttpArgs::bearer: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::common: wrex::cli::Common
 pub wrex::cli::HttpArgs::cookie: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::cookie_jar: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::data: core::option::Option<alloc::string::String>
+pub wrex::cli::HttpArgs::digest: bool
 pub wrex::cli::HttpArgs::fail: bool
 pub wrex::cli::HttpArgs::follow: bool
 pub wrex::cli::HttpArgs::header: alloc::vec::Vec<alloc::string::String>
@@ -453,6 +475,7 @@ pub wrex::cli::HttpArgs::source_port: core::option::Option<u16>
 pub wrex::cli::HttpArgs::timeout: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::tls_ca: core::option::Option<alloc::string::String>
 pub wrex::cli::HttpArgs::tls_insecure: bool
+pub wrex::cli::HttpArgs::user: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for wrex::cli::HttpArgs
 pub fn wrex::cli::HttpArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn wrex::cli::HttpArgs::augment_args_for_update<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
@@ -489,6 +512,8 @@ impl<T> core::convert::From<T> for wrex::cli::HttpArgs
 pub fn wrex::cli::HttpArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::HttpArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::HttpArgs
+impl<T> typenum::type_operators::Same for wrex::cli::HttpArgs
+pub type wrex::cli::HttpArgs::Output = T
 pub struct wrex::cli::IfaceArgs
 pub wrex::cli::IfaceArgs::common: wrex::cli::Common
 pub wrex::cli::IfaceArgs::name: core::option::Option<alloc::string::String>
@@ -528,6 +553,8 @@ impl<T> core::convert::From<T> for wrex::cli::IfaceArgs
 pub fn wrex::cli::IfaceArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::IfaceArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::IfaceArgs
+impl<T> typenum::type_operators::Same for wrex::cli::IfaceArgs
+pub type wrex::cli::IfaceArgs::Output = T
 pub struct wrex::cli::MutArgs
 pub wrex::cli::MutArgs::common: wrex::cli::Common
 pub wrex::cli::MutArgs::count: core::option::Option<u64>
@@ -572,6 +599,8 @@ impl<T> core::convert::From<T> for wrex::cli::MutArgs
 pub fn wrex::cli::MutArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::MutArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::MutArgs
+impl<T> typenum::type_operators::Same for wrex::cli::MutArgs
+pub type wrex::cli::MutArgs::Output = T
 pub struct wrex::cli::PatchArgs
 pub wrex::cli::PatchArgs::common: wrex::cli::Common
 pub wrex::cli::PatchArgs::delete: alloc::vec::Vec<alloc::string::String>
@@ -621,6 +650,8 @@ impl<T> core::convert::From<T> for wrex::cli::PatchArgs
 pub fn wrex::cli::PatchArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::PatchArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::PatchArgs
+impl<T> typenum::type_operators::Same for wrex::cli::PatchArgs
+pub type wrex::cli::PatchArgs::Output = T
 pub struct wrex::cli::QueryArgs
 pub wrex::cli::QueryArgs::common: wrex::cli::Common
 pub wrex::cli::QueryArgs::name: alloc::string::String
@@ -671,6 +702,8 @@ impl<T> core::convert::From<T> for wrex::cli::QueryArgs
 pub fn wrex::cli::QueryArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::QueryArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::QueryArgs
+impl<T> typenum::type_operators::Same for wrex::cli::QueryArgs
+pub type wrex::cli::QueryArgs::Output = T
 pub struct wrex::cli::RecvArgs
 pub wrex::cli::RecvArgs::common: wrex::cli::Common
 pub wrex::cli::RecvArgs::count: core::option::Option<u64>
@@ -713,6 +746,8 @@ impl<T> core::convert::From<T> for wrex::cli::RecvArgs
 pub fn wrex::cli::RecvArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::RecvArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::RecvArgs
+impl<T> typenum::type_operators::Same for wrex::cli::RecvArgs
+pub type wrex::cli::RecvArgs::Output = T
 pub struct wrex::cli::ReplayArgs
 pub wrex::cli::ReplayArgs::common: wrex::cli::Common
 pub wrex::cli::ReplayArgs::count: core::option::Option<u64>
@@ -759,6 +794,8 @@ impl<T> core::convert::From<T> for wrex::cli::ReplayArgs
 pub fn wrex::cli::ReplayArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::ReplayArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::ReplayArgs
+impl<T> typenum::type_operators::Same for wrex::cli::ReplayArgs
+pub type wrex::cli::ReplayArgs::Output = T
 pub struct wrex::cli::ScanArgs
 pub wrex::cli::ScanArgs::common: wrex::cli::Common
 pub wrex::cli::ScanArgs::concurrent: core::option::Option<usize>
@@ -807,6 +844,8 @@ impl<T> core::convert::From<T> for wrex::cli::ScanArgs
 pub fn wrex::cli::ScanArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::ScanArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::ScanArgs
+impl<T> typenum::type_operators::Same for wrex::cli::ScanArgs
+pub type wrex::cli::ScanArgs::Output = T
 pub struct wrex::cli::SendArgs
 pub wrex::cli::SendArgs::common: wrex::cli::Common
 pub wrex::cli::SendArgs::count: core::option::Option<u64>
@@ -850,6 +889,8 @@ impl<T> core::convert::From<T> for wrex::cli::SendArgs
 pub fn wrex::cli::SendArgs::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::cli::SendArgs
 impl<T> tracing::instrument::WithSubscriber for wrex::cli::SendArgs
+impl<T> typenum::type_operators::Same for wrex::cli::SendArgs
+pub type wrex::cli::SendArgs::Output = T
 pub const wrex::cli::CAPTURE_AFTER_HELP: &str
 pub const wrex::cli::CRAFT_SEND_AFTER_HELP: &str
 pub const wrex::cli::DIFF_AFTER_HELP: &str
@@ -913,6 +954,8 @@ impl<T> core::convert::From<T> for wrex::edit::EditError
 pub fn wrex::edit::EditError::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::edit::EditError
 impl<T> tracing::instrument::WithSubscriber for wrex::edit::EditError
+impl<T> typenum::type_operators::Same for wrex::edit::EditError
+pub type wrex::edit::EditError::Output = T
 pub struct wrex::edit::EditSet
 impl wrex::edit::EditSet
 pub fn wrex::edit::EditSet::is_empty(&self) -> bool
@@ -944,6 +987,8 @@ impl<T> core::convert::From<T> for wrex::edit::EditSet
 pub fn wrex::edit::EditSet::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::edit::EditSet
 impl<T> tracing::instrument::WithSubscriber for wrex::edit::EditSet
+impl<T> typenum::type_operators::Same for wrex::edit::EditSet
+pub type wrex::edit::EditSet::Output = T
 pub fn wrex::edit::parse_edits(&wrex_core::codec::Registry, &wrex_core::patch::Scope, &[alloc::string::String], &[alloc::string::String], &[alloc::string::String]) -> core::result::Result<wrex::edit::EditSet, wrex::edit::EditError>
 pub fn wrex::edit::parse_indices(&str) -> core::result::Result<alloc::collections::btree::set::BTreeSet<usize>, wrex::edit::EditError>
 pub fn wrex::edit::parse_scope(core::option::Option<&str>, bool) -> core::result::Result<wrex_core::patch::Scope, wrex::edit::EditError>
@@ -1000,6 +1045,8 @@ impl<T> core::convert::From<T> for wrex::verbs::CliError
 pub fn wrex::verbs::CliError::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::verbs::CliError
 impl<T> tracing::instrument::WithSubscriber for wrex::verbs::CliError
+impl<T> typenum::type_operators::Same for wrex::verbs::CliError
+pub type wrex::verbs::CliError::Output = T
 pub enum wrex::verbs::Format
 pub wrex::verbs::Format::Hex
 pub wrex::verbs::Format::Json
@@ -1049,6 +1096,8 @@ impl<T> core::convert::From<T> for wrex::verbs::Format
 pub fn wrex::verbs::Format::from(T) -> T
 impl<T> tracing::instrument::Instrument for wrex::verbs::Format
 impl<T> tracing::instrument::WithSubscriber for wrex::verbs::Format
+impl<T> typenum::type_operators::Same for wrex::verbs::Format
+pub type wrex::verbs::Format::Output = T
 pub const wrex::verbs::MAX_STDIN: usize
 pub fn wrex::verbs::dispatch(&wrex::cli::Cli, &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), wrex::verbs::CliError>
 pub fn wrex::standard() -> wrex_core::codec::Registry

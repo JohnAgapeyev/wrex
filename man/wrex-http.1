@@ -4,7 +4,7 @@
 .SH NAME
 http \- HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH SYNOPSIS
-\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-L\fR|\fB\-\-follow\fR] [\fB\-\-max\-redirs\fR] [\fB\-b\fR|\fB\-\-cookie\fR] [\fB\-c\fR|\fB\-\-cookie\-jar\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
+\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-L\fR|\fB\-\-follow\fR] [\fB\-\-max\-redirs\fR] [\fB\-b\fR|\fB\-\-cookie\fR] [\fB\-c\fR|\fB\-\-cookie\-jar\fR] [\fB\-\-fail\fR] [\fB\-u\fR|\fB\-\-user\fR] [\fB\-\-bearer\fR] [\fB\-\-digest\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
 .SH DESCRIPTION
 HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH OPTIONS
@@ -71,6 +71,15 @@ Write the (updated) cookie jar here on exit, Netscape format (curl \-c); implies
 .TP
 \fB\-\-fail\fR
 Exit 1 on 4xx/5xx statuses (completed exchanges stay data)
+.TP
+\fB\-u\fR, \fB\-\-user\fR \fI<USER[:PASS]>\fR
+Basic\-auth credentials (tranche 19a): `Authorization: Basic` on every request (curl \-u). USER alone = empty password
+.TP
+\fB\-\-bearer\fR \fI<TOKEN>\fR
+`Authorization: Bearer TOKEN` on every request (exclusive with \-\-user)
+.TP
+\fB\-\-digest\fR
+With \-\-user: answer a `401` carrying a Digest challenge via the RFC 7616 dance (no preemptive header; MD5, MD5\-sess, SHA\-256, SHA\-256\-sess, qop=auth and the legacy no\-qop shape; a Basic\-only 401 stays data)
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help

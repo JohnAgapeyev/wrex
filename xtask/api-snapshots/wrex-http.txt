@@ -1,5 +1,55 @@
 pub mod wrex_http
 pub use wrex_http::http
+pub mod wrex_http::auth
+pub struct wrex_http::auth::DigestChallenge
+pub wrex_http::auth::DigestChallenge::algorithm: core::option::Option<alloc::string::String>
+pub wrex_http::auth::DigestChallenge::nonce: alloc::string::String
+pub wrex_http::auth::DigestChallenge::opaque: core::option::Option<alloc::string::String>
+pub wrex_http::auth::DigestChallenge::qop: core::option::Option<alloc::string::String>
+pub wrex_http::auth::DigestChallenge::realm: alloc::string::String
+impl core::clone::Clone for wrex_http::auth::DigestChallenge
+pub fn wrex_http::auth::DigestChallenge::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::auth::DigestChallenge
+impl core::cmp::PartialEq for wrex_http::auth::DigestChallenge
+pub fn wrex_http::auth::DigestChallenge::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::auth::DigestChallenge
+pub fn wrex_http::auth::DigestChallenge::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::auth::DigestChallenge
+impl core::marker::Freeze for wrex_http::auth::DigestChallenge
+impl core::marker::Send for wrex_http::auth::DigestChallenge
+impl core::marker::Sync for wrex_http::auth::DigestChallenge
+impl core::marker::Unpin for wrex_http::auth::DigestChallenge
+impl core::marker::UnsafeUnpin for wrex_http::auth::DigestChallenge
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::auth::DigestChallenge
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::auth::DigestChallenge
+impl<T, U> core::convert::Into<U> for wrex_http::auth::DigestChallenge where U: core::convert::From<T>
+pub fn wrex_http::auth::DigestChallenge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::auth::DigestChallenge where U: core::convert::Into<T>
+pub type wrex_http::auth::DigestChallenge::Error = never
+pub fn wrex_http::auth::DigestChallenge::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::auth::DigestChallenge where U: core::convert::TryFrom<T>
+pub type wrex_http::auth::DigestChallenge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::auth::DigestChallenge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::auth::DigestChallenge where T: core::clone::Clone
+pub type wrex_http::auth::DigestChallenge::Owned = T
+pub fn wrex_http::auth::DigestChallenge::clone_into(&self, &mut T)
+pub fn wrex_http::auth::DigestChallenge::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::auth::DigestChallenge where T: 'static + ?core::marker::Sized
+pub fn wrex_http::auth::DigestChallenge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::auth::DigestChallenge where T: ?core::marker::Sized
+pub fn wrex_http::auth::DigestChallenge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::auth::DigestChallenge where T: ?core::marker::Sized
+pub fn wrex_http::auth::DigestChallenge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::auth::DigestChallenge where T: core::clone::Clone
+pub unsafe fn wrex_http::auth::DigestChallenge::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::auth::DigestChallenge
+pub fn wrex_http::auth::DigestChallenge::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::auth::DigestChallenge
+pub type wrex_http::auth::DigestChallenge::Output = T
+pub fn wrex_http::auth::basic_authorization(&str, &str) -> alloc::string::String
+pub fn wrex_http::auth::deterministic_cnonce(&str, &str, &str, &str) -> alloc::string::String
+pub fn wrex_http::auth::digest_authorization(&wrex_http::auth::DigestChallenge, &str, &str, &str, &str, u32, &str) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn wrex_http::auth::parse_digest_challenge(&str) -> core::option::Option<wrex_http::auth::DigestChallenge>
 pub mod wrex_http::cookies
 pub struct wrex_http::cookies::Cookie
 pub wrex_http::cookies::Cookie::creation: std::time::SystemTime
@@ -48,6 +98,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::cookies::Cookie where T: core:
 pub unsafe fn wrex_http::cookies::Cookie::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::cookies::Cookie
 pub fn wrex_http::cookies::Cookie::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::cookies::Cookie
+pub type wrex_http::cookies::Cookie::Output = T
 pub struct wrex_http::cookies::CookieJar
 impl wrex_http::cookies::CookieJar
 pub fn wrex_http::cookies::CookieJar::cookie_header(&self, &str, &str, bool, std::time::SystemTime) -> core::option::Option<alloc::string::String>
@@ -93,13 +145,17 @@ impl<T> core::clone::CloneToUninit for wrex_http::cookies::CookieJar where T: co
 pub unsafe fn wrex_http::cookies::CookieJar::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::cookies::CookieJar
 pub fn wrex_http::cookies::CookieJar::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::cookies::CookieJar
+pub type wrex_http::cookies::CookieJar::Output = T
 pub fn wrex_http::cookies::parse_http_date(&str) -> core::option::Option<std::time::SystemTime>
 pub mod wrex_http::recipe
 pub struct wrex_http::recipe::Recipe
+pub wrex_http::recipe::Recipe::bearer: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::body_framing: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::body_hex: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::body_text: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::digest: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::follow: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub wrex_http::recipe::Recipe::hpack: core::option::Option<alloc::string::String>
@@ -112,6 +168,7 @@ pub wrex_http::recipe::Recipe::timeout_ms: core::option::Option<u64>
 pub wrex_http::recipe::Recipe::tls_ca: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::tls_insecure: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::url: alloc::string::String
+pub wrex_http::recipe::Recipe::user: core::option::Option<alloc::string::String>
 impl wrex_http::recipe::Recipe
 pub fn wrex_http::recipe::Recipe::into_request(self) -> core::result::Result<(wrex_http::request::HttpRequestSpec, wrex_http::recipe::RecipeOverrides), alloc::string::String>
 pub fn wrex_http::recipe::Recipe::parse_recipes(&str) -> core::result::Result<alloc::vec::Vec<wrex_http::recipe::Recipe>, alloc::string::String>
@@ -151,7 +208,11 @@ pub unsafe fn wrex_http::recipe::Recipe::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::recipe::Recipe
 pub fn wrex_http::recipe::Recipe::from(T) -> T
 impl<T> serde_core::de::DeserializeOwned for wrex_http::recipe::Recipe where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for wrex_http::recipe::Recipe
+pub type wrex_http::recipe::Recipe::Output = T
 pub struct wrex_http::recipe::RecipeOverrides
+pub wrex_http::recipe::RecipeOverrides::bearer: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::RecipeOverrides::digest: core::option::Option<bool>
 pub wrex_http::recipe::RecipeOverrides::follow: core::option::Option<bool>
 pub wrex_http::recipe::RecipeOverrides::hpack: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::RecipeOverrides::http_version: core::option::Option<alloc::string::String>
@@ -161,6 +222,7 @@ pub wrex_http::recipe::RecipeOverrides::retries: core::option::Option<u32>
 pub wrex_http::recipe::RecipeOverrides::timeout_ms: core::option::Option<u64>
 pub wrex_http::recipe::RecipeOverrides::tls_ca: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::RecipeOverrides::tls_insecure: core::option::Option<bool>
+pub wrex_http::recipe::RecipeOverrides::user: core::option::Option<alloc::string::String>
 impl core::clone::Clone for wrex_http::recipe::RecipeOverrides
 pub fn wrex_http::recipe::RecipeOverrides::clone(&self) -> Self
 impl core::default::Default for wrex_http::recipe::RecipeOverrides
@@ -196,6 +258,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::recipe::RecipeOverrides where 
 pub unsafe fn wrex_http::recipe::RecipeOverrides::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::recipe::RecipeOverrides
 pub fn wrex_http::recipe::RecipeOverrides::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::recipe::RecipeOverrides
+pub type wrex_http::recipe::RecipeOverrides::Output = T
 pub mod wrex_http::redirect
 pub struct wrex_http::redirect::Redirect
 pub wrex_http::redirect::Redirect::drop_body: bool
@@ -238,6 +302,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::redirect::Redirect where T: co
 pub unsafe fn wrex_http::redirect::Redirect::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::redirect::Redirect
 pub fn wrex_http::redirect::Redirect::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::redirect::Redirect
+pub type wrex_http::redirect::Redirect::Output = T
 pub fn wrex_http::redirect::authority_key(&http::uri::Uri) -> alloc::string::String
 pub fn wrex_http::redirect::classify(&wrex_http::response::HttpResponse, &http::method::Method, &http::uri::Uri) -> core::option::Option<core::result::Result<wrex_http::redirect::Redirect, alloc::string::String>>
 pub fn wrex_http::redirect::resolve_location(&http::uri::Uri, &str) -> core::result::Result<http::uri::Uri, alloc::string::String>
@@ -286,6 +352,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::request::RequestFraming where 
 pub unsafe fn wrex_http::request::RequestFraming::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::request::RequestFraming
 pub fn wrex_http::request::RequestFraming::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::request::RequestFraming
+pub type wrex_http::request::RequestFraming::Output = T
 pub struct wrex_http::request::HttpRequestSpec
 pub wrex_http::request::HttpRequestSpec::body: bytes::bytes::Bytes
 pub wrex_http::request::HttpRequestSpec::chunk_size: usize
@@ -331,6 +399,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::request::HttpRequestSpec where
 pub unsafe fn wrex_http::request::HttpRequestSpec::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::request::HttpRequestSpec
 pub fn wrex_http::request::HttpRequestSpec::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::request::HttpRequestSpec
+pub type wrex_http::request::HttpRequestSpec::Output = T
 pub const wrex_http::request::DEFAULT_CHUNK_SIZE: usize
 pub const wrex_http::request::DEFAULT_USER_AGENT: &str
 pub mod wrex_http::response
@@ -380,6 +450,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::response::HttpResponse where T
 pub unsafe fn wrex_http::response::HttpResponse::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::response::HttpResponse
 pub fn wrex_http::response::HttpResponse::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::response::HttpResponse
+pub type wrex_http::response::HttpResponse::Output = T
 pub mod wrex_http::session
 pub enum wrex_http::session::HttpOutcome
 pub wrex_http::session::HttpOutcome::Closed
@@ -425,6 +497,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::session::HttpOutcome where T: 
 pub unsafe fn wrex_http::session::HttpOutcome::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::session::HttpOutcome
 pub fn wrex_http::session::HttpOutcome::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::session::HttpOutcome
+pub type wrex_http::session::HttpOutcome::Output = T
 pub struct wrex_http::session::HttpClientSession
 impl wrex_http::session::HttpClientSession
 pub fn wrex_http::session::HttpClientSession::new(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
@@ -461,6 +535,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpClientSession whe
 pub fn wrex_http::session::HttpClientSession::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_http::session::HttpClientSession
 pub fn wrex_http::session::HttpClientSession::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::session::HttpClientSession
+pub type wrex_http::session::HttpClientSession::Output = T
 pub struct wrex_http::session::HttpConfig
 pub wrex_http::session::HttpConfig::max_bytes: usize
 pub wrex_http::session::HttpConfig::timeout: core::time::Duration
@@ -498,6 +574,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::session::HttpConfig where T: c
 pub unsafe fn wrex_http::session::HttpConfig::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::session::HttpConfig
 pub fn wrex_http::session::HttpConfig::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::session::HttpConfig
+pub type wrex_http::session::HttpConfig::Output = T
 pub enum wrex_http::BodyFraming
 pub wrex_http::BodyFraming::Chunked
 pub wrex_http::BodyFraming::ContentLength
@@ -541,6 +619,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::BodyFraming where T: core::clo
 pub unsafe fn wrex_http::BodyFraming::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::BodyFraming
 pub fn wrex_http::BodyFraming::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::BodyFraming
+pub type wrex_http::BodyFraming::Output = T
 pub enum wrex_http::HttpOutcome
 pub wrex_http::HttpOutcome::Closed
 pub wrex_http::HttpOutcome::Malformed(alloc::string::String)
@@ -585,6 +665,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::session::HttpOutcome where T: 
 pub unsafe fn wrex_http::session::HttpOutcome::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::session::HttpOutcome
 pub fn wrex_http::session::HttpOutcome::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::session::HttpOutcome
+pub type wrex_http::session::HttpOutcome::Output = T
 pub enum wrex_http::RequestFraming
 pub wrex_http::RequestFraming::Chunked
 pub wrex_http::RequestFraming::Length
@@ -628,6 +710,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::request::RequestFraming where 
 pub unsafe fn wrex_http::request::RequestFraming::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::request::RequestFraming
 pub fn wrex_http::request::RequestFraming::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::request::RequestFraming
+pub type wrex_http::request::RequestFraming::Output = T
 pub struct wrex_http::Cookie
 pub wrex_http::Cookie::creation: std::time::SystemTime
 pub wrex_http::Cookie::domain: alloc::string::String
@@ -675,6 +759,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::cookies::Cookie where T: core:
 pub unsafe fn wrex_http::cookies::Cookie::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::cookies::Cookie
 pub fn wrex_http::cookies::Cookie::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::cookies::Cookie
+pub type wrex_http::cookies::Cookie::Output = T
 pub struct wrex_http::CookieJar
 impl wrex_http::cookies::CookieJar
 pub fn wrex_http::cookies::CookieJar::cookie_header(&self, &str, &str, bool, std::time::SystemTime) -> core::option::Option<alloc::string::String>
@@ -720,6 +806,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::cookies::CookieJar where T: co
 pub unsafe fn wrex_http::cookies::CookieJar::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::cookies::CookieJar
 pub fn wrex_http::cookies::CookieJar::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::cookies::CookieJar
+pub type wrex_http::cookies::CookieJar::Output = T
 pub struct wrex_http::HttpClientSession
 impl wrex_http::session::HttpClientSession
 pub fn wrex_http::session::HttpClientSession::new(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
@@ -756,6 +844,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_http::session::HttpClientSession whe
 pub fn wrex_http::session::HttpClientSession::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_http::session::HttpClientSession
 pub fn wrex_http::session::HttpClientSession::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::session::HttpClientSession
+pub type wrex_http::session::HttpClientSession::Output = T
 pub struct wrex_http::HttpConfig
 pub wrex_http::HttpConfig::max_bytes: usize
 pub wrex_http::HttpConfig::timeout: core::time::Duration
@@ -793,6 +883,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::session::HttpConfig where T: c
 pub unsafe fn wrex_http::session::HttpConfig::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::session::HttpConfig
 pub fn wrex_http::session::HttpConfig::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::session::HttpConfig
+pub type wrex_http::session::HttpConfig::Output = T
 pub struct wrex_http::HttpRequestSpec
 pub wrex_http::HttpRequestSpec::body: bytes::bytes::Bytes
 pub wrex_http::HttpRequestSpec::chunk_size: usize
@@ -838,6 +930,8 @@ impl<T> core::clone::CloneToUninit for wrex_http::request::HttpRequestSpec where
 pub unsafe fn wrex_http::request::HttpRequestSpec::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::request::HttpRequestSpec
 pub fn wrex_http::request::HttpRequestSpec::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::request::HttpRequestSpec
+pub type wrex_http::request::HttpRequestSpec::Output = T
 pub struct wrex_http::HttpResponse
 pub wrex_http::HttpResponse::body: bytes::bytes::Bytes
 pub wrex_http::HttpResponse::headers: http::header::map::HeaderMap
@@ -884,11 +978,15 @@ impl<T> core::clone::CloneToUninit for wrex_http::response::HttpResponse where T
 pub unsafe fn wrex_http::response::HttpResponse::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::response::HttpResponse
 pub fn wrex_http::response::HttpResponse::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::response::HttpResponse
+pub type wrex_http::response::HttpResponse::Output = T
 pub struct wrex_http::Recipe
+pub wrex_http::Recipe::bearer: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_framing: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_hex: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_text: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::Recipe::digest: core::option::Option<bool>
 pub wrex_http::Recipe::follow: core::option::Option<bool>
 pub wrex_http::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub wrex_http::Recipe::hpack: core::option::Option<alloc::string::String>
@@ -901,6 +999,7 @@ pub wrex_http::Recipe::timeout_ms: core::option::Option<u64>
 pub wrex_http::Recipe::tls_ca: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::tls_insecure: core::option::Option<bool>
 pub wrex_http::Recipe::url: alloc::string::String
+pub wrex_http::Recipe::user: core::option::Option<alloc::string::String>
 impl wrex_http::recipe::Recipe
 pub fn wrex_http::recipe::Recipe::into_request(self) -> core::result::Result<(wrex_http::request::HttpRequestSpec, wrex_http::recipe::RecipeOverrides), alloc::string::String>
 pub fn wrex_http::recipe::Recipe::parse_recipes(&str) -> core::result::Result<alloc::vec::Vec<wrex_http::recipe::Recipe>, alloc::string::String>
@@ -940,6 +1039,8 @@ pub unsafe fn wrex_http::recipe::Recipe::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::recipe::Recipe
 pub fn wrex_http::recipe::Recipe::from(T) -> T
 impl<T> serde_core::de::DeserializeOwned for wrex_http::recipe::Recipe where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for wrex_http::recipe::Recipe
+pub type wrex_http::recipe::Recipe::Output = T
 pub struct wrex_http::Redirect
 pub wrex_http::Redirect::drop_body: bool
 pub wrex_http::Redirect::method: http::method::Method
@@ -981,4 +1082,6 @@ impl<T> core::clone::CloneToUninit for wrex_http::redirect::Redirect where T: co
 pub unsafe fn wrex_http::redirect::Redirect::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::redirect::Redirect
 pub fn wrex_http::redirect::Redirect::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_http::redirect::Redirect
+pub type wrex_http::redirect::Redirect::Output = T
 pub const wrex_http::DEFAULT_CHUNK_SIZE: usize

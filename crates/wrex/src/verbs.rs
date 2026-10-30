@@ -2068,16 +2068,20 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
 
     // Tranche 19a: the follow/cookie plan (recipe knobs ride the cfgs).
     let mut plan = HttpPlan::from_args(args, &cfgs)?;
+    // …and the auth plan (basic/bearer preemptive, digest on 401).
+    let auth = VerbAuth::from_args(args, &cfgs)?;
 
     // h2 keeps the T15 whole-queue runner (one H2Session per
     // connection, N concurrent streams — the pinned wire behavior)
-    // unless a per-hop knob opts into per-exchange driving; an h2 hop
-    // under follow then opens a fresh connection (stream-reuse
-    // across hops is a recorded deferral).
-    let done = if want_h2 && !plan.per_hop() {
-        http_h2_whole_queue(args, specs, &cfgs, &mut plan, hpack_policy)?
+    // unless a per-hop knob opts into per-exchange driving (redirect
+    // following, the digest dance); an h2 hop under follow then
+    // opens a fresh connection (stream-reuse across hops is a
+    // recorded deferral).
+    let per_hop = plan.per_hop() || auth.digest;
+    let done = if want_h2 && !per_hop {
+        http_h2_whole_queue(args, specs, &cfgs, &mut plan, &auth, hpack_policy)?
     } else {
-        http_per_exchange(args, specs, &cfgs, &mut plan, want_h2, hpack_policy)?
+        http_per_exchange(args, specs, &cfgs, &mut plan, &auth, want_h2, hpack_policy)?
     };
 
     plan.save_jar()?;
@@ -2107,6 +2111,7 @@ fn http_per_exchange(
     specs: Vec<wrex_http::HttpRequestSpec>,
     cfgs: &[HttpVerbConfig],
     plan: &mut HttpPlan,
+    auth: &VerbAuth,
     want_h2: bool,
     hpack: wrex_h2::HpackEncodePolicy,
 ) -> Result<Vec<ExchangeResult>, CliError> {
@@ -2121,15 +2126,61 @@ fn http_per_exchange(
         let mut keep_alive = specs.len() - i > 1 || plan.follow;
         let mut spec = spec.clone();
         let mut chain: Vec<(String, u16)> = Vec::new();
+        // One digest dance per URL (a redirect to a new URL may 401
+        // again); nc counts the dances within this request.
+        let mut digest_nc = 0u32;
+        let mut digest_done_for: Option<String> = None;
+        let mut is_reissue = false;
         let response = loop {
             inject_cookie_header(&mut spec, plan);
-            let outcome = runner.run_with_retries(&spec, cfg, keep_alive)?;
+            inject_auth_header(&mut spec, auth, None);
+            let outcome = runner.run_with_retries(&spec, cfg, keep_alive, is_reissue)?;
             // A follow-up (if any) may itself be followed.
             keep_alive = true;
             let HttpOutcome::Response(resp) = outcome else {
                 unreachable!("run_with_retries maps every failure")
             };
             plan.absorb_cookies(&resp, &spec.url);
+            // The RFC 7616 401-dance: a Digest challenge under
+            // --digest re-issues the SAME request with Authorization
+            // (once per URL; a stubborn 401 stays data).
+            if auth.digest
+                && resp.status.as_u16() == 401
+                && digest_done_for.as_deref() != Some(spec.url.to_string().as_str())
+                && let Some(challenge) = resp
+                    .headers
+                    .get("www-authenticate")
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(wrex_http::auth::parse_digest_challenge)
+            {
+                let uri = spec
+                    .url
+                    .path_and_query()
+                    .map(|pq| pq.as_str().to_string())
+                    .unwrap_or_else(|| "/".to_string());
+                digest_nc += 1;
+                let nc_hex = format!("{digest_nc:08x}");
+                let cnonce = wrex_http::auth::deterministic_cnonce(
+                    &challenge.nonce,
+                    &nc_hex,
+                    &uri,
+                    auth.user(),
+                );
+                let value = wrex_http::auth::digest_authorization(
+                    &challenge,
+                    auth.user(),
+                    auth.pass(),
+                    spec.method.as_str(),
+                    &uri,
+                    digest_nc,
+                    &cnonce,
+                )
+                .map_err(|e| CliError::Runtime(format!("http: digest: {e}")))?;
+                digest_done_for = Some(spec.url.to_string());
+                inject_auth_header(&mut spec, auth, Some(&value));
+                is_reissue = true;
+                continue;
+            }
             if plan.follow
                 && let Some(verdict) = wrex_http::redirect::classify(&resp, &spec.method, &spec.url)
             {
@@ -2143,6 +2194,7 @@ fn http_per_exchange(
                 }
                 chain.push((spec.url.to_string(), resp.status.as_u16()));
                 spec = follow_up_request(&spec, &redirect)?;
+                is_reissue = true;
                 continue;
             }
             break ExchangeResult {
@@ -2166,12 +2218,14 @@ fn http_h2_whole_queue(
     mut specs: Vec<wrex_http::HttpRequestSpec>,
     cfgs: &[HttpVerbConfig],
     plan: &mut HttpPlan,
+    auth: &VerbAuth,
     hpack: wrex_h2::HpackEncodePolicy,
 ) -> Result<Vec<ExchangeResult>, CliError> {
     use wrex_http::HttpOutcome;
 
     for spec in &mut specs {
         inject_cookie_header(spec, plan);
+        inject_auth_header(spec, auth, None);
     }
     let tls_cfg = if specs[0].url.scheme_str() == Some("https") {
         Some(tls_config_for(&specs[0].url, &cfgs[0], true)?)
@@ -2358,6 +2412,115 @@ impl HttpPlan {
     /// concurrent streams).
     fn per_hop(&self) -> bool {
         self.follow
+    }
+}
+
+/// The run-level auth plan (tranche 19a): Basic/Bearer preemptive on
+/// every request (curl -u semantics — the flag owns the
+/// Authorization header, like the jar owns Cookie), or the Digest
+/// 401-dance under --digest (no preemptive header, the challenge
+/// decides).
+struct VerbAuth {
+    user: Option<String>,
+    pass: Option<String>,
+    bearer: Option<String>,
+    digest: bool,
+}
+
+impl VerbAuth {
+    fn from_args(args: &crate::cli::HttpArgs, cfgs: &[HttpVerbConfig]) -> Result<Self, CliError> {
+        let user = cfgs
+            .iter()
+            .filter_map(|c| c.user.clone())
+            .next()
+            .or_else(|| args.user.clone());
+        let bearer = cfgs
+            .iter()
+            .filter_map(|c| c.bearer.clone())
+            .next()
+            .or_else(|| args.bearer.clone());
+        let digest = args.digest || cfgs.iter().any(|c| c.digest);
+        if user.is_some() && bearer.is_some() {
+            return Err(usage("--user and --bearer are exclusive"));
+        }
+        if digest && user.is_none() {
+            return Err(usage("--digest needs --user (USER[:PASS])"));
+        }
+        // Split USER[:PASS] once (curl -u: a lone user = empty pass).
+        let (user, pass) = match user {
+            Some(u) => match u.split_once(':') {
+                Some((name, pass)) => (Some(name.to_string()), Some(pass.to_string())),
+                None => (Some(u), Some(String::new())),
+            },
+            None => (None, None),
+        };
+        Ok(Self {
+            user,
+            pass,
+            bearer,
+            digest,
+        })
+    }
+
+    fn user(&self) -> &str {
+        self.user.as_deref().unwrap_or_default()
+    }
+
+    fn pass(&self) -> &str {
+        self.pass.as_deref().unwrap_or_default()
+    }
+}
+
+/// The Authorization header for one request: `override` (a computed
+/// Digest header) wins; else the plan's preemptive scheme (basic/
+/// bearer — the flag OWNS the header, an explicit -H Authorization
+/// does not survive it, mirroring the jar/Cookie rule); without a
+/// plan, an explicit header rides untouched.
+fn inject_auth_header(
+    spec: &mut wrex_http::HttpRequestSpec,
+    auth: &VerbAuth,
+    override_value: Option<&str>,
+) {
+    if let Some(v) = override_value {
+        while let Some(pos) = spec
+            .headers
+            .iter()
+            .position(|(n, _)| n.as_str() == "authorization")
+        {
+            spec.headers.remove(pos);
+        }
+        if let Ok(hv) = wrex_http::http::HeaderValue::from_str(v) {
+            spec.headers.push((
+                wrex_http::http::HeaderName::from_static("authorization"),
+                hv,
+            ));
+        }
+        return;
+    }
+    // No computed header: --digest waits for the challenge (curl's
+    // rule — no preemptive Authorization); no plan leaves an explicit
+    // -H Authorization riding untouched (the craft rule).
+    if auth.digest || (auth.user.is_none() && auth.bearer.is_none()) {
+        return;
+    }
+    // Preemptive basic/bearer: the flag owns the header.
+    while let Some(pos) = spec
+        .headers
+        .iter()
+        .position(|(n, _)| n.as_str() == "authorization")
+    {
+        spec.headers.remove(pos);
+    }
+    let value = if let Some(bearer) = &auth.bearer {
+        format!("Bearer {bearer}")
+    } else {
+        wrex_http::auth::basic_authorization(auth.user(), auth.pass())
+    };
+    if let Ok(hv) = wrex_http::http::HeaderValue::from_str(&value) {
+        spec.headers.push((
+            wrex_http::http::HeaderName::from_static("authorization"),
+            hv,
+        ));
     }
 }
 
@@ -2561,10 +2724,17 @@ impl<'a> HttpRunner<'a> {
         spec: &wrex_http::HttpRequestSpec,
         cfg: &HttpVerbConfig,
         keep_alive: bool,
+        reissue: bool,
     ) -> Result<wrex_http::HttpOutcome, CliError> {
         let attempts = cfg.retries + 1;
-        let mut last_err = "exchange failed".to_string();
-        for attempt in 0..attempts {
+        // A follow-up (redirect hop, digest re-issue) that rides a
+        // connection the peer closed after answering its FIRST
+        // request reconnects transparently once (curl's behavior — the
+        // re-issue never had a connection of its own; the reconnect
+        // does not consume the `--retries` budget).
+        let mut reissue_reconnect = reissue;
+        let mut attempt = 0u32;
+        loop {
             if attempt > 0 {
                 // Never trust a connection after a failed exchange.
                 self.transport = None;
@@ -2581,11 +2751,25 @@ impl<'a> HttpRunner<'a> {
                         cfg.max_bytes
                     )));
                 }
-                Ok(other) => last_err = describe_outcome(other, cfg),
+                Ok(
+                    _dead @ (wrex_http::HttpOutcome::Truncated | wrex_http::HttpOutcome::Closed),
+                ) if reissue_reconnect => {
+                    reissue_reconnect = false;
+                    self.transport = None;
+                    self.key = None;
+                    self.fresh = false;
+                    continue; // not a --retries attempt
+                }
+                Ok(other) => {
+                    let last_err = describe_outcome(other, cfg);
+                    attempt += 1;
+                    if attempt >= attempts {
+                        return Err(CliError::Runtime(format!("http: {last_err}")));
+                    }
+                }
                 Err(e) => return Err(e),
             }
         }
-        Err(CliError::Runtime(format!("http: {last_err}")))
     }
 }
 
@@ -2760,6 +2944,12 @@ struct HttpVerbConfig {
     follow: bool,
     /// Redirect hop budget (recipe `max_redirs`, run-level max).
     max_redirs: Option<u32>,
+    /// Basic-auth credentials (recipe `user` or `--user`).
+    user: Option<String>,
+    /// Bearer token (recipe `bearer` or `--bearer`).
+    bearer: Option<String>,
+    /// Digest 401-dance (recipe `digest` or `--digest`).
+    digest: bool,
 }
 
 /// One per queued request: the CLI defaults + that request's recipe
@@ -2790,6 +2980,9 @@ fn http_verb_cfg(
         hpack: overrides.hpack.clone().or_else(|| args.hpack.clone()),
         follow: overrides.follow.unwrap_or(args.follow),
         max_redirs: overrides.max_redirs,
+        user: overrides.user.or_else(|| args.user.clone()),
+        bearer: overrides.bearer.or_else(|| args.bearer.clone()),
+        digest: overrides.digest.unwrap_or(args.digest),
     })
 }
 

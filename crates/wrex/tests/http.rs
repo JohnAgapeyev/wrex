@@ -906,3 +906,218 @@ fn follow_flag_grammar() {
         .code(1);
     assert_eq!(seen.lock().unwrap().len(), 1, "no hops allowed");
 }
+
+// --- tranche 19a: auth --------------------------------------------------------
+
+/// A full-request recording stub: captures the complete head of the
+/// first request (headers included), answers with `response`.
+fn spawn_capture_stub(response: &'static [u8]) -> (u16, Arc<Mutex<String>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let captured = Arc::new(Mutex::new(String::new()));
+    let cap2 = captured.clone();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 8192];
+        let n = conn.read(&mut buf).unwrap_or(0);
+        *cap2.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        let _ = conn.write_all(response);
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    (port, captured)
+}
+
+#[test]
+fn basic_and_bearer_headers_on_the_wire() {
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args([
+            "http",
+            "-u",
+            "aladdin:opensesame",
+            &format!("http://127.0.0.1:{port}/x"),
+        ])
+        .assert()
+        .success();
+    // base64("aladdin:opensesame") — the canonical pair
+    assert!(
+        head.lock()
+            .unwrap()
+            .contains("authorization: Basic YWxhZGRpbjpvcGVuc2VzYW1l"),
+        "{}",
+        head.lock().unwrap()
+    );
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args([
+            "http",
+            "--bearer",
+            "tok123",
+            &format!("http://127.0.0.1:{port}/x"),
+        ])
+        .assert()
+        .success();
+    assert!(
+        head.lock()
+            .unwrap()
+            .contains("authorization: Bearer tok123"),
+        "{}",
+        head.lock().unwrap()
+    );
+    // an explicit -H Authorization without flags rides untouched
+    let (port, head) = spawn_capture_stub(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+    wrex()
+        .args([
+            "http",
+            "-H",
+            "Authorization: Custom xyz",
+            &format!("http://127.0.0.1:{port}/x"),
+        ])
+        .assert()
+        .success();
+    assert!(
+        head.lock().unwrap().contains("authorization: Custom xyz"),
+        "{}",
+        head.lock().unwrap()
+    );
+}
+
+#[test]
+fn auth_flag_grammar_errors() {
+    let (code, stderr) = http_err(&["-u", "a:b", "--bearer", "t", "http://x/"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("exclusive"), "{stderr}");
+    let (code, stderr) = http_err(&["--digest", "http://x/"]);
+    assert_eq!(code, 2);
+    assert!(stderr.contains("--digest needs --user"), "{stderr}");
+}
+
+#[test]
+fn digest_401_dance_end_to_end() {
+    // 401 + Digest challenge -> the SAME request re-issued with an
+    // Authorization: Digest header on the SAME connection.
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let req2 = requests.clone();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 8192];
+        let mut served = 0;
+        while served < 2 {
+            let n = match conn.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            let head = String::from_utf8_lossy(&buf[..n]).to_string();
+            if head.contains("\r\n\r\n") {
+                req2.lock().unwrap().push(head.clone());
+                served += 1;
+                let resp: &[u8] = if served == 1 {
+                    b"HTTP/1.1 401 Unauthorized\r\n\
+                      WWW-Authenticate: Digest realm=\"testrealm@host.com\", qop=\"auth\", \
+                      nonce=\"dcd98b7102dd2f0e8b11d0f600bfb0c093\", opaque=\"aaaa\", algorithm=MD5\r\n\
+                      Content-Length: 0\r\n\r\n"
+                } else {
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"
+                };
+                let _ = conn.write_all(resp);
+            }
+        }
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    let out = wrex()
+        .args([
+            "http",
+            "-u",
+            "Mufasa:Circle Of Life",
+            "--digest",
+            "--format",
+            "raw",
+            &format!("http://127.0.0.1:{port}/dir/index.html"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"ok");
+    let reqs = requests.lock().unwrap().clone();
+    assert_eq!(reqs.len(), 2, "{reqs:?}");
+    assert!(
+        !reqs[0].to_ascii_lowercase().contains("authorization:"),
+        "no preemptive header under --digest: {}",
+        reqs[0]
+    );
+    let auth_line = reqs[1]
+        .lines()
+        .find(|l| l.to_ascii_lowercase().starts_with("authorization:"))
+        .expect("digest header on the re-issue");
+    // The RFC 7616 §3.9.1 lineage, with the verb's deterministic
+    // cnonce (md5(nonce:nc:uri:user) first 16 hex chars).
+    let cnonce = {
+        // md5("dcd98b7102dd2f0e8b11d0f600bfb0c093:00000001:/dir/index.html:Mufasa")[..16]
+        let digest = md5_hex("dcd98b7102dd2f0e8b11d0f600bfb0c093:00000001:/dir/index.html:Mufasa");
+        digest[..16].to_string()
+    };
+    assert!(
+        auth_line.contains("Digest username=\"Mufasa\""),
+        "{auth_line}"
+    );
+    assert!(
+        auth_line.contains("realm=\"testrealm@host.com\""),
+        "{auth_line}"
+    );
+    assert!(
+        auth_line.contains("nonce=\"dcd98b7102dd2f0e8b11d0f600bfb0c093\""),
+        "{auth_line}"
+    );
+    assert!(auth_line.contains("qop=auth"), "{auth_line}");
+    assert!(auth_line.contains("nc=00000001"), "{auth_line}");
+    assert!(
+        auth_line.contains(&format!("cnonce=\"{cnonce}\"")),
+        "{auth_line}"
+    );
+    assert!(auth_line.contains("opaque=\"aaaa\""), "{auth_line}");
+    assert!(auth_line.contains("response=\""), "{auth_line}");
+}
+
+#[test]
+fn digest_stubborn_401_is_data() {
+    // The dance happens ONCE per URL; a second 401 stays data (exit 0
+    // without --fail).
+    let (port, _seen) = spawn_routing_stub(vec![(
+        "/always401",
+        b"HTTP/1.1 401 Unauthorized\r\n\
+          WWW-Authenticate: Digest realm=\"r\", nonce=\"n\", qop=\"auth\", algorithm=MD5\r\n\
+          Content-Length: 0\r\n\r\n"
+            .to_vec(),
+    )]);
+    let out = wrex()
+        .args([
+            "http",
+            "-u",
+            "u:p",
+            "--digest",
+            &format!("http://127.0.0.1:{port}/always401"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert!(
+        String::from_utf8_lossy(&out).contains("401"),
+        "the final 401 renders: {out:?}"
+    );
+}
+
+/// md5 hex (test-only helper over the same RustCrypto crate the
+/// product uses — wrex-http's RFC vector twin).
+fn md5_hex(data: &str) -> String {
+    use md5::Digest as _;
+    let mut h = md5::Md5::new();
+    h.update(data.as_bytes());
+    h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+}

@@ -32,6 +32,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameStep where T: ?core:
 pub fn wrex_h2::frame::FrameStep::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::frame::FrameStep
 pub fn wrex_h2::frame::FrameStep::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::frame::FrameStep
+pub type wrex_h2::frame::FrameStep::Output = T
 pub enum wrex_h2::frame::FrameType
 pub wrex_h2::frame::FrameType::Continuation
 pub wrex_h2::frame::FrameType::Data
@@ -85,6 +87,8 @@ impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameType where T: core::
 pub unsafe fn wrex_h2::frame::FrameType::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_h2::frame::FrameType
 pub fn wrex_h2::frame::FrameType::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::frame::FrameType
+pub type wrex_h2::frame::FrameType::Output = T
 pub struct wrex_h2::frame::FrameHeader
 pub wrex_h2::frame::FrameHeader::flags: u8
 pub wrex_h2::frame::FrameHeader::stream_id: u32
@@ -129,6 +133,8 @@ impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameHeader where T: core
 pub unsafe fn wrex_h2::frame::FrameHeader::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_h2::frame::FrameHeader
 pub fn wrex_h2::frame::FrameHeader::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::frame::FrameHeader
+pub type wrex_h2::frame::FrameHeader::Output = T
 pub const wrex_h2::frame::ACK: u8
 pub const wrex_h2::frame::DEFAULT_MAX_FRAME: u32
 pub const wrex_h2::frame::DEFAULT_WINDOW: i64
@@ -200,6 +206,8 @@ impl<T> core::clone::CloneToUninit for wrex_h2::hpack::HpackEncodePolicy where T
 pub unsafe fn wrex_h2::hpack::HpackEncodePolicy::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncodePolicy
 pub fn wrex_h2::hpack::HpackEncodePolicy::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::hpack::HpackEncodePolicy
+pub type wrex_h2::hpack::HpackEncodePolicy::Output = T
 pub struct wrex_h2::hpack::HpackDecoder
 impl wrex_h2::hpack::HpackDecoder
 pub fn wrex_h2::hpack::HpackDecoder::decode(&mut self, &[u8]) -> core::result::Result<wrex_h2::hpack::HeaderList, alloc::string::String>
@@ -234,6 +242,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackDecoder where T: ?co
 pub fn wrex_h2::hpack::HpackDecoder::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::hpack::HpackDecoder
 pub fn wrex_h2::hpack::HpackDecoder::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::hpack::HpackDecoder
+pub type wrex_h2::hpack::HpackDecoder::Output = T
 pub struct wrex_h2::hpack::HpackEncoder
 impl wrex_h2::hpack::HpackEncoder
 pub fn wrex_h2::hpack::HpackEncoder::dynamic_entries(&self) -> &alloc::collections::vec_deque::VecDeque<(alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)>
@@ -270,6 +280,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackEncoder where T: ?co
 pub fn wrex_h2::hpack::HpackEncoder::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncoder
 pub fn wrex_h2::hpack::HpackEncoder::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::hpack::HpackEncoder
+pub type wrex_h2::hpack::HpackEncoder::Output = T
 pub const wrex_h2::hpack::DEFAULT_MAX_SIZE: usize
 pub const wrex_h2::hpack::MAX_STRING: usize
 pub static wrex_h2::hpack::STATIC_TABLE: [(&str, &str); 61]
@@ -321,6 +333,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::session::H2Session where T: ?cor
 pub fn wrex_h2::session::H2Session::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::session::H2Session
 pub fn wrex_h2::session::H2Session::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::session::H2Session
+pub type wrex_h2::session::H2Session::Output = T
 pub const wrex_h2::session::MAX_STREAMS: usize
 pub fn wrex_h2::session::encode_request_headers(&wrex_http::request::HttpRequestSpec, &mut wrex_h2::hpack::HpackEncoder) -> core::result::Result<bytes::bytes::Bytes, wrex_h2::session::H2Error>
 pub type wrex_h2::session::H2Error = alloc::string::String
@@ -356,6 +370,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::frame::FrameStep where T: ?core:
 pub fn wrex_h2::frame::FrameStep::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::frame::FrameStep
 pub fn wrex_h2::frame::FrameStep::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::frame::FrameStep
+pub type wrex_h2::frame::FrameStep::Output = T
 pub enum wrex_h2::FrameType
 pub wrex_h2::FrameType::Continuation
 pub wrex_h2::FrameType::Data
@@ -409,6 +425,8 @@ impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameType where T: core::
 pub unsafe fn wrex_h2::frame::FrameType::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_h2::frame::FrameType
 pub fn wrex_h2::frame::FrameType::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::frame::FrameType
+pub type wrex_h2::frame::FrameType::Output = T
 pub enum wrex_h2::HpackEncodePolicy
 pub wrex_h2::HpackEncodePolicy::Indexed
 pub wrex_h2::HpackEncodePolicy::Literal
@@ -452,6 +470,8 @@ impl<T> core::clone::CloneToUninit for wrex_h2::hpack::HpackEncodePolicy where T
 pub unsafe fn wrex_h2::hpack::HpackEncodePolicy::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncodePolicy
 pub fn wrex_h2::hpack::HpackEncodePolicy::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::hpack::HpackEncodePolicy
+pub type wrex_h2::hpack::HpackEncodePolicy::Output = T
 pub struct wrex_h2::FrameHeader
 pub wrex_h2::FrameHeader::flags: u8
 pub wrex_h2::FrameHeader::stream_id: u32
@@ -496,6 +516,8 @@ impl<T> core::clone::CloneToUninit for wrex_h2::frame::FrameHeader where T: core
 pub unsafe fn wrex_h2::frame::FrameHeader::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_h2::frame::FrameHeader
 pub fn wrex_h2::frame::FrameHeader::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::frame::FrameHeader
+pub type wrex_h2::frame::FrameHeader::Output = T
 pub struct wrex_h2::H2Session
 impl wrex_h2::session::H2Session
 pub fn wrex_h2::session::H2Session::new(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, wrex_h2::session::H2Error>
@@ -532,6 +554,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::session::H2Session where T: ?cor
 pub fn wrex_h2::session::H2Session::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::session::H2Session
 pub fn wrex_h2::session::H2Session::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::session::H2Session
+pub type wrex_h2::session::H2Session::Output = T
 pub struct wrex_h2::HpackDecoder
 impl wrex_h2::hpack::HpackDecoder
 pub fn wrex_h2::hpack::HpackDecoder::decode(&mut self, &[u8]) -> core::result::Result<wrex_h2::hpack::HeaderList, alloc::string::String>
@@ -566,6 +590,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackDecoder where T: ?co
 pub fn wrex_h2::hpack::HpackDecoder::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::hpack::HpackDecoder
 pub fn wrex_h2::hpack::HpackDecoder::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::hpack::HpackDecoder
+pub type wrex_h2::hpack::HpackDecoder::Output = T
 pub struct wrex_h2::HpackEncoder
 impl wrex_h2::hpack::HpackEncoder
 pub fn wrex_h2::hpack::HpackEncoder::dynamic_entries(&self) -> &alloc::collections::vec_deque::VecDeque<(alloc::vec::Vec<u8>, alloc::vec::Vec<u8>)>
@@ -602,6 +628,8 @@ impl<T> core::borrow::BorrowMut<T> for wrex_h2::hpack::HpackEncoder where T: ?co
 pub fn wrex_h2::hpack::HpackEncoder::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_h2::hpack::HpackEncoder
 pub fn wrex_h2::hpack::HpackEncoder::from(T) -> T
+impl<T> typenum::type_operators::Same for wrex_h2::hpack::HpackEncoder
+pub type wrex_h2::hpack::HpackEncoder::Output = T
 pub const wrex_h2::DEFAULT_MAX_FRAME: u32
 pub const wrex_h2::DEFAULT_USER_AGENT: &str
 pub const wrex_h2::DEFAULT_WINDOW: i64

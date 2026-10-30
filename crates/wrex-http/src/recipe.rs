@@ -35,6 +35,12 @@ pub struct RecipeOverrides {
     pub follow: Option<bool>,
     /// Redirect hop budget under `follow` (default 50, curl's).
     pub max_redirs: Option<u32>,
+    /// Basic-auth credentials (tranche 19a; `USER[:PASS]`).
+    pub user: Option<String>,
+    /// Bearer token (tranche 19a; exclusive with `user`).
+    pub bearer: Option<String>,
+    /// Answer Digest 401s via the RFC 7616 dance (with `user`).
+    pub digest: Option<bool>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -78,6 +84,15 @@ pub struct Recipe {
     /// Redirect hop budget under `follow` (default 50, curl's).
     #[serde(default)]
     pub max_redirs: Option<u32>,
+    /// Basic-auth credentials, `USER[:PASS]` (tranche 19a).
+    #[serde(default)]
+    pub user: Option<String>,
+    /// Bearer token (exclusive with `user`).
+    #[serde(default)]
+    pub bearer: Option<String>,
+    /// Answer Digest 401s via the RFC 7616 dance (with `user`).
+    #[serde(default)]
+    pub digest: Option<bool>,
 }
 
 impl Recipe {
@@ -175,6 +190,9 @@ impl Recipe {
             hpack: self.hpack,
             follow: self.follow,
             max_redirs: self.max_redirs,
+            user: self.user,
+            bearer: self.bearer,
+            digest: self.digest,
         };
         Ok((spec, overrides))
     }
@@ -368,6 +386,27 @@ mod tests {
         let (_, o) = r.into_request().unwrap();
         assert_eq!(o.follow, Some(true));
         assert_eq!(o.max_redirs, Some(3));
+    }
+
+    #[test]
+    fn auth_knobs_are_additive() {
+        // Old recipes: no auth fields → the overrides stay None.
+        let r = recipe(r#"{"method": "GET", "url": "http://example.com/"}"#);
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.user, None);
+        assert_eq!(o.bearer, None);
+        assert_eq!(o.digest, None);
+        // New knobs ride through.
+        let r = recipe(
+            r#"{"method": "GET", "url": "http://example.com/",
+                "user": "u:p", "digest": true}"#,
+        );
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.user.as_deref(), Some("u:p"));
+        assert_eq!(o.digest, Some(true));
+        let r = recipe(r#"{"method": "GET", "url": "http://example.com/", "bearer": "tok"}"#);
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.bearer.as_deref(), Some("tok"));
     }
 
     #[test]

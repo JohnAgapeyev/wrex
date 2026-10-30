@@ -1225,6 +1225,20 @@ pub struct HttpArgs {
     /// Exit 1 on 4xx/5xx statuses (completed exchanges stay data).
     #[arg(long)]
     pub fail: bool,
+    /// Basic-auth credentials (tranche 19a): `Authorization: Basic` on
+    /// every request (curl -u). USER alone = empty password.
+    #[arg(short = 'u', long, value_name = "USER[:PASS]")]
+    pub user: Option<String>,
+    /// `Authorization: Bearer TOKEN` on every request (exclusive with
+    /// --user).
+    #[arg(long, value_name = "TOKEN")]
+    pub bearer: Option<String>,
+    /// With --user: answer a `401` carrying a Digest challenge via
+    /// the RFC 7616 dance (no preemptive header; MD5, MD5-sess,
+    /// SHA-256, SHA-256-sess, qop=auth and the legacy no-qop shape;
+    /// a Basic-only 401 stays data).
+    #[arg(long)]
+    pub digest: bool,
 }
 
 #[derive(Args, Debug)]

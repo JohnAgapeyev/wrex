@@ -21,6 +21,8 @@
 //!   (tranche 19a; `-b`/`-c`).
 //! - [`redirect`]: 3xx classification + RFC 3986 `Location`
 //!   resolution (tranche 19a; the verb drives the re-issue).
+//! - [`auth`]: `Basic`/`Bearer` headers + the RFC 7616 `Digest`
+//!   401-dance (tranche 19a).
 //!
 //! Deliberate T4 deferrals (documented in the verb help): keep-alive
 //! (one exchange per connection), chunked *request* bodies
@@ -29,6 +31,7 @@
 //! serialize like `http://` (transport-agnostic), the rustls-backed
 //! driver living in the `wrex-tls` crate.
 
+pub mod auth;
 pub mod cookies;
 pub mod recipe;
 pub mod redirect;

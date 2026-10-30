@@ -85,3 +85,6 @@ wrex-proto-dhcp = { workspace = true, features = ["test-util"] }
 # HTTP differential oracle (in-process, blocking; http:// only).
 reqwest = { workspace = true }
 wrex-http = { workspace = true }
+# Digest-dance vector helper in tests/http.rs (the same RustCrypto
+# crate the product path uses — wrex-http's RFC 7616 twin).
+md-5 = { workspace = true }
