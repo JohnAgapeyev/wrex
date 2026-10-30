@@ -7,7 +7,7 @@ wrex-tcp \- tcp layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fItcp\fR
 
 .SH DESCRIPTION
-TCP (RFC 9293): 20\-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under \-\-strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per\-bit subpaths \-\-tcp\-flags\-syn exist. checksum over the pseudo\-header (v4 RFC 9293 / v6 RFC 8200 §8.1, family follows the network\-layer parent) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES.
+TCP (RFC 9293): 20\-byte fixed header plus options. data_off autofilled from options length (explicit wins; <5 kept, flagged only under \-\-strict). flags aggregate settable as bit names (syn,ack,...) or raw int; per\-bit subpaths \-\-tcp\-flags\-syn exist. checksum over the pseudo\-header (v4 RFC 9293 / v6 RFC 8200 §8.1, family follows the network\-layer parent) plus segment and payload. options grammar: eol,nop,mss:1460,ws:7,sackok,sack:L,R,..., or hex:BYTES — or the settable opt.N.* record paths (tranche 22a: \-\-tcp\-opt\-0\-kind mss \-\-tcp\-opt\-0\-mss 1460, one record per option, the dns an.0.* precedent; mutually exclusive with the grammar).
 .
 
 .SH ENCAPSULATION
@@ -47,7 +47,22 @@ checksum over pseudo\-header+segment (autofill: computed) Type u16. Default: 0.
 urgent pointer Type u16. Default: 0.
 .TP
 \fB\-\-tcp\-options\fR
-options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:… Type bytes. Default: .
+options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:… (mutually exclusive with the opt.N.* record paths) Type bytes. Default: .
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (opt.0.field).
+
+.TP
+\fBopt\fR (settable)
+TCP options (RFC 9293 §3.1 + the common extensions): one record per option, crafted through index paths opt.0.*, … (the dns an.0.* precedent; deeper indices ride the spec JSON). Typed fields per kind — mss/ws/sack/ts_val/ts_ecr — raw covers tfo/mptcp/unknown kinds; len autofills from the value (explicit kept verbatim, the deliberate\-invalid rule). Dissect\-side the wire truth; eol ends the walk, padding after it stays in the options region.
+  kind (str; default ). option kind: eol|nop|mss|ws|sackok|sack|ts|mptcp|tfo or a bare number (required per record)
+  len (u8; default 0). option length in bytes incl. kind+len (autofill: derived from the value; explicit kept verbatim — eol/nop carry no length byte)
+  mss (u16; default 0). max segment size (kind mss, 0..65535)
+  ws (u8; default 0). window scale shift (kind ws, 0..14)
+  sack (str; default ). sack blocks as L,R,… relative sequence numbers (kind sack)
+  ts_val (u32; default 0). timestamp value (kind ts)
+  ts_ecr (u32; default 0). timestamp echo reply (kind ts)
+  raw (bytes; default ). raw option data after kind+len (tfo/mptcp/unknown kinds — the wire truth)
 
 .SH EXAMPLES
 wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \-\-layer tcp \\\\

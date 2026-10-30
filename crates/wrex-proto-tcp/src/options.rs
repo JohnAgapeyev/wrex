@@ -10,12 +10,54 @@
 use wrex_core::EncodeError;
 use wrex_core::options::{bad, named, tokens, unknown};
 
-const OPT_EOL: u8 = 0;
-const OPT_NOP: u8 = 1;
-const OPT_MSS: u8 = 2;
-const OPT_WS: u8 = 3;
-const OPT_SACKOK: u8 = 4;
-const OPT_SACK: u8 = 5;
+pub(crate) const OPT_EOL: u8 = 0;
+pub(crate) const OPT_NOP: u8 = 1;
+pub(crate) const OPT_MSS: u8 = 2;
+pub(crate) const OPT_WS: u8 = 3;
+pub(crate) const OPT_SACKOK: u8 = 4;
+pub(crate) const OPT_SACK: u8 = 5;
+pub(crate) const OPT_TS: u8 = 8;
+const OPT_MPTCP: u8 = 30;
+const OPT_TFO: u8 = 34;
+
+/// Tranche 22a: the kind vocabulary shared by the write grammar, the
+/// settable `opt.N.kind` record path and the read-side renderer —
+/// name ↔ code, RFC 9293 §3.1 plus the common extensions (MPTCP
+/// RFC 8684 §3, TFO RFC 7413).
+const KIND_TABLE: &[(&str, u8)] = &[
+    ("eol", OPT_EOL),
+    ("nop", OPT_NOP),
+    ("mss", OPT_MSS),
+    ("ws", OPT_WS),
+    ("sackok", OPT_SACKOK),
+    ("sack", OPT_SACK),
+    ("ts", OPT_TS),
+    ("mptcp", OPT_MPTCP),
+    ("tfo", OPT_TFO),
+];
+
+/// Parse one `opt.N.kind` value: a table name or a bare number
+/// (`"14"` — the unknown-kind spelling, `hex:` covers the data).
+pub(crate) fn parse_kind(raw: &str) -> Option<u8> {
+    for (name, code) in KIND_TABLE {
+        if wrex_core::str_eq(name, raw) {
+            return Some(*code);
+        }
+    }
+    raw.parse().ok().filter(|&c: &u8| c != 0 && c != 1)
+}
+
+/// Render one option kind code: its table name, or the bare number
+/// for kinds outside the vocabulary (the dissect-side twin of the
+/// `parse_kind` numeric spelling).
+pub(crate) fn render_kind(code: u8) -> std::borrow::Cow<'static, str> {
+    for (name, k) in KIND_TABLE {
+        if *k == code {
+            return std::borrow::Cow::Borrowed(name);
+        }
+    }
+    std::borrow::Cow::Owned(code.to_string())
+}
 
 const FIELD: &str = "tcp.options";
 const KNOWN: &[&str] = &["mss", "ws", "sack", "hex"];
@@ -141,5 +183,23 @@ mod tests {
         assert_eq!(pad_len(0), 0);
         assert_eq!(pad_len(3), 1);
         assert_eq!(pad_len(4), 0);
+    }
+
+    /// Tranche 22a: the name↔code table round-trips (parse_kind /
+    /// render_code symmetry); unknown kinds parse and render bare
+    /// numbers; eol/nop never parse numerically (their wire spelling
+    /// IS the kind byte).
+    #[test]
+    fn kind_table_symmetry() {
+        for (name, code) in KIND_TABLE {
+            assert_eq!(parse_kind(name), Some(*code), "{name}");
+            assert_eq!(&render_kind(*code), name, "{code}");
+        }
+        assert_eq!(parse_kind("14"), Some(14));
+        assert_eq!(&render_kind(14), "14");
+        assert_eq!(parse_kind("0"), None, "eol is name-only");
+        assert_eq!(parse_kind("1"), None, "nop is name-only");
+        assert_eq!(parse_kind("bogus"), None);
+        assert_eq!(parse_kind(""), None);
     }
 }

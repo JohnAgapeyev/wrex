@@ -111,6 +111,20 @@ pub const STRATEGY_EXEMPT: &[(&str, &str, &str)] = &[
         "autofill: always 4 (a random value is not an ipv4 header)",
     ),
     ("ipv4", "ihl", "autofill: derived from the options length"),
+    // Tranche 22a/22b: the `opt.N.len` record fields derive from the
+    // crafted value on the write side (explicit kept verbatim — the
+    // deliberate-invalid rule); randomizing them only produces
+    // malformed option walks the differentials cannot compare.
+    (
+        "tcp",
+        "len",
+        "autofill: derived from the option value (record `opt.N.len`)",
+    ),
+    (
+        "ipv4",
+        "len",
+        "autofill: derived from the option value (record `opt.N.len`)",
+    ),
     (
         "ipv4",
         "proto",

@@ -422,12 +422,15 @@ const G6_KIND_EXEMPT: &[(&str, &str)] = &[
 /// silently un-compared field is a field whose mapping bugs are
 /// invisible; these are the consciously-decided holes).
 const G6_FIELD_EXEMPT: &[(&str, &str, &str)] = &[
-    // raw regions: the foreign oracles render typed trees, not blobs.
+    // raw regions: the foreign oracles render typed trees, not blobs —
+    // the T22 typed `opt.N.*` record sections are ours alone (the
+    // tshark option-tree keys do not compose into the stack maps);
+    // committed corpus goldens + in-crate units carry them.
     (
         "ipv4",
         "options",
         "raw region — etherparse/tshark render typed option trees; the T22 \
-         read-side typing lands the record sections",
+         opt.N.* record sections are ours alone (corpus goldens + units)",
     ),
     ("tcp", "options", "raw region — same as ipv4.options (T22)"),
     (
