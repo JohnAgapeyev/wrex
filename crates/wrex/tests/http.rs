@@ -5,6 +5,7 @@
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::time::Duration;
 
 use assert_cmd::Command;
 
@@ -1416,6 +1417,280 @@ fn resolve_pin_bypasses_resolution() {
     let (code, stderr) = http_err(&["--resolve", "noaddr", "http://x/"]);
     assert_eq!(code, 2);
     assert!(stderr.contains("--resolve"), "{stderr}");
+}
+
+// --- tranche 19b: proxies -----------------------------------------------------
+
+/// A plain-HTTP PROXY stub: accepts requests TO the proxy (absolute
+/// form recorded), answers 200 "via-proxy" per request, N requests
+/// per connection.
+fn spawn_http_proxy_stub() -> (u16, Arc<Mutex<Vec<String>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let seen2 = seen.clone();
+    std::thread::spawn(move || {
+        for _ in 0..16 {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            let mut chunk = [0u8; 4096];
+            let mut buf = Vec::new();
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    seen2.lock().unwrap().push(head.clone());
+                    let _ = pos;
+                    let _ =
+                        conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\nvia-proxy");
+                    buf.clear();
+                }
+            }
+        }
+    });
+    (port, seen)
+}
+
+#[test]
+fn http_proxy_absolute_form_end_to_end() {
+    let (proxy_port, seen) = spawn_http_proxy_stub();
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "-x",
+            &format!("http://127.0.0.1:{proxy_port}"),
+            "http://wrex.test/a/b?q=1",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"via-proxy");
+    let requests = seen.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert!(
+        requests[0].starts_with("GET http://wrex.test/a/b?q=1 HTTP/1.1"),
+        "the proxy sees the absolute form: {}",
+        requests[0]
+    );
+    assert!(
+        requests[0].to_ascii_lowercase().contains("host: wrex.test"),
+        "{}",
+        requests[0]
+    );
+    // socks5h:// through the same stub? no — that needs a SOCKS proxy;
+    // covered by the wrex-io unit suite. Bad proxy grammar is usage.
+    let (code, stderr) = http_err(&["-x", "nonsense", "http://x/"]);
+    assert_eq!(code, 1, "unresolvable proxy is a runtime error: {stderr}");
+}
+
+#[test]
+fn proxy_credentials_ride_the_absolute_form() {
+    let (proxy_port, seen) = spawn_http_proxy_stub();
+    wrex()
+        .args([
+            "http",
+            "-x",
+            &format!("http://127.0.0.1:{proxy_port}"),
+            "-U",
+            "pu:pp",
+            "http://wrex.test/x",
+        ])
+        .assert()
+        .success();
+    let requests = seen.lock().unwrap().clone();
+    assert!(
+        requests[0]
+            .to_ascii_lowercase()
+            .contains("proxy-authorization: basic "),
+        "{}",
+        requests[0]
+    );
+    assert!(requests[0].contains("Basic cHU6cHA="), "{}", requests[0]);
+}
+
+/// A SOCKS5 proxy stub: no-auth handshake, tunnel, then one HTTP
+/// response for the tunneled request.
+fn spawn_socks5_http_proxy() -> u16 {
+    use std::io::Read;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for _ in 0..8 {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            let mut buf = [0u8; 512];
+            // greeting (3): 05 01 00
+            let _ = conn.read_exact(&mut buf[..3]);
+            conn.write_all(&[0x05, 0x00]).unwrap();
+            // request: 4 head + ATYP-dependent tail
+            let _ = conn.read_exact(&mut buf[..4]);
+            let tail = match buf[3] {
+                0x01 => 6,
+                0x03 => {
+                    let mut len = [0u8; 1];
+                    let _ = conn.read_exact(&mut len);
+                    len[0] as usize + 2
+                }
+                _ => 18,
+            };
+            let _ = conn.read_exact(&mut buf[..tail]);
+            conn.write_all(&[0x05, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 0])
+                .unwrap();
+            // the tunneled HTTP request, then one response
+            let mut head = Vec::new();
+            let _ = conn.set_read_timeout(Some(Duration::from_millis(500)));
+            let mut chunk = [0u8; 4096];
+            while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                match conn.read(&mut chunk) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => head.extend_from_slice(&chunk[..n]),
+                }
+            }
+            if head.is_empty() {
+                continue;
+            }
+            let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\nsocks-200");
+            let _ = conn.shutdown(std::net::Shutdown::Write);
+        }
+    });
+    port
+}
+
+#[test]
+fn socks5_tunnel_end_to_end() {
+    // socks5h://: the proxy resolves (a fake hostname works).
+    let port = spawn_socks5_http_proxy();
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "-x",
+            &format!("socks5h://127.0.0.1:{port}"),
+            "http://wrex-socks.test/page",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"socks-200");
+    // socks5://: LOCAL resolution — an IP literal works.
+    let port = spawn_socks5_http_proxy();
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "-x",
+            &format!("socks5://127.0.0.1:{port}"),
+            "http://127.0.0.1/page",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"socks-200");
+}
+
+#[test]
+fn https_via_connect_tunnel_end_to_end() {
+    // A CONNECT-fronted byte pump to the wrex-test TLS stub: the
+    // proxy answers 200 and blindly relays both directions; wrex must
+    // speak TLS to the DESTINATION through the tunnel.
+    const OK: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\ntunne";
+    let stub = wrex_test::tls_stub::spawn(
+        OK.to_vec(),
+        3,
+        1,
+        wrex_test::tls_stub::StubRequest::HttpHead,
+    );
+    let tls_port = stub.addr.port();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let proxy_port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 4096];
+        while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+            let n = conn.read(&mut chunk).unwrap();
+            if n == 0 {
+                return;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+        }
+        let head = String::from_utf8_lossy(&buf).to_string();
+        assert!(
+            head.starts_with(&format!("CONNECT 127.0.0.1:{tls_port} HTTP/1.1")),
+            "the CONNECT target: {head}"
+        );
+        conn.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            .unwrap();
+        // blind relay to the TLS stub (split streams per direction)
+        let dest = std::net::TcpStream::connect(("127.0.0.1", tls_port)).unwrap();
+        let dest_r = dest.try_clone().unwrap();
+        let dest_w = dest.try_clone().unwrap();
+        let conn_r = conn.try_clone().unwrap();
+        let conn_w = conn;
+        dest_r.set_read_timeout(Some(Duration::from_secs(5))).ok();
+        conn_r.set_read_timeout(Some(Duration::from_secs(5))).ok();
+        std::thread::scope(|s| {
+            s.spawn(move || {
+                let mut b = [0u8; 16384];
+                let (mut src, mut snk) = (conn_r, dest_w);
+                loop {
+                    match src.read(&mut b) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            if snk.write_all(&b[..n]).is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+            s.spawn(move || {
+                let mut b = [0u8; 16384];
+                let (mut src, mut snk) = (dest_r, conn_w);
+                loop {
+                    match src.read(&mut b) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            if snk.write_all(&b[..n]).is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    });
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            "--tls-insecure",
+            "-x",
+            &format!("http://127.0.0.1:{proxy_port}"),
+            &format!("https://127.0.0.1:{tls_port}/"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"tunne");
 }
 
 #[test]

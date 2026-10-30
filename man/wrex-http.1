@@ -4,7 +4,7 @@
 .SH NAME
 http \- HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH SYNOPSIS
-\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-L\fR|\fB\-\-follow\fR] [\fB\-\-max\-redirs\fR] [\fB\-b\fR|\fB\-\-cookie\fR] [\fB\-c\fR|\fB\-\-cookie\-jar\fR] [\fB\-\-fail\fR] [\fB\-u\fR|\fB\-\-user\fR] [\fB\-\-bearer\fR] [\fB\-\-digest\fR] [\fB\-\-compressed\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-O\fR|\fB\-\-remote\-name\fR] [\fB\-T\fR|\fB\-\-upload\-file\fR] [\fB\-I\fR|\fB\-\-head\fR] [\fB\-\-include\fR] [\fB\-r\fR|\fB\-\-range\fR] [\fB\-\-resolve\fR] [\fB\-\-retry\fR] [\fB\-\-timing\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
+\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-L\fR|\fB\-\-follow\fR] [\fB\-\-max\-redirs\fR] [\fB\-b\fR|\fB\-\-cookie\fR] [\fB\-c\fR|\fB\-\-cookie\-jar\fR] [\fB\-\-fail\fR] [\fB\-u\fR|\fB\-\-user\fR] [\fB\-\-bearer\fR] [\fB\-\-digest\fR] [\fB\-\-compressed\fR] [\fB\-o\fR|\fB\-\-output\fR] [\fB\-O\fR|\fB\-\-remote\-name\fR] [\fB\-T\fR|\fB\-\-upload\-file\fR] [\fB\-I\fR|\fB\-\-head\fR] [\fB\-\-include\fR] [\fB\-r\fR|\fB\-\-range\fR] [\fB\-\-resolve\fR] [\fB\-\-retry\fR] [\fB\-x\fR|\fB\-\-proxy\fR] [\fB\-U\fR|\fB\-\-proxy\-user\fR] [\fB\-\-timing\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
 .SH DESCRIPTION
 HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH OPTIONS
@@ -107,6 +107,12 @@ Pin a hostname to an address, bypassing resolution (curl \-\-resolve `HOST[:PORT
 .TP
 \fB\-\-retry\fR \fI<N>\fR
 Retry on transient response statuses: N extra attempts when a completed response is 5xx (per request, fresh exchange — no delay; curl\*(Aqs backoff is deliberately not implemented, the lab\-tool deviation)
+.TP
+\fB\-x\fR, \fB\-\-proxy\fR \fI<[SCHEME://]HOST:PORT>\fR
+Route through a proxy (tranche 19b, curl \-x): `[http://]` an HTTP proxy (absolute\-form request\-targets for http://, CONNECT tunnels for https://), `socks5://` (local resolution) or `socks5h://` (the proxy resolves). Applies to redirect hops
+.TP
+\fB\-U\fR, \fB\-\-proxy\-user\fR \fI<USER[:PASS]>\fR
+Proxy credentials (curl \-U `USER[:PASS]`): Basic for CONNECT, RFC 1929 for SOCKS5
 .TP
 \fB\-\-timing\fR
 Add a `timing` object to each `\-\-format json` response: time_connect_ms / time_appconnect_ms (TLS, https only) / time_starttransfer_ms / time_total_ms — the curl \-w fields, json\-shaped. Per original request (a redirect chain\*(Aqs timings span its hops)

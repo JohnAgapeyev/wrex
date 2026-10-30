@@ -214,6 +214,8 @@ pub wrex_http::recipe::Recipe::http_version: core::option::Option<alloc::string:
 pub wrex_http::recipe::Recipe::max_bytes: core::option::Option<u64>
 pub wrex_http::recipe::Recipe::max_redirs: core::option::Option<u32>
 pub wrex_http::recipe::Recipe::method: alloc::string::String
+pub wrex_http::recipe::Recipe::proxy: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::Recipe::proxy_user: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::retries: core::option::Option<u32>
 pub wrex_http::recipe::Recipe::timeout_ms: core::option::Option<u64>
 pub wrex_http::recipe::Recipe::tls_ca: core::option::Option<alloc::string::String>
@@ -270,6 +272,8 @@ pub wrex_http::recipe::RecipeOverrides::hpack: core::option::Option<alloc::strin
 pub wrex_http::recipe::RecipeOverrides::http_version: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::RecipeOverrides::max_bytes: core::option::Option<u64>
 pub wrex_http::recipe::RecipeOverrides::max_redirs: core::option::Option<u32>
+pub wrex_http::recipe::RecipeOverrides::proxy: core::option::Option<alloc::string::String>
+pub wrex_http::recipe::RecipeOverrides::proxy_user: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::RecipeOverrides::retries: core::option::Option<u32>
 pub wrex_http::recipe::RecipeOverrides::timeout_ms: core::option::Option<u64>
 pub wrex_http::recipe::RecipeOverrides::tls_ca: core::option::Option<alloc::string::String>
@@ -407,6 +411,7 @@ pub fn wrex_http::request::RequestFraming::from(T) -> T
 impl<T> typenum::type_operators::Same for wrex_http::request::RequestFraming
 pub type wrex_http::request::RequestFraming::Output = T
 pub struct wrex_http::request::HttpRequestSpec
+pub wrex_http::request::HttpRequestSpec::absolute_form: bool
 pub wrex_http::request::HttpRequestSpec::body: bytes::bytes::Bytes
 pub wrex_http::request::HttpRequestSpec::chunk_size: usize
 pub wrex_http::request::HttpRequestSpec::framing: wrex_http::request::RequestFraming
@@ -417,6 +422,7 @@ impl wrex_http::request::HttpRequestSpec
 pub fn wrex_http::request::HttpRequestSpec::build(&str, &str, &[(&str, &str)], bytes::bytes::Bytes) -> core::result::Result<Self, alloc::string::String>
 pub fn wrex_http::request::HttpRequestSpec::serialize(&self) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
 pub fn wrex_http::request::HttpRequestSpec::serialize_connection(&self, bool) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::with_absolute_form(self, bool) -> Self
 pub fn wrex_http::request::HttpRequestSpec::with_framing(self, wrex_http::request::RequestFraming, usize) -> Self
 impl core::clone::Clone for wrex_http::request::HttpRequestSpec
 pub fn wrex_http::request::HttpRequestSpec::clone(&self) -> Self
@@ -938,6 +944,7 @@ pub fn wrex_http::session::HttpConfig::from(T) -> T
 impl<T> typenum::type_operators::Same for wrex_http::session::HttpConfig
 pub type wrex_http::session::HttpConfig::Output = T
 pub struct wrex_http::HttpRequestSpec
+pub wrex_http::HttpRequestSpec::absolute_form: bool
 pub wrex_http::HttpRequestSpec::body: bytes::bytes::Bytes
 pub wrex_http::HttpRequestSpec::chunk_size: usize
 pub wrex_http::HttpRequestSpec::framing: wrex_http::request::RequestFraming
@@ -948,6 +955,7 @@ impl wrex_http::request::HttpRequestSpec
 pub fn wrex_http::request::HttpRequestSpec::build(&str, &str, &[(&str, &str)], bytes::bytes::Bytes) -> core::result::Result<Self, alloc::string::String>
 pub fn wrex_http::request::HttpRequestSpec::serialize(&self) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
 pub fn wrex_http::request::HttpRequestSpec::serialize_connection(&self, bool) -> core::result::Result<bytes::bytes::Bytes, alloc::string::String>
+pub fn wrex_http::request::HttpRequestSpec::with_absolute_form(self, bool) -> Self
 pub fn wrex_http::request::HttpRequestSpec::with_framing(self, wrex_http::request::RequestFraming, usize) -> Self
 impl core::clone::Clone for wrex_http::request::HttpRequestSpec
 pub fn wrex_http::request::HttpRequestSpec::clone(&self) -> Self
@@ -1047,6 +1055,8 @@ pub wrex_http::Recipe::http_version: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::max_bytes: core::option::Option<u64>
 pub wrex_http::Recipe::max_redirs: core::option::Option<u32>
 pub wrex_http::Recipe::method: alloc::string::String
+pub wrex_http::Recipe::proxy: core::option::Option<alloc::string::String>
+pub wrex_http::Recipe::proxy_user: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::retries: core::option::Option<u32>
 pub wrex_http::Recipe::timeout_ms: core::option::Option<u64>
 pub wrex_http::Recipe::tls_ca: core::option::Option<alloc::string::String>

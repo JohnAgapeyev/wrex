@@ -43,6 +43,10 @@ pub struct RecipeOverrides {
     pub digest: Option<bool>,
     /// Request/decode compressed content (tranche 19a).
     pub compressed: Option<bool>,
+    /// Proxy endpoint (tranche 19b; `[http://|socks5://|socks5h://]HOST:PORT`).
+    pub proxy: Option<String>,
+    /// Proxy credentials (`USER[:PASS]`).
+    pub proxy_user: Option<String>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -98,6 +102,12 @@ pub struct Recipe {
     /// Request/decode compressed content (tranche 19a).
     #[serde(default)]
     pub compressed: Option<bool>,
+    /// Proxy endpoint (tranche 19b).
+    #[serde(default)]
+    pub proxy: Option<String>,
+    /// Proxy credentials.
+    #[serde(default)]
+    pub proxy_user: Option<String>,
 }
 
 impl Recipe {
@@ -199,6 +209,8 @@ impl Recipe {
             bearer: self.bearer,
             digest: self.digest,
             compressed: self.compressed,
+            proxy: self.proxy,
+            proxy_user: self.proxy_user,
         };
         Ok((spec, overrides))
     }

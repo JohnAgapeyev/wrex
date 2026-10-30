@@ -346,7 +346,7 @@ pub enum Cmd {
     Fuzz(FuzzArgs),
 
     /// HTTP/1.1 exchanges: send request(s), dissect the responses.
-    Http(HttpArgs),
+    Http(Box<HttpArgs>),
 
     /// Ask a DNS server one question (kernel UDP/TCP/TLS) and dissect the reply.
     Query(QueryArgs),
@@ -1282,6 +1282,16 @@ pub struct HttpArgs {
     /// lab-tool deviation).
     #[arg(long, value_name = "N")]
     pub retry: Option<u32>,
+    /// Route through a proxy (tranche 19b, curl -x): `[http://]` an
+    /// HTTP proxy (absolute-form request-targets for http://, CONNECT
+    /// tunnels for https://), `socks5://` (local resolution) or
+    /// `socks5h://` (the proxy resolves). Applies to redirect hops.
+    #[arg(short = 'x', long, value_name = "[SCHEME://]HOST:PORT")]
+    pub proxy: Option<String>,
+    /// Proxy credentials (curl -U `USER[:PASS]`): Basic for CONNECT,
+    /// RFC 1929 for SOCKS5.
+    #[arg(short = 'U', long, value_name = "USER[:PASS]")]
+    pub proxy_user: Option<String>,
     /// Add a `timing` object to each `--format json` response:
     /// time_connect_ms / time_appconnect_ms (TLS, https only) /
     /// time_starttransfer_ms / time_total_ms — the curl -w fields,

@@ -2091,6 +2091,8 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     let auth = VerbAuth::from_args(args, &cfgs)?;
     // …the --resolve pin table (per-connection; redirect hops ride it).
     let resolve = ResolveTable::parse(&args.resolve)?;
+    // …the proxy plan (tranche 19b; recipe knobs ride the cfgs).
+    let proxy = ProxyPlan::from_args(args, &cfgs)?;
     // …and the content-coding switch (run-level: any recipe request
     // opting in turns it on).
     let compressed = args.compressed || cfgs.iter().any(|c| c.compressed);
@@ -2121,6 +2123,7 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
             &mut plan,
             &auth,
             &resolve,
+            &proxy,
             compressed,
             hpack_policy,
         )?
@@ -2132,6 +2135,7 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
             &mut plan,
             &auth,
             &resolve,
+            &proxy,
             compressed,
             want_h2,
             hpack_policy,
@@ -2171,13 +2175,21 @@ fn http_per_exchange(
     plan: &mut HttpPlan,
     auth: &VerbAuth,
     resolve: &ResolveTable,
+    proxy: &ProxyPlan,
     compressed: bool,
     want_h2: bool,
     hpack: wrex_h2::HpackEncodePolicy,
 ) -> Result<Vec<ExchangeResult>, CliError> {
     use wrex_http::HttpOutcome;
 
-    let mut runner = HttpRunner::new(&args.common, args.source_port, want_h2, hpack, resolve);
+    let mut runner = HttpRunner::new(
+        &args.common,
+        args.source_port,
+        want_h2,
+        hpack,
+        resolve,
+        proxy,
+    );
     let mut done = Vec::with_capacity(specs.len());
     for (i, (spec, cfg)) in specs.iter().zip(cfgs).enumerate() {
         // First-request Connection header (the T9a wire shape): the
@@ -2200,6 +2212,7 @@ fn http_per_exchange(
             inject_cookie_header(&mut spec, plan);
             inject_auth_header(&mut spec, auth, None);
             inject_accept_encoding(&mut spec, compressed);
+            set_absolute_form(&mut spec, proxy);
             let outcome = runner.run_with_retries(&spec, cfg, keep_alive, is_reissue)?;
             if runner.timing_started() {
                 runner.mark_starttransfer();
@@ -2303,6 +2316,7 @@ fn http_h2_whole_queue(
     plan: &mut HttpPlan,
     auth: &VerbAuth,
     resolve: &ResolveTable,
+    proxy: &ProxyPlan,
     compressed: bool,
     hpack: wrex_h2::HpackEncodePolicy,
 ) -> Result<Vec<ExchangeResult>, CliError> {
@@ -2312,17 +2326,11 @@ fn http_h2_whole_queue(
         inject_cookie_header(spec, plan);
         inject_auth_header(spec, auth, None);
         inject_accept_encoding(spec, compressed);
+        set_absolute_form(spec, proxy);
     }
-    let tls_cfg = if specs[0].url.scheme_str() == Some("https") {
-        Some(tls_config_for(&specs[0].url, &cfgs[0], true)?)
-    } else {
-        None
-    };
     let attempts = cfgs[0].retries + 1;
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
-        let peer = tcp_peer_with(&specs[0].url, resolve)?;
-        let bind = tcp_bind(&args.common, args.source_port, peer.ip())?;
         let queue_cfgs: Vec<wrex_http::HttpConfig> = cfgs.iter().map(session_cfg).collect();
         let outcomes = {
             // The h2 whole-queue session over an established driver.
@@ -2334,12 +2342,17 @@ fn http_h2_whole_queue(
                 wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
                     .map_err(|e| CliError::Runtime(format!("http: {e}")))
             };
-            match &tls_cfg {
-                Some(tcfg) => {
-                    let mut driver =
-                        wrex_tls::TlsDriver::connect(peer, bind, cfgs[0].timeout, tcfg)
-                            .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                    let negotiated = driver
+            match establish_leg(
+                &specs[0].url,
+                &cfgs[0],
+                &args.common,
+                args.source_port,
+                resolve,
+                proxy,
+                true,
+            )? {
+                Established::Tls(mut tls) => {
+                    let negotiated = tls
                         .complete_handshake(Instant::now() + cfgs[0].timeout)
                         .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
                     if negotiated != Some("h2") {
@@ -2355,17 +2368,13 @@ fn http_h2_whole_queue(
                             Instant::now(),
                         )
                         .map_err(|e| usage(format!("http: {e}")))?;
-                        wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                        wrex_session::run(&mut session, &mut *tls, &wrex_io::SystemClock)
                             .map_err(|e| CliError::Runtime(format!("http: {e}")))
                     } else {
-                        run_h2(Box::new(driver))
+                        run_h2(tls)
                     }
                 }
-                None => {
-                    let driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
-                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                    run_h2(Box::new(driver))
-                }
+                Established::Plain(driver) => run_h2(driver),
             }
         }?;
 
@@ -2632,6 +2641,267 @@ struct H1Conn {
     driver: Box<dyn Driver>,
 }
 
+/// The established wire leg: TLS (handshake driven eagerly on
+/// connect) or a plain stream — both box into the driver at the end.
+enum Established {
+    Tls(Box<wrex_tls::TlsDriver>),
+    Plain(Box<dyn Driver>),
+}
+
+/// The parsed `--proxy` plan (tranche 19b): scheme, endpoint and
+/// credentials, run-level (recipe knobs ride the cfgs).
+#[derive(Clone, Debug)]
+struct ProxySpec {
+    kind: wrex_io::proxy::ProxyKind,
+    proxy: std::net::SocketAddr,
+    user: Option<String>,
+    pass: Option<String>,
+}
+
+/// The run-level proxy wrapper (None = direct).
+struct ProxyPlan(Option<ProxySpec>);
+
+impl ProxyPlan {
+    fn from_args(args: &crate::cli::HttpArgs, cfgs: &[HttpVerbConfig]) -> Result<Self, CliError> {
+        let raw = cfgs
+            .iter()
+            .filter_map(|c| c.proxy.clone())
+            .next()
+            .or_else(|| args.proxy.clone());
+        let user_raw = cfgs
+            .iter()
+            .filter_map(|c| c.proxy_user.clone())
+            .next()
+            .or_else(|| args.proxy_user.clone());
+        let Some(raw) = raw else {
+            return Ok(Self(None));
+        };
+        // Grammar: [http://|socks5://|socks5h://]HOST:PORT — a bare
+        // endpoint is an HTTP proxy (curl's default).
+        let (kind, rest) = if let Some(rest) = raw.strip_prefix("socks5h://") {
+            (wrex_io::proxy::ProxyKind::Socks5Remote, rest)
+        } else if let Some(rest) = raw.strip_prefix("socks5://") {
+            (wrex_io::proxy::ProxyKind::Socks5, rest)
+        } else if let Some(rest) = raw.strip_prefix("http://") {
+            (wrex_io::proxy::ProxyKind::Http, rest)
+        } else {
+            (wrex_io::proxy::ProxyKind::Http, raw.as_str())
+        };
+        let (user, pass) = match user_raw {
+            Some(u) => match u.split_once(':') {
+                Some((name, pass)) => (Some(name.to_string()), Some(pass.to_string())),
+                None => (Some(u), Some(String::new())),
+            },
+            None => (None, None),
+        };
+        let proxy = tcp_peer_str(rest, kind == wrex_io::proxy::ProxyKind::Http)
+            .map_err(|e| CliError::Runtime(format!("cannot resolve proxy `{rest}`: {e}")))?;
+        Ok(Self(Some(ProxySpec {
+            kind,
+            proxy,
+            user,
+            pass,
+        })))
+    }
+
+    fn as_ref(&self) -> Option<&ProxySpec> {
+        self.0.as_ref()
+    }
+}
+
+impl ProxySpec {
+    fn config(&self) -> wrex_io::proxy::ProxyConfig {
+        wrex_io::proxy::ProxyConfig {
+            kind: self.kind.clone(),
+            proxy: self.proxy,
+            user: self.user.clone(),
+            pass: self.pass.clone(),
+        }
+    }
+
+    /// `Basic user:pass` for the CONNECT header (None without
+    /// credentials).
+    fn basic_authorization(&self) -> Option<String> {
+        self.user.as_deref().map(|u| {
+            wrex_http::auth::basic_authorization(u, self.pass.as_deref().unwrap_or_default())
+        })
+    }
+}
+
+/// Establish the wire leg for one connection (shared by the
+/// per-exchange runner and the h2 whole-queue path): TLS for https
+/// (proxy or direct — the handshake itself is the caller's to drive),
+/// a plain stream for http (through an HTTP proxy, a SOCKS tunnel,
+/// or direct).
+fn establish_leg(
+    url: &wrex_http::http::Uri,
+    cfg: &HttpVerbConfig,
+    common: &Common,
+    source_port: Option<u16>,
+    resolve: &ResolveTable,
+    proxy: &ProxyPlan,
+    want_h2: bool,
+) -> Result<Established, CliError> {
+    let scheme = url.scheme_str().unwrap_or("http");
+    match (proxy.as_ref(), scheme) {
+        (Some(p), "https") => {
+            // HTTP-proxy CONNECT tunnel (or a SOCKS tunnel), then TLS
+            // over it — SNI still the destination.
+            let authority = dest_authority(url);
+            let bind = tcp_bind(common, source_port, p.proxy.ip())?;
+            let tunnel = match &p.kind {
+                wrex_io::proxy::ProxyKind::Http => wrex_io::proxy::connect_http_tunnel(
+                    &p.config(),
+                    &authority,
+                    bind,
+                    cfg.timeout,
+                    p.basic_authorization().as_deref(),
+                )
+                .map_err(|e| CliError::Runtime(format!("http: proxy: {e}")))?,
+                kind => wrex_io::proxy::connect_socks5(
+                    &wrex_io::proxy::ProxyConfig {
+                        kind: kind.clone(),
+                        ..p.config()
+                    },
+                    &dest_host(url),
+                    dest_port(url),
+                    bind,
+                    cfg.timeout,
+                )
+                .map_err(|e| CliError::Runtime(format!("http: proxy: {e}")))?,
+            };
+            let tcfg = tls_config_for(url, cfg, want_h2)?;
+            Ok(Established::Tls(Box::new(
+                wrex_tls::TlsDriver::connect_over(tunnel, authority, &tcfg)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?,
+            )))
+        }
+        (Some(p), _) => {
+            // Plain http:// — an HTTP proxy takes absolute-form
+            // requests TO the proxy (set_absolute_form); a SOCKS
+            // proxy tunnels to the destination.
+            let bind = tcp_bind(common, source_port, p.proxy.ip())?;
+            let driver = match &p.kind {
+                wrex_io::proxy::ProxyKind::Http => {
+                    wrex_io::TcpDriver::connect(p.proxy, bind, cfg.timeout)
+                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?
+                }
+                kind => wrex_io::proxy::connect_socks5(
+                    &wrex_io::proxy::ProxyConfig {
+                        kind: kind.clone(),
+                        ..p.config()
+                    },
+                    &dest_host(url),
+                    dest_port(url),
+                    bind,
+                    cfg.timeout,
+                )
+                .map_err(|e| CliError::Runtime(format!("http: proxy: {e}")))?,
+            };
+            Ok(Established::Plain(Box::new(driver)))
+        }
+        (None, _) => {
+            let peer = tcp_peer_with(url, resolve)?;
+            let bind = tcp_bind(common, source_port, peer.ip())?;
+            if scheme == "https" {
+                let tcfg = tls_config_for(url, cfg, want_h2)?;
+                Ok(Established::Tls(Box::new(
+                    wrex_tls::TlsDriver::connect(peer, bind, cfg.timeout, &tcfg)
+                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?,
+                )))
+            } else {
+                Ok(Established::Plain(Box::new(
+                    wrex_io::TcpDriver::connect(peer, bind, cfg.timeout)
+                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?,
+                )))
+            }
+        }
+    }
+}
+
+/// The CONNECT authority: the URL's authority as written (the proxy
+/// resolves the name; --resolve pins do not apply to the far leg).
+fn dest_authority(url: &wrex_http::http::Uri) -> String {
+    url.authority()
+        .map(|a| a.as_str().to_string())
+        .unwrap_or_default()
+}
+
+/// The destination hostname (SOCKS sends it or resolves it).
+fn dest_host(url: &wrex_http::http::Uri) -> String {
+    let host = url.authority().map(|a| a.host()).unwrap_or_default();
+    host.trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string()
+}
+
+/// The destination port (scheme defaults applied).
+fn dest_port(url: &wrex_http::http::Uri) -> u16 {
+    url.authority()
+        .and_then(|a| a.port_u16())
+        .unwrap_or(match url.scheme_str() {
+            Some("https") => 443,
+            _ => 80,
+        })
+}
+
+/// Absolute-form injection + Proxy-Authorization (the
+/// plain-HTTP-via-proxy wire shape): per exchange, per spec —
+/// redirect hops carry it too.
+fn set_absolute_form(spec: &mut wrex_http::HttpRequestSpec, proxy: &ProxyPlan) {
+    let http_proxy = matches!(
+        proxy.as_ref().map(|p| &p.kind),
+        Some(wrex_io::proxy::ProxyKind::Http)
+    );
+    spec.absolute_form = http_proxy && spec.url.scheme_str() == Some("http");
+    if !http_proxy {
+        return;
+    }
+    // Proxy credentials ride the absolute-form requests too (the
+    // CONNECT header carried them for tunnels).
+    if let Some(p) = proxy.as_ref()
+        && p.user.is_some()
+    {
+        while let Some(pos) = spec
+            .headers
+            .iter()
+            .position(|(n, _)| n.as_str() == "proxy-authorization")
+        {
+            spec.headers.remove(pos);
+        }
+        if let Some(basic) = p.basic_authorization()
+            && let Ok(hv) = wrex_http::http::HeaderValue::from_str(&basic)
+        {
+            spec.headers.push((
+                wrex_http::http::HeaderName::from_static("proxy-authorization"),
+                hv,
+            ));
+        }
+    }
+}
+
+/// Resolve `HOST:PORT` (a proxy endpoint) to one socket address.
+fn tcp_peer_str(
+    hostport: &str,
+    _http_default: bool,
+) -> Result<std::net::SocketAddr, std::io::Error> {
+    use std::net::ToSocketAddrs;
+    let (host, port) = hostport
+        .rsplit_once(':')
+        .ok_or_else(|| std::io::Error::other("expected HOST:PORT"))?;
+    let port: u16 = port
+        .parse()
+        .map_err(|_| std::io::Error::other("bad port"))?;
+    let host = host
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .unwrap_or(host);
+    (host, port)
+        .to_socket_addrs()?
+        .next()
+        .ok_or_else(|| std::io::Error::other("no address"))
+}
+
 /// Per-exchange driver: holds the open transport, reconnects on key
 /// changes and dead connections, and maps transport failures into
 /// retries (the `--retries` knob).
@@ -2642,6 +2912,8 @@ struct HttpRunner<'a> {
     hpack: wrex_h2::HpackEncodePolicy,
     /// The --resolve pin table (per-connection).
     resolve: &'a ResolveTable,
+    /// The proxy plan (tranche 19b; None = direct).
+    proxy: &'a ProxyPlan,
     /// Origin key of the held transport (`scheme`-normalized host:port).
     key: Option<String>,
     transport: Option<HttpTransport>,
@@ -2668,6 +2940,7 @@ impl<'a> HttpRunner<'a> {
         want_h2: bool,
         hpack: wrex_h2::HpackEncodePolicy,
         resolve: &'a ResolveTable,
+        proxy: &'a ProxyPlan,
     ) -> Self {
         Self {
             common,
@@ -2675,6 +2948,7 @@ impl<'a> HttpRunner<'a> {
             want_h2,
             hpack,
             resolve,
+            proxy,
             key: None,
             transport: None,
             fresh: false,
@@ -2730,58 +3004,45 @@ impl<'a> HttpRunner<'a> {
     ) -> Result<(), CliError> {
         self.transport = None;
         let key = wrex_http::redirect::authority_key(&spec.url);
-        let peer = tcp_peer_with(&spec.url, self.resolve)?;
-        let bind = tcp_bind(self.common, self.source_port, peer.ip())?;
-        let scheme = spec.url.scheme_str().unwrap_or("http");
+        // Establish the leg (tranche 19b: the proxy path CONNECTS to
+        // the proxy, not the destination — the runner still keys
+        // connections by DESTINATION so redirect reuse works).
+        let established = establish_leg(
+            &spec.url,
+            cfg,
+            self.common,
+            self.source_port,
+            self.resolve,
+            self.proxy,
+            self.want_h2,
+        )?;
         if let Some(t) = &mut self.timing {
             t.connect = Some(t.start.elapsed().as_millis() as u64);
         }
-        if scheme == "https" {
-            let tcfg = tls_config_for(&spec.url, cfg, self.want_h2)?;
-            let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfg.timeout, &tcfg)
-                .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-            // Drive the TLS handshake to completion before the first
-            // request byte (identical wire bytes, eager scheduling —
-            // and an honest --timing appconnect on every https run).
-            let negotiated = driver
-                .complete_handshake(Instant::now() + cfg.timeout)
-                .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-            if let Some(t) = &mut self.timing {
-                t.appconnect = Some(t.start.elapsed().as_millis() as u64);
-            }
-            if self.want_h2 {
-                if negotiated == Some("h2") {
-                    self.transport = Some(HttpTransport::H2 {
-                        driver: Box::new(driver),
-                    });
+        match established {
+            Established::Tls(mut tls) => {
+                // Drive the TLS handshake to completion before the
+                // first request byte (identical wire bytes, eager
+                // scheduling — and an honest --timing appconnect on
+                // every https run, proxy or not).
+                let negotiated = tls
+                    .complete_handshake(Instant::now() + cfg.timeout)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                if let Some(t) = &mut self.timing {
+                    t.appconnect = Some(t.start.elapsed().as_millis() as u64);
+                }
+                if self.want_h2 && negotiated == Some("h2") {
+                    self.transport = Some(HttpTransport::H2 { driver: tls });
                     self.key = Some(key);
                     self.fresh = true;
                     return Ok(());
                 }
-                // Auto-downgrade (the T15 planning decision): a pointed
-                // note, then the 1.1 session.
-                let what = negotiated.unwrap_or("no ALPN protocol");
-                eprintln!("note: server negotiated `{what}` — falling back to HTTP/1.1");
-            }
-            let session = wrex_http::HttpClientSession::open(
-                spec,
-                session_cfg(cfg),
-                keep_alive,
-                Instant::now(),
-            )
-            .map_err(|e| usage(format!("http: {e}")))?;
-            self.transport = Some(HttpTransport::H1(Box::new(H1Conn {
-                session,
-                driver: Box::new(driver),
-            })));
-        } else {
-            let driver = wrex_io::TcpDriver::connect(peer, bind, cfg.timeout)
-                .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-            if self.want_h2 {
-                self.transport = Some(HttpTransport::H2 {
-                    driver: Box::new(driver),
-                });
-            } else {
+                if self.want_h2 {
+                    // Auto-downgrade (the T15 planning decision): a
+                    // pointed note, then the 1.1 session.
+                    let what = negotiated.unwrap_or("no ALPN protocol");
+                    eprintln!("note: server negotiated `{what}` — falling back to HTTP/1.1");
+                }
                 let session = wrex_http::HttpClientSession::open(
                     spec,
                     session_cfg(cfg),
@@ -2791,8 +3052,23 @@ impl<'a> HttpRunner<'a> {
                 .map_err(|e| usage(format!("http: {e}")))?;
                 self.transport = Some(HttpTransport::H1(Box::new(H1Conn {
                     session,
-                    driver: Box::new(driver),
+                    driver: tls,
                 })));
+            }
+            Established::Plain(driver) => {
+                if self.want_h2 {
+                    // Cleartext h2 prior knowledge (tranche 16b).
+                    self.transport = Some(HttpTransport::H2 { driver });
+                } else {
+                    let session = wrex_http::HttpClientSession::open(
+                        spec,
+                        session_cfg(cfg),
+                        keep_alive,
+                        Instant::now(),
+                    )
+                    .map_err(|e| usage(format!("http: {e}")))?;
+                    self.transport = Some(HttpTransport::H1(Box::new(H1Conn { session, driver })));
+                }
             }
         }
         self.key = Some(key);
@@ -2800,11 +3076,6 @@ impl<'a> HttpRunner<'a> {
         Ok(())
     }
 
-    /// Run one exchange for `spec`, reusing the held connection on a
-    /// key match (h1: `push_request`; h2: fresh session on the same
-    /// connection never happens — one exchange per h2 connection in
-    /// this mode), reconnecting once when the peer closed between
-    /// exchanges.
     fn exchange_once(
         &mut self,
         spec: &wrex_http::HttpRequestSpec,
@@ -3023,6 +3294,7 @@ fn follow_up_request(
             prev.framing
         },
         chunk_size: prev.chunk_size,
+        absolute_form: prev.absolute_form,
     })
 }
 
@@ -3269,6 +3541,10 @@ struct HttpVerbConfig {
     /// Request/decode compressed content (recipe `compressed` or
     /// `--compressed`).
     compressed: bool,
+    /// Proxy endpoint (recipe `proxy` or `--proxy`).
+    proxy: Option<String>,
+    /// Proxy credentials (recipe `proxy_user` or `--proxy-user`).
+    proxy_user: Option<String>,
 }
 
 /// One per queued request: the CLI defaults + that request's recipe
@@ -3303,6 +3579,8 @@ fn http_verb_cfg(
         bearer: overrides.bearer.or_else(|| args.bearer.clone()),
         digest: overrides.digest.unwrap_or(args.digest),
         compressed: overrides.compressed.unwrap_or(args.compressed),
+        proxy: overrides.proxy.or_else(|| args.proxy.clone()),
+        proxy_user: overrides.proxy_user.or_else(|| args.proxy_user.clone()),
     })
 }
 

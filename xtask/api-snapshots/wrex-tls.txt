@@ -78,6 +78,7 @@ impl wrex_tls::TlsDriver
 pub fn wrex_tls::TlsDriver::alpn_protocol(&self) -> core::option::Option<&str>
 pub fn wrex_tls::TlsDriver::complete_handshake(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<&str>>
 pub fn wrex_tls::TlsDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration, &wrex_tls::TlsConfig) -> core::result::Result<Self, wrex_tls::TlsError>
+pub fn wrex_tls::TlsDriver::connect_over(wrex_io::tcp::TcpDriver, alloc::string::String, &wrex_tls::TlsConfig) -> core::result::Result<Self, wrex_tls::TlsError>
 pub fn wrex_tls::TlsDriver::peer(&self) -> &str
 impl wrex_io::driver::Driver for wrex_tls::TlsDriver
 pub fn wrex_tls::TlsDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>

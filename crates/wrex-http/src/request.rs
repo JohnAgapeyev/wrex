@@ -37,6 +37,10 @@ pub struct HttpRequestSpec {
     pub framing: RequestFraming,
     /// Fixed chunk size for [`RequestFraming::Chunked`] (deterministic).
     pub chunk_size: usize,
+    /// Serialize the request-target in absolute form
+    /// (`GET http://host/path HTTP/1.1`) — the plain-HTTP-via-proxy
+    /// wire shape (tranche 19b). Default false: origin form.
+    pub absolute_form: bool,
 }
 
 /// Default identity header values.
@@ -80,6 +84,7 @@ impl HttpRequestSpec {
             body,
             framing: RequestFraming::Length,
             chunk_size: DEFAULT_CHUNK_SIZE,
+            absolute_form: false,
         })
     }
 
@@ -87,6 +92,13 @@ impl HttpRequestSpec {
     pub fn with_framing(mut self, framing: RequestFraming, chunk_size: usize) -> Self {
         self.framing = framing;
         self.chunk_size = chunk_size;
+        self
+    }
+
+    /// Serialize the request-target in absolute form (the
+    /// plain-HTTP-via-proxy shape, tranche 19b).
+    pub fn with_absolute_form(mut self, yes: bool) -> Self {
+        self.absolute_form = yes;
         self
     }
 
@@ -112,11 +124,16 @@ impl HttpRequestSpec {
             .authority()
             .ok_or_else(|| "url has no host (authority)".to_string())?
             .as_str();
-        let target = self
-            .url
-            .path_and_query()
-            .map(|pq| pq.as_str().to_string())
-            .unwrap_or_else(|| "/".to_string());
+        let target = if self.absolute_form {
+            // The proxy wire shape (tranche 19b): the full absolute
+            // URI as the request-target (RFC 9112 §3.2.2).
+            self.url.to_string()
+        } else {
+            self.url
+                .path_and_query()
+                .map(|pq| pq.as_str().to_string())
+                .unwrap_or_else(|| "/".to_string())
+        };
 
         let has = |name: &str| self.headers.iter().any(|(n, _)| n.as_str() == name);
         // An explicit Transfer-Encoding always conflicts: the framing

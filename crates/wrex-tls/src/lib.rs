@@ -235,6 +235,14 @@ impl TlsDriver {
         cfg: &TlsConfig,
     ) -> Result<Self, TlsError> {
         let inner = TcpDriver::connect(peer, bind, timeout)?;
+        Self::connect_over(inner, peer.to_string(), cfg)
+    }
+
+    /// TLS over an ESTABLISHED inner driver (tranche 19b: the HTTP
+    /// `CONNECT` tunnel hands a pre-established connection over; SNI
+    /// still comes from the config). `peer` names the DESTINATION for
+    /// rendering.
+    pub fn connect_over(inner: TcpDriver, peer: String, cfg: &TlsConfig) -> Result<Self, TlsError> {
         let server_name = ServerName::try_from(cfg.server_name.as_str())
             .map_err(|e| TlsError::Config(format!("bad server name `{}`: {e}", cfg.server_name)))?
             .to_owned();
@@ -246,7 +254,7 @@ impl TlsDriver {
         Ok(Self {
             conn,
             inner,
-            peer: peer.to_string(),
+            peer,
             closed: false,
         })
     }

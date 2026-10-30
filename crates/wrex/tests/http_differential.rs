@@ -635,6 +635,73 @@ fn compressed_differential_vs_curl() {
     }
 }
 
+/// The proxy differential (tranche 19b): both clients fetch the same
+/// URL through the same plain-HTTP proxy stub — the proxy answers by
+/// echoing the request line it saw, so equal bodies prove both
+/// clients speak the same absolute-form proxy wire.
+#[test]
+fn proxy_differential_vs_curl() {
+    if !curl_enabled() {
+        eprintln!(
+            "proxy_differential_vs_curl: skipping (curl not on PATH or WREX_DIFF_CURL unset)"
+        );
+        return;
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind proxy");
+    let proxy = listener.local_addr().expect("addr");
+    let conns = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let conns2 = conns.clone();
+    std::thread::spawn(move || {
+        for _ in 0..8 {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            conns2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    let line = head.lines().next().unwrap_or_default();
+                    let resp = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{line}",
+                        line.len()
+                    );
+                    let _ = conn.write_all(resp.as_bytes());
+                    let _ = pos;
+                    buf.clear();
+                }
+            }
+        }
+    });
+    let url = "http://proxy-diff.test/dir/page";
+    for client in ["curl", "wrex"] {
+        let out = if client == "curl" {
+            std::process::Command::new(which_curl().unwrap())
+                .args(["-s", "-x", &proxy.to_string(), url])
+                .output()
+                .expect("spawn curl")
+        } else {
+            assert_cmd::Command::new(env!("CARGO_BIN_EXE_wrex"))
+                .args(["http", "--format", "raw", "-x", &proxy.to_string(), url])
+                .assert()
+                .success()
+                .get_output()
+                .clone()
+        };
+        assert!(out.status.success(), "{client} failed through the proxy");
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout),
+            "GET http://proxy-diff.test/dir/page HTTP/1.1",
+            "{client}: the proxy saw a different request line"
+        );
+    }
+}
+
 #[test]
 fn recipe_replays_byte_identical() {
     let json = r#"{

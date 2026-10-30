@@ -298,6 +298,88 @@ pub fn wrex_io::ndp::icmp6_checksum(core::net::ip_addr::Ipv6Addr, core::net::ip_
 pub const fn wrex_io::ndp::multicast_mac(core::net::ip_addr::Ipv6Addr) -> [u8; 6]
 pub fn wrex_io::ndp::parse_na(&[u8]) -> core::option::Option<(core::net::ip_addr::Ipv6Addr, [u8; 6])>
 pub const fn wrex_io::ndp::solicited_node(core::net::ip_addr::Ipv6Addr) -> core::net::ip_addr::Ipv6Addr
+pub mod wrex_io::proxy
+pub enum wrex_io::proxy::ProxyKind
+pub wrex_io::proxy::ProxyKind::Http
+pub wrex_io::proxy::ProxyKind::Socks5
+pub wrex_io::proxy::ProxyKind::Socks5Remote
+impl core::clone::Clone for wrex_io::proxy::ProxyKind
+pub fn wrex_io::proxy::ProxyKind::clone(&self) -> Self
+impl core::cmp::Eq for wrex_io::proxy::ProxyKind
+impl core::cmp::PartialEq for wrex_io::proxy::ProxyKind
+pub fn wrex_io::proxy::ProxyKind::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_io::proxy::ProxyKind
+pub fn wrex_io::proxy::ProxyKind::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_io::proxy::ProxyKind
+impl core::marker::Freeze for wrex_io::proxy::ProxyKind
+impl core::marker::Send for wrex_io::proxy::ProxyKind
+impl core::marker::Sync for wrex_io::proxy::ProxyKind
+impl core::marker::Unpin for wrex_io::proxy::ProxyKind
+impl core::marker::UnsafeUnpin for wrex_io::proxy::ProxyKind
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::proxy::ProxyKind
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::proxy::ProxyKind
+impl<T, U> core::convert::Into<U> for wrex_io::proxy::ProxyKind where U: core::convert::From<T>
+pub fn wrex_io::proxy::ProxyKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::proxy::ProxyKind where U: core::convert::Into<T>
+pub type wrex_io::proxy::ProxyKind::Error = never
+pub fn wrex_io::proxy::ProxyKind::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::proxy::ProxyKind where U: core::convert::TryFrom<T>
+pub type wrex_io::proxy::ProxyKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::proxy::ProxyKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::proxy::ProxyKind where T: core::clone::Clone
+pub type wrex_io::proxy::ProxyKind::Owned = T
+pub fn wrex_io::proxy::ProxyKind::clone_into(&self, &mut T)
+pub fn wrex_io::proxy::ProxyKind::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::proxy::ProxyKind where T: 'static + ?core::marker::Sized
+pub fn wrex_io::proxy::ProxyKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::proxy::ProxyKind where T: ?core::marker::Sized
+pub fn wrex_io::proxy::ProxyKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::proxy::ProxyKind where T: ?core::marker::Sized
+pub fn wrex_io::proxy::ProxyKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::proxy::ProxyKind where T: core::clone::Clone
+pub unsafe fn wrex_io::proxy::ProxyKind::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::proxy::ProxyKind
+pub fn wrex_io::proxy::ProxyKind::from(T) -> T
+pub struct wrex_io::proxy::ProxyConfig
+pub wrex_io::proxy::ProxyConfig::kind: wrex_io::proxy::ProxyKind
+pub wrex_io::proxy::ProxyConfig::pass: core::option::Option<alloc::string::String>
+pub wrex_io::proxy::ProxyConfig::proxy: core::net::socket_addr::SocketAddr
+pub wrex_io::proxy::ProxyConfig::user: core::option::Option<alloc::string::String>
+impl core::clone::Clone for wrex_io::proxy::ProxyConfig
+pub fn wrex_io::proxy::ProxyConfig::clone(&self) -> Self
+impl core::fmt::Debug for wrex_io::proxy::ProxyConfig
+pub fn wrex_io::proxy::ProxyConfig::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_io::proxy::ProxyConfig
+impl core::marker::Send for wrex_io::proxy::ProxyConfig
+impl core::marker::Sync for wrex_io::proxy::ProxyConfig
+impl core::marker::Unpin for wrex_io::proxy::ProxyConfig
+impl core::marker::UnsafeUnpin for wrex_io::proxy::ProxyConfig
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::proxy::ProxyConfig
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::proxy::ProxyConfig
+impl<T, U> core::convert::Into<U> for wrex_io::proxy::ProxyConfig where U: core::convert::From<T>
+pub fn wrex_io::proxy::ProxyConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::proxy::ProxyConfig where U: core::convert::Into<T>
+pub type wrex_io::proxy::ProxyConfig::Error = never
+pub fn wrex_io::proxy::ProxyConfig::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::proxy::ProxyConfig where U: core::convert::TryFrom<T>
+pub type wrex_io::proxy::ProxyConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::proxy::ProxyConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_io::proxy::ProxyConfig where T: core::clone::Clone
+pub type wrex_io::proxy::ProxyConfig::Owned = T
+pub fn wrex_io::proxy::ProxyConfig::clone_into(&self, &mut T)
+pub fn wrex_io::proxy::ProxyConfig::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_io::proxy::ProxyConfig where T: 'static + ?core::marker::Sized
+pub fn wrex_io::proxy::ProxyConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::proxy::ProxyConfig where T: ?core::marker::Sized
+pub fn wrex_io::proxy::ProxyConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::proxy::ProxyConfig where T: ?core::marker::Sized
+pub fn wrex_io::proxy::ProxyConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_io::proxy::ProxyConfig where T: core::clone::Clone
+pub unsafe fn wrex_io::proxy::ProxyConfig::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_io::proxy::ProxyConfig
+pub fn wrex_io::proxy::ProxyConfig::from(T) -> T
+pub fn wrex_io::proxy::connect_http_tunnel(&wrex_io::proxy::ProxyConfig, &str, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration, core::option::Option<&str>) -> core::result::Result<wrex_io::tcp::TcpDriver, wrex_io::driver::DriverError>
+pub fn wrex_io::proxy::connect_socks5(&wrex_io::proxy::ProxyConfig, &str, u16, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration) -> core::result::Result<wrex_io::tcp::TcpDriver, wrex_io::driver::DriverError>
 pub mod wrex_io::replay
 pub struct wrex_io::replay::FakeClock
 impl wrex_io::replay::FakeClock
@@ -440,6 +522,7 @@ pub mod wrex_io::tcp
 pub struct wrex_io::tcp::TcpDriver
 impl wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration) -> core::result::Result<Self, wrex_io::driver::DriverError>
+pub fn wrex_io::tcp::TcpDriver::from_stream(std::net::tcp::TcpStream, impl core::convert::Into<alloc::string::String>) -> Self
 pub fn wrex_io::tcp::TcpDriver::peer(&self) -> &str
 impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
@@ -939,6 +1022,7 @@ pub fn wrex_io::SystemClock::from(T) -> T
 pub struct wrex_io::TcpDriver
 impl wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::connect(core::net::socket_addr::SocketAddr, core::option::Option<core::net::socket_addr::SocketAddr>, core::time::Duration) -> core::result::Result<Self, wrex_io::driver::DriverError>
+pub fn wrex_io::tcp::TcpDriver::from_stream(std::net::tcp::TcpStream, impl core::convert::Into<alloc::string::String>) -> Self
 pub fn wrex_io::tcp::TcpDriver::peer(&self) -> &str
 impl wrex_io::driver::Driver for wrex_io::tcp::TcpDriver
 pub fn wrex_io::tcp::TcpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>

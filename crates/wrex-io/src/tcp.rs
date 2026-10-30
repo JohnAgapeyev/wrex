@@ -63,6 +63,17 @@ impl TcpDriver {
         })
     }
 
+    /// Wrap an ESTABLISHED stream (the proxy handshakes in
+    /// [`crate::proxy`] pre-establish the wire and hand the stream
+    /// over; `peer` names the DESTINATION for rendering).
+    pub fn from_stream(stream: TcpStream, peer: impl Into<String>) -> Self {
+        Self {
+            stream,
+            peer: peer.into(),
+            closed: false,
+        }
+    }
+
     /// The connected peer address (rendering/diagnostics).
     pub fn peer(&self) -> &str {
         &self.peer
@@ -252,7 +263,7 @@ unsafe fn fill_sockaddr(dst: &mut libc::sockaddr_storage, addr: SocketAddr) -> l
 ///
 /// Tranche 10a: both families. The bind address must share the peer's
 /// family (a v4 bind under a v6 connect is a pointed error).
-fn tcp_connect(
+pub(crate) fn tcp_connect(
     peer: SocketAddr,
     bind: Option<SocketAddr>,
     timeout: Duration,
