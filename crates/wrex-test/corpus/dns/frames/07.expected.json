@@ -1,1 +1,84 @@
-{"anomalies":[],"layers":[{"fields":{"dst":"aa:bb:cc:dd:ee:ff","src":"00:00:00:00:00:00","type":"ipv4"},"kind":"eth","span":[0,14]},{"fields":{"checksum":63064,"dst":"192.0.2.10","flags":[],"frag_off":0,"id":0,"ihl":5,"options":"","proto":"udp","src":"192.0.2.53","tos":0,"total_len":85,"ttl":64,"ver":4},"kind":"ipv4","span":[14,34]},{"fields":{"checksum":46418,"dport":40006,"length":65,"sport":53},"kind":"udp","span":[34,42]},{"fields":{"an.0.class":"IN","an.0.name":"example.com","an.0.rdata":"2606:2800:22:f0f:b21::","an.0.ttl":300,"an.0.type":"AAAA","ancount":1,"arcount":0,"flags":["qr","rd","ra"],"id":69,"nscount":0,"opcode":0,"qd.0.class":"IN","qd.0.name":"example.com","qd.0.type":"AAAA","qdcount":1,"rcode":0},"kind":"dns","span":[42,99]}],"payload_hex":"","start":"eth"}
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "dst": "aa:bb:cc:dd:ee:ff",
+        "src": "00:00:00:00:00:00",
+        "type": "ipv4"
+      },
+      "kind": "eth",
+      "span": [
+        0,
+        14
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 63064,
+        "dst": "192.0.2.10",
+        "flags": [],
+        "frag_off": 0,
+        "id": 0,
+        "ihl": 5,
+        "options": "",
+        "proto": "udp",
+        "src": "192.0.2.53",
+        "tos": 0,
+        "total_len": 85,
+        "ttl": 64,
+        "ver": 4
+      },
+      "kind": "ipv4",
+      "span": [
+        14,
+        34
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 46418,
+        "dport": 40006,
+        "length": 65,
+        "sport": 53
+      },
+      "kind": "udp",
+      "span": [
+        34,
+        42
+      ]
+    },
+    {
+      "fields": {
+        "an.0.class": "IN",
+        "an.0.name": "example.com",
+        "an.0.rdata": "2606:2800:22:f0f:b21::",
+        "an.0.ttl": 300,
+        "an.0.type": "AAAA",
+        "ancount": 1,
+        "arcount": 0,
+        "flags": [
+          "qr",
+          "rd",
+          "ra"
+        ],
+        "flags.z": false,
+        "id": 69,
+        "nscount": 0,
+        "opcode": 0,
+        "qd.0.class": "IN",
+        "qd.0.name": "example.com",
+        "qd.0.type": "AAAA",
+        "qdcount": 1,
+        "rcode": 0
+      },
+      "kind": "dns",
+      "span": [
+        42,
+        99
+      ]
+    }
+  ],
+  "payload_hex": "",
+  "start": "eth"
+}

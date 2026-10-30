@@ -1071,8 +1071,9 @@ fn g3_rfc_position_vectors_bit_aggregates() {
     }
 
     // --- dns: RFC 1035 §4.1.1 — the flags word at header offset 2:
-    //     qr = bit 15, aa 10, tc 9, rd 8, ra 7 (opcode/rcode are the
-    //     4-bit windows between them).
+    //     qr = bit 15, aa 10, tc 9, rd 8, ra 7, ad 5, cd 4 (opcode/rcode
+    //     are the 4-bit windows between them; tranche 20a-1 grew the
+    //     aggregate — the mask is MSB-first over 7 bits now).
     {
         let mut l = layer(
             "dns",
@@ -1085,7 +1086,7 @@ fn g3_rfc_position_vectors_bit_aggregates() {
                 ("qd.0.class", Value::Str("IN".into())),
             ],
         );
-        l.fields.insert("flags".into(), int(0b10010)); // qr|rd (bit_names[qr,aa,tc,rd,ra] → mask bits 4,1)
+        l.fields.insert("flags".into(), int(0b0100_1000)); // qr|rd (bit_names[qr,aa,tc,rd,ra,ad,cd] → mask bits 6,3)
         let f = craft(vec![
             eth(),
             ip4(),

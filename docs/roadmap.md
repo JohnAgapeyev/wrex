@@ -1607,7 +1607,7 @@ for wave selection:
 | Pillar | Delivered | Remaining for credible parity |
 |--------|-----------|-------------------------------|
 | curl | http/1.1 + h2 + h2c + TLS + recipes + queues + redirects (T19) + cookies (T19) + basic/bearer/digest auth (T19) + content-decoding gzip/deflate/br/zstd (T19) + proxies CONNECT/absolute-form/SOCKS5 (T19) + the sugar pack (T19) | HTTP/3; the long-tail flags |
-| dig | UDP/TCP/TLS query, v4/v6, records dissection, compression | EDNS0 crafting, typed SOA/MX/SRV rdata, reverse sugar, DoH, mDNS |
+| dig | UDP/TCP/TLS query, v4/v6, records dissection, compression, EDNS0 crafting + typed OPT/TLVs + the full typed-rdata table + reverse/short sugar (T20), DoH + mDNS/LLMNR dispatch (T20) | DoH over h2; the long-tail dig output formats |
 | nmap | SYN/connect/UDP/ICMP scan, v4/v6, seeded pacing, top-100 defaults | scan variants (FIN/NULL/XMAS/ACK), ARP/NDP discovery, traceroute, service/version, OS fingerprint |
 | scapy | craft/dissect/send/recv/mut/patch across 20+ codecs, lossless dissection, span patching, fragment reassembly | read-side TCP/IPv4 options typing, tunnel/encapsulation recursion, most L2/app protocols, scripted conversations |
 | tshark | pcap/pcapng read+write, replay, diff, fragment reassembly | non-Ethernet linktypes, BPF, TCP stream follow, conversations/stats, name resolution |
@@ -1825,20 +1825,89 @@ rationale in [verification.md](verification.md)):
     (one connection when the server allows) pinned by a keep-alive
     stub.
 
-- **T20 — DNS completeness (dig closure)** — wave 1; rides the T3
-  codec, T15 ALPN (DoH), and the T10b io multicast lineage (mDNS
-  v6). Closes UC-28/29/30. ADR-2: own (dns is owned; byte control
-  is central).
+- **T20 — DNS completeness (dig closure)** — ✅ delivered
+  (2026-10-30; three slices, all additive, every pinned pre-T20 wire
+  byte identical). Closes UC-28/29/30. As-delivered:
+  - **20a-1 — EDNS0 + the header bits**: the `ad`/`cd` words joined
+    the craft aggregate (the 7-bit MSB-first unit; the flags-word
+    mapping pinned by the G3 KAV row), `z` renders dissect-only with a
+    never-fatal anomaly when a peer sets it (RFC 1035 §4.1.1). The
+    `--dns-edns SIZE` sugar family (`edns`, `edns_ext_rcode`,
+    `edns_version`, `edns_do`, `edns_options`) crafts one OPT
+    pseudo-record into ar (RFC 6891: root owner — non-root is a pointed
+    error; class = the udp payload size, floor 512 enforced in the
+    session validate; ttl packs ext-rcode/version/DO; one OPT per
+    message, shared rule with the explicit index paths). The options
+    TLV grammar: `nsid:HEX`, `cookie:HEX[:HEX]` (RFC 7873),
+    `ecs:IP[/PREFIX[/SCOPE]]` (the RFC 7871 §4 subset), `raw:CODE:HEX`
+    (the dhcp `hex:` escape shape). Dissect-side OPT typing:
+    `ar.N.udp_size/ext_rcode/version/do/z` with real bit/byte spans
+    and the TLVs as `ar.N.opt.M.{code,len,value}` records with typed
+    ECS (family/prefix/scope/addr) and COOKIE client/server splits.
+  - **20a-2 — typed rdata + settable answers + sugar**: the full
+    type-alias table (HINFO/NAPTR/DNAME/DS/SSHFP/RRSIG/NSEC/DNSKEY/TLSA/
+    SVCB/HTTPS/CAA joined the tranche-3 set) and the typed-subfield
+    walks per type — MX preference/exchange, SOA timers, SRV
+    priority/weight/port/target, TXT character-strings, CAA
+    flags/tag/value, SVCB/HTTPS priority/target + SvcParams as
+    `an.N.svcb.M.{key,value}` with alpn/port/ipv4hint/ipv6hint typed
+    subsets (alias-mode params are a pointed never-fatal anomaly), and
+    the DNSSEC read-side shapes (DS/DNSKEY/RRSIG/NSEC/TLSA/SSHFP) —
+    **structural rendering only, chain validation is a recorded
+    won't-do**; rdata stays the raw wire truth, malformed shapes
+    degrade to raw + a never-fatal anomaly (the `typed_rdata` rule).
+    `an`/`ns`/`ar` flipped settable: the record-section grammar
+    enumerates index-0 paths (`--dns-an-0-name`, …) and the codec
+    crafts every `{section}.{n}.*` index run with autofilled counts
+    (explicit counts keep winning, the tranche-3 rule). `wrex query`
+    sugar: `--reverse` (dig -x: the in-addr.arpa/ip6.arpa PTR
+    composition), `--short` (dig +short: answer rdata values, text
+    format), `--edns SIZE`/`--edns-do` on the query side.
+  - **20b — transports**: `wrex query --doh URL` (RFC 8484: POST the
+    bare message as `application/dns-message` over the `wrex-http`
+    1.1 session — plain `TcpDriver` or the rustls `TlsDriver` on the
+    scheme, fresh connection per attempt, a 200 body dissects as the
+    reply, non-200/failed attempts retry then exit 1; h2 ALPN is a
+    recorded P2 deferral); `wrex query --mdns` (mDNS, RFC 6762: the
+    224.0.0.251/ff02::fb group on 5353 — the `UdpDriver` keeps
+    multicast peers UNCONNECTED, `send_to` on the wire, because mDNS
+    replies arrive from the responder's unicast source and a
+    connected socket's 4-tuple filter would drop them); udp dispatch
+    5353→dns on BOTH ends (an ephemeral 5353 sport must not kidnap)
+    and 5355→dns either side (LLMNR, dissect-only).
+  - Verification: codec units (EDNS sugar goldens, the ad/cd/z word,
+    pointed errors — typeless records, non-root OPT, two-OPT —, the
+    full typed-walk table on hand-built replies, never-fatal
+    degradations), the hickory differential extended (the strategy now
+    crafts one VALID record per section through the settable index
+    paths — the G1 audit stays clean; the tshark `dhcp6.msg_type` map
+    bug the differential uncovered fixed: our numeric renderer
+    fallback now maps through), the dig differential + the
+    hickory-server/dig real-traffic corpus unchanged (the expected
+    goldens regenerated: typed OPT/EDNS rendering of real dig traffic),
+    G1/G2/G3 gates green (the G3 dns KAV row re-pinned for the 7-bit
+    aggregate), `fuzz_dissect_dns` unchanged-seed stable, udp dispatch
+    tests for 5353/5355, query grammar units (--edns floors, --reverse
+    composition, --mdns/--doh conflicts), env-gated ground truth
+    (--edns on the wire against a UDP stub; --doh end-to-end against a
+    plain HTTP stub; --mdns against a group-member loopback stub),
+    three new executable workflows (WF-28/29/30), man pages + API
+    snapshots regenerated.
+  - Deliberate deferrals recorded in the ledger: typed rdata
+    *crafting* (P3, `hex:` covers), DoH over h2 (P2), filter typing
+    for nested `sub` paths (P2, the dhcp6 shape), DNSSEC validation
+    (won't-do), mDNS responder (T33), LLMNR crafting (dissect-only by
+    design), multi-question craft (P3, unchanged).
 
+  Charter sketch as planned (kept for the record):
   - **20a — EDNS0 + typing**: craftable OPT pseudo-record
     (udp-size, ext-rcode, DO, version, z) with option TLVs (NSID,
-    cookie, ECS subset, `raw:` escape) — closes the recorded
-    tranche-3 deferral; typed rdata record sections for
-    SOA/MX/NS/PTR/SRV/TXT/CAA (`an.N.mx.preference` …); settable
-    answer records (craft side); `--reverse` PTR sugar; `--short`.
-  - **20b — transports**: DoH (RFC 8484 via `wrex-http`, ALPN h2 —
-    pure composition); mDNS (udp 5353 dispatch → dns, multicast
-    query verb); LLMNR 5355 dissect.
+    cookie, ECS subset, `raw:` escape); typed rdata record sections
+    for SOA/MX/NS/PTR/SRV/TXT/CAA; settable answer records (craft
+    side); `--reverse` PTR sugar; `--short`.
+  - **20b — transports**: DoH (RFC 8484 via `wrex-http`), mDNS
+    (udp 5353 dispatch → dns, multicast query verb), LLMNR 5355
+    dissect.
   - Verification: hickory differential extended (it carries
     EDNS), dig stub, EDNS goldens, `fuzz_dissect_dns` extended,
     HP3 gates (bit-toggle on DO/z) + the hickory-server/dig

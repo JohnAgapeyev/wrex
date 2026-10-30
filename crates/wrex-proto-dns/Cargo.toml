@@ -9,6 +9,8 @@ description = "wrex DNS codec (RFC 1035): single-question craft, full-message di
 [dependencies]
 wrex-core = { workspace = true }
 bytes = { workspace = true }
+# hex: the --dns-edns-options value grammar (tranche 20a-1).
+hex = { workspace = true }
 # ADR 3: parents are real Cargo deps — a child codec cannot build
 # without the crates it stacks on.
 wrex-proto-udp = { workspace = true }

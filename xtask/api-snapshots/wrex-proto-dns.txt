@@ -13,13 +13,25 @@ pub const wrex_proto_dns::types::CLASS_IN: u16
 pub const wrex_proto_dns::types::TYPE_A: u16
 pub const wrex_proto_dns::types::TYPE_AAAA: u16
 pub const wrex_proto_dns::types::TYPE_ANY: u16
+pub const wrex_proto_dns::types::TYPE_CAA: u16
 pub const wrex_proto_dns::types::TYPE_CNAME: u16
+pub const wrex_proto_dns::types::TYPE_DNAME: u16
+pub const wrex_proto_dns::types::TYPE_DNSKEY: u16
+pub const wrex_proto_dns::types::TYPE_DS: u16
+pub const wrex_proto_dns::types::TYPE_HINFO: u16
+pub const wrex_proto_dns::types::TYPE_HTTPS: u16
 pub const wrex_proto_dns::types::TYPE_MX: u16
+pub const wrex_proto_dns::types::TYPE_NAPTR: u16
 pub const wrex_proto_dns::types::TYPE_NS: u16
+pub const wrex_proto_dns::types::TYPE_NSEC: u16
 pub const wrex_proto_dns::types::TYPE_OPT: u16
 pub const wrex_proto_dns::types::TYPE_PTR: u16
+pub const wrex_proto_dns::types::TYPE_RRSIG: u16
 pub const wrex_proto_dns::types::TYPE_SOA: u16
 pub const wrex_proto_dns::types::TYPE_SRV: u16
+pub const wrex_proto_dns::types::TYPE_SSHFP: u16
+pub const wrex_proto_dns::types::TYPE_SVCB: u16
+pub const wrex_proto_dns::types::TYPE_TLSA: u16
 pub const wrex_proto_dns::types::TYPE_TXT: u16
 pub fn wrex_proto_dns::types::parse_class(&str) -> core::option::Option<u16>
 pub fn wrex_proto_dns::types::parse_type(&str) -> core::option::Option<u16>

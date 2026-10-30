@@ -117,6 +117,36 @@ pub const STRATEGY_EXEMPT: &[(&str, &str, &str)] = &[
         "autofill: derived from the next layer (the eth.type rule)",
     ),
     ("dhcp", "cookie", "autofill: the RFC 2131 magic 0x63825363"),
+    // Tranche 20a-1: the EDNS0 sugar knobs are craft-only inputs — the
+    // OPT pseudo-record they append rides the reply's ar section, so
+    // randomizing them would push every differential message through an
+    // OPT record. EDNS is covered by the dedicated codec units, the dig
+    // differential arm, and the WF-28 workflow.
+    (
+        "dns",
+        "edns",
+        "craft-only sugar: the OPT record it appends is covered by the dedicated EDNS units + the dig arm",
+    ),
+    (
+        "dns",
+        "edns_ext_rcode",
+        "craft-only sugar (rides edns); dedicated EDNS units",
+    ),
+    (
+        "dns",
+        "edns_version",
+        "craft-only sugar (rides edns); dedicated EDNS units",
+    ),
+    (
+        "dns",
+        "edns_do",
+        "craft-only sugar (rides edns); dedicated EDNS units",
+    ),
+    (
+        "dns",
+        "edns_options",
+        "craft-only sugar (rides edns); the TLV grammar has its own units",
+    ),
     // the v6 extension-header next_header fields follow the same
     // autofill rule (T17a: "next_header (autofill, the `eth.type`
     // rule)").

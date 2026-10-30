@@ -30,10 +30,19 @@ use bytes::Bytes;
 use crate::driver::{Driver, DriverError, Frame};
 
 /// Kernel UDP client socket: optional local bind, `connect(2)` to the
-/// peer.
+/// peer — **except a multicast peer** (tranche 20b: `wrex query
+/// --mdns` targets 224.0.0.251/ff02::fb): mDNS replies arrive from the
+/// responder's *unicast* source, which a connected socket's 4-tuple
+/// filter would drop, so the driver keeps the socket unconnected and
+/// sends with `send_to` (replies from any source surface; the session
+/// still matches the dns id).
 pub struct UdpDriver {
     sock: UdpSocket,
+    /// The destination for unconnected (multicast) sends.
+    peer_addr: SocketAddr,
     peer: String,
+    /// `false` for multicast peers (send via `send_to`).
+    connected: bool,
 }
 
 impl UdpDriver {
@@ -54,11 +63,18 @@ impl UdpDriver {
                 .map_err(|e| DriverError::Io { source: e })?,
             None => UdpSocket::bind(unspecified).map_err(|e| DriverError::Io { source: e })?,
         };
-        sock.connect(peer)
-            .map_err(|e| DriverError::Io { source: e })?;
+        // Tranche 20b: a multicast peer stays unconnected (the mDNS
+        // reply source is the responder's unicast address).
+        let connected = !peer.ip().is_multicast();
+        if connected {
+            sock.connect(peer)
+                .map_err(|e| DriverError::Io { source: e })?;
+        }
         Ok(Self {
             sock,
+            peer_addr: peer,
             peer: peer.to_string(),
+            connected,
         })
     }
 
@@ -70,7 +86,11 @@ impl UdpDriver {
 
 impl Driver for UdpDriver {
     fn send(&mut self, frame: &[u8]) -> io::Result<()> {
-        self.sock.send(frame).map(|_| ())
+        if self.connected {
+            self.sock.send(frame).map(|_| ())
+        } else {
+            self.sock.send_to(frame, self.peer_addr).map(|_| ())
+        }
     }
 
     fn recv(&mut self, deadline: Instant) -> io::Result<Option<Frame>> {

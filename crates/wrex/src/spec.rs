@@ -122,15 +122,21 @@ pub fn packet_spec_from_matches(
         }
         // Record-section shorthands (settable, max 1): the arg id is the
         // full dashed path (`dns-qd-0-name` → spec key `qd.0.name`).
+        // Settable unbounded records (tranche 20a-2) enumerate their
+        // index-0 paths the same way (`--dns-an-0-name` → `an.0.name`).
         for record in schema.records {
-            if !(record.settable && record.max == Some(1)) {
+            if !record.settable {
                 continue;
             }
+            // Index 0 both ways: bounded shorthands pin `qd.0.*`,
+            // unbounded records enumerate their first record
+            // (`an.0.*`); deeper indices ride the spec JSON.
+            let index = 0;
             for field in record.fields {
-                let arg_id = flag_long(kind, &format!("{}.0.{}", record.name, field.name));
+                let arg_id = flag_long(kind, &format!("{}.{}.{}", record.name, index, field.name));
                 if let Some(raw) = matches.get_one::<String>(&arg_id) {
                     fields.insert(
-                        format!("{}.0.{}", record.name, field.name).into(),
+                        format!("{}.{}.{}", record.name, index, field.name).into(),
                         parse_value(field, raw)?,
                     );
                 }

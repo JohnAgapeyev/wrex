@@ -4,7 +4,7 @@
 .SH NAME
 query \- Ask a DNS server one question (kernel UDP/TCP/TLS) and dissect the reply
 .SH SYNOPSIS
-\fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-tcp\fR] [\fB\-\-tls\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
+\fBquery\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-server\fR] [\fB\-\-port\fR] [\fB\-\-tcp\fR] [\fB\-\-tls\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-type\fR] [\fB\-\-class\fR] [\fB\-\-edns\fR] [\fB\-\-edns\-do\fR] [\fB\-\-doh\fR] [\fB\-\-mdns\fR] [\fB\-\-reverse\fR] [\fB\-\-short\fR] [\fB\-\-retries\fR] [\fB\-\-timeout\fR] [\fB\-\-seed\fR] [\fB\-h\fR|\fB\-\-help\fR] <\fINAME\fR> 
 .SH DESCRIPTION
 Ask a DNS server one question (kernel UDP/TCP/TLS) and dissect the reply
 .SH OPTIONS
@@ -48,6 +48,24 @@ Question type (default A; names or numbers: A, AAAA, MX, …)
 \fB\-\-class\fR \fI<QCLASS>\fR
 Question class (default IN)
 .TP
+\fB\-\-edns\fR \fI<SIZE>\fR
+Advertise EDNS0 (tranche 20a): append an OPT pseudo\-record; the value is the udp payload size (RFC 6891 §6.2.5 floors it at 512 — smaller is a usage error)
+.TP
+\fB\-\-edns\-do\fR
+Set the EDNS0 DO bit (DNSSEC OK; RFC 6891 §6.1.2) — implies \-\-edns
+.TP
+\fB\-\-doh\fR \fI<URL>\fR
+DNS\-over\-HTTPS (RFC 8484, tranche 20b): POST the bare message to URL (http:// or https://…) as application/dns\-message; fresh connection per attempt. Implies no \-\-server/\-\-port
+.TP
+\fB\-\-mdns\fR
+mDNS (RFC 6762, tranche 20b): ask the multicast group instead of a unicast server (224.0.0.251 / ff02::fb, port 5353)
+.TP
+\fB\-\-reverse\fR
+Reverse lookup sugar (dig \-x): NAME is an IP address; query PTR for its in\-addr.arpa / ip6.arpa name
+.TP
+\fB\-\-short\fR
+dig +short: print only the answer rdata values (text format)
+.TP
 \fB\-\-retries\fR \fI<RETRIES>\fR
 Extra attempts beyond the first, same query id (default 1)
 .TP
@@ -64,7 +82,8 @@ Print help
 Question name (dotted form, e.g. example.com)
 .SH EXTRA
 QUERY GRAMMAR:
-  wrex query [\-\-server IP] [\-\-port 53] [\-\-tcp] [\-\-tls]
+  wrex query [\-\-server IP] [\-\-port 53] [\-\-tcp] [\-\-tls] [\-\-doh URL]
+             [\-\-mdns] [\-\-reverse] [\-\-short] [\-\-edns SIZE] [\-\-edns\-do]
              [\-\-tls\-insecure] [\-\-tls\-ca FILE] [options] NAME
 
   Sends one seeded DNS question and waits for the matching reply
@@ -88,15 +107,33 @@ QUERY GRAMMAR:
   name from \-\-server. \-\-tls\-insecure accepts any server certificate
   and \-\-tls\-ca FILE adds extra roots, as with `wrex http`.
 
+  \-\-edns SIZE advertises EDNS0 (tranche 20a\-1): one OPT pseudo\-record
+  lands in the reply\*(Aqs ar section, dissected typed (udp_size,
+  ext_rcode, version, do, z, and option TLVs ar.N.opt.M.*).
+  \-\-edns\-do sets the DO bit. \-\-mdns (tranche 20b) asks the multicast
+  group 224.0.0.251 / ff02::fb on port 5353 instead of a unicast
+  server. \-\-doh URL (tranche 20b) POSTs the bare message as
+  application/dns\-message (RFC 8484; http/https URL, fresh connection
+  per attempt — the h2 ALPN transport is a recorded deferral).
+  \-\-reverse is dig \-x sugar (NAME is an IP; PTR under in\-addr.arpa /
+  ip6.arpa); \-\-short prints only the answer rdata values (text).
+
 RECORD FIELDS (wrex dissect \-\-filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
   dns.an.0.name, dns.an.0.type, dns.an.0.ttl, dns.an.0.rdata …
   A rdata is typed ipv4; CNAME/NS/PTR resolve (compression pointers
-  included) to names; TXT and everything else stay raw hex bytes.
+  included) to names; every common record type walks its typed
+  subfields (tranche 20a\-2): dns.an.0.mx.preference,
+  dns.an.0.soa.serial, dns.an.0.svcb.M.key …; EDNS OPT renders
+  dns.ar.N.udp_size / .do and its TLVs dns.ar.N.opt.M.*.
 
 EXAMPLES:
   wrex query \-\-server 192.168.1.1 example.com
   wrex query \-\-server 1.1.1.1 \-\-type MX \-\-seed 42 example.com
+  wrex query \-\-server 1.1.1.1 \-\-type HTTPS \-\-edns 1232 \-\-edns\-do \-\-short example.com
   wrex query \-\-tcp \-\-server 192.168.1.1 example.com
   wrex query \-\-tls \-\-server 192.168.1.1 \-\-tls\-insecure example.com
+  wrex query \-\-doh https://dns.example/dns\-query \-\-short example.com
+  wrex query \-\-mdns \-\-type PTR _services._dns\-sd._udp.local
+  wrex query \-\-reverse \-\-server 192.168.1.1 192.168.1.10
   wrex query \-\-server ::1 example.com

@@ -51,6 +51,8 @@
     {
       "fields": {
         "an.0.class": "IN",
+        "an.0.mx.exchange": "mail.example.com",
+        "an.0.mx.preference": 10,
         "an.0.name": "example.com",
         "an.0.rdata": "000a046d61696c0765",
         "an.0.ttl": 3600,
@@ -62,6 +64,7 @@
           "rd",
           "ra"
         ],
+        "flags.z": false,
         "id": 66,
         "nscount": 0,
         "opcode": 0,

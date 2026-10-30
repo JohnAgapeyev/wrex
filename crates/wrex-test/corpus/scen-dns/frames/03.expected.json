@@ -52,14 +52,26 @@
       "fields": {
         "ancount": 0,
         "ar.0.class": "CLASS1232",
+        "ar.0.do": false,
+        "ar.0.ext_rcode": 0,
         "ar.0.name": "",
+        "ar.0.opt.0.code": 10,
+        "ar.0.opt.0.cookie_client": "eee199039df7e058",
+        "ar.0.opt.0.cookie_server": "",
+        "ar.0.opt.0.len": 8,
+        "ar.0.opt.0.value": "eee199039df7e058",
         "ar.0.rdata": "000a0008eee199039df7e058",
         "ar.0.ttl": 0,
         "ar.0.type": "OPT",
+        "ar.0.udp_size": 1232,
+        "ar.0.version": 0,
+        "ar.0.z": 0,
         "arcount": 1,
         "flags": [
-          "rd"
+          "rd",
+          "ad"
         ],
+        "flags.z": false,
         "id": 45592,
         "nscount": 0,
         "opcode": 0,

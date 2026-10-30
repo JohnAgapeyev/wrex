@@ -7,7 +7,7 @@ wrex-dns \- dns layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIdns\fR
 
 .SH DESCRIPTION
-DNS (RFC 1035) over UDP/53. Craft carries the 12\-byte header plus one question (\-\-dns\-name anchors it; \-\-dns\-type/\-\-dns\-class default A/IN). Names encode uncompressed; dissection resolves compression pointers. Answers/authority/additional sections are dissect\-only record sections with indexed paths (an.0.name, an.0.rdata, …). A rdata dissects typed ipv4, AAAA typed ipv6 (tranche 7b). Multi\-question craft, settable answer records, typed MX/SOA/SRV rdata and EDNS crafting are tranche\-3 deferrals.
+DNS (RFC 1035) over UDP/53. Craft carries the 12\-byte header, one question (\-\-dns\-name anchors it), every an/ns/ar record present in the spec (indexed paths an.0.*, …, tranche 20a\-2), and the EDNS0 sugar (\-\-dns\-edns SIZE and friends append one OPT pseudo\-record to ar, tranche 20a\-1). Names encode uncompressed; dissection resolves compression pointers. A rdata dissects typed ipv4, AAAA typed ipv6 (tranche 7b); CNAME/NS/PTR rdata resolve to names; every other rdata stays raw bytes with typed subfields under an|ns|ar.N.<type>.* paths (MX preference, SOA timers, SVCB/HTTPS params, DNSSEC read\-side shapes — tranche 20a\-2). Multi\-question craft and DNSSEC validation stay deferred.
 .
 
 .SH ENCAPSULATION
@@ -22,8 +22,8 @@ unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
 message id (craft: seeded by wrex query) Type u16. Default: 0.
 .TP
 \fB\-\-dns\-flags\fR
-flag aggregate [qr,aa,tc,rd,ra]; subpaths flags.<bit> Type flagset. Default: 0.
-Bit names (MSB first): qr, aa, tc, rd, ra. Aggregate \fB\-\-dns\-flags\fR sets the whole unit; per-bit \-\-dns\-flags\-qr sets one bit.
+flag aggregate [qr,aa,tc,rd,ra,ad,cd]; subpaths flags.<bit> Type flagset. Default: 0.
+Bit names (MSB first): qr, aa, tc, rd, ra, ad, cd. Aggregate \fB\-\-dns\-flags\fR sets the whole unit; per-bit \-\-dns\-flags\-qr sets one bit.
 .TP
 \fB\-\-dns\-opcode=\fIINT\fR\fR
 operation code (4 bits; 0 = QUERY) Type u8. Default: 0.
@@ -35,13 +35,28 @@ response code (4 bits; 0 = NOERROR) Type u8. Default: 0.
 question count (autofill: derived from the question) Type u16. Default: 0.
 .TP
 \fB\-\-dns\-ancount=\fIINT\fR\fR
-answer count (autofill: 0) Type u16. Default: 0.
+answer count (autofill: derived from an.N.* records) Type u16. Default: 0.
 .TP
 \fB\-\-dns\-nscount=\fIINT\fR\fR
-authority count (autofill: 0) Type u16. Default: 0.
+authority count (autofill: derived from ns.N.* records) Type u16. Default: 0.
 .TP
 \fB\-\-dns\-arcount=\fIINT\fR\fR
-additional count (autofill: 0) Type u16. Default: 0.
+additional count (autofill: derived from ar.N.* records + the EDNS sugar) Type u16. Default: 0.
+.TP
+\fB\-\-dns\-edns=\fIINT\fR\fR
+EDNS0 udp payload size: > 0 appends one OPT pseudo\-record to ar (tranche 20a\-1) Type u16. Default: 0.
+.TP
+\fB\-\-dns\-edns_ext_rcode=\fIINT\fR\fR
+EDNS0 extended rcode byte (8 high bits; \-\-dns\-edns implies 0) Type u8. Default: 0.
+.TP
+\fB\-\-dns\-edns_version=\fIINT\fR\fR
+EDNS0 version byte (0 = EDNS0) Type u8. Default: 0.
+.TP
+\fB\-\-dns\-edns_do=\fIINT\fR\fR
+EDNS0 DO bit (0/1, DNSSEC OK; RFC 6891 §6.1.2) Type u8. Default: 0.
+.TP
+\fB\-\-dns\-edns_options=\fIINT\fR\fR
+OPT option TLVs, comma\-separated: nsid:HEX, cookie:HEX[:HEX], ecs:IP[/PREFIX[/SCOPE]], raw:CODE:HEX Type str. Default: .
 
 .SH "RECORD SECTIONS"
 Repeated record sections; dissected fields carry indexed paths (qd.0.field).
@@ -53,29 +68,29 @@ the question section (one question craftable at tranche 3)
   type (str; default A). question type: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, SRV, OPT, ANY, TYPE<n> or a number
   class (str; default IN). question class: IN, CH, HS, ANY, CLASS<n> or a number
 .TP
-\fBan\fR (dissect\-only)
-answer records (dissect\-only; indexed an.0.*, an.1.*, …)
+\fBan\fR (settable)
+answer records (tranche 20a\-2: settable through index paths an.0.*, …)
   name (str; default ). record owner name (compression pointers resolved)
   type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
   class (str; default ). record class (IN, …; CLASS<n> otherwise)
   ttl (u32; default 0). record TTL in seconds
-  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV wait for later tranches)
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex; typed subfields ride an|ns|ar.N.<type>.* paths (tranche 20a\-2)
 .TP
-\fBns\fR (dissect\-only)
-authority records (dissect\-only; indexed ns.0.*, …)
+\fBns\fR (settable)
+authority records (tranche 20a\-2: settable through index paths ns.0.*, …)
   name (str; default ). record owner name (compression pointers resolved)
   type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
   class (str; default ). record class (IN, …; CLASS<n> otherwise)
   ttl (u32; default 0). record TTL in seconds
-  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV wait for later tranches)
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex; typed subfields ride an|ns|ar.N.<type>.* paths (tranche 20a\-2)
 .TP
-\fBar\fR (dissect\-only)
-additional records (dissect\-only; indexed ar.0.*, …; EDNS OPT lands here)
+\fBar\fR (settable)
+additional records (tranche 20a\-2: settable through index paths ar.0.*, …; the EDNS OPT pseudo\-record lands here)
   name (str; default ). record owner name (compression pointers resolved)
   type (str; default ). record type (A, CNAME, MX, …; TYPE<n> otherwise)
   class (str; default ). record class (IN, …; CLASS<n> otherwise)
   ttl (u32; default 0). record TTL in seconds
-  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex (typed MX/SOA/SRV wait for later tranches)
+  rdata (bytes; default ). record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex; typed subfields ride an|ns|ar.N.<type>.* paths (tranche 20a\-2)
 
 .SH EXAMPLES
 wrex fields dns

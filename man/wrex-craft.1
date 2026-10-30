@@ -4,7 +4,7 @@
 .SH NAME
 craft \- Encode a PacketSpec from field flags → stdout
 .SH SYNOPSIS
-\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-vlan\-pcp\fR] [\fB\-\-vlan\-dei\fR] [\fB\-\-vlan\-vid\fR] [\fB\-\-vlan\-type\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-res\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-ipv6\-ver\fR] [\fB\-\-ipv6\-traffic_class\fR] [\fB\-\-ipv6\-flow_label\fR] [\fB\-\-ipv6\-payload_len\fR] [\fB\-\-ipv6\-next_header\fR] [\fB\-\-ipv6\-hop_limit\fR] [\fB\-\-ipv6\-src\fR] [\fB\-\-ipv6\-dst\fR] [\fB\-\-hopopts\-next_header\fR] [\fB\-\-hopopts\-len\fR] [\fB\-\-hopopts\-options\fR] [\fB\-\-dstopts\-next_header\fR] [\fB\-\-dstopts\-len\fR] [\fB\-\-dstopts\-options\fR] [\fB\-\-routing\-next_header\fR] [\fB\-\-routing\-len\fR] [\fB\-\-routing\-type\fR] [\fB\-\-routing\-segs_left\fR] [\fB\-\-routing\-segments\fR] [\fB\-\-frag\-next_header\fR] [\fB\-\-frag\-offset\fR] [\fB\-\-frag\-m\fR] [\fB\-\-frag\-ident\fR] [\fB\-\-ah\-next_header\fR] [\fB\-\-ah\-len\fR] [\fB\-\-ah\-spi\fR] [\fB\-\-ah\-seq\fR] [\fB\-\-ah\-icv\fR] [\fB\-\-esp\-spi\fR] [\fB\-\-esp\-seq\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-icmpv6\-type\fR] [\fB\-\-icmpv6\-code\fR] [\fB\-\-icmpv6\-checksum\fR] [\fB\-\-icmpv6\-echo\-id\fR] [\fB\-\-icmpv6\-echo\-seq\fR] [\fB\-\-icmpv6\-rest\fR] [\fB\-\-icmpv6\-ndp\-cur_hop_limit\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-m\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-router_lifetime\fR] [\fB\-\-icmpv6\-ndp\-reachable_time\fR] [\fB\-\-icmpv6\-ndp\-retrans_timer\fR] [\fB\-\-icmpv6\-ndp\-na_flags\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-r\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-s\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-target\fR] [\fB\-\-icmpv6\-mld\-addr\fR] [\fB\-\-icmpv6\-mld\-flags\fR] [\fB\-\-icmpv6\-mld\-flags\-s\fR] [\fB\-\-icmpv6\-mld\-qrv\fR] [\fB\-\-icmpv6\-mld\-qqic\fR] [\fB\-\-icmpv6\-mld\-nsrcs\fR] [\fB\-\-icmpv6\-mld\-sources\fR] [\fB\-\-icmpv6\-mld\fR] [\fB\-\-icmpv6\-options\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-\-dhcp\-op\fR] [\fB\-\-dhcp\-htype\fR] [\fB\-\-dhcp\-hlen\fR] [\fB\-\-dhcp\-hops\fR] [\fB\-\-dhcp\-xid\fR] [\fB\-\-dhcp\-secs\fR] [\fB\-\-dhcp\-flags\fR] [\fB\-\-dhcp\-flags\-broadcast\fR] [\fB\-\-dhcp\-ciaddr\fR] [\fB\-\-dhcp\-yiaddr\fR] [\fB\-\-dhcp\-siaddr\fR] [\fB\-\-dhcp\-giaddr\fR] [\fB\-\-dhcp\-chaddr\fR] [\fB\-\-dhcp\-sname\fR] [\fB\-\-dhcp\-file\fR] [\fB\-\-dhcp\-cookie\fR] [\fB\-\-dhcp\-msg_type\fR] [\fB\-\-dhcp\-options\fR] [\fB\-\-dhcp6\-msg_type\fR] [\fB\-\-dhcp6\-trans_id\fR] [\fB\-\-dhcp6\-options\fR] [\fB\-h\fR|\fB\-\-help\fR] 
+\fBcraft\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-\-layer\fR] [\fB\-\-payload\fR] [\fB\-\-eth\-dst\fR] [\fB\-\-eth\-src\fR] [\fB\-\-eth\-type\fR] [\fB\-\-arp\-htype\fR] [\fB\-\-arp\-ptype\fR] [\fB\-\-arp\-hlen\fR] [\fB\-\-arp\-plen\fR] [\fB\-\-arp\-oper\fR] [\fB\-\-arp\-sha\fR] [\fB\-\-arp\-spa\fR] [\fB\-\-arp\-tha\fR] [\fB\-\-arp\-tpa\fR] [\fB\-\-vlan\-pcp\fR] [\fB\-\-vlan\-dei\fR] [\fB\-\-vlan\-vid\fR] [\fB\-\-vlan\-type\fR] [\fB\-\-ipv4\-ver\fR] [\fB\-\-ipv4\-ihl\fR] [\fB\-\-ipv4\-tos\fR] [\fB\-\-ipv4\-total_len\fR] [\fB\-\-ipv4\-id\fR] [\fB\-\-ipv4\-flags\fR] [\fB\-\-ipv4\-flags\-res\fR] [\fB\-\-ipv4\-flags\-df\fR] [\fB\-\-ipv4\-flags\-mf\fR] [\fB\-\-ipv4\-frag_off\fR] [\fB\-\-ipv4\-ttl\fR] [\fB\-\-ipv4\-proto\fR] [\fB\-\-ipv4\-checksum\fR] [\fB\-\-ipv4\-src\fR] [\fB\-\-ipv4\-dst\fR] [\fB\-\-ipv4\-options\fR] [\fB\-\-ipv6\-ver\fR] [\fB\-\-ipv6\-traffic_class\fR] [\fB\-\-ipv6\-flow_label\fR] [\fB\-\-ipv6\-payload_len\fR] [\fB\-\-ipv6\-next_header\fR] [\fB\-\-ipv6\-hop_limit\fR] [\fB\-\-ipv6\-src\fR] [\fB\-\-ipv6\-dst\fR] [\fB\-\-hopopts\-next_header\fR] [\fB\-\-hopopts\-len\fR] [\fB\-\-hopopts\-options\fR] [\fB\-\-dstopts\-next_header\fR] [\fB\-\-dstopts\-len\fR] [\fB\-\-dstopts\-options\fR] [\fB\-\-routing\-next_header\fR] [\fB\-\-routing\-len\fR] [\fB\-\-routing\-type\fR] [\fB\-\-routing\-segs_left\fR] [\fB\-\-routing\-segments\fR] [\fB\-\-frag\-next_header\fR] [\fB\-\-frag\-offset\fR] [\fB\-\-frag\-m\fR] [\fB\-\-frag\-ident\fR] [\fB\-\-ah\-next_header\fR] [\fB\-\-ah\-len\fR] [\fB\-\-ah\-spi\fR] [\fB\-\-ah\-seq\fR] [\fB\-\-ah\-icv\fR] [\fB\-\-esp\-spi\fR] [\fB\-\-esp\-seq\fR] [\fB\-\-icmp\-type\fR] [\fB\-\-icmp\-code\fR] [\fB\-\-icmp\-checksum\fR] [\fB\-\-icmp\-echo\-id\fR] [\fB\-\-icmp\-echo\-seq\fR] [\fB\-\-icmp\-rest\fR] [\fB\-\-icmpv6\-type\fR] [\fB\-\-icmpv6\-code\fR] [\fB\-\-icmpv6\-checksum\fR] [\fB\-\-icmpv6\-echo\-id\fR] [\fB\-\-icmpv6\-echo\-seq\fR] [\fB\-\-icmpv6\-rest\fR] [\fB\-\-icmpv6\-ndp\-cur_hop_limit\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-m\fR] [\fB\-\-icmpv6\-ndp\-ra_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-router_lifetime\fR] [\fB\-\-icmpv6\-ndp\-reachable_time\fR] [\fB\-\-icmpv6\-ndp\-retrans_timer\fR] [\fB\-\-icmpv6\-ndp\-na_flags\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-r\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-s\fR] [\fB\-\-icmpv6\-ndp\-na_flags\-o\fR] [\fB\-\-icmpv6\-ndp\-target\fR] [\fB\-\-icmpv6\-mld\-addr\fR] [\fB\-\-icmpv6\-mld\-flags\fR] [\fB\-\-icmpv6\-mld\-flags\-s\fR] [\fB\-\-icmpv6\-mld\-qrv\fR] [\fB\-\-icmpv6\-mld\-qqic\fR] [\fB\-\-icmpv6\-mld\-nsrcs\fR] [\fB\-\-icmpv6\-mld\-sources\fR] [\fB\-\-icmpv6\-mld\fR] [\fB\-\-icmpv6\-options\fR] [\fB\-\-udp\-sport\fR] [\fB\-\-udp\-dport\fR] [\fB\-\-udp\-length\fR] [\fB\-\-udp\-checksum\fR] [\fB\-\-tcp\-sport\fR] [\fB\-\-tcp\-dport\fR] [\fB\-\-tcp\-seq\fR] [\fB\-\-tcp\-ack\fR] [\fB\-\-tcp\-data_off\fR] [\fB\-\-tcp\-flags\fR] [\fB\-\-tcp\-flags\-cwr\fR] [\fB\-\-tcp\-flags\-ece\fR] [\fB\-\-tcp\-flags\-urg\fR] [\fB\-\-tcp\-flags\-ack\fR] [\fB\-\-tcp\-flags\-psh\fR] [\fB\-\-tcp\-flags\-rst\fR] [\fB\-\-tcp\-flags\-syn\fR] [\fB\-\-tcp\-flags\-fin\fR] [\fB\-\-tcp\-window\fR] [\fB\-\-tcp\-checksum\fR] [\fB\-\-tcp\-urgent\fR] [\fB\-\-tcp\-options\fR] [\fB\-\-dns\-id\fR] [\fB\-\-dns\-flags\fR] [\fB\-\-dns\-flags\-qr\fR] [\fB\-\-dns\-flags\-aa\fR] [\fB\-\-dns\-flags\-tc\fR] [\fB\-\-dns\-flags\-rd\fR] [\fB\-\-dns\-flags\-ra\fR] [\fB\-\-dns\-flags\-ad\fR] [\fB\-\-dns\-flags\-cd\fR] [\fB\-\-dns\-opcode\fR] [\fB\-\-dns\-rcode\fR] [\fB\-\-dns\-qdcount\fR] [\fB\-\-dns\-ancount\fR] [\fB\-\-dns\-nscount\fR] [\fB\-\-dns\-arcount\fR] [\fB\-\-dns\-edns\fR] [\fB\-\-dns\-edns_ext_rcode\fR] [\fB\-\-dns\-edns_version\fR] [\fB\-\-dns\-edns_do\fR] [\fB\-\-dns\-edns_options\fR] [\fB\-\-dns\-name\fR] [\fB\-\-dns\-type\fR] [\fB\-\-dns\-class\fR] [\fB\-\-dns\-an\-0\-name\fR] [\fB\-\-dns\-an\-0\-type\fR] [\fB\-\-dns\-an\-0\-class\fR] [\fB\-\-dns\-an\-0\-ttl\fR] [\fB\-\-dns\-an\-0\-rdata\fR] [\fB\-\-dns\-ns\-0\-name\fR] [\fB\-\-dns\-ns\-0\-type\fR] [\fB\-\-dns\-ns\-0\-class\fR] [\fB\-\-dns\-ns\-0\-ttl\fR] [\fB\-\-dns\-ns\-0\-rdata\fR] [\fB\-\-dns\-ar\-0\-name\fR] [\fB\-\-dns\-ar\-0\-type\fR] [\fB\-\-dns\-ar\-0\-class\fR] [\fB\-\-dns\-ar\-0\-ttl\fR] [\fB\-\-dns\-ar\-0\-rdata\fR] [\fB\-\-dhcp\-op\fR] [\fB\-\-dhcp\-htype\fR] [\fB\-\-dhcp\-hlen\fR] [\fB\-\-dhcp\-hops\fR] [\fB\-\-dhcp\-xid\fR] [\fB\-\-dhcp\-secs\fR] [\fB\-\-dhcp\-flags\fR] [\fB\-\-dhcp\-flags\-broadcast\fR] [\fB\-\-dhcp\-ciaddr\fR] [\fB\-\-dhcp\-yiaddr\fR] [\fB\-\-dhcp\-siaddr\fR] [\fB\-\-dhcp\-giaddr\fR] [\fB\-\-dhcp\-chaddr\fR] [\fB\-\-dhcp\-sname\fR] [\fB\-\-dhcp\-file\fR] [\fB\-\-dhcp\-cookie\fR] [\fB\-\-dhcp\-msg_type\fR] [\fB\-\-dhcp\-options\fR] [\fB\-\-dhcp6\-msg_type\fR] [\fB\-\-dhcp6\-trans_id\fR] [\fB\-\-dhcp6\-options\fR] [\fB\-h\fR|\fB\-\-help\fR] 
 .SH DESCRIPTION
 Encode a PacketSpec from field flags → stdout
 .SH OPTIONS
@@ -385,7 +385,7 @@ options: eol,nop,mss:1460,ws:7,sackok,sack:L,R,…, or hex:…
 message id (craft: seeded by wrex query)
 .TP
 \fB\-\-dns\-flags\fR \fI<BITS>\fR
-flag aggregate [qr,aa,tc,rd,ra]; subpaths flags.<bit>
+flag aggregate [qr,aa,tc,rd,ra,ad,cd]; subpaths flags.<bit>
 .TP
 \fB\-\-dns\-flags\-qr\fR
 set only the qr bit of dns.flags (aggregate: \-\-dns\-flags)
@@ -402,6 +402,12 @@ set only the rd bit of dns.flags (aggregate: \-\-dns\-flags)
 \fB\-\-dns\-flags\-ra\fR
 set only the ra bit of dns.flags (aggregate: \-\-dns\-flags)
 .TP
+\fB\-\-dns\-flags\-ad\fR
+set only the ad bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
+\fB\-\-dns\-flags\-cd\fR
+set only the cd bit of dns.flags (aggregate: \-\-dns\-flags)
+.TP
 \fB\-\-dns\-opcode\fR \fI<INT>\fR
 operation code (4 bits; 0 = QUERY)
 .TP
@@ -412,13 +418,28 @@ response code (4 bits; 0 = NOERROR)
 question count (autofill: derived from the question)
 .TP
 \fB\-\-dns\-ancount\fR \fI<INT>\fR
-answer count (autofill: 0)
+answer count (autofill: derived from an.N.* records)
 .TP
 \fB\-\-dns\-nscount\fR \fI<INT>\fR
-authority count (autofill: 0)
+authority count (autofill: derived from ns.N.* records)
 .TP
 \fB\-\-dns\-arcount\fR \fI<INT>\fR
-additional count (autofill: 0)
+additional count (autofill: derived from ar.N.* records + the EDNS sugar)
+.TP
+\fB\-\-dns\-edns\fR \fI<INT>\fR
+EDNS0 udp payload size: > 0 appends one OPT pseudo\-record to ar (tranche 20a\-1)
+.TP
+\fB\-\-dns\-edns_ext_rcode\fR \fI<INT>\fR
+EDNS0 extended rcode byte (8 high bits; \-\-dns\-edns implies 0)
+.TP
+\fB\-\-dns\-edns_version\fR \fI<INT>\fR
+EDNS0 version byte (0 = EDNS0)
+.TP
+\fB\-\-dns\-edns_do\fR \fI<INT>\fR
+EDNS0 DO bit (0/1, DNSSEC OK; RFC 6891 §6.1.2)
+.TP
+\fB\-\-dns\-edns_options\fR \fI<STRING>\fR
+OPT option TLVs, comma\-separated: nsid:HEX, cookie:HEX[:HEX], ecs:IP[/PREFIX[/SCOPE]], raw:CODE:HEX
 .TP
 \fB\-\-dns\-name\fR \fI<STRING>\fR
 question name, dotted presentation form (example.com)
@@ -428,6 +449,51 @@ question type: A, NS, CNAME, SOA, PTR, MX, TXT, AAAA, SRV, OPT, ANY, TYPE<n> or 
 .TP
 \fB\-\-dns\-class\fR \fI<STRING>\fR
 question class: IN, CH, HS, ANY, CLASS<n> or a number
+.TP
+\fB\-\-dns\-an\-0\-name\fR \fI<STRING>\fR
+record owner name (compression pointers resolved)
+.TP
+\fB\-\-dns\-an\-0\-type\fR \fI<STRING>\fR
+record type (A, CNAME, MX, …; TYPE<n> otherwise)
+.TP
+\fB\-\-dns\-an\-0\-class\fR \fI<STRING>\fR
+record class (IN, …; CLASS<n> otherwise)
+.TP
+\fB\-\-dns\-an\-0\-ttl\fR \fI<INT>\fR
+record TTL in seconds
+.TP
+\fB\-\-dns\-an\-0\-rdata\fR \fI<BYTES>\fR
+record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex; typed subfields ride an|ns|ar.N.<type>.* paths (tranche 20a\-2)
+.TP
+\fB\-\-dns\-ns\-0\-name\fR \fI<STRING>\fR
+record owner name (compression pointers resolved)
+.TP
+\fB\-\-dns\-ns\-0\-type\fR \fI<STRING>\fR
+record type (A, CNAME, MX, …; TYPE<n> otherwise)
+.TP
+\fB\-\-dns\-ns\-0\-class\fR \fI<STRING>\fR
+record class (IN, …; CLASS<n> otherwise)
+.TP
+\fB\-\-dns\-ns\-0\-ttl\fR \fI<INT>\fR
+record TTL in seconds
+.TP
+\fB\-\-dns\-ns\-0\-rdata\fR \fI<BYTES>\fR
+record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex; typed subfields ride an|ns|ar.N.<type>.* paths (tranche 20a\-2)
+.TP
+\fB\-\-dns\-ar\-0\-name\fR \fI<STRING>\fR
+record owner name (compression pointers resolved)
+.TP
+\fB\-\-dns\-ar\-0\-type\fR \fI<STRING>\fR
+record type (A, CNAME, MX, …; TYPE<n> otherwise)
+.TP
+\fB\-\-dns\-ar\-0\-class\fR \fI<STRING>\fR
+record class (IN, …; CLASS<n> otherwise)
+.TP
+\fB\-\-dns\-ar\-0\-ttl\fR \fI<INT>\fR
+record TTL in seconds
+.TP
+\fB\-\-dns\-ar\-0\-rdata\fR \fI<BYTES>\fR
+record data: A \-> typed ipv4 value, AAAA \-> typed ipv6 value (tranche 7b), CNAME/NS/PTR \-> resolved name string, TXT \-> raw bytes, others \-> raw bytes hex; typed subfields ride an|ns|ar.N.<type>.* paths (tranche 20a\-2)
 .TP
 \fB\-\-dhcp\-op\fR \fI<INT>\fR
 message op: 1 BOOTREQUEST (client), 2 BOOTREPLY (server) (autofill: 1)

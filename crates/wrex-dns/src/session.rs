@@ -31,6 +31,11 @@ pub struct QueryConfig {
     pub qclass: String,
     /// Recursion-desired (`wrex query` default: true).
     pub rd: bool,
+    /// EDNS0 udp payload size (tranche 20a-1): `None` = no OPT record;
+    /// `Some(size)` appends one OPT pseudo-record to ar.
+    pub edns: Option<u16>,
+    /// EDNS0 DO bit (RFC 6891 §6.1.2; implies `edns`).
+    pub edns_do: bool,
     /// Extra attempts beyond the first, same query id.
     pub retries: u32,
     /// Per-attempt reply timeout.
@@ -53,6 +58,16 @@ impl QueryConfig {
         }
         if self.timeout.is_zero() {
             return Err("query --timeout must be > 0".to_string());
+        }
+        // Tranche 20a-1: RFC 6891 §6.2.5 floors the udp payload size at
+        // 512; a smaller advertisement is a pointed usage error, never a
+        // silent clamp.
+        if let Some(size) = self.edns
+            && size < 512
+        {
+            return Err(format!(
+                "--edns SIZE must be >= 512 (RFC 6891 §6.2.5); got {size}"
+            ));
         }
         Ok(())
     }
@@ -84,6 +99,13 @@ pub fn build_tcp_query(
     dns_fields.insert("id".into(), Value::Int(id as u128));
     if cfg.rd {
         dns_fields.insert("flags.rd".into(), Value::Bool(true));
+    }
+    // Tranche 20a-1: the EDNS0 sugar (None = no OPT record).
+    if let Some(size) = cfg.edns.or(if cfg.edns_do { Some(4096) } else { None }) {
+        dns_fields.insert("edns".into(), Value::Int(size as u128));
+        if cfg.edns_do {
+            dns_fields.insert("edns_do".into(), Value::Int(1));
+        }
     }
     dns_fields.insert("qd.0.name".into(), Value::Str(cfg.name.clone().into()));
     dns_fields.insert("qd.0.type".into(), Value::Str(cfg.qtype.clone().into()));
@@ -129,6 +151,8 @@ pub(crate) mod tests_support {
             qtype: "A".to_string(),
             qclass: "IN".to_string(),
             rd: true,
+            edns: None,
+            edns_do: false,
             retries: 1,
             timeout: Duration::from_secs(1),
             seed: 0xC0FFEE,

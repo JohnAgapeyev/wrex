@@ -86,8 +86,14 @@ instead; open *decisions* live in the roadmap's extension section.
 
 | Item | Origin | Status |
 |------|--------|--------|
-| EDNS0 crafting (OPT records) | T3 | Open — T20a |
-| Typed rdata: SOA/MX/NS/SRV (+ settable answer records) | T3 | Open — T20a |
+| EDNS0 crafting (OPT records) | T3 | Closed by T20a-1 (the `--dns-edns*` sugar) |
+| Typed rdata: SOA/MX/NS/SRV (+ settable answer records) | T3 | Closed by T20a-2 (the full alias table + `an/ns/ar` index paths; rdata craft stays `hex:` — typed rdata *crafting* is the recorded remainder) |
+| Typed rdata *crafting* (building rdata from typed subkeys; the read side renders, the write side stays `hex:` bytes) | T20a-2 | Open, P3 (the T7c `hex:` escape precedent covers) |
+| DoH over negotiated h2 (RFC 8484 §5.1 prefers HTTP/2; `--doh` rides the 1.1 session today — h2 composition = the T15d `H2Session`, a whole-queue runner rework) | T20b | Open, P2 |
+| Filter typing for nested `sub` record paths (dns `an.0.mx.preference`, the dhcp6 shape) | T20a-2 | Open, P2 |
+| DNSSEC chain validation | T20a-2 | Won't-do (read-side structural rendering only, the crypto standing rule) |
+| mDNS responder/announce mode (the query verb asks; `wrex listen`-adjacent answering is T33 territory) | T20b | Open — T33 |
+| LLMNR crafting (5355 dissect-only by design; queries ride `wrex query` + `--port 5355`) | T20b | Won't-do (dissect-only) |
 | Multi-question craft | T3 | Open, P3 |
 | DNS name patches through compression pointers | T11b-β | Closed by T13a |
 | `Derived::Count` (section-count recomputation) | T11b-β (re-affirmed T13a, T14) | Parked — revisit only if a scope-managed count workflow appears |

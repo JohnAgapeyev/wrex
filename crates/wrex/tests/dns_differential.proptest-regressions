@@ -4,3 +4,4 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
+cc 10099ebe88b13bda8ca27f98feb105ed54924e15f76371801fa59f993e813729 # shrinks to spec = LayerSpec { kind: "dns", fields: {"an.0.class": Str("IN"), "an.0.name": Str("localhost"), "an.0.rdata": Bytes(b"\0\0\0P\tlocalhost\0"), "an.0.ttl": Int(0), "an.0.type": Str("SRV"), "ar.0.class": Str("IN"), "ar.0.name": Str("localhost"), "ar.0.rdata": Bytes(b"\0\0\0P\tlocalhost\0"), "ar.0.ttl": Int(0), "ar.0.type": Str("SRV"), "flags": Int(0), "id": Int(0), "ns.0.class": Str("IN"), "ns.0.name": Str("localhost"), "ns.0.rdata": Bytes(b"\0\0\0P\tlocalhost\0"), "ns.0.ttl": Int(0), "ns.0.type": Str("SRV"), "opcode": Int(0), "qd.0.class": Str("IN"), "qd.0.name": Str("example.com"), "qd.0.type": Str("A"), "rcode": Int(0)} }

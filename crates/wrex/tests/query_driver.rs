@@ -291,3 +291,44 @@ fn query_tcp_ground_truth() {
     );
     server.join().unwrap();
 }
+
+/// Tranche 20a: `--edns SIZE` advertises EDNS0 on the wire — the stub
+/// captures the query and asserts the OPT record landed (arcount 1,
+/// the class field = the advertised size, the DO bit set with
+/// `--edns-do`); the reply (no OPT) still dissects clean.
+#[test]
+fn query_ground_truth_edns() {
+    if !driver_tests_enabled() {
+        skip("query_ground_truth_edns");
+        return;
+    }
+    let (port, query_rx) = stub((0, true));
+    let (code, stdout, stderr) = run_query(port, &["--edns", "1232", "--edns-do", "example.com"]);
+    assert_eq!(code, 0, "a reply is success regardless of rcode\n{stderr}");
+    assert!(
+        stdout.contains("an.0.rdata: 93.184.216.34"),
+        "the reply's answer must surface\n{stdout}"
+    );
+    // The stub's query carries the OPT record: arcount=1, class=1232,
+    // DO set (word bit 15 of the ttl).
+    let query = query_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("no query");
+    let registry = wrex::standard();
+    let p = wrex_core::dissect::dissect(&registry, &query, "dns");
+    assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+    let dns = p.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert_eq!(dns.fields.get("arcount"), Some(&wrex_core::Value::Int(1)));
+    assert_eq!(
+        dns.fields.get("ar.0.type"),
+        Some(&wrex_core::Value::Str("OPT".into()))
+    );
+    assert_eq!(
+        dns.fields.get("ar.0.udp_size"),
+        Some(&wrex_core::Value::Int(1232))
+    );
+    assert_eq!(
+        dns.fields.get("ar.0.do"),
+        Some(&wrex_core::Value::Bool(true))
+    );
+}

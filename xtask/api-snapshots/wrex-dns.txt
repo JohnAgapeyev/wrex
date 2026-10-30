@@ -143,6 +143,8 @@ pub fn wrex_dns::DnsUdpSession<'a>::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_dns::DnsUdpSession<'a>
 pub fn wrex_dns::DnsUdpSession<'a>::from(T) -> T
 pub struct wrex_dns::QueryConfig
+pub wrex_dns::QueryConfig::edns: core::option::Option<u16>
+pub wrex_dns::QueryConfig::edns_do: bool
 pub wrex_dns::QueryConfig::name: alloc::string::String
 pub wrex_dns::QueryConfig::port: u16
 pub wrex_dns::QueryConfig::qclass: alloc::string::String

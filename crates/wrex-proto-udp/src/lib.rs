@@ -63,7 +63,7 @@ pub static SCHEMA: LayerSchema = LayerSchema {
         wrex_proto_ip6ext::KIND_DSTOPTS,
         wrex_proto_ip6ext::KIND_AH,
     ],
-    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network-layer parent) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec (tranche-3 dispatch), port-67/68 into the dhcp codec (tranche 7c); other ports are terminal (the payload follows).",
+    doc: "UDP (RFC 768): 8-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network-layer parent) plus the segment and payload. Explicit --udp-checksum=0 produces the scapy-style unchecked zero. Port-53 datagrams chain into the dns codec (tranche-3 dispatch), port-67/68 into the dhcp codec (tranche 7c); mDNS rides 5353 on both ends and LLMNR 5355 either side (tranche 20b); other ports are terminal (the payload follows).",
     fields: &FIELDS,
     records: &[],
 };
@@ -214,15 +214,20 @@ impl Codec for UdpCodec {
         // Port-53 datagrams chain into the dns codec when registered
         // (tranche 3: tshark-parity dispatch); port-67/68 datagrams
         // chain into the dhcp codec (tranche 7c: the same pattern);
-        // 546/547 into dhcp6 (tranche 17c). Otherwise the engine
-        // synthesizes the usual `unknown` layer for the payload when
-        // the kind is not registered.
+        // 546/547 into dhcp6 (tranche 17c). Tranche 20b: mDNS (RFC 6762)
+        // rides 5353 on BOTH ends (queries are 5353→5353; the unicast
+        // response 5353→ephemeral would kidnap every ephemeral sport
+        // otherwise); LLMNR (RFC 4795, dissect only) rides 5355 either
+        // side. Otherwise the engine synthesizes the usual `unknown`
+        // layer for the payload when the kind is not registered.
         let next = if sport == 53 || dport == 53 {
             Next::Kind("dns")
         } else if sport == 67 || sport == 68 || dport == 67 || dport == 68 {
             Next::Kind("dhcp")
         } else if sport == 546 || sport == 547 || dport == 546 || dport == 547 {
             Next::Kind("dhcp6")
+        } else if (sport == 5353 && dport == 5353) || sport == 5355 || dport == 5355 {
+            Next::Kind("dns")
         } else {
             Next::Payload
         };
@@ -648,6 +653,40 @@ mod tests {
                 p.layers.iter().map(|l| l.kind).collect::<Vec<_>>(),
                 vec!["udp", "unknown"]
             );
+        }
+
+        /// Tranche 20b: mDNS (5353→5353, RFC 6762 — both ends) and
+        /// LLMNR (5355 either side, RFC 4795 — dissect only) chain into
+        /// dns; a 5353 sport alone must NOT kidnap an ephemeral reply.
+        #[test]
+        fn mdns_llmnr_ports_chain_into_dns() {
+            for (sport, dport, want) in [
+                (5353, 5353, true),
+                (40000, 5355, true),
+                (5355, 40000, true),
+                (40000, 5353, false),
+                (5353, 40000, false),
+            ] {
+                let spec =
+                    udp_spec(&[("sport", &sport.to_string()), ("dport", &dport.to_string())]);
+                let enc = encode(
+                    &dns_registry(),
+                    &PacketSpec::new(vec![spec], None),
+                    &lo_opts(),
+                )
+                .unwrap();
+                let p = wrex_core::dissect::dissect(&dns_registry(), &enc.bytes, "udp");
+                let kinds: Vec<&str> = p.layers.iter().map(|l| l.kind).collect();
+                if want {
+                    assert_eq!(
+                        kinds,
+                        vec!["udp", "dns"],
+                        "{sport}->{dport} must chain into the dns codec"
+                    );
+                } else {
+                    assert_eq!(kinds, vec!["udp"], "{sport}->{dport} must stay terminal");
+                }
+            }
         }
     }
 

@@ -18,8 +18,9 @@ use wrex_core::spec::PacketSpec;
 use wrex_core::value::Value;
 use wrex_test::dns_oracle::dns_diff;
 
-/// MSB-first dns flag bit names (mirrors the schema).
-const DNS_FLAGS: &[&str] = &["qr", "aa", "tc", "rd", "ra"];
+/// MSB-first dns flag bit names (mirrors the schema; tranche 20a-1:
+/// ad/cd joined the aggregate).
+const DNS_FLAGS: &[&str] = &["qr", "aa", "tc", "rd", "ra", "ad", "cd"];
 
 fn registry() -> Registry {
     wrex::standard()
@@ -58,7 +59,10 @@ proptest! {
                     let want: Vec<&str> = DNS_FLAGS
                         .iter()
                         .enumerate()
-                        .filter(|(i, _)| mask & (1 << (4 - *i as u128)) != 0)
+                        .filter(|(i, _)| {
+                            let pos = (DNS_FLAGS.len() - 1 - *i) as u128;
+                            mask & (1u128 << pos) != 0
+                        })
                         .map(|(_, n)| *n)
                         .collect();
                     let got: Vec<String> = match dns.fields.get("flags") {

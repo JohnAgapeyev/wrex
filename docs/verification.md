@@ -163,7 +163,7 @@ First-wave scenarios:
 
 | Scenario | Server lineage | Client lineage | Feeds |
 |----------|----------------|----------------|-------|
-| DNS real traffic | hickory server (in-tree dep) | dig | EDNS/DO/compression coverage; T20 pre-stage |
+| DNS real traffic | hickory server (in-tree dep) | dig | EDNS/DO/compression coverage; fed T20a (the committed scen-dns goldens now carry the typed OPT rendering) |
 | HTTP/1.1 + h2 | hyper | curl | header orders, HPACK patterns; `fuzz_h2_frame_decoder` seeds |
 | T19 client semantics | in-test stubs | curl `-L -b --digest --compressed -x` | redirect/cookie/digest/codec/proxy conformance arms (capability-probed per codec); the digest verifier is a server-side §3.4 recompute — conformance, not implementation sameness |
 | h3/QUIC | quinn | curl --http3 (optional) | **T26 pre-stage**: initial packets decryptable via the RFC 9001 DCID-derived keys, cross-checkable against tshark's QUIC dissector |

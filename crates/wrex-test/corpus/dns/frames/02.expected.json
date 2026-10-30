@@ -62,6 +62,7 @@
           "rd",
           "ra"
         ],
+        "flags.z": false,
         "id": 4660,
         "nscount": 0,
         "opcode": 0,

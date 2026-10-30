@@ -806,3 +806,219 @@ fn wf24_replay_the_probe_corpus() {
         .expect("spawn replay");
     assert!(out.status.success(), "replay -i exit: {out:?}");
 }
+
+// --- tranche 20 workflows (driver-gated: real sockets on lo) ----------------
+
+/// One hand-built DNS reply: echo id, qr/rd/ra, one answer whose owner
+/// is a compression pointer to the question; `answer` =
+/// (type wire bytes, rdata) splices after it.
+fn wf_dns_reply(query: &[u8], answer: (&[u8], &[u8])) -> Vec<u8> {
+    let mut msg = vec![
+        query[0], query[1], 0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+    ];
+    let mut at = 12usize;
+    while at < query.len() && query[at] != 0 {
+        at += 1 + query[at] as usize;
+    }
+    at += 5; // the root + type/class
+    msg.extend_from_slice(&query[12..at]);
+    msg.extend_from_slice(&[0xC0, 0x0C]);
+    msg.extend_from_slice(answer.0);
+    msg.extend_from_slice(&[0x00, 0x01, 0x00, 0x00, 0x01, 0x2C]);
+    msg.extend_from_slice(&(answer.1.len() as u16).to_be_bytes());
+    msg.extend_from_slice(answer.1);
+    msg
+}
+
+/// **UC-28 / WF-28**: "Debug DNS the way real resolvers speak it
+/// (EDNS/DO)" — `wrex query --edns 1232 --edns-do` against a UDP stub:
+/// the captured query carries the typed OPT record (the stub-side
+/// dissection asserts udp_size + DO), and the reply renders.
+#[test]
+fn wf28_edns_do_on_the_wire() {
+    if !driver_tests_enabled() {
+        eprintln!("wf28: skipping (driver tests disabled)");
+        return;
+    }
+    use std::net::UdpSocket;
+    let sock = UdpSocket::bind("127.0.0.1:0").expect("bind stub");
+    let port = sock.local_addr().unwrap().port();
+    let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        let _ = sock.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+        let Ok((n, from)) = sock.recv_from(&mut buf) else {
+            return;
+        };
+        let query = buf[..n].to_vec();
+        let _ = tx.send(query.clone());
+        let reply = wf_dns_reply(&query, (&[0x00, 0x01], &[93, 184, 216, 34]));
+        let _ = sock.send_to(&reply, from);
+    });
+    let out = wrex()
+        .args([
+            "query",
+            "--server",
+            "127.0.0.1",
+            "--port",
+            &port.to_string(),
+            "--timeout",
+            "800ms",
+            "--edns",
+            "1232",
+            "--edns-do",
+            "example.com",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("an.0.rdata: 93.184.216.34"), "{stdout}");
+    // The stub's captured query carries the OPT record (typed).
+    let query = rx
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("no query");
+    let reg = wrex::standard();
+    let p = wrex_core::dissect::dissect(&reg, &query, "dns");
+    assert!(p.anomalies.is_empty(), "{:?}", p.anomalies);
+    let dns = p.layers.iter().find(|l| l.kind == "dns").unwrap();
+    assert_eq!(
+        dns.fields.get("ar.0.udp_size"),
+        Some(&wrex_core::Value::Int(1232))
+    );
+    assert_eq!(
+        dns.fields.get("ar.0.do"),
+        Some(&wrex_core::Value::Bool(true))
+    );
+}
+
+/// **UC-29 / WF-29**: "Resolve a .local name" — `wrex query --mdns`
+/// speaks to the multicast group (224.0.0.251:5353 by default; a
+/// group-member stub on loopback answers — `--port` pins the stub's
+/// ephemeral port, the `--mdns` default is 5353): the verb renders the
+/// PTR target.
+#[test]
+fn wf29_mdns_multicast_query() {
+    if !driver_tests_enabled() {
+        eprintln!("wf29: skipping (driver tests disabled)");
+        return;
+    }
+    use std::net::{Ipv4Addr, UdpSocket};
+    let port = {
+        // An ephemeral port for the stub: --port overrides the 5353
+        // default (a dev box's avahi owns 5353; CI's netns does not).
+        let probe = UdpSocket::bind("127.0.0.1:0").expect("ephemeral probe");
+        probe.local_addr().unwrap().port()
+    };
+    let sock = UdpSocket::bind(("0.0.0.0", port)).expect("bind stub");
+    // Join the mDNS group on loopback; a send failure (no multicast
+    // route in the namespace) skips gracefully.
+    if sock
+        .join_multicast_v4(&Ipv4Addr::new(224, 0, 0, 251), &Ipv4Addr::LOCALHOST)
+        .is_err()
+    {
+        eprintln!("wf29: skipping (no loopback multicast)");
+        return;
+    }
+    let sock2 = sock.try_clone().expect("clone");
+    let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let sock = sock2;
+        let mut buf = [0u8; 4096];
+        let _ = sock.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+        let Ok((n, from)) = sock.recv_from(&mut buf) else {
+            return;
+        };
+        let query = buf[..n].to_vec();
+        let _ = tx.send(query.clone());
+        // A PTR answer: rdata = the target name (typed Str on our side).
+        let rdata = b"\x09_services\x07_dns-sd\x04_udp\x05local\x00".to_vec();
+        let reply = wf_dns_reply(&query, (&[0x00, 0x0C], &rdata));
+        let _ = sock.send_to(&reply, from);
+    });
+    let out = wrex()
+        .args([
+            "query",
+            "--mdns",
+            "--port",
+            &port.to_string(),
+            "--type",
+            "PTR",
+            "--timeout",
+            "800ms",
+            "_services._dns-sd._udp.local",
+        ])
+        .output()
+        .expect("spawn wrex query --mdns");
+    assert!(
+        out.status.success(),
+        "mdns exit: {}\n{}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("an.0.rdata: _services._dns-sd._udp.local"),
+        "the PTR target must render\n{stdout}"
+    );
+    let _ = rx.recv_timeout(std::time::Duration::from_secs(5));
+}
+
+/// **UC-30 / WF-30**: "Get out via DoH" — `wrex query --doh URL --short`
+/// against a plain-socket HTTP/1.1 stub: the RFC 8484 POST body is the
+/// bare query, the 200 body dissects as the reply, +short prints the
+/// answer values.
+#[test]
+fn wf30_doh_post_end_to_end() {
+    if !driver_tests_enabled() {
+        eprintln!("wf30: skipping (driver tests disabled)");
+        return;
+    }
+    use std::io::{Read as _, Write as _};
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind stub");
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (mut sock, _) = listener.accept().expect("accept");
+        let mut buf = [0u8; 4096];
+        let n = sock.read(&mut buf).expect("read request");
+        let request = String::from_utf8_lossy(&buf[..n]).to_string();
+        assert!(
+            request.starts_with("POST /dns-query "),
+            "the stub saw a real RFC 8484 POST\n{request}"
+        );
+        let body = request
+            .split("\r\n\r\n")
+            .nth(1)
+            .unwrap_or_default()
+            .as_bytes()
+            .to_vec();
+        let reply = wf_dns_reply(&body, (&[0x00, 0x01], &[93, 184, 216, 34]));
+        let mut resp = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/dns-message\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            reply.len()
+        )
+        .into_bytes();
+        resp.extend_from_slice(&reply);
+        let _ = sock.write_all(&resp);
+        let _ = sock.shutdown(std::net::Shutdown::Write);
+    });
+    let out = wrex()
+        .args([
+            "query",
+            "--doh",
+            &format!("http://127.0.0.1:{port}/dns-query"),
+            "--timeout",
+            "2s",
+            "--short",
+            "example.com",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.trim() == "93.184.216.34", "+short: {stdout:?}");
+    let _ = server.join();
+}

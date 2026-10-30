@@ -59,10 +59,15 @@
         "an.0.type": "A",
         "ancount": 1,
         "ar.0.class": "CLASS1232",
+        "ar.0.do": false,
+        "ar.0.ext_rcode": 0,
         "ar.0.name": "",
         "ar.0.rdata": "",
         "ar.0.ttl": 0,
         "ar.0.type": "OPT",
+        "ar.0.udp_size": 1232,
+        "ar.0.version": 0,
+        "ar.0.z": 0,
         "arcount": 1,
         "flags": [
           "qr",
@@ -70,6 +75,7 @@
           "rd",
           "ra"
         ],
+        "flags.z": false,
         "id": 45592,
         "nscount": 0,
         "opcode": 0,

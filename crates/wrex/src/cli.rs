@@ -418,17 +418,25 @@ pub fn field_args(registry: &Registry) -> Vec<clap::Arg> {
             }
         }
         // Record-section flags: a settable record bounded at max 1 gets
-        // an unindexed shorthand (`--dns-name` → `qd.0.name`); the arg
-        // id stays the full dashed path so spec assembly is unambiguous.
-        // Other records are dissect-only and take no flags.
+        // an unindexed shorthand (`--dns-name` → `qd.0.name`); a
+        // settable unbounded record (tranche 20a-2: dns `an`/`ns`/`ar`)
+        // enumerates its index-0 paths (`--dns-an-0-name`) — deeper
+        // indices ride the spec JSON, not flags. The arg id stays the
+        // full dashed path so spec assembly is unambiguous. Dissect-only
+        // records take no flags.
         for record in schema.records {
-            if !(record.settable && record.max == Some(1)) {
+            if !record.settable {
                 continue;
             }
+            let shorthand = record.max == Some(1);
             for field in record.fields {
                 let arg_id = flag_long(kind, &format!("{}.0.{}", record.name, field.name));
                 let short = format!("{kind}-{}", field.name);
-                let long = if used_longs.insert(short.clone()) {
+                let long = if !shorthand {
+                    // Unbounded: the indexed full path only.
+                    used_longs.insert(arg_id.clone());
+                    arg_id.clone()
+                } else if used_longs.insert(short.clone()) {
                     short
                 } else {
                     // flat field or earlier shorthand already owns the
@@ -676,7 +684,8 @@ pub struct ReplayArgs {
 /// kernel sockets everywhere since perf-pass 3b).
 pub const QUERY_AFTER_HELP: &str = "\
 QUERY GRAMMAR:
-  wrex query [--server IP] [--port 53] [--tcp] [--tls]
+  wrex query [--server IP] [--port 53] [--tcp] [--tls] [--doh URL]
+             [--mdns] [--reverse] [--short] [--edns SIZE] [--edns-do]
              [--tls-insecure] [--tls-ca FILE] [options] NAME
 
   Sends one seeded DNS question and waits for the matching reply
@@ -700,17 +709,35 @@ QUERY GRAMMAR:
   name from --server. --tls-insecure accepts any server certificate
   and --tls-ca FILE adds extra roots, as with `wrex http`.
 
+  --edns SIZE advertises EDNS0 (tranche 20a-1): one OPT pseudo-record
+  lands in the reply's ar section, dissected typed (udp_size,
+  ext_rcode, version, do, z, and option TLVs ar.N.opt.M.*).
+  --edns-do sets the DO bit. --mdns (tranche 20b) asks the multicast
+  group 224.0.0.251 / ff02::fb on port 5353 instead of a unicast
+  server. --doh URL (tranche 20b) POSTs the bare message as
+  application/dns-message (RFC 8484; http/https URL, fresh connection
+  per attempt — the h2 ALPN transport is a recorded deferral).
+  --reverse is dig -x sugar (NAME is an IP; PTR under in-addr.arpa /
+  ip6.arpa); --short prints only the answer rdata values (text).
+
 RECORD FIELDS (wrex dissect --filter also accepts these):
   answers/authority/additional records dissect into indexed paths:
   dns.an.0.name, dns.an.0.type, dns.an.0.ttl, dns.an.0.rdata …
   A rdata is typed ipv4; CNAME/NS/PTR resolve (compression pointers
-  included) to names; TXT and everything else stay raw hex bytes.
+  included) to names; every common record type walks its typed
+  subfields (tranche 20a-2): dns.an.0.mx.preference,
+  dns.an.0.soa.serial, dns.an.0.svcb.M.key …; EDNS OPT renders
+  dns.ar.N.udp_size / .do and its TLVs dns.ar.N.opt.M.*.
 
 EXAMPLES:
   wrex query --server 192.168.1.1 example.com
   wrex query --server 1.1.1.1 --type MX --seed 42 example.com
+  wrex query --server 1.1.1.1 --type HTTPS --edns 1232 --edns-do --short example.com
   wrex query --tcp --server 192.168.1.1 example.com
   wrex query --tls --server 192.168.1.1 --tls-insecure example.com
+  wrex query --doh https://dns.example/dns-query --short example.com
+  wrex query --mdns --type PTR _services._dns-sd._udp.local
+  wrex query --reverse --server 192.168.1.1 192.168.1.10
   wrex query --server ::1 example.com";
 
 /// Epilog for mut: the tranche-6a mutation verb.
@@ -1133,6 +1160,31 @@ pub struct QueryArgs {
     /// Question class (default IN).
     #[arg(long = "class")]
     pub qclass: Option<String>,
+    /// Advertise EDNS0 (tranche 20a): append an OPT pseudo-record;
+    /// the value is the udp payload size (RFC 6891 §6.2.5 floors it at
+    /// 512 — smaller is a usage error).
+    #[arg(long, value_name = "SIZE")]
+    pub edns: Option<u16>,
+    /// Set the EDNS0 DO bit (DNSSEC OK; RFC 6891 §6.1.2) — implies
+    /// --edns.
+    #[arg(long)]
+    pub edns_do: bool,
+    /// DNS-over-HTTPS (RFC 8484, tranche 20b): POST the bare message
+    /// to URL (http:// or https://…) as application/dns-message;
+    /// fresh connection per attempt. Implies no --server/--port.
+    #[arg(long, value_name = "URL")]
+    pub doh: Option<String>,
+    /// mDNS (RFC 6762, tranche 20b): ask the multicast group instead of
+    /// a unicast server (224.0.0.251 / ff02::fb, port 5353).
+    #[arg(long)]
+    pub mdns: bool,
+    /// Reverse lookup sugar (dig -x): NAME is an IP address; query PTR
+    /// for its in-addr.arpa / ip6.arpa name.
+    #[arg(long)]
+    pub reverse: bool,
+    /// dig +short: print only the answer rdata values (text format).
+    #[arg(long)]
+    pub short: bool,
     /// Extra attempts beyond the first, same query id (default 1).
     #[arg(long)]
     pub retries: Option<u32>,

@@ -1830,6 +1830,8 @@ fn fuzz_app_probes(
                         qtype: "A".to_string(),
                         qclass: "IN".to_string(),
                         rd: true,
+                        edns: None,
+                        edns_do: false,
                         retries: 0,
                         timeout: cfg.timeout,
                         seed: cfg.seed,
@@ -3972,6 +3974,13 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
             "query --format supports text|json|jsonl (raw/hex carry no reply)",
         ));
     }
+    // Tranche 20a-2: --short is dig +short sugar — answer rdata values,
+    // text format only (json/jsonl carry the full dissection).
+    if args.short && !matches!(format, Format::Text) {
+        return Err(usage(
+            "--short rides the text format (json/jsonl carry the full reply)",
+        ));
+    }
     // Registry gating up front (usage → exit 2).
     for kind in ["ipv4", "udp", "dns"] {
         if registry.get(kind).is_none() {
@@ -3981,28 +3990,101 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
             )));
         }
     }
-    let Some(server_raw) = args.server.as_deref() else {
-        return Err(usage("query requires --server (e.g. --server 1.1.1.1)"));
+
+    // Tranche 20b: --doh replaces the socket transports wholesale (the
+    // question rides an HTTP POST; conflicts are pointed).
+    if let Some(url) = &args.doh {
+        for (flag, on) in [
+            ("--tcp", args.tcp),
+            ("--tls", args.tls),
+            ("--mdns", args.mdns),
+            ("--server", args.server.is_some()),
+            ("--port", args.port.is_some()),
+        ] {
+            if on {
+                return Err(usage(format!("--doh and {flag} are exclusive")));
+            }
+        }
+        let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
+        let seed = args.seed.unwrap_or_else(time_seed);
+        return query_doh(registry, args, url, timeout, seed, format);
+    }
+
+    // Tranche 20a-2: --reverse is dig -x sugar (NAME is an IP; the
+    // question becomes PTR under in-addr.arpa / ip6.arpa).
+    let (name, forced_type) = if args.reverse {
+        let raw = args.name.trim();
+        let ip: std::net::IpAddr = raw
+            .parse()
+            .map_err(|_| usage(format!("--reverse NAME wants an IP address (got `{raw}`)")))?;
+        (reverse_ptr_name(&ip), Some("PTR"))
+    } else {
+        (args.name.trim().trim_end_matches('.').to_string(), None)
     };
-    // Tranche 10a: either family. The raw UDP path roots the query at
-    // ipv4/ipv6 per the server family; --tcp/--tls ride the (now)
-    // dual-family kernel driver.
-    let server: std::net::IpAddr = server_raw.parse().map_err(|_| {
-        usage(format!(
-            "bad server `{server_raw}` (expected an IP address)"
-        ))
-    })?;
+    if let (Some(t), Some(f)) = (args.qtype.as_deref(), forced_type)
+        && !t.eq_ignore_ascii_case(f)
+    {
+        return Err(usage(format!(
+            "--reverse forces the question type {f} (got --type {t})"
+        )));
+    }
+
+    // Tranche 20b: --mdns asks the multicast group (224.0.0.251 /
+    // ff02::fb per the --server family, port 5353) instead of a
+    // unicast server.
+    let server: std::net::IpAddr = if args.mdns {
+        // The group follows --server's family when given, else v4.
+        let v6 = matches!(
+            args.server
+                .as_deref()
+                .and_then(|s| s.parse::<std::net::IpAddr>().ok()),
+            Some(std::net::IpAddr::V6(_))
+        );
+        if v6 {
+            "ff02::fb".parse().unwrap()
+        } else {
+            "224.0.0.251".parse().unwrap()
+        }
+    } else {
+        let Some(server_raw) = args.server.as_deref() else {
+            return Err(usage(
+                "query requires --server (e.g. --server 1.1.1.1), or --mdns / --doh",
+            ));
+        };
+        // Tranche 10a: either family. The raw UDP path roots the query at
+        // ipv4/ipv6 per the server family; --tcp/--tls ride the (now)
+        // dual-family kernel driver.
+        server_raw.parse().map_err(|_| {
+            usage(format!(
+                "bad server `{server_raw}` (expected an IP address)"
+            ))
+        })?
+    };
     let timeout = duration_arg(args.timeout.as_deref())?.unwrap_or(SCAN_DEFAULT_TIMEOUT);
     let retries = args.retries.unwrap_or(1);
     let seed = args.seed.unwrap_or_else(time_seed);
     let cfg = QueryConfig {
         server,
-        // --tls (DNS-over-TLS) defaults to the RFC 7858 port.
-        port: args.port.unwrap_or(if args.tls { 853 } else { 53 }),
-        name: args.name.trim().trim_end_matches('.').to_string(),
-        qtype: args.qtype.clone().unwrap_or_else(|| "A".to_string()),
+        // --tls (DNS-over-TLS) defaults to the RFC 7858 port; --mdns to
+        // the RFC 6762 port.
+        port: args.port.unwrap_or(if args.mdns {
+            5353
+        } else if args.tls {
+            853
+        } else {
+            53
+        }),
+        name,
+        qtype: forced_type
+            .map(str::to_string)
+            .or_else(|| args.qtype.clone())
+            .unwrap_or_else(|| "A".to_string()),
         qclass: args.qclass.clone().unwrap_or_else(|| "IN".to_string()),
         rd: !common.no_autofill,
+        // Tranche 20a-1: --edns/--edns-do advertise EDNS0 (the OPT record
+        // rides the reply's ar section, dissected typed).
+        edns: args.edns.or(if args.edns_do { Some(4096) } else { None }),
+        edns_do: args.edns_do,
         retries,
         timeout,
         seed,
@@ -4022,6 +4104,182 @@ fn query(registry: &Registry, args: &crate::cli::QueryArgs) -> Result<(), CliErr
         return query_tcp(registry, cfg, args, format, src);
     }
     query_udp(registry, cfg, args, format)
+}
+
+/// The `--reverse` PTR name of an IP (dig -x sugar, RFC 1034 §3.5:
+/// in-addr.arpa / ip6.arpa nibble-reversed).
+fn reverse_ptr_name(ip: &std::net::IpAddr) -> String {
+    match ip {
+        std::net::IpAddr::V4(a) => {
+            let o = a.octets();
+            format!("{}.{}.{}.{}.in-addr.arpa", o[3], o[2], o[1], o[0])
+        }
+        std::net::IpAddr::V6(a) => {
+            let mut labels = Vec::with_capacity(32);
+            for byte in a.octets().iter().rev() {
+                labels.push(format!("{:x}", byte & 0x0F));
+                labels.push(format!("{:x}", byte >> 4));
+            }
+            format!("{}.ip6.arpa", labels.join("."))
+        }
+    }
+}
+
+/// `wrex query --short`: dig +short — one answer rdata value per line
+/// (text format only; json/jsonl carry the full reply).
+fn write_dns_reply_short(pkt: &wrex_core::dissect::DissectedPacket) -> Result<(), CliError> {
+    let mut out = String::new();
+    for layer in pkt.layers.iter().filter(|l| l.kind == "dns") {
+        for (k, v) in &layer.fields {
+            let Some(rest) = k.strip_prefix("an.") else {
+                continue;
+            };
+            let Some(idx) = rest.find('.') else {
+                continue;
+            };
+            if &rest[idx + 1..] == "rdata" {
+                out.push_str(&crate::spec::render_value_flat(v));
+                out.push('\n');
+            }
+        }
+    }
+    write_stdout(out.as_bytes())
+}
+
+/// `wrex query --doh` (tranche 20b): DNS-over-HTTPS (RFC 8484) — POST the
+/// bare query bytes to the URL as `application/dns-message`, one fresh
+/// connection per attempt (plain `TcpDriver` or the rustls `TlsDriver`
+/// on the scheme; a 200 body is the reply). Pure composition over
+/// `wrex-http`; the h2 ALPN transport is a recorded deferral.
+fn query_doh(
+    registry: &Registry,
+    args: &crate::cli::QueryArgs,
+    url: &str,
+    timeout: std::time::Duration,
+    seed: u64,
+    format: Format,
+) -> Result<(), CliError> {
+    let common = &args.common;
+    let cfg = wrex_dns::QueryConfig {
+        server: std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        port: 443,
+        name: args.name.trim().trim_end_matches('.').to_string(),
+        qtype: args.qtype.clone().unwrap_or_else(|| "A".to_string()),
+        qclass: args.qclass.clone().unwrap_or_else(|| "IN".to_string()),
+        rd: !common.no_autofill,
+        edns: args.edns.or(if args.edns_do { Some(4096) } else { None }),
+        edns_do: args.edns_do,
+        retries: args.retries.unwrap_or(1),
+        timeout,
+        seed,
+    };
+    cfg.validate().map_err(|e| usage(format!("query: {e}")))?;
+
+    let uri = wrex_http::http::Uri::try_from(url.to_string())
+        .map_err(|e| usage(format!("bad --doh url `{url}`: {e}")))?;
+    if uri.scheme_str() == Some("http") || uri.scheme_str() == Some("https") {
+        // ok (serialize re-checks too)
+    } else {
+        return Err(usage(format!(
+            "--doh url `{url}` needs an http:// or https:// scheme"
+        )));
+    }
+    let host = dest_host(&uri);
+    if host.is_empty() {
+        return Err(usage(format!("--doh url `{url}` needs a host")));
+    }
+
+    let attempts = cfg.retries + 1;
+    for attempt in 1..=attempts {
+        // Same seeded identity draw as the socket transports: the DoH
+        // body carries the same dns id for the same --seed.
+        let mut rng = wrex_io::Rng::new(cfg.seed);
+        let _ = rng.range_u16(32768, 60999);
+        let id = (rng.next_u64() & 0xffff) as u16;
+        let body = wrex_dns::build_tcp_query(registry, &cfg, 0, id)
+            .map_err(|e| usage(format!("query: {e}")))?;
+        let spec = wrex_http::HttpRequestSpec::build(
+            "POST",
+            url,
+            &[
+                ("content-type", "application/dns-message"),
+                ("accept", "application/dns-message"),
+            ],
+            body,
+        )
+        .map_err(|e| usage(format!("query --doh: {e}")))?;
+
+        let peer = tcp_peer(&spec.url)?;
+        let mut driver: Box<dyn wrex_io::Driver> = if uri.scheme_str() == Some("https") {
+            let ca_der = match &args.tls_ca {
+                Some(path) => {
+                    Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("query: {e}")))?)
+                }
+                None => None,
+            };
+            let tls_cfg = wrex_tls::TlsConfig {
+                // SNI from the URL host (an IP literal matches the
+                // cert's IP SAN — the T8a rule).
+                server_name: host.clone(),
+                insecure: args.tls_insecure,
+                ca_der,
+                alpn_protocols: vec![],
+            };
+            Box::new(
+                wrex_tls::TlsDriver::connect(peer, None, timeout, &tls_cfg)
+                    .map_err(|e| CliError::Runtime(format!("query --doh: {e}")))?,
+            )
+        } else {
+            Box::new(
+                wrex_io::TcpDriver::connect(peer, None, timeout)
+                    .map_err(|e| CliError::Runtime(format!("query --doh: {e}")))?,
+            )
+        };
+        let mut session = wrex_http::HttpClientSession::new(
+            &spec,
+            wrex_http::HttpConfig {
+                timeout,
+                max_bytes: 64 * 1024 * 1024,
+            },
+            std::time::Instant::now(),
+        )
+        .map_err(|e| usage(format!("query --doh: {e}")))?;
+        let outcomes = wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
+            .map_err(|e| CliError::Runtime(format!("query --doh: {e}")))?;
+        match outcomes.into_iter().next() {
+            Some(wrex_http::HttpOutcome::Response(resp)) if resp.status == 200 => {
+                let pkt = wrex_core::dissect::dissect(registry, &resp.body, "dns");
+                return if args.short {
+                    write_dns_reply_short(&pkt)
+                } else {
+                    write_dns_reply(&pkt, format)
+                };
+            }
+            Some(wrex_http::HttpOutcome::Response(resp)) => {
+                if attempt < attempts {
+                    eprintln!(
+                        "wrex: query --doh: attempt {attempt}/{attempts}: status {} — retrying",
+                        resp.status
+                    );
+                    continue;
+                }
+                return Err(CliError::Runtime(format!(
+                    "query --doh: server answered status {} after {attempts} attempt(s)",
+                    resp.status
+                )));
+            }
+            _ => {
+                if attempt < attempts {
+                    eprintln!("wrex: query --doh: attempt {attempt}/{attempts} failed; retrying");
+                    continue;
+                }
+            }
+        }
+    }
+    Err(CliError::Runtime(format!(
+        "query --doh: no reply from {url} within {} x {attempts}",
+        hum_duration(timeout)
+    )))
 }
 
 /// `wrex query` default mode: one seeded DNS question over a kernel
@@ -4098,7 +4356,13 @@ fn query_udp(
         .map_err(|e| CliError::Runtime(format!("query: {e}")))?;
 
     match outcomes.into_iter().next() {
-        Some(DnsReply::Reply(pkt)) => write_dns_reply(&pkt, format),
+        Some(DnsReply::Reply(pkt)) => {
+            if args.short {
+                write_dns_reply_short(&pkt)
+            } else {
+                write_dns_reply(&pkt, format)
+            }
+        }
         Some(DnsReply::NoReply { attempts }) => Err(CliError::Runtime(format!(
             "no reply from {server} within {} x {attempts} ({})",
             hum_duration(timeout),
@@ -4211,7 +4475,11 @@ fn query_tcp(
             .map_err(|e| CliError::Runtime(format!("query --tcp: {e}")))?;
         match outcomes.into_iter().next() {
             Some(DnsTcpReply::Reply(pkt)) => {
-                return write_dns_reply(&pkt, format);
+                return if args.short {
+                    write_dns_reply_short(&pkt)
+                } else {
+                    write_dns_reply(&pkt, format)
+                };
             }
             // Failed attempt: a fresh connection is the retry (RFC 7766).
             Some(DnsTcpReply::Truncated { .. }) | Some(DnsTcpReply::NoReply) | None => {

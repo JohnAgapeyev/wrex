@@ -7,7 +7,7 @@ wrex-udp \- udp layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIudp\fR
 
 .SH DESCRIPTION
-UDP (RFC 768): 8\-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo\-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network\-layer parent) plus the segment and payload. Explicit \-\-udp\-checksum=0 produces the scapy\-style unchecked zero. Port\-53 datagrams chain into the dns codec (tranche\-3 dispatch), port\-67/68 into the dhcp codec (tranche 7c); other ports are terminal (the payload follows).
+UDP (RFC 768): 8\-byte header. length autofilled from header+payload (explicit wins); checksum computed over the pseudo\-header (RFC 9293 v4 / RFC 8200 §8.1 v6, family follows the network\-layer parent) plus the segment and payload. Explicit \-\-udp\-checksum=0 produces the scapy\-style unchecked zero. Port\-53 datagrams chain into the dns codec (tranche\-3 dispatch), port\-67/68 into the dhcp codec (tranche 7c); mDNS rides 5353 on both ends and LLMNR 5355 either side (tranche 20b); other ports are terminal (the payload follows).
 .
 
 .SH ENCAPSULATION

@@ -2,17 +2,30 @@
 //! directions) with RFC 3597 `TYPE<n>`/`CLASS<n>` and bare-numeric
 //! fallbacks on parse.
 
-/// Record type numbers (RFC 1035 + the tranche-3 set).
+/// Record type numbers (RFC 1035 + the tranche-3 set; the T20a-2 table
+/// completion: the full typed-rdata alias set, rendering names first).
 pub const TYPE_A: u16 = 1;
 pub const TYPE_NS: u16 = 2;
 pub const TYPE_CNAME: u16 = 5;
 pub const TYPE_SOA: u16 = 6;
 pub const TYPE_PTR: u16 = 12;
+pub const TYPE_HINFO: u16 = 13;
 pub const TYPE_MX: u16 = 15;
 pub const TYPE_TXT: u16 = 16;
 pub const TYPE_AAAA: u16 = 28;
 pub const TYPE_SRV: u16 = 33;
+pub const TYPE_NAPTR: u16 = 35;
+pub const TYPE_DNAME: u16 = 39;
 pub const TYPE_OPT: u16 = 41;
+pub const TYPE_DS: u16 = 43;
+pub const TYPE_SSHFP: u16 = 44;
+pub const TYPE_RRSIG: u16 = 46;
+pub const TYPE_NSEC: u16 = 47;
+pub const TYPE_DNSKEY: u16 = 48;
+pub const TYPE_TLSA: u16 = 52;
+pub const TYPE_SVCB: u16 = 64;
+pub const TYPE_HTTPS: u16 = 65;
+pub const TYPE_CAA: u16 = 257;
 pub const TYPE_ANY: u16 = 255;
 
 /// Class numbers.
@@ -28,11 +41,23 @@ const TYPES: &[(u16, &str)] = &[
     (TYPE_CNAME, "CNAME"),
     (TYPE_SOA, "SOA"),
     (TYPE_PTR, "PTR"),
+    (TYPE_HINFO, "HINFO"),
     (TYPE_MX, "MX"),
     (TYPE_TXT, "TXT"),
     (TYPE_AAAA, "AAAA"),
     (TYPE_SRV, "SRV"),
+    (TYPE_NAPTR, "NAPTR"),
+    (TYPE_DNAME, "DNAME"),
     (TYPE_OPT, "OPT"),
+    (TYPE_DS, "DS"),
+    (TYPE_SSHFP, "SSHFP"),
+    (TYPE_RRSIG, "RRSIG"),
+    (TYPE_NSEC, "NSEC"),
+    (TYPE_DNSKEY, "DNSKEY"),
+    (TYPE_TLSA, "TLSA"),
+    (TYPE_SVCB, "SVCB"),
+    (TYPE_HTTPS, "HTTPS"),
+    (TYPE_CAA, "CAA"),
     (TYPE_ANY, "ANY"),
 ];
 

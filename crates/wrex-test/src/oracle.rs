@@ -894,10 +894,14 @@ fn tshark_map(json: &Json, actual: &DissectedPacket, report: &mut DiffReport) {
         && let Some(ours) = by_kind("dhcp6")
     {
         let get = |k: &str| dhcp6_json[k].as_str().map(|s| s.to_string());
-        // msg_type: our Str names map through the RFC 8415 registry.
+        // msg_type: our Str names map through the RFC 8415 registry —
+        // OR the numeric fallback our own renderer emits for types
+        // outside it (e.g. `14`; the registry caps at 13, the wire
+        // does not — pinned by the differential regression seed).
         if let Some(theirs) = get("dhcpv6.msgtype") {
             let ours_num = match ours.fields.get("msg_type") {
-                Some(Value::Str(s)) => wrex_proto_dhcp6::options::parse_msg_type(s),
+                Some(Value::Str(s)) => wrex_proto_dhcp6::options::parse_msg_type(s)
+                    .or_else(|| s.trim().parse::<u8>().ok()),
                 other => other.and_then(|v| match v {
                     Value::Int(n) => u8::try_from(*n).ok(),
                     _ => None,

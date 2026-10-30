@@ -666,13 +666,19 @@ impl<T> typenum::type_operators::Same for wrex::cli::PatchArgs
 pub type wrex::cli::PatchArgs::Output = T
 pub struct wrex::cli::QueryArgs
 pub wrex::cli::QueryArgs::common: wrex::cli::Common
+pub wrex::cli::QueryArgs::doh: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::edns: core::option::Option<u16>
+pub wrex::cli::QueryArgs::edns_do: bool
+pub wrex::cli::QueryArgs::mdns: bool
 pub wrex::cli::QueryArgs::name: alloc::string::String
 pub wrex::cli::QueryArgs::port: core::option::Option<u16>
 pub wrex::cli::QueryArgs::qclass: core::option::Option<alloc::string::String>
 pub wrex::cli::QueryArgs::qtype: core::option::Option<alloc::string::String>
 pub wrex::cli::QueryArgs::retries: core::option::Option<u32>
+pub wrex::cli::QueryArgs::reverse: bool
 pub wrex::cli::QueryArgs::seed: core::option::Option<u64>
 pub wrex::cli::QueryArgs::server: core::option::Option<alloc::string::String>
+pub wrex::cli::QueryArgs::short: bool
 pub wrex::cli::QueryArgs::tcp: bool
 pub wrex::cli::QueryArgs::timeout: core::option::Option<alloc::string::String>
 pub wrex::cli::QueryArgs::tls: bool
