@@ -109,7 +109,7 @@ instead; open *decisions* live in the roadmap's extension section.
 
 | Item | Origin | Status |
 |------|--------|--------|
-| IPv4/TCP options read-side typing (the T11 dynamic regions) | T11 | Open — T22 |
+| IPv4/TCP options read-side typing (the T11 dynamic regions) | T11 | Closed by T22 — settable `opt.N.*` record sections both codecs (typed read side with parse-time spans, craft through index paths — the dns `an.0.*` flip; `raw` covers unknown kinds, `len` autofills) + DSCP/ECN name subpaths (`tos.dscp`/`tos.ecn`) |
 | IPv6 extension headers | T7b | Closed by T17a |
 | Hopopts/dstopts option typing (Router Alert/Jumbo/PadN sugar) | T17a | Open, P2 (MLD goldens hand-hex the RA option) |
 | Routing type-2 typed segments | T17a | Open, P3 |
@@ -125,6 +125,10 @@ instead; open *decisions* live in the roadmap's extension section.
 | Route re-reads on drift | T10b | Won't-do (read once at open, by design) |
 | Retransmitted NS beyond the single bounded attempt | T10b | Won't-do (by design) |
 | `opt` sections on echo messages (icmpv6) | T17b | Open, P3 |
+| MPTCP subtype-keyed fields (MP_CAPABLE / MP_JOIN / MP_DATA / MP_DSS shapes, RFC 8684 §3) | T22 | Open, P3 — `opt.N.raw` carries the wire truth (kind name + subtype byte included); a dedicated veth-lab corpus lands them |
+| TFO cookie wire split (request vs response shapes, RFC 7413 §3.1) | T22 | Open, P3 — `opt.N.raw` covers; the split needs the SYN-state context wrex does not hold |
+| Patch typing for the `tos.dscp`/`tos.ecn` name subpaths (`wrex patch --set`) | T22 | Open, P2 — the spans carry real bit windows (`dissect --spans` shows them) but `schema.resolve` does not type name subpaths of a non-FlagSet scalar; `wrex patch --set ipv4.tos=<int>` and `wire:` cover the edits |
+| Record-index CLI flags beyond index 0 (`--tcp-opt-1-*`) | T22 | Parked (the dns `an.0.*` bound: index-0 flags, deeper indices ride the spec JSON) |
 | Fragment reassembly | T17a | Closed by T18a |
 | Atomic-fragments rule (RFC 6946 §4) | T18a | Open, P2 |
 | Pathological-fragment hardening beyond the byte budget | T18a | Parked (the 1 MiB budget covers) |

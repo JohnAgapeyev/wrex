@@ -8,6 +8,35 @@ tranche.
 
 ## [Unreleased]
 
+### Added — tranche 22: L3/L4 options read-side typing (the last T11 dynamic region)
+
+All additive: every pinned pre-T22 wire byte is identical; the output
+contract grows the new `opt.N.*`/`tos.*` keys only. Closes the T11
+deferred region; feeds T30 (fingerprint signatures) and T29-a (kernel
+filter offsets).
+
+- **TCP options** (`wrex-proto-tcp`): the settable `opt` record
+  section — the dns `an.0.*` flip, one record per wire option
+  (`--tcp-opt-0-kind mss --tcp-opt-0-mss 1460`; deeper indices ride
+  the spec JSON). `kind` carries the name vocabulary (or a bare
+  number), `len` autofills (explicit kept verbatim — the
+  deliberate-invalid rule), typed `mss`/`ws`/`sack`/`ts_val`/
+  `ts_ecr`, `raw` the wire truth (tfo/mptcp/unknown kinds).
+- **IPv4 options** (`wrex-proto-ip`): the same `opt` section —
+  `kind`, `len`, `ptr` (explicit wins; 4 routes / 5 ts), `route`,
+  `ts_flag`, `ts`, `raw`.
+- **DSCP/ECN name rendering**: the dissect-only `tos.dscp`
+  (cs0..cs7/af/ef names) and `tos.ecn` (not-ect/ect0/ect1/ce)
+  subpaths over real bit windows.
+- Both dissect walks carry parse-time spans (patchable through
+  `wrex patch --set tcp.opt.0.mss=…`); eol ends the walk, malformed
+  options stop with never-fatal `*.opt.N` anomalies, malformed
+  typed shapes degrade silently to `raw` (the dhcp rules). The
+  strategies grow random valid record shapes (the G1 audit
+  extended), the corpus goldens regenerate (the HP3-b
+  `scen-kernel-tcp` kernel-options capture now dissects typed), and
+  man pages + API snapshots are refreshed.
+
 ### Added — tranche 21: the nmap closure (scan variants, ARP/NDP/MLD discovery, traceroute, service probes)
 
 Three sub-tranches, all additive: every pinned pre-T21 wire byte and

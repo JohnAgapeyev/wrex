@@ -25,6 +25,8 @@
         "proto": "udp",
         "src": "10.0.0.1",
         "tos": 0,
+        "tos.dscp": "cs0",
+        "tos.ecn": "not-ect",
         "total_len": 308,
         "ttl": 64,
         "ver": 4

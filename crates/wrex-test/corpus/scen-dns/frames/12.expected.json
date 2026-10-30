@@ -27,6 +27,8 @@
         "proto": "tcp",
         "src": "10.9.9.2",
         "tos": 0,
+        "tos.dscp": "cs0",
+        "tos.ecn": "not-ect",
         "total_len": 108,
         "ttl": 64,
         "ver": 4
@@ -47,6 +49,13 @@
           "ack",
           "psh"
         ],
+        "opt.0.kind": "nop",
+        "opt.1.kind": "nop",
+        "opt.2.kind": "ts",
+        "opt.2.len": 10,
+        "opt.2.raw": "5af7dfa6fa399bd8",
+        "opt.2.ts_ecr": 4198079448,
+        "opt.2.ts_val": 1526194086,
         "options": "0101080a5af7dfa6fa399bd8",
         "seq": 2135608179,
         "sport": 53,

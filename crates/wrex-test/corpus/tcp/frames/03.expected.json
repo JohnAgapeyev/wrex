@@ -27,6 +27,8 @@
         "proto": "tcp",
         "src": "176.126.243.198",
         "tos": 16,
+        "tos.dscp": "4",
+        "tos.ecn": "not-ect",
         "total_len": 52,
         "ttl": 61,
         "ver": 4
@@ -46,6 +48,13 @@
         "flags": [
           "ack"
         ],
+        "opt.0.kind": "nop",
+        "opt.1.kind": "nop",
+        "opt.2.kind": "ts",
+        "opt.2.len": 10,
+        "opt.2.raw": "075b883a1d6c1818",
+        "opt.2.ts_ecr": 493623320,
+        "opt.2.ts_val": 123439162,
         "options": "0101080a075b883a1d6c1818",
         "seq": 581767279,
         "sport": 34515,

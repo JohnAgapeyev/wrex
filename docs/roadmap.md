@@ -2019,11 +2019,82 @@ rationale in [verification.md](verification.md)):
       service/version probe engine (backlog P1) here or charter it
       separately.
 
-- **T22 — L3/L4 options read-side typing** — wave 1; rides T11
-  spans/layouts; feeds T30 (fingerprint signatures), HP3-b (kernel
-  TCP captures) and T29-a (kernel filter offsets). Closes the
-  last T11 dynamic regions.
+- **T22 — L3/L4 options read-side typing** — ✅ delivered
+  (2026-10-30; chartered as the last T11 dynamic region, delivered as
+  the dns `an.0.*` settable-record flip — all additive, every pinned
+  pre-T22 wire byte identical; the output contract grows the new
+  `opt.N.*`/`tos.*` keys only). Closes the last T11 dynamic region;
+  feeds T30 (fingerprint signatures) and T29-a (kernel filter
+  offsets). As-delivered:
+  - **22a — TCP options**: `wrex-proto-tcp` grows the settable
+    `opt` record section (the dns 20a-2 pattern: index-0 flags
+    `--tcp-opt-0-kind mss --tcp-opt-0-mss 1460`, one record per wire
+    option, deeper indices ride the spec JSON). Fields: `kind`
+    (name vocabulary eol/nop/mss/ws/sackok/sack/ts/mptcp/tfo or a
+    bare number), `len` (autofill from the value; explicit kept
+    verbatim — the deliberate-invalid rule, the `ihl`/`data_off`
+    exemption precedent in the G1 ledger), typed `mss`/`ws`/`sack`
+    (L,R,…)/`ts_val`/`ts_ecr`, and `raw` (the wire truth — tfo (34),
+    mptcp (30) and unknown kinds ride it: **TFO/MPTCP are dissect-only
+    typed**, the pointed-rejection scope decision resolved to "the
+    `raw` path is strictly more useful than a rejection"). Craft
+    composes records with the 4-byte-grid padding and conflicts with
+    the `--tcp-options` grammar on a pointed mutual-exclusion error
+    (the dhcp msg_type precedent). Dissect walks the options region
+    with parse-time spans (`opt.N.kind`/`len`/value bytes at absolute
+    offsets): eol ends the walk (padding after it stays raw in
+    `options`), a malformed option (len < 2, header overrun) stops
+    with a never-fatal `tcp.opt.N` anomaly, malformed typed shapes
+    degrade silently to `raw` (the dhcp guard rule).
+  - **22b — IPv4 options + DSCP/ECN**: `wrex-proto-ip` grows the
+    same `opt` record section — `kind` (eol/nop/rr/ssrr/lsrr/ts or
+    bare number), `len`, `ptr` (explicit wins; 4 routes / 5 ts),
+    `route` (IP,IP,…), `ts_flag`, `ts` (0xHHHHHHHH,… 4-byte words)
+    and `raw` (unknown kinds). Dissect walks the region with the
+    same edge rules (`ipv4.opt.N` anomalies); the route/ts shapes
+    degrade silently on non-4-multiple address/timestamp tails.
+    **DSCP/ECN name rendering**: the dissect-only `tos.dscp`
+    (cs0..cs7 / af11..af43 / ef per RFC 2474/2597/3246, bare number
+    otherwise) and `tos.ecn` (not-ect/ect0/ect1/ce, RFC 3168)
+    subpaths — the dns `flags.z` precedent (extra fields-map keys
+    with real `FieldSpan::Bits` windows over the tos byte; patch
+    typing recorded P2 in the ledger, `--set ipv4.tos` covers).
+  - **22c — real-stack goldens**: the HP3-b `scen-kernel-tcp`
+    oracle-capture corpus (curl × nc over the veth pair — the
+    kernel's own mss/ws/sackok/ts SYN options on the wire) now
+    dissects typed end to end — the expected goldens regenerated
+    across every corpus (`tos.*` + `opt.N.*` keys), and
+    `fuzz_dissect_tcp`/`fuzz_dissect_ipv4` carry the walk by
+    construction (arbitrary bytes through `read`).
+  - Verification: in-crate units (wire goldens per kind — the
+    ws/sackok nop-padding dissects as its own records, the wire
+    truth; explicit-len verbatim incl. the 2-byte-record boundary;
+    mutual exclusion; missing/unknown kind pointed; eol walk-end;
+    overrun/below-2 never-fatal anomalies; silent typed
+    degradation; guard-edge hexes per typed kind; the full-span
+    tables at absolute offsets + the layer-span pin;
+    `tos.dscp`/`tos.ecn` KAV rows; parse/render name↔code symmetry
+    both codecs), the **in-crate strategy audits** (every record
+    field ≥8 samples/512 + every kind spelling — a deleted shape arm
+    starves its fields and fails in-crate; the walk consumes a
+    shrinking slice so a mutated advance cannot hang), the G1
+    workspace audit extended (every settable record field randomized
+    — the strategies grow one random valid record shape per sample,
+    arithmetic-free value strategies; `len` the recorded autofill
+    exemption), G6 exemption reasons updated (the raw `options`
+    regions: the typed trees are ours alone), the tshark/etherparse
+    differentials green with the record-crafting strategies live, the
+    corpus goldens regenerated (additive keys only), the per-PR
+    cargo-mutants gate pre-run locally over the diff (238 mutants:
+    228 caught, 10 unviable, 0 missed/timeout), man pages
+    (`wrex-tcp.7`/`wrex-ipv4.7` — RECORD SECTIONS) + API snapshots
+    regenerated, 90 workspace suites green.
+  - Deliberate deferrals recorded in the ledger: MPTCP
+    subtype-keyed fields (P3), TFO cookie wire split (P3), patch
+    typing for the `tos.*` name subpaths (P2), record-index CLI flags
+    beyond 0 (parked, the dns bound).
 
+  Charter sketch as planned (kept for the record):
   - Scope: TCP options (`eol,nop,mss,ws,sackok,sack,ts` craft
     grammar exists) and IPv4 options (`rr/ssrr/lsrr/ts`) gain
     typed read-side record sections (`opt.N.*`, the dhcp

@@ -7,7 +7,7 @@ wrex-ipv4 \- ipv4 layer for \fBwrex\fR(1)
 \fBwrex\fR \fIfields\fR \fIipv4\fR
 
 .SH DESCRIPTION
-IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under \-\-strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES. CLI alias: `ip` (\-\-ip\-ttl == \-\-ipv4\-ttl).
+IPv4 (RFC 791). Also a valid stack start. ver=4, ihl derived from options length (explicit ihl wins; invalid values are kept and flagged only under \-\-strict), total_len and checksum autofilled from the packet (explicit values win). proto drives the chain: 1=icmp, 6=tcp, 17=udp, else synthesized `unknown`. Stacks on eth or vlan (802.1Q tag). options grammar: eol,nop,rr:IP,ssrr:IP,lsrr:IP,ts:FLAG,CNT, or hex:BYTES — or the settable opt.N.* record paths (tranche 22b: \-\-ipv4\-opt\-0\-kind rr \-\-ipv4\-opt\-0\-route 10.0.0.1, one record per option, the dns an.0.* precedent; mutually exclusive with the grammar). Dissect renders DSCP/ECN names beside tos (tos.dscp: cs0..cs7/ef/af classes, tos.ecn: not\-ect/ect0/ect1/ce). CLI alias: `ip` (\-\-ip\-ttl == \-\-ipv4\-ttl).
 .
 
 .SH ENCAPSULATION
@@ -56,7 +56,21 @@ source address (autofill: 127.0.0.1; interface primary on send) Type ipv4. Defau
 destination address (autofill: 127.0.0.1) Type ipv4. Default: 127.0.0.1.
 .TP
 \fB\-\-ipv4\-options\fR
-options: eol,nop,rr:IP…,ssrr:IP…,lsrr:IP…,ts:FLAG,CNT, or hex:… Type bytes. Default: .
+options: eol,nop,rr:IP…,ssrr:IP…,lsrr:IP…,ts:FLAG,CNT, or hex:… (mutually exclusive with the opt.N.* record paths) Type bytes. Default: .
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (opt.0.field).
+
+.TP
+\fBopt\fR (settable)
+IPv4 options (RFC 791 §3): one record per option, crafted through index paths opt.0.*, … (the dns an.0.* precedent). Route options carry ptr + route address list; ts carries ptr + ts_flag + 4\-byte timestamp words; raw covers unknown kinds; len autofills from the value (explicit kept verbatim). Dissect\-side the wire truth; eol ends the walk, padding after it stays in the options region.
+  kind (str; default ). option kind: eol|nop|rr|ssrr|lsrr|ts or a bare number (required per record)
+  len (u8; default 0). option length in bytes incl. kind+len (autofill: derived from the value; explicit kept verbatim — eol/nop carry no length byte)
+  ptr (u8; default 0). pointer byte (route options: 4; ts: 5 — explicit wins)
+  route (str; default ). route addresses as IP,IP,… (kind rr/ssrr/lsrr — at least one)
+  ts_flag (u8; default 0). timestamp flags byte (kind ts, RFC 791 §3.2)
+  ts (str; default ). timestamps as 0xHHHHHHHH,… 4\-byte words (kind ts)
+  raw (bytes; default ). raw option data after kind+len (unknown kinds — the wire truth)
 
 .SH EXAMPLES
 wrex craft \-\-format hex \-\-layer eth \-\-layer ipv4 \\\\

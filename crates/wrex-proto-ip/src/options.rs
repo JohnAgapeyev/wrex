@@ -13,13 +13,48 @@ use std::net::Ipv4Addr;
 
 use wrex_core::EncodeError;
 use wrex_core::options::{bad, named, tokens, unknown};
+use wrex_core::str_eq;
 
-const OPT_EOL: u8 = 0;
-const OPT_NOP: u8 = 1;
-const OPT_RR: u8 = 7;
-const OPT_TS: u8 = 68;
-const OPT_LSRR: u8 = 131;
-const OPT_SSRR: u8 = 137;
+pub(crate) const OPT_EOL: u8 = 0;
+pub(crate) const OPT_NOP: u8 = 1;
+pub(crate) const OPT_RR: u8 = 7;
+pub(crate) const OPT_TS: u8 = 68;
+pub(crate) const OPT_LSRR: u8 = 131;
+pub(crate) const OPT_SSRR: u8 = 137;
+
+/// Tranche 22b: the kind vocabulary shared by the write grammar, the
+/// settable `opt.N.kind` record path and the read-side renderer —
+/// name ↔ code (RFC 791 §3.1).
+pub(crate) const KIND_TABLE: &[(&str, u8)] = &[
+    ("eol", OPT_EOL),
+    ("nop", OPT_NOP),
+    ("rr", OPT_RR),
+    ("ts", OPT_TS),
+    ("lsrr", OPT_LSRR),
+    ("ssrr", OPT_SSRR),
+];
+
+/// Parse one `opt.N.kind` value: a table name or a bare number
+/// (`"25"` — the unknown-kind spelling, `hex:` covers the data).
+pub(crate) fn parse_kind(raw: &str) -> Option<u8> {
+    for (name, code) in KIND_TABLE {
+        if str_eq(name, raw) {
+            return Some(*code);
+        }
+    }
+    raw.parse().ok().filter(|&c: &u8| c != 0 && c != 1)
+}
+
+/// Render one option kind code: its table name, or the bare number
+/// for kinds outside the vocabulary.
+pub(crate) fn render_kind(code: u8) -> std::borrow::Cow<'static, str> {
+    for (name, k) in KIND_TABLE {
+        if *k == code {
+            return std::borrow::Cow::Borrowed(name);
+        }
+    }
+    std::borrow::Cow::Owned(code.to_string())
+}
 
 const FIELD: &str = "ipv4.options";
 const KNOWN: &[&str] = &["eol", "nop", "rr", "ssrr", "lsrr", "ts", "hex"];
@@ -168,5 +203,22 @@ mod tests {
         assert_eq!(pad_len(1), 3);
         assert_eq!(pad_len(4), 0);
         assert_eq!(pad_len(7), 1);
+    }
+
+    /// Tranche 22b: the name↔code table round-trips (parse_kind /
+    /// render_code symmetry); unknown kinds parse and render bare
+    /// numbers; eol/nop never parse numerically.
+    #[test]
+    fn kind_table_symmetry() {
+        for (name, code) in KIND_TABLE {
+            assert_eq!(parse_kind(name), Some(*code), "{name}");
+            assert_eq!(&render_kind(*code), name, "{code}");
+        }
+        assert_eq!(parse_kind("25"), Some(25));
+        assert_eq!(&render_kind(25), "25");
+        assert_eq!(parse_kind("0"), None, "eol is name-only");
+        assert_eq!(parse_kind("1"), None, "nop is name-only");
+        assert_eq!(parse_kind("bogus"), None);
+        assert_eq!(parse_kind(""), None);
     }
 }
