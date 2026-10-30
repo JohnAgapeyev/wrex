@@ -97,7 +97,7 @@ Upload FILE: PUT with the file bytes as the body (curl \-T; exclusive with \-\-d
 HEAD request (curl \-I; exclusive with an explicit METHOD)
 .TP
 \fB\-\-include\fR
-Include the response head in raw output (curl \-i; \-\-format text always carries it)
+Include the response head in raw output (curl \-\-include; the short \-i is taken by \-\-iface on every wrex verb — long only). The text format always carries the head
 .TP
 \fB\-r\fR, \fB\-\-range\fR \fI<SPEC>\fR
 Range request sugar: `Range: bytes=<SPEC>` (curl \-r; SPEC is `N\-M`, `N\-` or `\-N`)

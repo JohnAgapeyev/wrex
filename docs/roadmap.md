@@ -1606,7 +1606,7 @@ for wave selection:
 
 | Pillar | Delivered | Remaining for credible parity |
 |--------|-----------|-------------------------------|
-| curl | http/1.1 + h2 + h2c + TLS + recipes + queues | redirects, cookies, auth, content-decoding, proxies, timing output; HTTP/3 |
+| curl | http/1.1 + h2 + h2c + TLS + recipes + queues + redirects (T19) + cookies (T19) + basic/bearer/digest auth (T19) + content-decoding gzip/deflate/br/zstd (T19) + proxies CONNECT/absolute-form/SOCKS5 (T19) + the sugar pack (T19) | HTTP/3; the long-tail flags |
 | dig | UDP/TCP/TLS query, v4/v6, records dissection, compression | EDNS0 crafting, typed SOA/MX/SRV rdata, reverse sugar, DoH, mDNS |
 | nmap | SYN/connect/UDP/ICMP scan, v4/v6, seeded pacing, top-100 defaults | scan variants (FIN/NULL/XMAS/ACK), ARP/NDP discovery, traceroute, service/version, OS fingerprint |
 | scapy | craft/dissect/send/recv/mut/patch across 20+ codecs, lossless dissection, span patching, fragment reassembly | read-side TCP/IPv4 options typing, tunnel/encapsulation recursion, most L2/app protocols, scripted conversations |
@@ -1721,9 +1721,90 @@ rationale in [verification.md](verification.md)):
 
 ### Wave 1 — verb parity
 
-- **T19 — HTTP client parity (curl closure)** — wave 1; rides the
-  delivered T4/T8a/T9/T15 machinery. Closes UC-26/27.
+- **T19 — HTTP client parity (curl closure)** — ✅ delivered
+  (2026-10-29; four slices, all additive, every pinned pre-T19 wire
+  byte identical). Closes UC-26/27. As-delivered:
+  - **19a-1 — redirects + cookies**: `wrex-http::redirect` (RFC 3986
+    §5 Location resolution — the §5.4 reference table pinned; RFC
+    9110 §15.4 + curl method rules; Authorization drops
+    cross-origin) + `wrex-http::cookies` (the RFC 6265 §5.2/5.3/5.4
+    storage model — the §5.1.1 date algorithm, Max-Age precedence,
+    replace-keeps-creation, host-only/domain/default-path rules —
+    and the Netscape jar curl -b/-c speak, round-trip pinned). The
+    verb restructured into a per-exchange runner: the session
+    idles OPEN on a reusable empty queue and `push_request`
+    re-enters (h1 same-origin hops and queue entries ride ONE
+    connection — the keep-alive pin); `--retries` now replays the
+    failing request only (a completed POST never re-fires — the
+    whole-queue replay retired); a re-issue that finds the peer
+    closed reconnects transparently once (curl's behavior). `--format
+    json` gains `url`/`redirects` keys only when hops happened. h2
+    keeps the T15 whole-queue runner (concurrent streams, pinned)
+    unless a per-hop knob is active; an h2 chain opens a connection
+    per hop (stream-reuse recorded as a deferral).
+  - **19a-2 — auth**: `wrex-http::auth` — Basic/Bearer preemptive
+    (the flag owns the Authorization header, curl -u semantics) and
+    the RFC 7616 digest 401-dance under `--digest` (MD5, MD5-sess,
+    SHA-256, SHA-256-sess; qop=auth + the legacy no-qop shape;
+    auth-int a pointed rejection; the cnonce deterministic —
+    derived from the exchange's own facts). ADR-2 held: base64 +
+    RustCrypto `md-5`/`sha2` reused; the RFC's §3.9.1 MD5 vector
+    pins the walk, SHA-256/MD5-sess vectors pinned from python
+    hashlib. The curl `--digest` DIFFERENTIAL: a server-side
+    verifier recomputes §3.4 over its own challenge — both clients
+    must clear it.
+  - **19a-3 — content-decoding + sugar + timing**: `wrex-http::
+    content` — one dispatcher over gzip/deflate (flate2 **zlib-rs**
+    backend: pure Rust, fastest DEFLATE, no C toolchain; miniz_oxide
+    the named fallback), br (brotli-decompressor, safe
+    decode-only), zstd (**ruzstd** pure Rust; Trifecta's libzstd-rs
+    the recorded migration trigger, the C `zstd` crate the named
+    fallback). Token grammar (gzip/x-gzip, deflate with the
+    zlib→raw fallback, br, zstd, identity), stacked codings
+    right-to-left, the `--compressed` advertisement pinned
+    byte-exact to curl's (`deflate, gzip, br, zstd`), decoded bytes
+    counting against `--max-bytes` (the committed 100MB-zeros bomb
+    trips a small budget pointedly), multi-member gzip decoding
+    like BROWSERS (curl exits 23 — the measured, recorded
+    divergence). Sugar: `-I/--head`, `-T/--upload-file`, `-r/
+    --range`, `-o/--output` (captured responses silent on
+    raw/text), `-O/--remote-name`, `--resolve HOST[:PORT]:ADDR`,
+    `--retry N` (5xx replay, no delay — the recorded deviation),
+    `--timing` (the curl -w fields json-shaped; the TLS handshake
+    now driven eagerly on every https connect for an honest
+    appconnect). Committed byte-stable codec fixtures (embedded via
+    include_bytes! so the decode paths run under Miri); the curl
+    `--compressed` differential capability-probed per codec.
+  - **19b — proxies**: `wrex-io::proxy` (safe code) — SOCKS5
+    (RFC 1928 + RFC 1929 auth; socks5/socks5h resolution split) and
+    the HTTP CONNECT tunnel (RFC 9110 §9.3.6), handing ESTABLISHED
+    `TcpDriver`s over (`from_stream` the new seam;
+    `TlsDriver::connect_over` wraps TLS through tunnels, SNI still
+    the destination). `-x/--proxy [http://|socks5://|socks5h://]
+    HOST:PORT` + `-U/--proxy-user`; plain http:// through an HTTP
+    proxy rides absolute-form request-targets (injected per
+    exchange, origin-form default keeps every wire byte identical);
+    both runner paths share `establish_leg`; the curl `-x`
+    differential (a proxy echo stub — identical absolute-form lines
+    through the same proxy). Recipe JSON grew additive
+    follow/max_redirs/user/bearer/digest/compressed/proxy/
+    proxy_user throughout (old recipes parse byte-identically).
+    Deliberate deferrals recorded in the ledger: h2 chain
+    stream-reuse, auth-int, the -w DSL (won't-do — `--timing`),
+    RFC 9722 dictionary compression (won't-do), proxy env vars
+    (P2), retry backoff (won't-do), URL-embedded credentials (P3).
+  Verification per slice: RFC reference tables + vectors; CLI
+  stub suites (chains, keep-alive pin, method rules, jar
+  round-trips, digest dance, decode on/off, bomb budget, sugar on
+  the wire, SOCKS5/CONNECT tunnels end-to-end, https through a
+  CONNECT byte-pump into the rustls stub); the curl differentials
+  (-L, -b, --digest, --compressed ×4 codecs, -x); Kani green on
+  wrex-http under the new dep graph; Miri green (the bomb the one
+  deliberate ignore); two new executable workflows (WF-26/27);
+  man pages + API snapshots regenerated; 88 workspace suites
+  green; coverage 91.3% lines / 88.2% regions (gate 85/85).
 
+  Charter sketch as planned (kept for the record):
   - **19a — core UX**: `--follow` redirects (`--max-redirs`,
     method-preservation rules, redirect chain in json); a cookie
     engine (`-b/-c` Netscape jar, own RFC 6265 Set-Cookie parser);

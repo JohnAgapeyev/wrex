@@ -165,6 +165,7 @@ First-wave scenarios:
 |----------|----------------|----------------|-------|
 | DNS real traffic | hickory server (in-tree dep) | dig | EDNS/DO/compression coverage; T20 pre-stage |
 | HTTP/1.1 + h2 | hyper | curl | header orders, HPACK patterns; `fuzz_h2_frame_decoder` seeds |
+| T19 client semantics | in-test stubs | curl `-L -b --digest --compressed -x` | redirect/cookie/digest/codec/proxy conformance arms (capability-probed per codec); the digest verifier is a server-side §3.4 recompute — conformance, not implementation sameness |
 | h3/QUIC | quinn | curl --http3 (optional) | **T26 pre-stage**: initial packets decryptable via the RFC 9001 DCID-derived keys, cross-checkable against tshark's QUIC dissector |
 | Kernel TCP conversations | kernel | curl/nc | **T22 options typing**; OS fingerprint signatures (T30 pre-stage) |
 | Fragmentation | kernel (lo MTU lowered / veth 1500) | ping -M want | **the recorded T18a foreign-fragment deferral — the mf bug's own corpus** |

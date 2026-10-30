@@ -1694,6 +1694,46 @@ fn https_via_connect_tunnel_end_to_end() {
 }
 
 #[test]
+fn include_flag_prepends_the_head_on_raw() {
+    // -i: the response head rides raw output (curl -i); plain raw
+    // stays body-only.
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "raw",
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"done", "plain raw is the body only");
+    let out = wrex()
+        .args([
+            "http",
+            "--include",
+            "--format",
+            "raw",
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let text = String::from_utf8_lossy(&out);
+    assert!(text.starts_with("HTTP/1.1 200 OK\r\n"), "{text}");
+    assert!(
+        text.to_ascii_lowercase().contains("content-length: 4\r\n"),
+        "{text}"
+    );
+    assert!(text.ends_with("\r\n\r\ndone"), "{text}");
+}
+
+#[test]
 fn timing_object_in_json() {
     let (port, _seen) = spawn_routing_stub(redirect_routes());
     let out = wrex()

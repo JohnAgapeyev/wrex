@@ -2146,7 +2146,7 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     // -o/-O capture: bodies to files (raw/text go silent for the
     // captured responses; json keeps the full object).
     capture_outputs(args, &mut done)?;
-    render_http_exchanges(&done, format)?;
+    render_http_exchanges(&done, format, args.include)?;
     // --fail: completed exchanges stay data (printed above), the
     // flag opts into a non-zero exit — decided on each chain's FINAL
     // response (curl -L semantics).
@@ -3874,6 +3874,31 @@ fn http_response_json_ctx(
     v
 }
 
+/// The response head as text (status line + headers + the blank
+/// line) — the `--format text` rendering, and `--include`'s prefix on
+/// raw output.
+fn response_head_text(resp: &wrex_http::HttpResponse) -> String {
+    let mut out = format!(
+        "HTTP/{} {} {}\r\n",
+        match resp.version {
+            wrex_http::http::Version::HTTP_10 => "1.0".to_string(),
+            wrex_http::http::Version::HTTP_2 => "2".to_string(),
+            _ => "1.1".to_string(),
+        },
+        resp.status.as_u16(),
+        resp.reason
+    );
+    for (name, value) in resp.headers.iter() {
+        out.push_str(&format!(
+            "{}: {}\r\n",
+            name,
+            String::from_utf8_lossy(value.as_bytes())
+        ));
+    }
+    out.push_str("\r\n");
+    out
+}
+
 /// Render the completed exchanges, in queue order. A keep-alive queue
 /// prints every response (text/raw stream them; json wraps a queue in
 /// an array, a lone response stays the T4 object). `--fail` is handled
@@ -3881,7 +3906,11 @@ fn http_response_json_ctx(
 /// redirect chain prints its FINAL response; `--format json` adds the
 /// `url` + `redirects` keys when hops happened (plain runs keep the
 /// byte-identical T4 shape).
-fn render_http_exchanges(done: &[ExchangeResult], format: Format) -> Result<(), CliError> {
+fn render_http_exchanges(
+    done: &[ExchangeResult],
+    format: Format,
+    include: bool,
+) -> Result<(), CliError> {
     for exchange in done {
         if exchange.captured && !matches!(format, Format::Json) {
             // -o/-O captured this body to a file; raw/text stay
@@ -3889,28 +3918,17 @@ fn render_http_exchanges(done: &[ExchangeResult], format: Format) -> Result<(), 
             continue;
         }
         let resp = &exchange.response;
-        let status = resp.status.as_u16();
         match format {
-            Format::Raw => write_stdout(&resp.body)?,
-            Format::Text => {
-                let mut out = format!(
-                    "HTTP/{} {} {}\r\n",
-                    match resp.version {
-                        wrex_http::http::Version::HTTP_10 => "1.0".to_string(),
-                        wrex_http::http::Version::HTTP_2 => "2".to_string(),
-                        _ => "1.1".to_string(),
-                    },
-                    status,
-                    resp.reason
-                );
-                for (name, value) in resp.headers.iter() {
-                    out.push_str(&format!(
-                        "{}: {}\r\n",
-                        name,
-                        String::from_utf8_lossy(value.as_bytes())
-                    ));
+            Format::Raw => {
+                // --include prepends the response head (curl -i; the
+                // text format always carries it).
+                if include {
+                    write_stdout(response_head_text(resp).as_bytes())?;
                 }
-                out.push_str("\r\n");
+                write_stdout(&resp.body)?
+            }
+            Format::Text => {
+                let out = response_head_text(resp);
                 write_stdout(out.as_bytes())?;
                 write_stdout(&resp.body)?;
             }

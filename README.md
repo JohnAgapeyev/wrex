@@ -174,6 +174,12 @@ wrex http --recipe req.json --format json     # deterministic replay
 wrex http http://example.com/ --fail          # 4xx/5xx -> exit 1
 wrex http https://example.com/ --tls-insecure   # lab targets: no cert check
 wrex http https://example.com/ --tls-ca myca.pem # extra roots next to system
+# tranche 19: the curl closure
+wrex http -L --max-redirs 5 --format json http://a/start   # follow the chain
+wrex http -c jar.txt http://a/login && wrex http -b jar.txt http://a/data
+wrex http -u user:pass --digest http://a/    # RFC 7616 401-dance
+wrex http --compressed http://a/gzip        # gzip/deflate/br/zstd decode
+wrex http -x socks5h://proxy:1080 http://a/ # via a SOCKS5 proxy
 ```
 
 Any completed exchange is exit 0; the response dissects to
@@ -187,6 +193,25 @@ byte-identical to plain http. `--tls-ca` adds roots (PEM/DER) on top
 of the system store; `--tls-insecure` accepts any certificate;
 `query --tls` is DNS-over-TLS on port 853. Deferrals: mTLS, session
 resumption/0-RTT, ALPN/h2, keep-alive.
+
+**Tranche 19** (delivered): the curl closure. `--follow` redirect
+chains (RFC 9110 §15.4 method rules, RFC 3986 `Location`
+resolution, same-origin hops ride the open connection, the chain
+reports in json) over a restructured per-exchange runner; the RFC
+6265 cookie jar (`-b`/`-c`, Netscape format — the jar owns the
+Cookie header); `--user`/`--bearer` preemptive auth + the RFC 7616
+digest 401-dance (`--digest`, the RFC's own vectors as the oracle);
+content-decoding under `--compressed` — gzip/deflate via flate2's
+pure-Rust zlib-rs backend, `br` via brotli-decompressor, `zstd` via
+ruzstd, stacked codings right-to-left, decoded bytes counting
+against `--max-bytes` — with curl's byte-exact
+`Accept-Encoding` advertisement; the sugar pack (`-I`, `-T`, `-r`,
+`-o`, `-O`, `--resolve`, `--retry`, `--timing`); and proxies
+(`-x` HTTP CONNECT tunnels + absolute-form targets, `socks5://`
+/`socks5h://`, `-U` credentials) — SOCKS5 and CONNECT both in
+`wrex-io::proxy`, safe code. Differentials: curl `-L -b --digest
+--compressed -x` arms (capability-probed per codec) beside the
+reqwest in-process oracle.
 
 **Tranche 5** (delivered): `wrex capture`/`wrex replay` — an in-house
 classic pcap reader/writer (`wrex-pcap`, no libpcap; all four magic

@@ -1263,8 +1263,9 @@ pub struct HttpArgs {
     /// HEAD request (curl -I; exclusive with an explicit METHOD).
     #[arg(short = 'I', long)]
     pub head: bool,
-    /// Include the response head in raw output (curl -i; --format
-    /// text always carries it).
+    /// Include the response head in raw output (curl --include; the
+    /// short -i is taken by --iface on every wrex verb — long only).
+    /// The text format always carries the head.
     #[arg(long)]
     pub include: bool,
     /// Range request sugar: `Range: bytes=<SPEC>` (curl -r; SPEC is

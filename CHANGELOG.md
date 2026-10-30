@@ -8,6 +8,104 @@ tranche.
 
 ## [Unreleased]
 
+### Added — tranche 19: the curl closure (redirects, cookies, auth, content-decoding, proxies)
+
+Four slices, all additive: every pinned pre-T19 wire byte is
+identical, old recipes parse byte-identically, plain-run output
+shapes are unchanged (the json `url`/`redirects`/`timing` keys appear
+only under the new flags).
+
+- **Redirects (`--follow`/`-L`, `--max-redirs`)**: `wrex-http::redirect`
+  — RFC 3986 §5 `Location` resolution (the §5.4 reference table is
+  pinned as tests) + RFC 9110 §15.4/curl method rules (303 ⇒ GET,
+  301/302 rewrite POST ⇒ GET, 307/308 preserve; Authorization drops
+  on a cross-origin hop). The session idles OPEN on a reusable empty
+  queue and `push_request` re-enters — same-origin queue entries and
+  redirect hops ride ONE connection (the T9a keep-alive pin, pinned
+  by tests). A re-issue (redirect or the digest dance) that finds the
+  peer closed after its first response reconnects transparently once
+  (curl's behavior; outside the `--retries` budget).
+- **Cookies (`-b`/`-c`)**: `wrex-http::cookies` — the RFC 6265
+  §5.2/5.3/5.4 storage model (the §5.1.1 date algorithm across all
+  three HTTP-date spellings, Max-Age precedence over Expires,
+  replace-keeps-creation, host-only/domain matching with IP-literal
+  rejection, default-path derivation, longer-path/older-first send
+  order, Secure stays home over http) + the Netscape jar format
+  (curl `-b`/`-c` compatible, `#HttpOnly_` round-trips, unit-pinned).
+  With a jar active it owns the Cookie header per origin per request;
+  `-b VALUE` (not a file) rides verbatim (curl's data form).
+- **Auth**: `-u/--user` (preemptive Basic — the flag owns the
+  Authorization header), `--bearer TOKEN`, and `--digest` — the
+  RFC 7616 401-dance: a Digest challenge re-issues the same request
+  with Authorization once per URL (MD5, MD5-sess, SHA-256,
+  SHA-256-sess; qop=auth and the legacy no-qop shape; auth-int a
+  pointed rejection; the cnonce deterministic, derived from the
+  exchange's own facts). ADR-2 reuse: base64 + RustCrypto md-5/sha2;
+  the RFC's §3.9.1 MD5 vector pins the computation, SHA-256/MD5-sess
+  vectors are pinned from python hashlib (independent lineage).
+- **Content-decoding (`--compressed`)**: `wrex-http::content` — one
+  dispatcher over four reused codecs: gzip/x-gzip + deflate (with the
+  zlib-wrapped→raw fallback for wild servers) via flate2's **zlib-rs**
+  backend (pure Rust, the fastest DEFLATE, no C toolchain in the
+  product build; flate2 intends it as the future default;
+  miniz_oxide the named fallback), `br` via brotli-decompressor
+  (safe, decode-only), `zstd` via ruzstd (pure Rust; Trifecta's
+  libzstd-rs the recorded migration trigger once it leaves
+  pre-release). Stacked codings decode right-to-left; the
+  advertisement is curl's byte-exact list (`deflate, gzip, br, zstd`,
+  pinned from the local curl); decoded bytes count against
+  `--max-bytes` exactly like wire bytes (a committed 100MB-of-zeros
+  bomb fixture trips a small budget pointedly); multi-member gzip
+  decodes like BROWSERS — curl exits 23 after the first member, the
+  measured, recorded divergence. Committed byte-stable codec
+  fixtures, embedded via include_bytes! so the decode paths run under
+  Miri.
+- **Sugar + timing**: `-I/--head`, `-T/--upload-file` (PUT + the file
+  body), `-r/--range` (`bytes=` grammar), `-o/--output` (one per URL,
+  in order; captured responses go silent on raw/text), `-O/
+  --remote-name`, `--resolve HOST[:PORT]:ADDR` (per-connection;
+  redirect hops ride it), `--retry N` (5xx replay per request, fresh
+  exchange, no delay — the recorded lab-tool deviation from curl's
+  backoff), `--timing` (the curl -w fields json-shaped:
+  time_connect_ms / time_appconnect_ms / time_starttransfer_ms /
+  time_total_ms; the TLS handshake is driven eagerly on every https
+  connect now — identical wire bytes, honest timing).
+- **Proxies (`-x/--proxy`, `-U/--proxy-user`)**: `wrex-io::proxy`
+  (safe code) — SOCKS5 (RFC 1928 method negotiation, RFC 1929
+  user/password; `socks5://` local resolution vs `socks5h://`
+  proxy-side) and the HTTP CONNECT tunnel (RFC 9110 §9.3.6, 2xx
+  required, Proxy-Authorization). Plain http:// through an HTTP proxy
+  rides absolute-form request-targets; https tunnels and speaks TLS
+  to the destination (`TcpDriver::from_stream` +
+  `TlsDriver::connect_over` the new seams; SNI is the destination).
+  Both runner paths (per-exchange and the h2 whole-queue) share
+  `establish_leg`.
+- **Behavior refinement under the restructure**: `--retries` now
+  replays the failing request only, on a fresh connection (the
+  pre-T19 whole-queue replay re-fired completed POSTs — retired); a
+  connection closed between queue entries no longer fails the run
+  (the next request connects, curl-like).
+- **Recipe JSON** grows additive `follow`, `max_redirs`, `user`,
+  `bearer`, `digest`, `compressed`, `proxy`, `proxy_user` (recipe
+  wins over the flags, the knob-precedence rule).
+- **Verification**: RFC reference tables (3986 §5.4, 6265 dates/
+  match rules, 7616 §3.9.1) + session push/idle-EOF units; CLI stub
+  suites — redirect chains (order, one-connection pin, method rules
+  on the wire, cross-origin Authorization drop, `--max-redirs` exit
+  1, 3xx-without-follow is data), jar round-trips, the digest dance
+  end-to-end (the RFC's own challenge, every header field asserted),
+  decode on/off + advertisement + bomb budget, sugar on the wire +
+  conflict grammar, SOCKS5/CONNECT tunnels end-to-end, https through
+  a CONNECT byte-pump into the rustls stub; **curl differentials**:
+  `-L` (final body/status), `-b` (the echoed Cookie header must
+  match), `--digest` (a server-side §3.4 verifier both clients must
+  clear — conformance, not sameness), `--compressed` (capability-
+  probed per codec via `curl --version`), `-x` (identical
+  absolute-form lines through the same proxy). Kani green on
+  wrex-http under the new dependency graph (0 of 121); Miri green
+  (the bomb the one deliberate ignore); WF-26/27 join the executable
+  workflow suite; man pages + API snapshots regenerated.
+
 ### Fixed — CI: coverage gate scoped to the product crates
 
 - **`cargo llvm-cov --exclude xtask`** (CI gate + the local

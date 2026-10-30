@@ -401,6 +401,160 @@ fn wf25_recipe_replay() {
     assert_eq!(a, c, "byte-identical across stub instances too");
 }
 
+/// **UC-26 / WF-26**: "Follow a redirect chain" — the `-L` chain
+/// against a routing stub (302 then the target), same-origin hops on
+/// ONE connection, the chain reported in json.
+#[test]
+fn wf26_follow_redirect_chain() {
+    let port = spawn_routing_stub(&[
+        (
+            "/start",
+            b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n",
+        ),
+        (
+            "/next",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 8\r\n\r\nfollowed",
+        ),
+    ]);
+    let out = stdout_of(wrex().args([
+        "http",
+        "-L",
+        "--format",
+        "json",
+        &format!("http://127.0.0.1:{port}/start"),
+    ]));
+    let json: serde_json::Value = serde_json::from_str(out.trim()).unwrap();
+    assert_eq!(json["status"], 200);
+    assert_eq!(json["body_hex"], hex::encode("followed"));
+    assert_eq!(
+        json["redirects"],
+        serde_json::json!([
+            {"url": format!("http://127.0.0.1:{port}/start"), "status": 302}
+        ]),
+        "the chain reports each hop: {json}"
+    );
+}
+
+/// **UC-27 / WF-27**: "Maintain a cookie-authenticated session" —
+/// `-c` collects Set-Cookie, `-b` sends it back; the echo stub
+/// answers with the Cookie header it ACTUALLY received (an empty
+/// body would mean the jar did not ride).
+#[test]
+fn wf27_cookie_session() {
+    let port = spawn_cookie_echo_stub(
+        b"HTTP/1.1 200 OK\r\nSet-Cookie: session=tok123; Path=/\r\nContent-Length: 0\r\n\r\n",
+    );
+    let dir = tmpdir("27");
+    let jar = dir.join("cookies.txt");
+    let _ = std::fs::remove_file(&jar);
+    stdout_of(wrex().args([
+        "http",
+        "-c",
+        jar.to_str().unwrap(),
+        &format!("http://127.0.0.1:{port}/login"),
+    ]));
+    let out = stdout_of(wrex().args([
+        "http",
+        "--format",
+        "raw",
+        "-b",
+        jar.to_str().unwrap(),
+        &format!("http://127.0.0.1:{port}/echo"),
+    ]));
+    assert_eq!(out, "session=tok123", "the jar rides the second request");
+}
+
+/// A two-route stub: `/login` serves the scripted response (Set-Cookie
+/// collection), `/echo` answers with the Cookie header value the
+/// request carried (the honest oracle — empty when no cookie rode).
+fn spawn_cookie_echo_stub(login_response: &'static [u8]) -> u16 {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for conn in listener.incoming() {
+            let Ok(mut conn) = conn else { break };
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    let path = head.split_whitespace().nth(1).unwrap_or("/");
+                    let resp = if path.starts_with("/login") {
+                        login_response.to_vec()
+                    } else {
+                        let cookie = head
+                            .lines()
+                            .find(|l| l.to_ascii_lowercase().starts_with("cookie:"))
+                            .map(|l| l[8..].trim().to_string())
+                            .unwrap_or_default();
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{cookie}",
+                            cookie.len()
+                        )
+                        .into_bytes()
+                    };
+                    let _ = pos;
+                    let _ = conn.write_all(&resp);
+                    buf.clear();
+                }
+            }
+        }
+    });
+    port
+}
+
+/// A routing stub: per connection, answers any number of requests by
+/// mapping the request line's path to a scripted response.
+fn spawn_routing_stub(routes: &[(&str, &[u8])]) -> u16 {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let routes: Vec<(String, Vec<u8>)> = routes
+        .iter()
+        .map(|(p, r)| (p.to_string(), r.to_vec()))
+        .collect();
+    std::thread::spawn(move || {
+        for conn in listener.incoming() {
+            let Ok(mut conn) = conn else { break };
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    let path = head
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap_or("/")
+                        .split('?')
+                        .next()
+                        .unwrap_or("/")
+                        .to_string();
+                    let resp = routes
+                        .iter()
+                        .find(|(p, _)| *p == path)
+                        .map(|(_, r)| r.clone())
+                        .unwrap_or_else(|| {
+                            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec()
+                        });
+                    let _ = pos;
+                    let _ = conn.write_all(&resp);
+                    buf.clear();
+                }
+            }
+        }
+    });
+    port
+}
+
 /// **UC-23 / WF-23**: "Fuzz a TLS-wrapped service" — app-mode probes
 /// over fresh TLS connections against the in-test rustls stub (plain
 /// sockets, no capabilities — the same stub the fuzz_cli suite uses).

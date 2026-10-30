@@ -71,6 +71,16 @@ instead; open *decisions* live in the roadmap's extension section.
 | Cross-queue encoder reuse | T16 | Won't-do (one connection, one encoder, by construction) |
 | http-head-aware `field` mutation strategies | T9b | Open, P3 (raw level covers) |
 | v6 TLS stubs in the CLI suite | T13b | Open, P2 (stub binds 127.0.0.1; the driver is family-agnostic) |
+| h2 redirect-chain stream reuse | T19a | Open, P2 (an h2 chain under `--follow` opens a connection per hop; the 1.1 chain rides `push_request`; wiring H2Session re-entry is the future work) |
+| Digest `qop=auth-int` (HA2 over the body hash) | T19a | Open, P3 (challenges offering it are pointed errors; `auth` and the legacy no-qop shape cover the field) |
+| curl `-w` `%{…}` stdout DSL | T19a | Won't-do as a DSL — `--timing` carries the four fields json-shaped (the whole output is jsonl/json contracts) |
+| Multi-member gzip decode divergence | T19a | Recorded divergence (wrex decodes like browsers; curl exits 23 after the first member) — kept deliberately |
+| RFC 9722 dictionary-based content compression | T19 | Won't-do (browsers-only today; no curl parity to close) |
+| `libzstd-rs` migration trigger | T19 | Parked — swap `ruzstd` when Trifecta's pure-Rust zstd leaves pre-release (same seam, one-line); the C `zstd` crate is the named fallback if the perf-diff delta ever matters |
+| Proxy env-var pickup (`http_proxy`/`HTTPS_PROXY`/`ALL_PROXY`/`no_proxy`) | T19b | Open, P2 (flags only today; curl's env semantics incl. the lowercase-only `http_proxy` rule are a follow-up) |
+| `--retry` backoff (curl's 1s/2s/4s… delay) | T19a | Won't-do as default (the lab-tool deviation: retry immediately, deterministic; a `--retry-delay` knob can ride if a need appears) |
+| URL-embedded credentials (`user:pass@host`) | T19 | Open, P3 (curl strips them cross-host; `-u`/`--user` covers) |
+| `-d`-implies-POST (curl's `-d` method default) | T19 | Open, P3 (the T4 grammar keeps `--data` orthogonal to the METHOD token; a POST without a method verb is sugar) |
 
 ## DNS / DHCP
 
