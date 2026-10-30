@@ -17,6 +17,10 @@
 //!   arrives as an empty frame (the `TcpDriver` stream convention).
 //! - [`recipe`]: the committed JSON recipe schema (byte-identical
 //!   replay; list-shaped for T6 mutation).
+//! - [`cookies`]: the RFC 6265 cookie jar + the Netscape file format
+//!   (tranche 19a; `-b`/`-c`).
+//! - [`redirect`]: 3xx classification + RFC 3986 `Location`
+//!   resolution (tranche 19a; the verb drives the re-issue).
 //!
 //! Deliberate T4 deferrals (documented in the verb help): keep-alive
 //! (one exchange per connection), chunked *request* bodies
@@ -25,15 +29,19 @@
 //! serialize like `http://` (transport-agnostic), the rustls-backed
 //! driver living in the `wrex-tls` crate.
 
+pub mod cookies;
 pub mod recipe;
+pub mod redirect;
 pub mod request;
 pub mod response;
 pub mod session;
 
 mod chunked;
 
+pub use cookies::{Cookie, CookieJar};
 pub use http;
 pub use recipe::Recipe;
+pub use redirect::Redirect;
 pub use request::{DEFAULT_CHUNK_SIZE, HttpRequestSpec, RequestFraming};
 pub use response::HttpResponse;
 pub use session::{HttpClientSession, HttpConfig, HttpOutcome};

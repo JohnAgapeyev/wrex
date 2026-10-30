@@ -4,7 +4,7 @@
 .SH NAME
 http \- HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH SYNOPSIS
-\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
+\fBhttp\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-H\fR|\fB\-\-header\fR] [\fB\-\-data\fR] [\fB\-\-recipe\fR] [\fB\-\-timeout\fR] [\fB\-\-retries\fR] [\fB\-\-max\-bytes\fR] [\fB\-\-source\-port\fR] [\fB\-\-tls\-insecure\fR] [\fB\-\-tls\-ca\fR] [\fB\-\-http\-version\fR] [\fB\-\-hpack\fR] [\fB\-L\fR|\fB\-\-follow\fR] [\fB\-\-max\-redirs\fR] [\fB\-b\fR|\fB\-\-cookie\fR] [\fB\-c\fR|\fB\-\-cookie\-jar\fR] [\fB\-\-fail\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIURL_OR_METHOD\fR] 
 .SH DESCRIPTION
 HTTP/1.1 exchanges: send request(s), dissect the responses
 .SH OPTIONS
@@ -56,6 +56,18 @@ HTTP version: `1.1` (default) or `2` — for https, h2 rides ALPN (`h2` then `ht
 .TP
 \fB\-\-hpack\fR \fI<indexed|literal>\fR
 Send\-side HPACK policy for h2 (tranche 16a): `indexed` (default: dynamic table + Huffman\-when\-strictly\-shorter) or `literal` (the pre\-16 wire bytes: indexed statics, no dynamic\-table state, never Huffman — the replay\-parity knob). Recipe wins over the flag; inert on 1.1 runs
+.TP
+\fB\-L\fR, \fB\-\-follow\fR
+Follow 3xx redirects (tranche 19a): Location resolution per RFC 3986, method rules per RFC 9110 §15.4 + curl (303 ⇒ GET, 301/302 rewrite POST ⇒ GET, 307/308 preserve; Authorization drops on a cross\-origin hop). Same\-origin hops ride the open connection; `\-\-format json` adds `url` + `redirects` keys
+.TP
+\fB\-\-max\-redirs\fR \fI<N>\fR
+Redirect hop budget under \-\-follow (default 50, curl\*(Aqs)
+.TP
+\fB\-b\fR, \fB\-\-cookie\fR \fI<FILE|VALUE>\fR
+Cookie input (tranche 19a): a Netscape\-format jar file (curl \-b), or — when the string is not a readable file — a literal `Cookie:` header value. With a jar, the jar owns the Cookie header on every request (an explicit \-H Cookie does not survive it); Set\-Cookie responses update it
+.TP
+\fB\-c\fR, \fB\-\-cookie\-jar\fR \fI<FILE>\fR
+Write the (updated) cookie jar here on exit, Netscape format (curl \-c); implies a jar even without \-b (collect\-only)
 .TP
 \fB\-\-fail\fR
 Exit 1 on 4xx/5xx statuses (completed exchanges stay data)

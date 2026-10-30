@@ -1201,6 +1201,27 @@ pub struct HttpArgs {
     /// Recipe wins over the flag; inert on 1.1 runs.
     #[arg(long, value_name = "indexed|literal")]
     pub hpack: Option<String>,
+    /// Follow 3xx redirects (tranche 19a): Location resolution per
+    /// RFC 3986, method rules per RFC 9110 §15.4 + curl (303 ⇒ GET,
+    /// 301/302 rewrite POST ⇒ GET, 307/308 preserve; Authorization
+    /// drops on a cross-origin hop). Same-origin hops ride the open
+    /// connection; `--format json` adds `url` + `redirects` keys.
+    #[arg(short = 'L', long)]
+    pub follow: bool,
+    /// Redirect hop budget under --follow (default 50, curl's).
+    #[arg(long, value_name = "N")]
+    pub max_redirs: Option<u32>,
+    /// Cookie input (tranche 19a): a Netscape-format jar file
+    /// (curl -b), or — when the string is not a readable file — a
+    /// literal `Cookie:` header value. With a jar, the jar owns the
+    /// Cookie header on every request (an explicit -H Cookie does
+    /// not survive it); Set-Cookie responses update it.
+    #[arg(short = 'b', long = "cookie", value_name = "FILE|VALUE")]
+    pub cookie: Option<String>,
+    /// Write the (updated) cookie jar here on exit, Netscape format
+    /// (curl -c); implies a jar even without -b (collect-only).
+    #[arg(short = 'c', long = "cookie-jar", value_name = "FILE")]
+    pub cookie_jar: Option<String>,
     /// Exit 1 on 4xx/5xx statuses (completed exchanges stay data).
     #[arg(long)]
     pub fail: bool,

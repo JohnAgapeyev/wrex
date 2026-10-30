@@ -1977,15 +1977,31 @@ fn http_body(raw: &str) -> Result<bytes::Bytes, CliError> {
     Ok(bytes::Bytes::from(raw.as_bytes().to_vec()))
 }
 
+// --- http ---------------------------------------------------------------------
+
+/// Default redirect budget under --follow (curl's).
+const HTTP_DEFAULT_MAX_REDIRS: u32 = 50;
+
+/// One completed original request (tranche 19a): the final response,
+/// the redirect hops taken (empty when it never followed), and the
+/// URL that produced the final response.
+struct ExchangeResult {
+    response: wrex_http::HttpResponse,
+    /// (url, status) per hop, in order — the URL is the request that
+    /// elicited the hop, i.e. the response's own location.
+    chain: Vec<(String, u16)>,
+    final_url: String,
+}
+
 /// `wrex http`: HTTP/1.1 exchanges over a kernel TCP connection —
 /// one request (close-mode) or an ordered keep-alive queue (multiple
 /// URLs / a recipe array, tranche 9a). A completed run is exit 0
 /// whatever the statuses say (--fail opts 4xx/5xx into exit 1);
 /// connect/timeout/protocol failures are exit 1; grammar/recipe
-/// errors exit 2 (all before any socket).
+/// errors exit 2 (all before any socket). Tranche 19a: --follow
+/// redirect chains + the cookie jar (-b/-c) over the per-exchange
+/// runner.
 fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
-    use wrex_http::{HttpClientSession, HttpConfig, HttpOutcome};
-
     let common = &args.common;
     let format = Format::parse(common, Format::Text)?;
     if matches!(format, Format::Hex) {
@@ -1999,7 +2015,9 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
     let (specs, cfgs) = build_http_requests(args)?;
     debug_assert_eq!(specs.len(), cfgs.len());
 
-    // One transport per queue: mixed http/https is a usage error.
+    // One transport per queue: mixed http/https is a usage error. A
+    // redirect chain may cross schemes (that is what --follow is);
+    // the rule covers the materialized queue.
     let scheme = specs[0].url.scheme_str().unwrap_or("http");
     if specs.iter().any(|s| s.url.scheme_str() != Some(scheme)) {
         return Err(usage(
@@ -2009,8 +2027,8 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
 
     // HTTP/2 (tranche 15): one pick per queue — mixed versions are a
     // usage error. Tranche 16b: `http` + `--http-version 2` is cleartext
-    // **prior knowledge** (RFC 9113 §3.4 — the preface straight over
-    // the kernel TCP stream); `https` + 2 keeps the T15 ALPN rule.
+    // **prior knowledge** (RFC 9113 §3.4 — the preface straight over the
+    // kernel TCP stream); `https` + 2 keeps the T15 ALPN rule.
     let want_h2 = match cfgs.first().and_then(|c| c.http_version.as_deref()) {
         None | Some("1.1") => false,
         Some("2") => true,
@@ -2048,162 +2066,194 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
         ));
     }
 
-    // TLS transport (https://): the driver is the only thing that
-    // differs — retry/render/--fail/budget handling stay identical.
-    // SNI comes from the URL host (an IP literal matches the cert's
-    // IP SAN); roots: system store plus the recipe/CLI --tls-ca adds.
-    // The knobs are per-connection: the first request's cfg wins.
-    let tls_cfg = if scheme == "https" {
-        // SNI from the URL host; brackets on v6 literals strip (rustls
-        // parses the bare IP for the IP-SAN match, the T8a rule).
-        let host_raw = specs[0]
-            .url
-            .authority()
-            .map(|a| a.host())
-            .ok_or_else(|| usage("https url has no host".to_string()))?;
-        let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
-            &host_raw[1..host_raw.len() - 1]
-        } else {
-            host_raw
-        }
-        .to_string();
-        let ca_der = match &cfgs[0].tls_ca {
-            Some(path) => {
-                Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("http: {e}")))?)
+    // Tranche 19a: the follow/cookie plan (recipe knobs ride the cfgs).
+    let mut plan = HttpPlan::from_args(args, &cfgs)?;
+
+    // h2 keeps the T15 whole-queue runner (one H2Session per
+    // connection, N concurrent streams — the pinned wire behavior)
+    // unless a per-hop knob opts into per-exchange driving; an h2 hop
+    // under follow then opens a fresh connection (stream-reuse
+    // across hops is a recorded deferral).
+    let done = if want_h2 && !plan.per_hop() {
+        http_h2_whole_queue(args, specs, &cfgs, &mut plan, hpack_policy)?
+    } else {
+        http_per_exchange(args, specs, &cfgs, &mut plan, want_h2, hpack_policy)?
+    };
+
+    plan.save_jar()?;
+    render_http_exchanges(&done, format)?;
+    // --fail: completed exchanges stay data (printed above), the
+    // flag opts into a non-zero exit — decided on each chain's FINAL
+    // response (curl -L semantics).
+    if args.fail && done.iter().any(|d| d.response.status.as_u16() >= 400) {
+        let status = done
+            .iter()
+            .map(|d| d.response.status.as_u16())
+            .find(|&s| s >= 400)
+            .unwrap_or(0);
+        return Err(CliError::Runtime(format!("http: status {status} (--fail)")));
+    }
+    Ok(())
+}
+
+/// The per-exchange loop (tranche 19a): every request drives its own
+/// exchange over a runner-held connection — same-origin queue
+/// entries and redirect hops reuse the open h1 connection via
+/// `push_request`, everything else reconnects. Retries (`--retries`)
+/// replay the failing request only (not the queue — a completed POST
+/// never re-fires; the pre-19a whole-queue replay is retired).
+fn http_per_exchange(
+    args: &crate::cli::HttpArgs,
+    specs: Vec<wrex_http::HttpRequestSpec>,
+    cfgs: &[HttpVerbConfig],
+    plan: &mut HttpPlan,
+    want_h2: bool,
+    hpack: wrex_h2::HpackEncodePolicy,
+) -> Result<Vec<ExchangeResult>, CliError> {
+    use wrex_http::HttpOutcome;
+
+    let mut runner = HttpRunner::new(&args.common, args.source_port, want_h2, hpack);
+    let mut done = Vec::with_capacity(specs.len());
+    for (i, (spec, cfg)) in specs.iter().zip(cfgs).enumerate() {
+        // First-request Connection header (the T9a wire shape): the
+        // queue's non-last requests announce keep-alive; under
+        // --follow every request does (a follow-up may ride).
+        let mut keep_alive = specs.len() - i > 1 || plan.follow;
+        let mut spec = spec.clone();
+        let mut chain: Vec<(String, u16)> = Vec::new();
+        let response = loop {
+            inject_cookie_header(&mut spec, plan);
+            let outcome = runner.run_with_retries(&spec, cfg, keep_alive)?;
+            // A follow-up (if any) may itself be followed.
+            keep_alive = true;
+            let HttpOutcome::Response(resp) = outcome else {
+                unreachable!("run_with_retries maps every failure")
+            };
+            plan.absorb_cookies(&resp, &spec.url);
+            if plan.follow
+                && let Some(verdict) = wrex_http::redirect::classify(&resp, &spec.method, &spec.url)
+            {
+                let redirect =
+                    verdict.map_err(|e| CliError::Runtime(format!("http: redirect: {e}")))?;
+                if chain.len() as u32 >= plan.max_redirs {
+                    return Err(CliError::Runtime(format!(
+                        "http: redirect budget exceeded (--max-redirs {})",
+                        plan.max_redirs
+                    )));
+                }
+                chain.push((spec.url.to_string(), resp.status.as_u16()));
+                spec = follow_up_request(&spec, &redirect)?;
+                continue;
             }
-            None => None,
+            break ExchangeResult {
+                response: resp,
+                chain,
+                final_url: spec.url.to_string(),
+            };
         };
-        Some(wrex_tls::TlsConfig {
-            server_name: host,
-            insecure: cfgs[0].tls_insecure,
-            ca_der,
-            // ALPN offer (tranche 15): h2 with an http/1.1 fallback —
-            // the server's pick decides the session (auto-downgrade,
-            // the T15 planning decision).
-            alpn_protocols: if want_h2 {
-                vec!["h2".to_string(), "http/1.1".to_string()]
-            } else {
-                vec![]
-            },
-        })
+        done.push(response);
+    }
+    Ok(done)
+}
+
+/// The tranche-15 whole-queue h2 runner (no follow): one H2Session
+/// per connection with N concurrent streams — the pinned wire
+/// behavior. One connection per attempt, the whole queue replayed
+/// on transport failure (the pre-19a retry semantics, kept).
+#[allow(clippy::too_many_arguments)]
+fn http_h2_whole_queue(
+    args: &crate::cli::HttpArgs,
+    mut specs: Vec<wrex_http::HttpRequestSpec>,
+    cfgs: &[HttpVerbConfig],
+    plan: &mut HttpPlan,
+    hpack: wrex_h2::HpackEncodePolicy,
+) -> Result<Vec<ExchangeResult>, CliError> {
+    use wrex_http::HttpOutcome;
+
+    for spec in &mut specs {
+        inject_cookie_header(spec, plan);
+    }
+    let tls_cfg = if specs[0].url.scheme_str() == Some("https") {
+        Some(tls_config_for(&specs[0].url, &cfgs[0], true)?)
     } else {
         None
     };
-
-    // Retry loop: fresh connection per attempt, whole queue replayed
-    // (a keep-alive queue that breaks mid-flight restarts cleanly).
     let attempts = cfgs[0].retries + 1;
     let mut last_err: Option<String> = None;
     for _ in 0..attempts {
         let peer = tcp_peer(&specs[0].url)?;
-        // The bind picks the iface address of the peer's family (10a).
-        let bind = tcp_bind(common, args.source_port, peer.ip())?;
-        let queue_cfgs: Vec<HttpConfig> = cfgs
-            .iter()
-            .map(|c| HttpConfig {
-                timeout: c.timeout,
-                max_bytes: c.max_bytes as usize,
-            })
-            .collect();
-
-        // Transport pick + session run. The 1.1 session is the same
-        // machine in every branch; the h2 session (concurrent streams,
-        // one `HttpOutcome` per queued request) swaps in only when the
-        // server negotiated `h2`.
+        let bind = tcp_bind(&args.common, args.source_port, peer.ip())?;
+        let queue_cfgs: Vec<wrex_http::HttpConfig> = cfgs.iter().map(session_cfg).collect();
         let outcomes = {
-            if let Some(tcfg) = &tls_cfg {
-                let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfgs[0].timeout, tcfg)
-                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                let use_h2 = if want_h2 {
+            // The h2 whole-queue session over an established driver.
+            let run_h2 = |driver: Box<dyn Driver>| -> Result<Vec<HttpOutcome>, CliError> {
+                let mut session =
+                    wrex_h2::H2Session::with_policy(&specs, &queue_cfgs, Instant::now(), hpack)
+                        .map_err(|e| usage(format!("http: {e}")))?;
+                let mut driver = driver;
+                wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))
+            };
+            match &tls_cfg {
+                Some(tcfg) => {
+                    let mut driver =
+                        wrex_tls::TlsDriver::connect(peer, bind, cfgs[0].timeout, tcfg)
+                            .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
                     let negotiated = driver
                         .complete_handshake(Instant::now() + cfgs[0].timeout)
                         .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                    if negotiated == Some("h2") {
-                        true
-                    } else {
+                    if negotiated != Some("h2") {
                         // Auto-downgrade (the T15 planning decision): a
-                        // pointed note, then the 1.1 session.
+                        // pointed note, then the 1.1 whole-queue session
+                        // ON THE SAME CONNECTION (today's behavior —
+                        // the TLS handshake is done, the wire is hot).
                         let what = negotiated.unwrap_or("no ALPN protocol");
                         eprintln!("note: server negotiated `{what}` — falling back to HTTP/1.1");
-                        false
+                        let mut session = wrex_http::HttpClientSession::with_requests(
+                            &specs,
+                            &queue_cfgs,
+                            Instant::now(),
+                        )
+                        .map_err(|e| usage(format!("http: {e}")))?;
+                        wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                            .map_err(|e| CliError::Runtime(format!("http: {e}")))
+                    } else {
+                        run_h2(Box::new(driver))
                     }
-                } else {
-                    false
-                };
-                if use_h2 {
-                    let mut session = wrex_h2::H2Session::with_policy(
-                        &specs,
-                        &queue_cfgs,
-                        Instant::now(),
-                        hpack_policy,
-                    )
-                    .map_err(|e| usage(format!("http: {e}")))?;
-                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
-                } else {
-                    let mut session =
-                        HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
-                            .map_err(|e| usage(format!("http: {e}")))?;
-                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
                 }
-            } else {
-                // Cleartext transport: 1.1 keep-alive, or — tranche 16b —
-                // h2c **prior knowledge** (the same `H2Session` on the
-                // kernel `TcpDriver`, no TLS, no ALPN, no `Upgrade:`).
-                let mut driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
-                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
-                if want_h2 {
-                    let mut session = wrex_h2::H2Session::with_policy(
-                        &specs,
-                        &queue_cfgs,
-                        Instant::now(),
-                        hpack_policy,
-                    )
-                    .map_err(|e| usage(format!("http: {e}")))?;
-                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
-                } else {
-                    let mut session =
-                        HttpClientSession::with_requests(&specs, &queue_cfgs, Instant::now())
-                            .map_err(|e| usage(format!("http: {e}")))?;
-                    wrex_session::run(&mut session, &mut driver, &wrex_io::SystemClock)
+                None => {
+                    let driver = wrex_io::TcpDriver::connect(peer, bind, cfgs[0].timeout)
+                        .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                    run_h2(Box::new(driver))
                 }
             }
-            .map_err(|e| CliError::Runtime(format!("http: {e}")))?
-        };
+        }?;
 
         if outcomes.len() == specs.len()
             && outcomes
                 .iter()
                 .all(|o| matches!(o, HttpOutcome::Response(_)))
         {
-            let responses: Vec<wrex_http::HttpResponse> = outcomes
-                .into_iter()
-                .map(|o| match o {
-                    HttpOutcome::Response(r) => r,
-                    _ => unreachable!("checked above"),
-                })
-                .collect();
-            render_http_responses(&responses, format)?;
-            // --fail: completed exchanges stay data (printed above),
-            // the flag opts into a non-zero exit.
-            if args.fail && responses.iter().any(|r| r.status.as_u16() >= 400) {
-                let status = responses
-                    .iter()
-                    .map(|r| r.status.as_u16())
-                    .find(|&s| s >= 400)
-                    .unwrap_or(0);
-                return Err(CliError::Runtime(format!("http: status {status} (--fail)")));
+            let mut done = Vec::with_capacity(specs.len());
+            for (outcome, spec) in outcomes.into_iter().zip(&specs) {
+                let HttpOutcome::Response(resp) = outcome else {
+                    unreachable!("checked above")
+                };
+                plan.absorb_cookies(&resp, &spec.url);
+                done.push(ExchangeResult {
+                    response: resp,
+                    chain: Vec::new(),
+                    final_url: spec.url.to_string(),
+                });
             }
-            return Ok(());
+            return Ok(done);
         }
 
-        // Some exchange failed: map the first failure, then retry.
         let first = outcomes
             .iter()
             .find(|o| !matches!(o, HttpOutcome::Response(_)));
         last_err = Some(match first {
             Some(HttpOutcome::Malformed(detail)) => format!("malformed response: {detail}"),
-            // Handled by the `all(Response)` check above; the wildcard
-            // keeps future outcome kinds from breaking the retry.
             Some(HttpOutcome::Response(_)) => unreachable!("filtered above"),
             Some(HttpOutcome::Truncated) => "connection closed mid-response".to_string(),
             Some(HttpOutcome::TooLarge) => {
@@ -2218,8 +2268,6 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
             Some(HttpOutcome::Closed) => {
                 "connection closed before a queued request was sent".to_string()
             }
-            // All responses but the run came up short: the connection
-            // died before the last exchange resolved.
             None => "connection closed mid-queue".to_string(),
         });
     }
@@ -2227,6 +2275,467 @@ fn http(args: &crate::cli::HttpArgs) -> Result<(), CliError> {
         "http: {}",
         last_err.unwrap_or_else(|| "exchange failed".to_string())
     )))
+}
+
+/// The follow/cookie plan (tranche 19a), run-level: recipe knobs ride
+/// `RecipeOverrides` per request and OR into the run.
+struct HttpPlan {
+    follow: bool,
+    max_redirs: u32,
+    /// The active jar — loaded from `-b FILE`, or created empty when
+    /// `-c` is given (collect-only). `None` without either.
+    jar: Option<wrex_http::CookieJar>,
+    /// `-b` given as a literal value (not a readable file): a
+    /// verbatim `Cookie:` header (curl's data form); applies only
+    /// when no file jar is active.
+    jar_verbatim: Option<String>,
+    /// `-c` output path.
+    jar_out: Option<String>,
+}
+
+impl HttpPlan {
+    fn from_args(args: &crate::cli::HttpArgs, cfgs: &[HttpVerbConfig]) -> Result<Self, CliError> {
+        let follow = args.follow || cfgs.iter().any(|c| c.follow);
+        let max_redirs = cfgs
+            .iter()
+            .filter_map(|c| c.max_redirs)
+            .max()
+            .unwrap_or(args.max_redirs.unwrap_or(HTTP_DEFAULT_MAX_REDIRS));
+        let (jar, jar_verbatim) = match args.cookie.as_deref() {
+            None => (None, None),
+            Some(path) => match std::fs::read_to_string(path) {
+                Ok(raw) => {
+                    let mut jar = wrex_http::CookieJar::new();
+                    jar.load_netscape(&raw, std::time::SystemTime::now());
+                    (Some(jar), None)
+                }
+                // curl's data form: not a readable file, but it looks
+                // like a cookie pair — ride it as a verbatim header.
+                Err(_) if path.contains('=') => (None, Some(path.to_string())),
+                Err(e) => return Err(usage(format!("cannot read cookie jar `{path}`: {e}"))),
+            },
+        };
+        // -c implies a jar even without -b (collect-only, curl -c).
+        let jar = jar.or_else(|| {
+            args.cookie_jar
+                .as_ref()
+                .map(|_| wrex_http::CookieJar::new())
+        });
+        Ok(Self {
+            follow,
+            max_redirs,
+            jar,
+            jar_verbatim,
+            jar_out: args.cookie_jar.clone(),
+        })
+    }
+
+    /// Store the Set-Cookie headers of a response elicited by `url`.
+    fn absorb_cookies(&mut self, resp: &wrex_http::HttpResponse, url: &wrex_http::http::Uri) {
+        let Some(jar) = &mut self.jar else { return };
+        let (host, path, _secure) = origin_parts(url);
+        jar.store_response(
+            resp.headers
+                .get_all("set-cookie")
+                .iter()
+                .filter_map(|v| v.to_str().ok()),
+            &host,
+            &path,
+            std::time::SystemTime::now(),
+        );
+    }
+
+    fn save_jar(&self) -> Result<(), CliError> {
+        let (Some(path), Some(jar)) = (&self.jar_out, &self.jar) else {
+            return Ok(());
+        };
+        std::fs::write(path, jar.to_netscape())
+            .map_err(|e| CliError::Runtime(format!("cannot write cookie jar `{path}`: {e}")))
+    }
+
+    /// Per-exchange processing opts the run out of the h2
+    /// whole-queue runner (per-hop driving cannot multiplex
+    /// concurrent streams).
+    fn per_hop(&self) -> bool {
+        self.follow
+    }
+}
+
+/// One live transport for the per-exchange loop.
+enum HttpTransport {
+    /// HTTP/1.1: the sans-IO session carries the (one-deep) queue;
+    /// verb-side `push_request` re-enters across queue entries and
+    /// same-origin redirect hops (tranche 19a).
+    H1(Box<H1Conn>),
+    /// HTTP/2: one `H2Session` per exchange — a connection serves
+    /// exactly one exchange in the per-hop mode (the preface is
+    /// spoken once per connection).
+    H2 { driver: Box<dyn Driver> },
+}
+
+/// The h1 half of [`HttpTransport`].
+struct H1Conn {
+    session: wrex_http::HttpClientSession,
+    driver: Box<dyn Driver>,
+}
+
+/// Per-exchange driver: holds the open transport, reconnects on key
+/// changes and dead connections, and maps transport failures into
+/// retries (the `--retries` knob).
+struct HttpRunner<'a> {
+    common: &'a Common,
+    source_port: Option<u16>,
+    want_h2: bool,
+    hpack: wrex_h2::HpackEncodePolicy,
+    /// Origin key of the held transport (`scheme`-normalized host:port).
+    key: Option<String>,
+    transport: Option<HttpTransport>,
+    /// The held connection's session was built around the pending
+    /// request (`connect` pairs them); the next exchange pushes.
+    fresh: bool,
+}
+
+impl<'a> HttpRunner<'a> {
+    fn new(
+        common: &'a Common,
+        source_port: Option<u16>,
+        want_h2: bool,
+        hpack: wrex_h2::HpackEncodePolicy,
+    ) -> Self {
+        Self {
+            common,
+            source_port,
+            want_h2,
+            hpack,
+            key: None,
+            transport: None,
+            fresh: false,
+        }
+    }
+
+    /// Connect for `spec` (peer resolution, optional bind, TLS +
+    /// ALPN on https) and build the session around it — h1's first
+    /// request serializes with the caller's `Connection` header; h2
+    /// negotiates before any bytes (ALPN) or speaks prior knowledge
+    /// (cleartext).
+    fn connect(
+        &mut self,
+        spec: &wrex_http::HttpRequestSpec,
+        cfg: &HttpVerbConfig,
+        keep_alive: bool,
+    ) -> Result<(), CliError> {
+        self.transport = None;
+        let key = wrex_http::redirect::authority_key(&spec.url);
+        let peer = tcp_peer(&spec.url)?;
+        let bind = tcp_bind(self.common, self.source_port, peer.ip())?;
+        let scheme = spec.url.scheme_str().unwrap_or("http");
+        if scheme == "https" {
+            let tcfg = tls_config_for(&spec.url, cfg, self.want_h2)?;
+            let mut driver = wrex_tls::TlsDriver::connect(peer, bind, cfg.timeout, &tcfg)
+                .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+            if self.want_h2 {
+                let negotiated = driver
+                    .complete_handshake(Instant::now() + cfg.timeout)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                if negotiated == Some("h2") {
+                    self.transport = Some(HttpTransport::H2 {
+                        driver: Box::new(driver),
+                    });
+                    self.key = Some(key);
+                    self.fresh = true;
+                    return Ok(());
+                }
+                // Auto-downgrade (the T15 planning decision): a pointed
+                // note, then the 1.1 session.
+                let what = negotiated.unwrap_or("no ALPN protocol");
+                eprintln!("note: server negotiated `{what}` — falling back to HTTP/1.1");
+            }
+            let session = wrex_http::HttpClientSession::open(
+                spec,
+                session_cfg(cfg),
+                keep_alive,
+                Instant::now(),
+            )
+            .map_err(|e| usage(format!("http: {e}")))?;
+            self.transport = Some(HttpTransport::H1(Box::new(H1Conn {
+                session,
+                driver: Box::new(driver),
+            })));
+        } else {
+            let driver = wrex_io::TcpDriver::connect(peer, bind, cfg.timeout)
+                .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+            if self.want_h2 {
+                self.transport = Some(HttpTransport::H2 {
+                    driver: Box::new(driver),
+                });
+            } else {
+                let session = wrex_http::HttpClientSession::open(
+                    spec,
+                    session_cfg(cfg),
+                    keep_alive,
+                    Instant::now(),
+                )
+                .map_err(|e| usage(format!("http: {e}")))?;
+                self.transport = Some(HttpTransport::H1(Box::new(H1Conn {
+                    session,
+                    driver: Box::new(driver),
+                })));
+            }
+        }
+        self.key = Some(key);
+        self.fresh = true;
+        Ok(())
+    }
+
+    /// Run one exchange for `spec`, reusing the held connection on a
+    /// key match (h1: `push_request`; h2: fresh session on the same
+    /// connection never happens — one exchange per h2 connection in
+    /// this mode), reconnecting once when the peer closed between
+    /// exchanges.
+    fn exchange_once(
+        &mut self,
+        spec: &wrex_http::HttpRequestSpec,
+        cfg: &HttpVerbConfig,
+        keep_alive: bool,
+    ) -> Result<wrex_http::HttpOutcome, CliError> {
+        let key = wrex_http::redirect::authority_key(&spec.url);
+        if self.key.as_deref() != Some(&key) {
+            self.connect(spec, cfg, keep_alive)?;
+        }
+        if !self.fresh {
+            // Same connection, later request: the 19a re-entry.
+            let pushed = match &mut self.transport {
+                Some(HttpTransport::H1(conn)) => conn
+                    .session
+                    .push_request(spec, session_cfg(cfg), keep_alive)
+                    .is_ok(),
+                _ => false,
+            };
+            if !pushed {
+                // The connection ended between exchanges (the server
+                // closed on its `Connection: close`, or early):
+                // reconnect and open with THIS request.
+                self.connect(spec, cfg, keep_alive)?;
+            }
+        }
+        self.fresh = false;
+        let out = match &mut self.transport {
+            Some(HttpTransport::H1(conn)) => wrex_session::run(
+                &mut conn.session,
+                conn.driver.as_mut(),
+                &wrex_io::SystemClock,
+            )
+            .map_err(|e| CliError::Runtime(format!("http: {e}")))?,
+            Some(HttpTransport::H2 { driver }) => {
+                let scfg = session_cfg(cfg);
+                let mut session = wrex_h2::H2Session::with_policy(
+                    std::slice::from_ref(spec),
+                    std::slice::from_ref(&scfg),
+                    Instant::now(),
+                    self.hpack,
+                )
+                .map_err(|e| usage(format!("http: {e}")))?;
+                let out = wrex_session::run(&mut session, driver.as_mut(), &wrex_io::SystemClock)
+                    .map_err(|e| CliError::Runtime(format!("http: {e}")))?;
+                // One h2 connection, one exchange (the per-hop mode);
+                // the preface never repeats on a live connection.
+                self.transport = None;
+                self.key = None;
+                out
+            }
+            None => unreachable!("connect just ran"),
+        };
+        // One request in → one outcome out (the per-exchange queue is
+        // one deep by construction).
+        Ok(out
+            .into_iter()
+            .next()
+            .unwrap_or(wrex_http::HttpOutcome::Closed))
+    }
+
+    /// `--retries` semantics: transport/exchange failures replay the
+    /// failing request only, on a fresh connection; a completed
+    /// response — any status — is data and never retried.
+    fn run_with_retries(
+        &mut self,
+        spec: &wrex_http::HttpRequestSpec,
+        cfg: &HttpVerbConfig,
+        keep_alive: bool,
+    ) -> Result<wrex_http::HttpOutcome, CliError> {
+        let attempts = cfg.retries + 1;
+        let mut last_err = "exchange failed".to_string();
+        for attempt in 0..attempts {
+            if attempt > 0 {
+                // Never trust a connection after a failed exchange.
+                self.transport = None;
+                self.key = None;
+                self.fresh = false;
+            }
+            match self.exchange_once(spec, cfg, keep_alive) {
+                Ok(wrex_http::HttpOutcome::Response(r)) => {
+                    return Ok(wrex_http::HttpOutcome::Response(r));
+                }
+                Ok(wrex_http::HttpOutcome::TooLarge) => {
+                    return Err(CliError::Runtime(format!(
+                        "http: response exceeded the {} byte budget",
+                        cfg.max_bytes
+                    )));
+                }
+                Ok(other) => last_err = describe_outcome(other, cfg),
+                Err(e) => return Err(e),
+            }
+        }
+        Err(CliError::Runtime(format!("http: {last_err}")))
+    }
+}
+
+/// Map a non-response outcome to its exit-1 message.
+fn describe_outcome(o: wrex_http::HttpOutcome, cfg: &HttpVerbConfig) -> String {
+    match o {
+        wrex_http::HttpOutcome::Malformed(detail) => format!("malformed response: {detail}"),
+        wrex_http::HttpOutcome::Response(_) => unreachable!("filtered by the caller"),
+        wrex_http::HttpOutcome::Truncated => "connection closed mid-response".to_string(),
+        wrex_http::HttpOutcome::TooLarge => unreachable!("handled by the caller"),
+        wrex_http::HttpOutcome::Timeout => {
+            format!("no response within {}", hum_duration(cfg.timeout))
+        }
+        wrex_http::HttpOutcome::Closed => {
+            "connection closed before a queued request was sent".to_string()
+        }
+    }
+}
+
+/// Session-level config for one exchange.
+fn session_cfg(cfg: &HttpVerbConfig) -> wrex_http::HttpConfig {
+    wrex_http::HttpConfig {
+        timeout: cfg.timeout,
+        max_bytes: cfg.max_bytes as usize,
+    }
+}
+
+/// TLS config for one connection: SNI from the URL host (an IP
+/// literal matches the cert's IP SAN — the T8a rule; brackets strip
+/// on v6 literals), roots = system store + the recipe/CLI --tls-ca
+/// adds (complements, never replaces), ALPN when h2 is wanted.
+fn tls_config_for(
+    url: &wrex_http::http::Uri,
+    cfg: &HttpVerbConfig,
+    want_h2: bool,
+) -> Result<wrex_tls::TlsConfig, CliError> {
+    let host_raw = url
+        .authority()
+        .map(|a| a.host())
+        .ok_or_else(|| usage("https url has no host".to_string()))?;
+    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+        &host_raw[1..host_raw.len() - 1]
+    } else {
+        host_raw
+    }
+    .to_string();
+    let ca_der = match &cfg.tls_ca {
+        Some(path) => Some(wrex_tls::load_ca_file(path).map_err(|e| usage(format!("http: {e}")))?),
+        None => None,
+    };
+    Ok(wrex_tls::TlsConfig {
+        server_name: host,
+        insecure: cfg.tls_insecure,
+        ca_der,
+        // ALPN offer (tranche 15): h2 with an http/1.1 fallback —
+        // the server's pick decides the session (auto-downgrade, the
+        // T15 planning decision).
+        alpn_protocols: if want_h2 {
+            vec!["h2".to_string(), "http/1.1".to_string()]
+        } else {
+            vec![]
+        },
+    })
+}
+
+/// Build the follow-up request for a classified redirect: method per
+/// the redirect rules, the body (and its framing) dropping with a
+/// method switch, per-request headers re-deriving (Host,
+/// Content-Length, cookies — re-injected per origin), Authorization
+/// dropping on a cross-origin hop (curl's rule).
+fn follow_up_request(
+    prev: &wrex_http::HttpRequestSpec,
+    redirect: &wrex_http::Redirect,
+) -> Result<wrex_http::HttpRequestSpec, CliError> {
+    let cross_origin = !wrex_http::redirect::same_origin(&prev.url, &redirect.url);
+    let mut headers = Vec::with_capacity(prev.headers.len());
+    for (name, value) in &prev.headers {
+        let n = name.as_str();
+        if matches!(
+            n,
+            "host" | "content-length" | "transfer-encoding" | "cookie"
+        ) || (n == "authorization" && cross_origin)
+        {
+            continue;
+        }
+        headers.push((name.clone(), value.clone()));
+    }
+    let drop_body = redirect.drop_body;
+    Ok(wrex_http::HttpRequestSpec {
+        method: redirect.method.clone(),
+        url: redirect.url.clone(),
+        headers,
+        body: if drop_body {
+            bytes::Bytes::new()
+        } else {
+            prev.body.clone()
+        },
+        framing: if drop_body {
+            wrex_http::RequestFraming::Length
+        } else {
+            prev.framing
+        },
+        chunk_size: prev.chunk_size,
+    })
+}
+
+/// The Cookie header for one request: the jar OWNS it when active
+/// (per-origin data, re-derived per request — an explicit -H Cookie
+/// does not survive), else the `-b` literal rides verbatim.
+fn inject_cookie_header(spec: &mut wrex_http::HttpRequestSpec, plan: &HttpPlan) {
+    while let Some(pos) = spec
+        .headers
+        .iter()
+        .position(|(n, _)| n.as_str() == "cookie")
+    {
+        spec.headers.remove(pos);
+    }
+    let value = if let Some(jar) = &plan.jar {
+        let (host, path, secure) = origin_parts(&spec.url);
+        jar.cookie_header(&host, &path, secure, std::time::SystemTime::now())
+    } else {
+        plan.jar_verbatim.clone()
+    };
+    if let Some(v) = value
+        && let Ok(hv) = wrex_http::http::HeaderValue::from_str(&v)
+    {
+        spec.headers
+            .push((wrex_http::http::HeaderName::from_static("cookie"), hv));
+    }
+}
+
+/// (host, path, secure) of a request URL — the cookie jar's query
+/// keys. Brackets strip on v6 literals; the path drops its query.
+fn origin_parts(url: &wrex_http::http::Uri) -> (String, String, bool) {
+    let host_raw = url.authority().map(|a| a.host()).unwrap_or_default();
+    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
+        &host_raw[1..host_raw.len() - 1]
+    } else {
+        host_raw
+    };
+    let path = url
+        .path_and_query()
+        .map(|pq| match pq.as_str().split_once('?') {
+            Some((p, _)) => p,
+            None => pq.as_str(),
+        })
+        .unwrap_or("/");
+    let path = if path.is_empty() { "/" } else { path };
+    let secure = url.scheme_str() == Some("https");
+    (host.to_string(), path.to_string(), secure)
 }
 
 /// Resolved request + the knobs a recipe may override.
@@ -2246,6 +2755,11 @@ struct HttpVerbConfig {
     /// Send-side HPACK policy (recipe `hpack` or `--hpack`; recipe wins
     /// — the recipe/CLI precedence direction, transposed).
     hpack: Option<String>,
+    /// Follow redirects (tranche 19a; recipe `follow` wins over
+    /// `--follow`, and ORs into the run-level plan).
+    follow: bool,
+    /// Redirect hop budget (recipe `max_redirs`, run-level max).
+    max_redirs: Option<u32>,
 }
 
 /// One per queued request: the CLI defaults + that request's recipe
@@ -2274,6 +2788,8 @@ fn http_verb_cfg(
         tls_ca: overrides.tls_ca.clone().or_else(|| args.tls_ca.clone()),
         http_version,
         hpack: overrides.hpack.clone().or_else(|| args.hpack.clone()),
+        follow: overrides.follow.unwrap_or(args.follow),
+        max_redirs: overrides.max_redirs,
     })
 }
 
@@ -2474,15 +2990,44 @@ fn http_response_json(resp: &wrex_http::HttpResponse) -> serde_json::Value {
     })
 }
 
+/// `http_response_json` + the tranche-19a context keys: when the chain
+/// followed hops, `url` (the URL that produced the final response) and
+/// `redirects` ([{url, status}, …] — the URL is each hop's own
+/// request, i.e. the response that carried that status). No hops ⇒ no
+/// new keys (plain runs stay byte-identical).
+fn http_response_json_ctx(
+    resp: &wrex_http::HttpResponse,
+    exchange: Option<&ExchangeResult>,
+) -> serde_json::Value {
+    let mut v = http_response_json(resp);
+    if let Some(x) = exchange
+        && !x.chain.is_empty()
+    {
+        let obj = v.as_object_mut().expect("http_response_json is an object");
+        obj.insert("url".to_string(), serde_json::json!(x.final_url));
+        obj.insert(
+            "redirects".to_string(),
+            serde_json::Value::Array(
+                x.chain
+                    .iter()
+                    .map(|(url, status)| serde_json::json!({"url": url, "status": status}))
+                    .collect(),
+            ),
+        );
+    }
+    v
+}
+
 /// Render the completed exchanges, in queue order. A keep-alive queue
 /// prints every response (text/raw stream them; json wraps a queue in
 /// an array, a lone response stays the T4 object). `--fail` is handled
-/// by the caller (responses stay data: they print first).
-fn render_http_responses(
-    responses: &[wrex_http::HttpResponse],
-    format: Format,
-) -> Result<(), CliError> {
-    for resp in responses {
+/// by the caller (responses stay data: they print first). A followed
+/// redirect chain prints its FINAL response; `--format json` adds the
+/// `url` + `redirects` keys when hops happened (plain runs keep the
+/// byte-identical T4 shape).
+fn render_http_exchanges(done: &[ExchangeResult], format: Format) -> Result<(), CliError> {
+    for exchange in done {
+        let resp = &exchange.response;
         let status = resp.status.as_u16();
         match format {
             Format::Raw => write_stdout(&resp.body)?,
@@ -2511,10 +3056,14 @@ fn render_http_responses(
             Format::Json => {
                 // One JSON document for the whole run: a lone response
                 // keeps the T4 object shape; a queue is an array.
-                let json = if responses.len() == 1 {
-                    http_response_json(resp)
+                let json = if done.len() == 1 {
+                    http_response_json_ctx(resp, Some(exchange))
                 } else {
-                    serde_json::Value::Array(responses.iter().map(http_response_json).collect())
+                    serde_json::Value::Array(
+                        done.iter()
+                            .map(|d| http_response_json_ctx(&d.response, Some(d)))
+                            .collect(),
+                    )
                 };
                 let mut out = serde_json::to_string_pretty(&json)
                     .map_err(|e| CliError::Runtime(format!("json: {e}")))?;

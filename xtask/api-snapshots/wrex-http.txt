@@ -1,15 +1,111 @@
 pub mod wrex_http
 pub use wrex_http::http
+pub mod wrex_http::cookies
+pub struct wrex_http::cookies::Cookie
+pub wrex_http::cookies::Cookie::creation: std::time::SystemTime
+pub wrex_http::cookies::Cookie::domain: alloc::string::String
+pub wrex_http::cookies::Cookie::expires: core::option::Option<std::time::SystemTime>
+pub wrex_http::cookies::Cookie::host_only: bool
+pub wrex_http::cookies::Cookie::http_only: bool
+pub wrex_http::cookies::Cookie::name: alloc::string::String
+pub wrex_http::cookies::Cookie::path: alloc::string::String
+pub wrex_http::cookies::Cookie::secure: bool
+pub wrex_http::cookies::Cookie::value: alloc::string::String
+impl core::clone::Clone for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::cookies::Cookie
+impl core::cmp::PartialEq for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::cookies::Cookie
+impl core::marker::Freeze for wrex_http::cookies::Cookie
+impl core::marker::Send for wrex_http::cookies::Cookie
+impl core::marker::Sync for wrex_http::cookies::Cookie
+impl core::marker::Unpin for wrex_http::cookies::Cookie
+impl core::marker::UnsafeUnpin for wrex_http::cookies::Cookie
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::cookies::Cookie
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::cookies::Cookie
+impl<T, U> core::convert::Into<U> for wrex_http::cookies::Cookie where U: core::convert::From<T>
+pub fn wrex_http::cookies::Cookie::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::cookies::Cookie where U: core::convert::Into<T>
+pub type wrex_http::cookies::Cookie::Error = never
+pub fn wrex_http::cookies::Cookie::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::cookies::Cookie where U: core::convert::TryFrom<T>
+pub type wrex_http::cookies::Cookie::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::cookies::Cookie::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::cookies::Cookie where T: core::clone::Clone
+pub type wrex_http::cookies::Cookie::Owned = T
+pub fn wrex_http::cookies::Cookie::clone_into(&self, &mut T)
+pub fn wrex_http::cookies::Cookie::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::cookies::Cookie where T: 'static + ?core::marker::Sized
+pub fn wrex_http::cookies::Cookie::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::cookies::Cookie where T: ?core::marker::Sized
+pub fn wrex_http::cookies::Cookie::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::cookies::Cookie where T: ?core::marker::Sized
+pub fn wrex_http::cookies::Cookie::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::cookies::Cookie where T: core::clone::Clone
+pub unsafe fn wrex_http::cookies::Cookie::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::from(T) -> T
+pub struct wrex_http::cookies::CookieJar
+impl wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::cookie_header(&self, &str, &str, bool, std::time::SystemTime) -> core::option::Option<alloc::string::String>
+pub fn wrex_http::cookies::CookieJar::is_empty(&self) -> bool
+pub fn wrex_http::cookies::CookieJar::len(&self) -> usize
+pub fn wrex_http::cookies::CookieJar::load_netscape(&mut self, &str, std::time::SystemTime) -> usize
+pub fn wrex_http::cookies::CookieJar::new() -> Self
+pub fn wrex_http::cookies::CookieJar::store_response<'a>(&mut self, impl core::iter::traits::iterator::Iterator<Item = &'a str>, &str, &str, std::time::SystemTime)
+pub fn wrex_http::cookies::CookieJar::store_set_cookie(&mut self, &str, &str, &str, std::time::SystemTime)
+pub fn wrex_http::cookies::CookieJar::to_netscape(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::clone(&self) -> Self
+impl core::default::Default for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::default() -> Self
+impl core::fmt::Debug for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_http::cookies::CookieJar
+impl core::marker::Send for wrex_http::cookies::CookieJar
+impl core::marker::Sync for wrex_http::cookies::CookieJar
+impl core::marker::Unpin for wrex_http::cookies::CookieJar
+impl core::marker::UnsafeUnpin for wrex_http::cookies::CookieJar
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::cookies::CookieJar
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::cookies::CookieJar
+impl<T, U> core::convert::Into<U> for wrex_http::cookies::CookieJar where U: core::convert::From<T>
+pub fn wrex_http::cookies::CookieJar::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::cookies::CookieJar where U: core::convert::Into<T>
+pub type wrex_http::cookies::CookieJar::Error = never
+pub fn wrex_http::cookies::CookieJar::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::cookies::CookieJar where U: core::convert::TryFrom<T>
+pub type wrex_http::cookies::CookieJar::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::cookies::CookieJar::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::cookies::CookieJar where T: core::clone::Clone
+pub type wrex_http::cookies::CookieJar::Owned = T
+pub fn wrex_http::cookies::CookieJar::clone_into(&self, &mut T)
+pub fn wrex_http::cookies::CookieJar::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::cookies::CookieJar where T: 'static + ?core::marker::Sized
+pub fn wrex_http::cookies::CookieJar::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::cookies::CookieJar where T: ?core::marker::Sized
+pub fn wrex_http::cookies::CookieJar::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::cookies::CookieJar where T: ?core::marker::Sized
+pub fn wrex_http::cookies::CookieJar::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::cookies::CookieJar where T: core::clone::Clone
+pub unsafe fn wrex_http::cookies::CookieJar::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::from(T) -> T
+pub fn wrex_http::cookies::parse_http_date(&str) -> core::option::Option<std::time::SystemTime>
 pub mod wrex_http::recipe
 pub struct wrex_http::recipe::Recipe
 pub wrex_http::recipe::Recipe::body_framing: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::body_hex: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::body_text: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::follow: core::option::Option<bool>
 pub wrex_http::recipe::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub wrex_http::recipe::Recipe::hpack: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::http_version: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::Recipe::max_bytes: core::option::Option<u64>
+pub wrex_http::recipe::Recipe::max_redirs: core::option::Option<u32>
 pub wrex_http::recipe::Recipe::method: alloc::string::String
 pub wrex_http::recipe::Recipe::retries: core::option::Option<u32>
 pub wrex_http::recipe::Recipe::timeout_ms: core::option::Option<u64>
@@ -56,9 +152,11 @@ impl<T> core::convert::From<T> for wrex_http::recipe::Recipe
 pub fn wrex_http::recipe::Recipe::from(T) -> T
 impl<T> serde_core::de::DeserializeOwned for wrex_http::recipe::Recipe where T: for<'de> serde_core::de::Deserialize<'de>
 pub struct wrex_http::recipe::RecipeOverrides
+pub wrex_http::recipe::RecipeOverrides::follow: core::option::Option<bool>
 pub wrex_http::recipe::RecipeOverrides::hpack: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::RecipeOverrides::http_version: core::option::Option<alloc::string::String>
 pub wrex_http::recipe::RecipeOverrides::max_bytes: core::option::Option<u64>
+pub wrex_http::recipe::RecipeOverrides::max_redirs: core::option::Option<u32>
 pub wrex_http::recipe::RecipeOverrides::retries: core::option::Option<u32>
 pub wrex_http::recipe::RecipeOverrides::timeout_ms: core::option::Option<u64>
 pub wrex_http::recipe::RecipeOverrides::tls_ca: core::option::Option<alloc::string::String>
@@ -98,6 +196,52 @@ impl<T> core::clone::CloneToUninit for wrex_http::recipe::RecipeOverrides where 
 pub unsafe fn wrex_http::recipe::RecipeOverrides::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::recipe::RecipeOverrides
 pub fn wrex_http::recipe::RecipeOverrides::from(T) -> T
+pub mod wrex_http::redirect
+pub struct wrex_http::redirect::Redirect
+pub wrex_http::redirect::Redirect::drop_body: bool
+pub wrex_http::redirect::Redirect::method: http::method::Method
+pub wrex_http::redirect::Redirect::url: http::uri::Uri
+impl core::clone::Clone for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::redirect::Redirect
+impl core::cmp::PartialEq for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::redirect::Redirect
+impl !core::marker::Freeze for wrex_http::redirect::Redirect
+impl core::marker::Send for wrex_http::redirect::Redirect
+impl core::marker::Sync for wrex_http::redirect::Redirect
+impl core::marker::Unpin for wrex_http::redirect::Redirect
+impl core::marker::UnsafeUnpin for wrex_http::redirect::Redirect
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::redirect::Redirect
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::redirect::Redirect
+impl<T, U> core::convert::Into<U> for wrex_http::redirect::Redirect where U: core::convert::From<T>
+pub fn wrex_http::redirect::Redirect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::redirect::Redirect where U: core::convert::Into<T>
+pub type wrex_http::redirect::Redirect::Error = never
+pub fn wrex_http::redirect::Redirect::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::redirect::Redirect where U: core::convert::TryFrom<T>
+pub type wrex_http::redirect::Redirect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::redirect::Redirect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::redirect::Redirect where T: core::clone::Clone
+pub type wrex_http::redirect::Redirect::Owned = T
+pub fn wrex_http::redirect::Redirect::clone_into(&self, &mut T)
+pub fn wrex_http::redirect::Redirect::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::redirect::Redirect where T: 'static + ?core::marker::Sized
+pub fn wrex_http::redirect::Redirect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::redirect::Redirect where T: ?core::marker::Sized
+pub fn wrex_http::redirect::Redirect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::redirect::Redirect where T: ?core::marker::Sized
+pub fn wrex_http::redirect::Redirect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::redirect::Redirect where T: core::clone::Clone
+pub unsafe fn wrex_http::redirect::Redirect::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::from(T) -> T
+pub fn wrex_http::redirect::authority_key(&http::uri::Uri) -> alloc::string::String
+pub fn wrex_http::redirect::classify(&wrex_http::response::HttpResponse, &http::method::Method, &http::uri::Uri) -> core::option::Option<core::result::Result<wrex_http::redirect::Redirect, alloc::string::String>>
+pub fn wrex_http::redirect::resolve_location(&http::uri::Uri, &str) -> core::result::Result<http::uri::Uri, alloc::string::String>
+pub fn wrex_http::redirect::same_origin(&http::uri::Uri, &http::uri::Uri) -> bool
 pub mod wrex_http::request
 pub enum wrex_http::request::RequestFraming
 pub wrex_http::request::RequestFraming::Chunked
@@ -284,6 +428,8 @@ pub fn wrex_http::session::HttpOutcome::from(T) -> T
 pub struct wrex_http::session::HttpClientSession
 impl wrex_http::session::HttpClientSession
 pub fn wrex_http::session::HttpClientSession::new(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::session::HttpClientSession::open(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, bool, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::session::HttpClientSession::push_request(&mut self, &wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, bool) -> core::result::Result<(), alloc::string::String>
 pub fn wrex_http::session::HttpClientSession::with_requests(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, alloc::string::String>
 impl wrex_session::Session for wrex_http::session::HttpClientSession
 pub type wrex_http::session::HttpClientSession::Output = wrex_http::session::HttpOutcome
@@ -482,9 +628,103 @@ impl<T> core::clone::CloneToUninit for wrex_http::request::RequestFraming where 
 pub unsafe fn wrex_http::request::RequestFraming::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::request::RequestFraming
 pub fn wrex_http::request::RequestFraming::from(T) -> T
+pub struct wrex_http::Cookie
+pub wrex_http::Cookie::creation: std::time::SystemTime
+pub wrex_http::Cookie::domain: alloc::string::String
+pub wrex_http::Cookie::expires: core::option::Option<std::time::SystemTime>
+pub wrex_http::Cookie::host_only: bool
+pub wrex_http::Cookie::http_only: bool
+pub wrex_http::Cookie::name: alloc::string::String
+pub wrex_http::Cookie::path: alloc::string::String
+pub wrex_http::Cookie::secure: bool
+pub wrex_http::Cookie::value: alloc::string::String
+impl core::clone::Clone for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::cookies::Cookie
+impl core::cmp::PartialEq for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::cookies::Cookie
+impl core::marker::Freeze for wrex_http::cookies::Cookie
+impl core::marker::Send for wrex_http::cookies::Cookie
+impl core::marker::Sync for wrex_http::cookies::Cookie
+impl core::marker::Unpin for wrex_http::cookies::Cookie
+impl core::marker::UnsafeUnpin for wrex_http::cookies::Cookie
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::cookies::Cookie
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::cookies::Cookie
+impl<T, U> core::convert::Into<U> for wrex_http::cookies::Cookie where U: core::convert::From<T>
+pub fn wrex_http::cookies::Cookie::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::cookies::Cookie where U: core::convert::Into<T>
+pub type wrex_http::cookies::Cookie::Error = never
+pub fn wrex_http::cookies::Cookie::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::cookies::Cookie where U: core::convert::TryFrom<T>
+pub type wrex_http::cookies::Cookie::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::cookies::Cookie::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::cookies::Cookie where T: core::clone::Clone
+pub type wrex_http::cookies::Cookie::Owned = T
+pub fn wrex_http::cookies::Cookie::clone_into(&self, &mut T)
+pub fn wrex_http::cookies::Cookie::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::cookies::Cookie where T: 'static + ?core::marker::Sized
+pub fn wrex_http::cookies::Cookie::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::cookies::Cookie where T: ?core::marker::Sized
+pub fn wrex_http::cookies::Cookie::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::cookies::Cookie where T: ?core::marker::Sized
+pub fn wrex_http::cookies::Cookie::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::cookies::Cookie where T: core::clone::Clone
+pub unsafe fn wrex_http::cookies::Cookie::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::cookies::Cookie
+pub fn wrex_http::cookies::Cookie::from(T) -> T
+pub struct wrex_http::CookieJar
+impl wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::cookie_header(&self, &str, &str, bool, std::time::SystemTime) -> core::option::Option<alloc::string::String>
+pub fn wrex_http::cookies::CookieJar::is_empty(&self) -> bool
+pub fn wrex_http::cookies::CookieJar::len(&self) -> usize
+pub fn wrex_http::cookies::CookieJar::load_netscape(&mut self, &str, std::time::SystemTime) -> usize
+pub fn wrex_http::cookies::CookieJar::new() -> Self
+pub fn wrex_http::cookies::CookieJar::store_response<'a>(&mut self, impl core::iter::traits::iterator::Iterator<Item = &'a str>, &str, &str, std::time::SystemTime)
+pub fn wrex_http::cookies::CookieJar::store_set_cookie(&mut self, &str, &str, &str, std::time::SystemTime)
+pub fn wrex_http::cookies::CookieJar::to_netscape(&self) -> alloc::string::String
+impl core::clone::Clone for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::clone(&self) -> Self
+impl core::default::Default for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::default() -> Self
+impl core::fmt::Debug for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_http::cookies::CookieJar
+impl core::marker::Send for wrex_http::cookies::CookieJar
+impl core::marker::Sync for wrex_http::cookies::CookieJar
+impl core::marker::Unpin for wrex_http::cookies::CookieJar
+impl core::marker::UnsafeUnpin for wrex_http::cookies::CookieJar
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::cookies::CookieJar
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::cookies::CookieJar
+impl<T, U> core::convert::Into<U> for wrex_http::cookies::CookieJar where U: core::convert::From<T>
+pub fn wrex_http::cookies::CookieJar::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::cookies::CookieJar where U: core::convert::Into<T>
+pub type wrex_http::cookies::CookieJar::Error = never
+pub fn wrex_http::cookies::CookieJar::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::cookies::CookieJar where U: core::convert::TryFrom<T>
+pub type wrex_http::cookies::CookieJar::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::cookies::CookieJar::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::cookies::CookieJar where T: core::clone::Clone
+pub type wrex_http::cookies::CookieJar::Owned = T
+pub fn wrex_http::cookies::CookieJar::clone_into(&self, &mut T)
+pub fn wrex_http::cookies::CookieJar::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::cookies::CookieJar where T: 'static + ?core::marker::Sized
+pub fn wrex_http::cookies::CookieJar::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::cookies::CookieJar where T: ?core::marker::Sized
+pub fn wrex_http::cookies::CookieJar::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::cookies::CookieJar where T: ?core::marker::Sized
+pub fn wrex_http::cookies::CookieJar::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::cookies::CookieJar where T: core::clone::Clone
+pub unsafe fn wrex_http::cookies::CookieJar::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::cookies::CookieJar
+pub fn wrex_http::cookies::CookieJar::from(T) -> T
 pub struct wrex_http::HttpClientSession
 impl wrex_http::session::HttpClientSession
 pub fn wrex_http::session::HttpClientSession::new(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::session::HttpClientSession::open(&wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, bool, std::time::Instant) -> core::result::Result<Self, alloc::string::String>
+pub fn wrex_http::session::HttpClientSession::push_request(&mut self, &wrex_http::request::HttpRequestSpec, wrex_http::session::HttpConfig, bool) -> core::result::Result<(), alloc::string::String>
 pub fn wrex_http::session::HttpClientSession::with_requests(&[wrex_http::request::HttpRequestSpec], &[wrex_http::session::HttpConfig], std::time::Instant) -> core::result::Result<Self, alloc::string::String>
 impl wrex_session::Session for wrex_http::session::HttpClientSession
 pub type wrex_http::session::HttpClientSession::Output = wrex_http::session::HttpOutcome
@@ -649,10 +889,12 @@ pub wrex_http::Recipe::body_framing: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_hex: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::body_text: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::chunk_size: core::option::Option<u64>
+pub wrex_http::Recipe::follow: core::option::Option<bool>
 pub wrex_http::Recipe::headers: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub wrex_http::Recipe::hpack: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::http_version: core::option::Option<alloc::string::String>
 pub wrex_http::Recipe::max_bytes: core::option::Option<u64>
+pub wrex_http::Recipe::max_redirs: core::option::Option<u32>
 pub wrex_http::Recipe::method: alloc::string::String
 pub wrex_http::Recipe::retries: core::option::Option<u32>
 pub wrex_http::Recipe::timeout_ms: core::option::Option<u64>
@@ -698,4 +940,45 @@ pub unsafe fn wrex_http::recipe::Recipe::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_http::recipe::Recipe
 pub fn wrex_http::recipe::Recipe::from(T) -> T
 impl<T> serde_core::de::DeserializeOwned for wrex_http::recipe::Recipe where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct wrex_http::Redirect
+pub wrex_http::Redirect::drop_body: bool
+pub wrex_http::Redirect::method: http::method::Method
+pub wrex_http::Redirect::url: http::uri::Uri
+impl core::clone::Clone for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::clone(&self) -> Self
+impl core::cmp::Eq for wrex_http::redirect::Redirect
+impl core::cmp::PartialEq for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_http::redirect::Redirect
+impl !core::marker::Freeze for wrex_http::redirect::Redirect
+impl core::marker::Send for wrex_http::redirect::Redirect
+impl core::marker::Sync for wrex_http::redirect::Redirect
+impl core::marker::Unpin for wrex_http::redirect::Redirect
+impl core::marker::UnsafeUnpin for wrex_http::redirect::Redirect
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_http::redirect::Redirect
+impl core::panic::unwind_safe::UnwindSafe for wrex_http::redirect::Redirect
+impl<T, U> core::convert::Into<U> for wrex_http::redirect::Redirect where U: core::convert::From<T>
+pub fn wrex_http::redirect::Redirect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_http::redirect::Redirect where U: core::convert::Into<T>
+pub type wrex_http::redirect::Redirect::Error = never
+pub fn wrex_http::redirect::Redirect::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_http::redirect::Redirect where U: core::convert::TryFrom<T>
+pub type wrex_http::redirect::Redirect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_http::redirect::Redirect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_http::redirect::Redirect where T: core::clone::Clone
+pub type wrex_http::redirect::Redirect::Owned = T
+pub fn wrex_http::redirect::Redirect::clone_into(&self, &mut T)
+pub fn wrex_http::redirect::Redirect::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_http::redirect::Redirect where T: 'static + ?core::marker::Sized
+pub fn wrex_http::redirect::Redirect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_http::redirect::Redirect where T: ?core::marker::Sized
+pub fn wrex_http::redirect::Redirect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_http::redirect::Redirect where T: ?core::marker::Sized
+pub fn wrex_http::redirect::Redirect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_http::redirect::Redirect where T: core::clone::Clone
+pub unsafe fn wrex_http::redirect::Redirect::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_http::redirect::Redirect
+pub fn wrex_http::redirect::Redirect::from(T) -> T
 pub const wrex_http::DEFAULT_CHUNK_SIZE: usize

@@ -31,6 +31,10 @@ pub struct RecipeOverrides {
     /// (default: dynamic table + Huffman-when-strictly-shorter) or
     /// `literal` (the T15 wire bytes verbatim).
     pub hpack: Option<String>,
+    /// Follow 3xx redirects (tranche 19a; recipe wins over `--follow`).
+    pub follow: Option<bool>,
+    /// Redirect hop budget under `follow` (default 50, curl's).
+    pub max_redirs: Option<u32>,
 }
 
 /// One recipe. Deserialize with serde (the CLI owns the JSON parsing).
@@ -68,6 +72,12 @@ pub struct Recipe {
     /// Fixed chunk size for `body_framing: "chunked"` (default 4096).
     #[serde(default)]
     pub chunk_size: Option<u64>,
+    /// Follow 3xx redirects (tranche 19a; recipe wins over `--follow`).
+    #[serde(default)]
+    pub follow: Option<bool>,
+    /// Redirect hop budget under `follow` (default 50, curl's).
+    #[serde(default)]
+    pub max_redirs: Option<u32>,
 }
 
 impl Recipe {
@@ -163,6 +173,8 @@ impl Recipe {
             tls_ca: self.tls_ca,
             http_version: self.http_version,
             hpack: self.hpack,
+            follow: self.follow,
+            max_redirs: self.max_redirs,
         };
         Ok((spec, overrides))
     }
@@ -338,6 +350,24 @@ mod tests {
             r#"{"method": "GET", "url": "http://x/", "body_framing": "chunked", "chunk_size": 0}"#,
         );
         assert!(r.into_request().unwrap_err().contains("chunk_size"));
+    }
+
+    #[test]
+    fn follow_knobs_are_additive() {
+        // Old recipes: no follow fields → the overrides stay None (the
+        // serde defaults keep committed files byte-compatible).
+        let r = recipe(r#"{"method": "GET", "url": "http://example.com/"}"#);
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.follow, None);
+        assert_eq!(o.max_redirs, None);
+        // New knobs ride through.
+        let r = recipe(
+            r#"{"method": "GET", "url": "http://example.com/",
+                "follow": true, "max_redirs": 3}"#,
+        );
+        let (_, o) = r.into_request().unwrap();
+        assert_eq!(o.follow, Some(true));
+        assert_eq!(o.max_redirs, Some(3));
     }
 
     #[test]

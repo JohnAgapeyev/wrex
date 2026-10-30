@@ -233,6 +233,168 @@ fn http_differential_head_no_body() {
     }
 }
 
+// --- tranche 19a: redirect + cookie differentials vs curl ----------------------
+
+/// A routing stub over `cargo test`'s single-response helper: serves
+/// `/start` (302 → /next), `/next` (200 body), `/set` (Set-Cookie)
+/// and `/echo` (200, body = the request's Cookie header value — the
+/// differential oracle trick: equal bodies prove equal headers).
+fn spawn_redirect_stub(conns: usize) -> std::net::SocketAddr {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    std::thread::spawn(move || {
+        for _ in 0..conns {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 4096];
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    let cl: usize = head
+                        .lines()
+                        .find_map(|l| {
+                            l.split_once(':')
+                                .filter(|(k, _)| k.trim().eq_ignore_ascii_case("content-length"))
+                                .and_then(|(_, v)| v.trim().parse().ok())
+                        })
+                        .unwrap_or(0);
+                    if buf.len() >= pos + 4 + cl {
+                        break;
+                    }
+                }
+            }
+            let head = String::from_utf8_lossy(&buf).to_string();
+            let line = head.lines().next().unwrap_or_default();
+            let path = line.split(' ').nth(1).unwrap_or("/");
+            let cookie = head
+                .lines()
+                .find(|l| l.to_ascii_lowercase().starts_with("cookie:"))
+                .map(|l| l[8..].trim().to_string())
+                .unwrap_or_default();
+            let resp: Vec<u8> = match path {
+                "/start" => {
+                    b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n".to_vec()
+                }
+                "/next" => b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok".to_vec(),
+                "/set" => {
+                    b"HTTP/1.1 200 OK\r\nSet-Cookie: diff=1; Path=/\r\nContent-Length: 0\r\n\r\n"
+                        .to_vec()
+                }
+                "/echo" => format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{cookie}",
+                    cookie.len()
+                )
+                .into_bytes(),
+                _ => b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec(),
+            };
+            let _ = conn.write_all(&resp);
+            let _ = conn.shutdown(std::net::Shutdown::Write);
+            let _ = conn.set_read_timeout(Some(Duration::from_millis(200)));
+            let _ = conn.read(&mut chunk);
+        }
+    });
+    addr
+}
+
+#[test]
+fn redirect_differential_vs_curl() {
+    if !curl_enabled() {
+        eprintln!(
+            "redirect_differential_vs_curl: skipping (curl not on PATH or WREX_DIFF_CURL unset)"
+        );
+        return;
+    }
+    let addr = spawn_redirect_stub(6);
+    let url = format!("http://{addr}/start");
+    // curl -L: final body + status must agree
+    let out = std::process::Command::new(which_curl().unwrap())
+        .args(["-s", "-L", "-o", "-", "-w", "\n%{http_code}", &url])
+        .output()
+        .expect("spawn curl");
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let (body, code) = stdout.rsplit_once('\n').expect("curl -w output");
+    assert_eq!(code, "200", "curl followed to /next");
+    let ours = wrex_fetch(addr, "GET", "/next");
+    assert_eq!(&ours.body[..], body.as_bytes(), "final bodies differ");
+    assert_eq!(ours.status.as_u16().to_string(), code);
+}
+
+#[test]
+fn cookie_differential_vs_curl() {
+    if !curl_enabled() {
+        eprintln!(
+            "cookie_differential_vs_curl: skipping (curl not on PATH or WREX_DIFF_CURL unset)"
+        );
+        return;
+    }
+    let addr = spawn_redirect_stub(8);
+    let dir = std::env::temp_dir().join("wrex-http-diff-cookies");
+    std::fs::create_dir_all(&dir).unwrap();
+    let curl_jar = dir.join("curl.jar");
+    let wrex_jar = dir.join("wrex.jar");
+    let _ = std::fs::remove_file(&curl_jar);
+    let _ = std::fs::remove_file(&wrex_jar);
+
+    // Both clients collect /set's cookie, then echo it on /echo.
+    let out = std::process::Command::new(which_curl().unwrap())
+        .args([
+            "-s",
+            "-c",
+            curl_jar.to_str().unwrap(),
+            &format!("http://{addr}/set"),
+        ])
+        .output()
+        .expect("spawn curl");
+    assert!(out.status.success());
+    let out = std::process::Command::new(which_curl().unwrap())
+        .args([
+            "-s",
+            "-b",
+            curl_jar.to_str().unwrap(),
+            &format!("http://{addr}/echo"),
+        ])
+        .output()
+        .expect("spawn curl");
+    assert!(out.status.success());
+    let curl_body = out.stdout.clone();
+
+    // wrex side, through the real binary (the jar path is a CLI
+    // concern — the in-process session has no jar).
+    let wrex = |args: &[&str]| {
+        assert_cmd::Command::new(env!("CARGO_BIN_EXE_wrex"))
+            .args(args)
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone()
+    };
+    wrex(&[
+        "http",
+        "--format",
+        "raw",
+        "-c",
+        wrex_jar.to_str().unwrap(),
+        &format!("http://{addr}/set"),
+    ]);
+    let wrex_body = wrex(&[
+        "http",
+        "--format",
+        "raw",
+        "-b",
+        wrex_jar.to_str().unwrap(),
+        &format!("http://{addr}/echo"),
+    ]);
+    assert_eq!(curl_body, wrex_body, "the echoed Cookie headers differ");
+}
+
 #[test]
 fn recipe_replays_byte_identical() {
     let json = r#"{

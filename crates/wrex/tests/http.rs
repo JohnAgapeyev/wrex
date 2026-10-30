@@ -449,3 +449,460 @@ fn chunked_request_body_on_the_wire() {
         "{wire}"
     );
 }
+
+// --- tranche 19a: redirects + cookies -----------------------------------------
+
+use std::sync::Mutex;
+
+/// A routing stub: per connection, answers any number of requests,
+/// mapping the request line's path to a scripted raw response. The
+/// first line of every request is recorded (method/ordering asserts).
+/// Paths match by the exact first token after the method.
+fn spawn_routing_stub(routes: Vec<(&'static str, Vec<u8>)>) -> (u16, Arc<Mutex<Vec<String>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().unwrap().port();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let seen2 = seen.clone();
+    std::thread::spawn(move || {
+        for _ in 0..16 {
+            let Ok((mut conn, _)) = listener.accept() else {
+                return;
+            };
+            let mut chunk = [0u8; 8192];
+            let mut buf = Vec::new();
+            while let Ok(n) = conn.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                // one full request at a time (head + declared body)
+                if let Some(pos) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf).to_string();
+                    let cl: usize = head
+                        .lines()
+                        .find_map(|l| {
+                            l.split_once(':')
+                                .filter(|(k, _)| k.trim().eq_ignore_ascii_case("content-length"))
+                                .and_then(|(_, v)| v.trim().parse().ok())
+                        })
+                        .unwrap_or(0);
+                    if buf.len() < pos + 4 + cl {
+                        continue;
+                    }
+                    let line = head.lines().next().unwrap_or_default().to_string();
+                    seen2.lock().unwrap().push(line.clone());
+                    let path = line.split(' ').nth(1).unwrap_or("/");
+                    let path = path.split('?').next().unwrap_or(path);
+                    let route = routes
+                        .iter()
+                        .find(|(p, _)| *p == path)
+                        .map(|(_, r)| r.clone());
+                    match route {
+                        Some(resp) => {
+                            let _ = conn.write_all(&resp);
+                        }
+                        None => {
+                            let _ = conn
+                                .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+                        }
+                    }
+                    buf.clear();
+                }
+            }
+        }
+    });
+    (port, seen)
+}
+
+fn redirect_routes() -> Vec<(&'static str, Vec<u8>)> {
+    vec![
+        (
+            "/start",
+            b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n"
+                .to_vec(),
+        ),
+        (
+            "/next",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndone".to_vec(),
+        ),
+        (
+            "/loop",
+            b"HTTP/1.1 302 Found\r\nLocation: /loop\r\nContent-Length: 0\r\n\r\n".to_vec(),
+        ),
+        (
+            "/post303",
+            b"HTTP/1.1 303 See Other\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n".to_vec(),
+        ),
+        (
+            "/post307",
+            b"HTTP/1.1 307 Temporary Redirect\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n"
+                .to_vec(),
+        ),
+        (
+            "/set-cookie",
+            b"HTTP/1.1 200 OK\r\nSet-Cookie: a=1; Path=/\r\nSet-Cookie: b=2; Path=/\r\nContent-Length: 2\r\n\r\nok".to_vec(),
+        ),
+        (
+            "/echo-cookie",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nack".to_vec(),
+        ),
+    ]
+}
+
+#[test]
+fn follow_rides_the_chain_and_reports_it() {
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    let out = wrex()
+        .args([
+            "http",
+            "-L",
+            "--format",
+            "raw",
+            &format!("http://127.0.0.1:{port}/start"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"done");
+}
+
+#[test]
+fn follow_json_carries_the_chain() {
+    let (port, seen) = spawn_routing_stub(redirect_routes());
+    let out = wrex()
+        .args([
+            "http",
+            "-L",
+            "--format",
+            "json",
+            &format!("http://127.0.0.1:{port}/start"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(json["status"], 200);
+    assert_eq!(json["body_hex"], hex::encode("done"));
+    assert_eq!(json["url"], format!("http://127.0.0.1:{port}/next"));
+    assert_eq!(
+        json["redirects"],
+        serde_json::json!([
+            {"url": format!("http://127.0.0.1:{port}/start"), "status": 302}
+        ]),
+        "{json}"
+    );
+    // the chain hit /start then /next, in order
+    let requests = seen.lock().unwrap().clone();
+    assert_eq!(
+        requests,
+        vec![
+            "GET /start HTTP/1.1".to_string(),
+            "GET /next HTTP/1.1".to_string(),
+        ],
+        "{requests:?}"
+    );
+    // plain runs (no follow) keep the T4 json shape byte-identical:
+    // no url/redirects keys on a direct 200.
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "json",
+            &format!("http://127.0.0.1:{port}/next"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert!(json.get("url").is_none());
+    assert!(json.get("redirects").is_none());
+}
+
+#[test]
+fn follow_same_origin_reuses_one_connection() {
+    // The keep-alive pin: a same-origin redirect chain rides ONE
+    // connection (session push re-entry, not a reconnect).
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let conns = Arc::new(AtomicUsize::new(0));
+    let conns2 = conns.clone();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        conns2.fetch_add(1, Ordering::SeqCst);
+        let mut chunk = [0u8; 4096];
+        let mut served = 0;
+        // answer two requests on this one connection
+        while served < 2 {
+            let n = match conn.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(_) => break,
+            };
+            let got = &chunk[..n];
+            served += got.windows(4).filter(|w| *w == b"\r\n\r\n").count();
+            let resp = if served == 1 {
+                &b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\n\r\n"[..]
+            } else {
+                &b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"[..]
+            };
+            let _ = conn.write_all(resp);
+        }
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+        // any further connection is a test failure signal (counted)
+    });
+    let out = wrex()
+        .args([
+            "http",
+            "-L",
+            "--format",
+            "raw",
+            &format!("http://127.0.0.1:{port}/start"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"ok");
+    assert_eq!(conns.load(Ordering::SeqCst), 1, "one connection");
+}
+
+#[test]
+fn redirect_method_rules_on_the_wire() {
+    // 303 rewrites POST to a bodyless GET; 307 preserves POST + body.
+    let (port, seen) = spawn_routing_stub(redirect_routes());
+    wrex()
+        .args([
+            "http",
+            "-L",
+            "POST",
+            "--data",
+            "hello",
+            &format!("http://127.0.0.1:{port}/post303"),
+        ])
+        .assert()
+        .success();
+    wrex()
+        .args([
+            "http",
+            "-L",
+            "POST",
+            "--data",
+            "hello",
+            &format!("http://127.0.0.1:{port}/post307"),
+        ])
+        .assert()
+        .success();
+    let requests = seen.lock().unwrap().clone();
+    assert_eq!(
+        requests,
+        vec![
+            "POST /post303 HTTP/1.1".to_string(),
+            "GET /next HTTP/1.1".to_string(),
+            "POST /post307 HTTP/1.1".to_string(),
+            "POST /next HTTP/1.1".to_string(),
+        ],
+        "{requests:?}"
+    );
+}
+
+#[test]
+fn redirect_without_follow_is_data() {
+    // A 3xx without -L is a completed exchange (the curl behavior).
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    let out = wrex()
+        .args([
+            "http",
+            "--format",
+            "json",
+            &format!("http://127.0.0.1:{port}/start"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let json: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(json["status"], 302);
+    assert!(json.get("redirects").is_none(), "no chain without -L");
+}
+
+#[test]
+fn max_redirs_exceeded_is_a_runtime_error() {
+    let (port, seen) = spawn_routing_stub(redirect_routes());
+    let out = wrex()
+        .args([
+            "http",
+            "-L",
+            "--max-redirs",
+            "2",
+            &format!("http://127.0.0.1:{port}/loop"),
+        ])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+    assert_eq!(out.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("redirect budget"), "{stderr}");
+    assert_eq!(seen.lock().unwrap().len(), 3, "the initial + 2 hops");
+}
+
+#[test]
+fn follow_cross_origin_drops_authorization() {
+    // Two stub ports: the redirect target is a different origin, so
+    // Authorization must not survive the hop (curl's rule); the
+    // first request carries it.
+    let listener_a = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port_a = listener_a.local_addr().unwrap().port();
+    let listener_b = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port_b = listener_b.local_addr().unwrap().port();
+    let first_head = Arc::new(Mutex::new(String::new()));
+    let hop_head = Arc::new(Mutex::new(String::new()));
+    let (fa, fh) = (first_head.clone(), hop_head.clone());
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener_a.accept().unwrap();
+        let mut buf = [0u8; 4096];
+        let n = conn.read(&mut buf).unwrap_or(0);
+        *fa.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        let _ = conn.write_all(
+            format!("HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{port_b}/next\r\nContent-Length: 0\r\n\r\n")
+                .as_bytes(),
+        );
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener_b.accept().unwrap();
+        let mut buf = [0u8; 4096];
+        let n = conn.read(&mut buf).unwrap_or(0);
+        *fh.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\n\r\nx");
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    let out = wrex()
+        .args([
+            "http",
+            "-L",
+            "--format",
+            "raw",
+            "-H",
+            "Authorization: Bearer sekret",
+            &format!("http://127.0.0.1:{port_a}/start"),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    assert_eq!(out, b"x");
+    let first = first_head.lock().unwrap().clone();
+    let hop = hop_head.lock().unwrap().clone();
+    assert!(first.contains("authorization: Bearer sekret"), "{first}");
+    assert!(
+        !hop.contains("authorization"),
+        "cross-origin hop must drop Authorization: {hop}"
+    );
+    assert!(hop.contains("GET /next"), "{hop}");
+}
+
+#[test]
+fn cookie_jar_roundtrip_and_send() {
+    // -c collects Set-Cookie; -b loads it and sends Cookie on the
+    // next request; the jar survives round-trips (Netscape format).
+    let (port, _seen) = spawn_routing_stub(redirect_routes());
+    let dir = std::env::temp_dir().join("wrex-http-cli-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let jar = dir.join("cookies.txt");
+    let _ = std::fs::remove_file(&jar);
+
+    // collect: Set-Cookie lands in the jar
+    wrex()
+        .args([
+            "http",
+            "-c",
+            jar.to_str().unwrap(),
+            &format!("http://127.0.0.1:{port}/set-cookie"),
+        ])
+        .assert()
+        .success();
+    let text = std::fs::read_to_string(&jar).unwrap();
+    assert!(text.contains("a\t1"), "{text}");
+    assert!(text.contains("b\t2"), "{text}");
+
+    // send: -b injects the Cookie header (the jar owns it)
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port3 = listener.local_addr().unwrap().port();
+    let captured = Arc::new(Mutex::new(String::new()));
+    let cap2 = captured.clone();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 4096];
+        let n = conn.read(&mut buf).unwrap_or(0);
+        *cap2.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    wrex()
+        .args([
+            "http",
+            "-b",
+            jar.to_str().unwrap(),
+            &format!("http://127.0.0.1:{port3}/echo"),
+        ])
+        .assert()
+        .success();
+    let head = captured.lock().unwrap().clone();
+    assert!(head.contains("cookie: a=1; b=2"), "{head}");
+}
+
+#[test]
+fn cookie_literal_rides_verbatim() {
+    // -b with a non-file value rides as a literal Cookie header
+    // (curl's data form).
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let captured = Arc::new(Mutex::new(String::new()));
+    let cap2 = captured.clone();
+    std::thread::spawn(move || {
+        let (mut conn, _) = listener.accept().unwrap();
+        let mut buf = [0u8; 4096];
+        let n = conn.read(&mut buf).unwrap_or(0);
+        *cap2.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+        let _ = conn.shutdown(std::net::Shutdown::Write);
+    });
+    wrex()
+        .args([
+            "http",
+            "-b",
+            "tok=abc",
+            &format!("http://127.0.0.1:{port}/echo"),
+        ])
+        .assert()
+        .success();
+    let head = captured.lock().unwrap().clone();
+    assert!(head.contains("cookie: tok=abc"), "{head}");
+}
+
+#[test]
+fn follow_flag_grammar() {
+    // --max-redirs 0 with -L: the first hop exhausts the budget.
+    let (port, seen) = spawn_routing_stub(redirect_routes());
+    wrex()
+        .args([
+            "http",
+            "-L",
+            "--max-redirs",
+            "0",
+            &format!("http://127.0.0.1:{port}/start"),
+        ])
+        .assert()
+        .code(1);
+    assert_eq!(seen.lock().unwrap().len(), 1, "no hops allowed");
+}

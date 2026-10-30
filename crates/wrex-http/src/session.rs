@@ -138,6 +138,21 @@ impl HttpClientSession {
         Ok(Self::from_queue(std::iter::once((request, cfg)), t0))
     }
 
+    /// One-request session with an explicit `Connection` header:
+    /// `keep_alive = false` is the T4 close shape (byte-identical to
+    /// [`HttpClientSession::new`]); `true` announces keep-alive — the
+    /// per-exchange verb (tranche 19a) picks for a queue's first
+    /// request, which cannot know yet whether it is the last.
+    pub fn open(
+        spec: &HttpRequestSpec,
+        cfg: HttpConfig,
+        keep_alive: bool,
+        t0: Instant,
+    ) -> Result<Self, String> {
+        let request = spec.serialize_connection(keep_alive)?;
+        Ok(Self::from_queue(std::iter::once((request, cfg)), t0))
+    }
+
     /// Build a keep-alive session: an ordered request queue over one
     /// connection. Every request but the last serializes with
     /// `Connection: keep-alive`; the last announces `close`.
@@ -233,12 +248,38 @@ impl HttpClientSession {
         let reuse = !self.closed && response_keeps_alive(&resp);
         self.results.push_back(HttpOutcome::Response(resp));
         self.reset_exchange();
-        if reuse && !self.requests.is_empty() {
-            // Next queued request on the same connection.
+        if reuse {
+            // The connection continues: straight into the next queued
+            // request, or — queue empty (tranche 19a) — idle OPEN
+            // awaiting a verb-side [`Self::push_request`] (a redirect
+            // or auth re-entry); `poll_action` parks the session at
+            // `Done` when nothing comes, and the driver drop closes.
             self.phase = Phase::Sending;
         } else {
             self.close_queue();
         }
+    }
+
+    /// Queue one follow-up request on a live connection (tranche 19a:
+    /// the verb's redirect/auth re-entry). `keep_alive` picks the
+    /// `Connection` header — the T9a last-request-close rule stays
+    /// verb-decided. Errors when the connection already ended; the
+    /// caller reconnects.
+    pub fn push_request(
+        &mut self,
+        spec: &HttpRequestSpec,
+        cfg: HttpConfig,
+        keep_alive: bool,
+    ) -> Result<(), String> {
+        if self.closed {
+            return Err("connection closed".to_string());
+        }
+        let bytes = spec.serialize_connection(keep_alive)?;
+        self.requests.push_back((bytes, cfg));
+        if self.phase == Phase::Done {
+            self.phase = Phase::Sending;
+        }
+        Ok(())
     }
 
     /// Drive the parse loop as far as the buffered bytes allow.
@@ -908,5 +949,87 @@ mod tests {
         assert_eq!(sent.len(), 2);
         assert!(sent[0].contains("Connection: keep-alive"), "{:?}", sent[0]);
         assert!(sent[1].contains("Connection: close"), "{:?}", sent[1]);
+    }
+
+    // --- tranche 19a: verb-side re-entry (redirects/auth) ---------------------
+
+    #[test]
+    fn push_request_rides_the_open_connection() {
+        // One exchange; the session idles OPEN; a pushed follow-up
+        // (the redirect re-entry) rides the SAME connection with a
+        // keep-alive announcement, and the queue's own response-decides
+        // rule still applies.
+        let reg_clock = Arc::new(FakeClock::new());
+        let t = reg_clock.now();
+        let mut session = HttpClientSession::open(&spec_at("/a"), cfg(), true, t).unwrap();
+        let mut driver = ScriptedDriver::new(reg_clock.clone(), vec![R1.to_vec(), R2.to_vec()]);
+        let first = wrex_session::run(&mut session, &mut driver, reg_clock.as_ref()).unwrap();
+        assert_eq!(first.len(), 1);
+        assert!(matches!(&first[0], HttpOutcome::Response(r) if r.status == 200));
+        // The session is idle-open: push the follow-up and run again.
+        session
+            .push_request(&spec_at("/b"), cfg(), true)
+            .expect("connection is open");
+        let second = wrex_session::run(&mut session, &mut driver, reg_clock.as_ref()).unwrap();
+        assert_eq!(second.len(), 1);
+        assert!(matches!(&second[0], HttpOutcome::Response(r) if r.status == 404));
+        assert_eq!(driver.sent.len(), 2, "both requests rode one connection");
+        let wire = String::from_utf8(driver.sent[1].clone()).unwrap();
+        assert!(wire.contains("Connection: keep-alive"), "{wire}");
+    }
+
+    #[test]
+    fn push_request_on_a_closed_response_errors() {
+        // The response said close: the connection is dead for reuse
+        // and the push is a pointed error (the verb reconnects).
+        let reg_clock = Arc::new(FakeClock::new());
+        let t = reg_clock.now();
+        let close = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
+        let mut session = HttpClientSession::open(&spec_at("/a"), cfg(), true, t).unwrap();
+        let mut driver = ScriptedDriver::new(reg_clock.clone(), vec![close.to_vec()]);
+        let out = wrex_session::run(&mut session, &mut driver, reg_clock.as_ref()).unwrap();
+        assert!(matches!(out.as_slice(), [HttpOutcome::Response(_)]));
+        assert!(session.push_request(&spec_at("/b"), cfg(), true).is_err());
+    }
+
+    #[test]
+    fn pushed_request_observes_a_late_peer_eof() {
+        // The peer answered then closed; the session idles open (it
+        // has not pumped the EOF yet — run() returned idle). The push
+        // succeeds, the pushed request rides, observes the EOF, and
+        // resolves Truncated — the verb's reconnect signal.
+        let reg_clock = Arc::new(FakeClock::new());
+        let t = reg_clock.now();
+        let mut session = HttpClientSession::open(&spec_at("/a"), cfg(), true, t).unwrap();
+        let mut driver = ScriptedDriver::new(reg_clock.clone(), vec![R1.to_vec(), vec![]]);
+        let out = wrex_session::run(&mut session, &mut driver, reg_clock.as_ref()).unwrap();
+        assert!(matches!(out.as_slice(), [HttpOutcome::Response(_)]));
+        session
+            .push_request(&spec_at("/b"), cfg(), true)
+            .expect("the EOF has not arrived yet — the session is open");
+        let second = wrex_session::run(&mut session, &mut driver, reg_clock.as_ref()).unwrap();
+        assert_eq!(second.len(), 1);
+        assert!(matches!(second[0], HttpOutcome::Truncated), "{second:?}");
+    }
+
+    #[test]
+    fn open_false_is_the_t4_close_shape() {
+        let spec = HttpRequestSpec::build("GET", "http://example.com/", &[], Bytes::new()).unwrap();
+        let t0 = Instant::now();
+        let mut close = HttpClientSession::new(&spec, cfg(), t0).unwrap();
+        let mut open_false = HttpClientSession::open(&spec, cfg(), false, t0).unwrap();
+        let a = close.poll_action();
+        let b = open_false.poll_action();
+        match (a, b) {
+            (Some(SessionAction::Send(x)), Some(SessionAction::Send(y))) => {
+                assert_eq!(x, y, "open(.., false) == new() wire bytes");
+                assert!(
+                    String::from_utf8(x.to_vec())
+                        .unwrap()
+                        .contains("Connection: close")
+                );
+            }
+            other => panic!("expected sends, got {other:?}"),
+        }
     }
 }
