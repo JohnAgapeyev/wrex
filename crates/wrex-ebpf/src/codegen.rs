@@ -727,13 +727,16 @@ fn emit_l4_dispatch(
             e.raw(Insn::lsh64_imm(R3, 3));
             e.place(shared_advance);
             // The chain pointer: the CONSUMED header's own next byte
-            // (at P_L4+0) names what follows — read BEFORE advancing
-            // (the terminal header's byte 0 is its own data, not a
-            // next-header). R2 ferries the size past the read; R3 the
-            // chain byte past the bounds check (whose scratch is r5).
+            // (at P_L4+0) names what follows — read from the LIVE,
+            // already-bounds-checked R4 (the is_ext block's 8-byte
+            // range): re-deriving R4 = data + P_L4 loses the proven
+            // range once P_L4 is packet-derived — iteration 1 only
+            // survived because P_L4 was still a constant, which the
+            // verifier reconstructs (lesson #4, insn 220: "R4 min
+            // value is outside of the allowed memory range"). R2
+            // ferries the size past the read; R3 the chain byte past
+            // the next-header bounds check (whose scratch is r5).
             e.raw(Insn::mov64_reg(R2, R3));
-            e.raw(Insn::mov64_reg(R4, P_DATA));
-            e.raw(Insn::add64_reg(R4, P_L4));
             e.raw(Insn::ldx_b(R3, R4, 0));
             e.raw(Insn::add64_reg(P_L4, R2));
             e.raw(Insn::mov64_reg(R4, P_DATA));

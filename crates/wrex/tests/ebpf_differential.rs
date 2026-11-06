@@ -194,7 +194,7 @@ fn boundary_length_sweep_never_bounds() {
         let mut machine = vm::Vm::new_default();
         machine.declare_program_maps(&prog);
         machine.maps.set(ebpf::MAP_IDX_XSK, &0u32.to_le_bytes(), 1);
-        for len in 0..=60usize {
+        for len in 0..=100usize {
             // Pattern families, not one zero-fill: the reads are
             // position-driven but the WALK is value-gated — the zero
             // frame's family nibble is 0, so it never reaches the v4/v6
@@ -204,7 +204,9 @@ fn boundary_length_sweep_never_bounds() {
             for pattern in [
                 vec![0u8; len],           // zeros: the L2/eth arm
                 vec![0x60; len],          // 0x60-fill: the raw-v6 arm
-                b"\x60\x00\x00\x00\x00\x00\x00\x00".to_vec(), // raw v6, next 0 = hopopts → the ext chain
+                b"\x60\x00\x00\x00\x00\x00\x00\x00".to_vec(), // raw v6, next 0 = hopopts → the ext chain (zeros
+                    // make EVERY hop a hopopts: the multi-hop chain
+                    // reads at 48, 56, 64… ride the length sweep)
                 b"\x45\x00\x00\x00\x00\x00\x00\x00".to_vec(),  // raw v4: the ihl walk
                 b"\xff\xff\xff\xff\xff\xff\x00\x11\x22\x33\x44\x55\x86\xdd\x60\x00\x00\x00\x00\x00\x00\x00"
                     .to_vec(),            // eth+v6: the eth walk into the v6 arm
