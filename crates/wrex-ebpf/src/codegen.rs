@@ -210,11 +210,16 @@ fn plan_terms(terms: &[Term]) -> Result<Plan, CompileError> {
 
 // --- the emitter ------------------------------------------------------------
 
-/// Label-backpatching assembler.
+/// Label-backpatching assembler. Tracks which labels are actually
+/// targeted by a jump (`used`) — the kernel verifier refuses
+/// unreachable instructions, so a block whose label nothing jumps to
+/// must not be emitted (the stub's dead miss tail, the first live
+/// review's EINVAL).
 struct E {
     insns: Vec<Insn>,
     patches: Vec<(usize, u32)>,
     labels: BTreeMap<u32, usize>,
+    used: BTreeMap<u32, usize>,
     next_label: u32,
 }
 
@@ -224,8 +229,14 @@ impl E {
             insns: Vec::new(),
             patches: Vec::new(),
             labels: BTreeMap::new(),
+            used: BTreeMap::new(),
             next_label: 0,
         }
+    }
+
+    /// Has any jump targeted this label?
+    fn label_used(&self, l: u32) -> bool {
+        self.used.get(&l).copied().unwrap_or(0) > 0
     }
 
     fn label(&mut self) -> u32 {
@@ -245,6 +256,7 @@ impl E {
     /// an addr like 192.168.0.0 would never compare equal there.
     fn jump(&mut self, op: Option<(JmpOp, u8, i32)>, l: u32) {
         self.patches.push((self.insns.len(), l));
+        *self.used.entry(l).or_default() += 1;
         match op {
             Some((jop, reg, imm)) => self.insns.push(Insn::j32_imm(jop, reg, imm, 0)),
             None => self.insns.push(Insn::ja(0)),
@@ -254,6 +266,7 @@ impl E {
     /// Conditional jump against another REGISTER.
     fn jump_reg(&mut self, op: JmpOp, dst: u8, src: u8, l: u32) {
         self.patches.push((self.insns.len(), l));
+        *self.used.entry(l).or_default() += 1;
         self.insns.push(Insn::j64_reg(op, dst, src, 0));
     }
 
@@ -505,9 +518,14 @@ pub fn compile_filter(
                     miss,
                 )?;
             }
-            // Family dispatch on the version nibble at r8.
+            // Family dispatch on the version nibble at r8 — with its
+            // OWN bounds check: the walk proved the ETHERTYPE
+            // readable (r8-2..r8), not the nibble AT r8; a frame
+            // ending exactly at the L3 boundary would OOB-read (the
+            // verifier's second live lesson, caught at insn 93).
             e.raw(Insn::mov64_reg(R4, P_DATA));
             e.raw(Insn::add64_reg(R4, P_L3));
+            emit_ptr_bounds(&mut e, R4, 1, miss);
             e.raw(Insn::ldx_b(R5, R4, 0));
             e.raw(Insn::rsh64_imm(R5, 4));
             e.raw(Insn::and64_imm(R5, 0xf));
@@ -573,13 +591,25 @@ pub fn compile_filter(
             }
         }
     }
+    // Dead-block elimination (the verifier refuses unreachable
+    // instructions): emit each terminal block only when something
+    // jumps to it. The two are complementary by construction (every
+    // path jumps to one or the other), so exactly one survives the
+    // empty-filter stub (all jumps to `matched`) and the
+    // contradictory case (all jumps to `miss`).
+    let matched_used = e.label_used(matched);
     e.place(matched);
-    emit_action(&mut e, action, &mut maps);
+    if matched_used {
+        emit_action(&mut e, action, &mut maps);
+    }
+    let miss_used = e.label_used(miss);
     e.place(miss);
-    // The fallback is ALWAYS pass (the sound-fallback contract — even
-    // for the ACL shape, a non-matching frame passes).
-    e.raw(Insn::mov64_imm(0, XDP_PASS));
-    e.raw(Insn::exit());
+    if miss_used {
+        // The fallback is ALWAYS pass (the sound-fallback contract —
+        // even for the ACL shape, a non-matching frame passes).
+        e.raw(Insn::mov64_imm(0, XDP_PASS));
+        e.raw(Insn::exit());
+    }
     Ok(Program {
         name: name.to_string(),
         maps,

@@ -164,6 +164,50 @@ fn empty_packet_yields_clean_verdicts_never_bounds() {
     }
 }
 
+/// The boundary-length sweep (the systematic form of the live
+/// verifier's two lessons): a compiled program must resolve CLEANLY
+/// (a verdict, never a VM Bounds error) on frames of EVERY length
+/// 0..=60 — both live rejections hid in the corpus gap (no corpus
+/// frame is empty, and none ends exactly at the eth/L3 boundary, so
+/// the unchecked nibble read and the off-by-one bounds pattern never
+/// fired in the differential). The verifier proves for ALL frames;
+/// this sweep pins the same class in the per-commit executor.
+#[test]
+fn boundary_length_sweep_never_bounds() {
+    let reg = registry();
+    for expr in [
+        "eth.type=0x0800",
+        "eth.dst=ff:ff:ff:ff:ff:ff",
+        "udp.dport=53",
+        "udp.sport<1024",
+        "tcp.dport=443",
+        "tcp.flags.syn=true",
+        "tcp.flags=ack",
+        "ipv4.ttl=64",
+        "ipv4.src=10.0.0.0/8",
+        "ipv6.hop_limit=1",
+        "ipv6.src=2001:db8::/32",
+        "",
+    ] {
+        let f = Filter::parse(&reg, expr).unwrap();
+        let prog = ebpf::compile_capture_prefilter(&reg, &f).unwrap();
+        let mut machine = vm::Vm::new_default();
+        machine.declare_program_maps(&prog);
+        machine.maps.set(ebpf::MAP_IDX_XSK, &0u32.to_le_bytes(), 1);
+        for len in 0..=60usize {
+            // Every byte 0x45/0x60/etc pattern would be its own test;
+            // zeros + one length-family sweep suffice for the class —
+            // the walk's reads are position-driven, not value-driven.
+            let frame = vec![0u8; len];
+            let got = machine.run(&prog, &frame);
+            assert!(
+                got.is_ok(),
+                "`{expr}` on a {len}-byte frame must resolve cleanly (got {got:?})"
+            );
+        }
+    }
+}
+
 /// The pointed-error boundary: terms the kernel subset cannot express
 /// refuse compilation (record sections, Str fields, u64+ ints, layers
 /// outside the walk) — never a silent wrong answer. The userspace
