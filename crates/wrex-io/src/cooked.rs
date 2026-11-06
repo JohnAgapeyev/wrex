@@ -149,6 +149,8 @@ mod tests {
     /// halen 6, the veth MAC + 2 pad, protocol 0x86dd).
     #[test]
     fn sll_synthesis_matches_fixture() {
+        // SAFETY: sockaddr_ll is all-POD — zeroing it is a valid
+        // defined instance (fields are assigned below).
         let mut addr: libc::sockaddr_ll = unsafe { std::mem::zeroed() };
         addr.sll_pkttype = 4;
         addr.sll_hatype = 1;

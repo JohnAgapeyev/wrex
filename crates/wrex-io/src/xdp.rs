@@ -373,6 +373,8 @@ struct Mmap {
 }
 
 impl Mmap {
+    /// SAFETY: caller contract — the returned region is uniquely owned
+    /// (anonymous zero-filled pages; `mmap` with PRIVATE|ANONYMOUS).
     unsafe fn anonymous(len: usize) -> io::Result<Self> {
         // SAFETY: `mmap` with PROT_READ|WRITE, PRIVATE|ANONYMOUS —
         // zero-filled pages owned by this struct until drop.
@@ -392,6 +394,9 @@ impl Mmap {
         Ok(Self { addr, len })
     }
 
+    /// SAFETY: caller contract — `fd` must be a live descriptor and
+    /// the pgoff/len a region the kernel declared for it; the mapping
+    /// is uniquely owned until drop.
     unsafe fn shared(fd: i32, pgoff: libc::off_t, len: usize) -> io::Result<Self> {
         // SAFETY: `mmap` of the socket's declared ring region; the
         // mapping is owned by this struct until drop.
@@ -544,6 +549,8 @@ impl XskDriver {
             // SAFETY: shared mappings of the socket's declared regions.
             let fill_map = unsafe { Mmap::shared(fd, XDP_UMEM_PGOFF_FILL_RING, fill_len) }
                 .map_err(io_to_driver)?;
+            // SAFETY: same region contract (the RX ring's declared
+            // pgoff/len from getsockopt).
             let rx_map =
                 unsafe { Mmap::shared(fd, XDP_PGOFF_RX_RING, rx_len) }.map_err(io_to_driver)?;
             // Bind to (ifindex, queue 0).
@@ -553,6 +560,8 @@ impl XskDriver {
             sa.sxdp_ifindex = ifindex as u32;
             sa.sxdp_queue_id = 0;
             // SAFETY: `bind` reads the sockaddr; `fd` is owned here.
+            // SAFETY: `bind` reads the (owned) sockaddr; `fd` is owned
+            // here, and `sa` was initialized above.
             let ret = unsafe {
                 libc::bind(
                     fd,

@@ -492,12 +492,12 @@ fn suitetime(root: &Path, update: bool) {
                 println!("suitetime: NEW suite {suite}: {t:.1}s (baseline with --update)");
             }
             Some(b) => {
-                // Sub-100ms baselines are noise-only: skip (a 40ms suite
-                // "doubling" is scheduler jitter, not bloat — and the
-                // 2x gate against a ~0.0s baseline trips on any jitter).
-                // The suite's *size class* is the baseline's, not the
-                // measurement's.
-                if *b < 0.1 {
+                // Sub-half-second baselines are noise-only on shared
+                // runners: skip (a 100ms suite "doubling" is scheduler
+                // jitter — the T23 CI run measured 0.2s for a 0.11s
+                // suite — not bloat; the 2x gate needs a baseline big
+                // enough for the >2x class to mean something).
+                if *b < 0.5 {
                     continue;
                 }
                 if *t > b * 2.0 {
