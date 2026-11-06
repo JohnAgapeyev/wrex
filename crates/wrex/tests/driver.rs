@@ -539,9 +539,7 @@ fn capture_xdp_fallback_note_matches_privileges() {
         // diagnostic (never a silent fallback) rather than a hard
         // assert — inspect before promoting the datapath to trusted.
         if stderr.contains("using the AF_PACKET path") {
-            eprintln!(
-                "XDP DOWNGRADE under privileges on this kernel — inspect the note: {stderr}"
-            );
+            eprintln!("XDP DOWNGRADE under privileges on this kernel — inspect the note: {stderr}");
         } else {
             eprintln!("XDP datapath engaged (no downgrade note)");
         }
