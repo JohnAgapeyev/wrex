@@ -60,11 +60,14 @@ egress) — the T17-0 retrofit precedent is the vehicle.
 - The committed deviation from the roadmap's aya recommendation is
   recorded here and in the tranche entry; the swap triggers are
   ledger lines, not silent drift.
-- **The kernel floor is part of the contract** (the first live root
-  runs caught it): `BPF_MAP_TYPE_XSKMAP` is registered by
-  net/xdp/xskmap.c, which only compiles under `CONFIG_XDP_SOCKETS` —
-  kernels built without it accept plain BPF (HASH maps create fine)
-  but return EINVAL on the XSKMAP. The datapath probe therefore tests
-  the XSKMAP itself, not BPF in general, and the fallback note
-  distinguishes the privilege refusal from the build refusal. The
-  step-tagged attach errors name whichever kernel call refuses.
+- **Hand-marshaled ABI constants come from the system headers, cited
+  in the doc comments — never from memory** (the post-mortem rule the
+  tranche's live-root debugging forced): the initial XSKMAP constant
+  (42) was an unregistered type on every kernel, and the EINVAL it
+  produced on two machines masqueraded as a kernel restriction until
+  the header pass corrected it (17 — along with SOL_XDP 283, the
+  RX-ring sockopt id 2, and the 32-byte umem_reg). The datapath probe
+  creates the XSKMAP itself, the step-tagged attach errors name the
+  refusing kernel call, and the kernel floor that remains is the
+  cheap one: a build without `CONFIG_XDP_SOCKETS` refuses the XSKMAP
+  and the transparent AF_PACKET fallback carries capture.

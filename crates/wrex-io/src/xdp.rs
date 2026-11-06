@@ -31,9 +31,13 @@ const BPF_MAP_CREATE: libc::c_int = 0;
 const BPF_MAP_UPDATE_ELEM: libc::c_int = 2;
 const BPF_PROG_LOAD: libc::c_int = 5;
 
-/// `enum bpf_map_type`.
+/// `enum bpf_map_type` — values COPIED FROM /usr/include/linux/bpf.h
+/// (count the enum, never trust memory: the tranche's live runs
+/// caught a hand-marshaled 42 for the XSKMAP — an unregistered type
+/// on every kernel — behind an EINVAL the kernel story initially
+/// took the blame for; the header says 17).
 pub const BPF_MAP_TYPE_HASH: u32 = 1;
-pub const BPF_MAP_TYPE_XSKMAP: u32 = 42;
+pub const BPF_MAP_TYPE_XSKMAP: u32 = 17;
 /// `enum bpf_prog_type`: XDP = 6.
 pub const BPF_PROG_TYPE_XDP: u32 = 6;
 
@@ -364,14 +368,18 @@ impl core::fmt::Display for XdpUnavailable {
 
 // --- AF_XDP (XSK) ------------------------------------------------------------
 
-/// `AF_XDP` = 44; SOL_XDP = 284.
+/// `AF_XDP` = 44 (socket.h); `SOL_XDP` = 283 (bits/socket.h — the
+/// hand-copied 284 was wrong, caught by the same header pass).
 const AF_XDP: libc::c_int = 44;
-const SOL_XDP: libc::c_int = 284;
-/// setsockopt ids (linux/if_xdp.h).
+const SOL_XDP: libc::c_int = 283;
+/// Socket-option ids (linux/if_xdp.h): XDP_MMAP_OFFSETS=1,
+/// XDP_RX_RING=2, XDP_TX_RING=3, XDP_UMEM_REG=4, XDP_UMEM_FILL_RING=5,
+/// XDP_UMEM_COMPLETION_RING=6 (the hand-copied RX id 7 was actually
+/// XDP_STATISTICS).
 const XDP_UMEM_REG: libc::c_int = 4;
 const XDP_UMEM_FILL_RING: libc::c_int = 5;
 const XDP_UMEM_COMPLETION_RING: libc::c_int = 6;
-const XDP_RX_RING: libc::c_int = 7;
+const XDP_RX_RING: libc::c_int = 2;
 const XDP_MMAP_OFFSETS: libc::c_int = 1;
 /// mmap pgoffs: RX = 0, FILL = 0x100000000, COMPLETION = 0x180000000.
 const XDP_PGOFF_RX_RING: libc::off_t = 0;
@@ -381,7 +389,10 @@ const UMEM_FRAMES: usize = 256;
 const FRAME_SIZE: usize = 4096;
 const PAGE: usize = 4096;
 
-/// `struct xdp_umem_reg` (uapi): addr, len, chunk_size, headroom, flags.
+/// `struct xdp_umem_reg` (uapi, /usr/include/linux/if_xdp.h): addr, len,
+/// chunk_size, headroom, flags, tx_metadata_len — SIX fields, 32 bytes;
+/// the kernel's `optlen < sizeof(struct xdp_umem_reg)` check rejects a
+/// 28-byte (5-field) struct with EINVAL.
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct UmemReg {
@@ -390,6 +401,7 @@ struct UmemReg {
     chunk_size: u32,
     headroom: u32,
     flags: u32,
+    tx_metadata_len: u32,
 }
 
 /// `struct xdp_ring_offset`: the producer/consumer/desc offsets within
@@ -557,8 +569,8 @@ impl XskDriver {
             });
         }
         let opened = (|| -> Result<Self, DriverError> {
-            // UMEM registration (28-byte struct: the modern flags field
-            // zeroed satisfies both kernel generations).
+            // UMEM registration (the full 32-byte modern struct; the
+            // kernel's size check rejects short variants).
             // SAFETY: owned anonymous region, registered below.
             let umem =
                 unsafe { Mmap::anonymous(UMEM_FRAMES * FRAME_SIZE) }.map_err(io_to_driver)?;
@@ -568,6 +580,7 @@ impl XskDriver {
                 chunk_size: FRAME_SIZE as u32,
                 headroom: 0,
                 flags: 0,
+                tx_metadata_len: 0,
             };
             // SAFETY: `setsockopt` reads `reg` (struct-owned, sized).
             let ret = unsafe {

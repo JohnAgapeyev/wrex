@@ -77,11 +77,14 @@ pub enum MapKind {
 }
 
 impl MapKind {
-    /// The `enum bpf_map_type` value.
+    /// The `enum bpf_map_type` value — counted from
+    /// /usr/include/linux/bpf.h (UNSPEC=0 .. CPUMAP=16, XSKMAP=17).
+    /// The tranche's live runs caught a hand-marshaled 42 here: an
+    /// unregistered map type on every kernel, EINVAL at create — the
+    /// constant comes from the header, never memory.
     pub const fn kernel_id(self) -> u32 {
         match self {
-            // linux/bpf.h: BPF_MAP_TYPE_HASH = 1, XSKMAP = 42.
-            Self::XskMap => 42,
+            Self::XskMap => 17,
             Self::Hash => 1,
         }
     }
@@ -1681,7 +1684,7 @@ mod tests {
         let p = compile_capture_prefilter(&reg, &f).unwrap();
         assert!(p.insns.last().is_some_and(|i| i.code == 0x95));
         assert_eq!(p.maps.len(), 1);
-        assert_eq!(p.maps[0].kind.kernel_id(), 42); // BPF_MAP_TYPE_XSKMAP
+        assert_eq!(p.maps[0].kind.kernel_id(), 17); // BPF_MAP_TYPE_XSKMAP (the uapi enum)
     }
 
     /// A hand-built eth+ipv4+udp frame (the craft golden's wire bytes)

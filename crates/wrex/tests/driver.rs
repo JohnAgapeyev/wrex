@@ -538,11 +538,12 @@ fn capture_xdp_fallback_note_matches_privileges() {
             // ENGAGE (probe → compile → XSK open → prog load → attach —
             // every step's refusal is step-tagged in the note). A
             // downgrade note here is a real regression, so it FAILS.
-            // NOTE (the live-root findings): the XSKMAP create is
-            // refused EINVAL on EVERY current machine (arch1 AND the
-            // ubuntu runner — see the ledger), so this arm is the
-            // forward-looking gate, not a verified-live one: the
-            // moment the constant/floor resolves, it starts gating.
+            // NOTE (the live-root post-mortem): the first two live
+            // rounds showed EINVAL everywhere — that was OUR wrong
+            // uapi constant (XSKMAP 42 vs the header's 17), not the
+            // kernels; the header pass fixed it. This arm gates the
+            // full chain (probe → compile → XSK open → prog load →
+            // netlink attach) on every capable kernel.
             assert!(
                 !stderr.contains("using the AF_PACKET path"),
                 "XDP-capable kernel: the datapath must engage, got the downgrade note: {stderr}"
