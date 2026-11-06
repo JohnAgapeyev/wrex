@@ -168,7 +168,12 @@ jobs:
       # tranche-1 send/recv roundtrip and the tranche-2 scan ground truth
       # (bound listener -> open, unbound -> closed, udp/icmp semantics).
       # No `--workspace` here: it conflicts with `-p` selection.
-      - run: sudo -E env "PATH=$PATH" WREX_DRIVER_TESTS=1 PROPTEST_RNG_SEED=31337 cargo test --all-features -p wrex-io -p wrex
+      # sudo -E preserves the environment EXCEPT HOME (sudo resets it to
+      # /root) — the runner image's rustup resolves its default toolchain
+      # through $HOME/.rustup, so the step died with "rustup could not
+      # choose a version of cargo" once the image's HOME handling
+      # changed. The explicit HOME is the durable repair.
+      - run: sudo -E env "PATH=$PATH" "HOME=$HOME" WREX_DRIVER_TESTS=1 PROPTEST_RNG_SEED=31337 cargo test --all-features -p wrex-io -p wrex
 
   differential:
     runs-on: ubuntu-latest
