@@ -12,7 +12,7 @@
 
 use std::io;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 
@@ -638,6 +638,41 @@ impl XskDriver {
     }
 }
 
+/// Open the XSK, riding out the kernel's ASYNCHRONOUS teardown of a
+/// previous capture's XSK: the old socket stays referenced by its
+/// XSKMAP, the map by the program, the program by the bpf_link — so
+/// the (iface, queue) slot only frees a grace period or two after
+/// the last holder exits, and a back-to-back capture's bind takes
+/// EBUSY for that window (a completely legitimate flow — stop one
+/// capture, start the next; the serialized driver ground truths hit
+/// it within milliseconds). Each attempt is a fresh, fully
+/// cleaned-up `open` (the error path closes the fd and drops the
+/// rings); a PERSISTENT EBUSY — a live concurrent capture holding
+/// the slot — stays an honest pointed error after the budget.
+fn xsk_open_with_teardown_grace(iface: &str, ifindex: i32) -> Result<XskDriver, DriverError> {
+    const BUDGET: Duration = Duration::from_secs(2);
+    const RETRY_PAUSE: Duration = Duration::from_millis(25);
+    let deadline = Instant::now() + BUDGET;
+    loop {
+        match XskDriver::open(iface, ifindex) {
+            Ok(drv) => return Ok(drv),
+            Err(DriverError::Io { source })
+                if is_teardown_ebusy(&source) && Instant::now() < deadline =>
+            {
+                std::thread::sleep(RETRY_PAUSE);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+/// EBUSY from the XSK bind: the previous holder's deferred teardown
+/// (the retry-worthy transient), distinguished from other io errors
+/// by the raw errno — never an unstable `ErrorKind` mapping.
+fn is_teardown_ebusy(source: &io::Error) -> bool {
+    source.raw_os_error() == Some(libc::EBUSY)
+}
+
 impl Driver for XskDriver {
     fn send(&mut self, _frame: &[u8]) -> io::Result<()> {
         // The XSK TX ring is the line-rate replay arm — a recorded
@@ -741,7 +776,8 @@ impl XdpCapture {
     ) -> Result<Self, DriverError> {
         let xskmap = BpfMap::create(BPF_MAP_TYPE_XSKMAP, 4, 4, 64)
             .map_err(|e| step("map create (XSKMAP)", e))?;
-        let xsk = XskDriver::open(iface, ifindex).map_err(|e| step_driver("xsk open", e))?;
+        let xsk =
+            xsk_open_with_teardown_grace(iface, ifindex).map_err(|e| step_driver("xsk open", e))?;
         // XSKMAP values are SOCKET fds: the XSK's own socket joins at
         // the queue key 0 (the compiled redirect uses rx_queue as key).
         let key = 0u32.to_le_bytes();

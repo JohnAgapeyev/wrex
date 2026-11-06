@@ -2154,6 +2154,10 @@ rationale in [verification.md](verification.md)):
     filter keeps semantics exact when the kernel subset cannot express
     the whole expression (the kernel runs the always-redirect stub
     then — semantics exact, acceleration partial, the honest split).
+    The XSK open rides the kernel's deferred slot teardown (EBUSY,
+    bounded 2s retry — back-to-back captures just work; the
+    filtered-capture ground truth caught the window on its first
+    live round).
   - **T23c — `wrex-ebpf`** (the schema→codegen, [ADR-0005](adr/0005-ebpf-loader-and-syscall-surface.md)):
     programs are **compiled artifacts of the layout tables** — every
     field offset comes from the codecs' own `layouts()`, never

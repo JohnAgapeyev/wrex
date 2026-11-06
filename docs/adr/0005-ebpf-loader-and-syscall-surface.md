@@ -100,3 +100,13 @@ egress) — the T17-0 retrofit precedent is the vehicle.
   chain) decay to an untracked class in the checker — every such
   emit site is `emit_ptr` + `emit_ptr_bounds` by audited
   discipline, and extending the checker there is a swap trigger.
+- **The XSK slot teardown is asynchronous — the open rides it out**
+  (the filtered-capture ground truth's first live round found it):
+  a capture's XSK stays referenced after its process exits (the
+  XSKMAP holds the socket, the program holds the map, the bpf_link
+  holds the program), so the (iface, queue) bind slot frees only a
+  grace period or two later — and a back-to-back capture's bind
+  takes EBUSY. The driver retries the open for a bounded 2s (each
+  attempt a fresh, fully cleaned-up socket); a PERSISTENT EBUSY (a
+  live concurrent capture holding the slot) stays the pointed
+  step-tagged error it was.

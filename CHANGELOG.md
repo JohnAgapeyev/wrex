@@ -37,6 +37,11 @@ loader/syscall decisions) recorded at the same pass.
   responder, and the 4-tuple flow-table counter ride the same
   codegen; `tests/ebpf_differential.rs` runs the userspace-VM verdict
   differential against the filter engine over every corpus frame.
+  The XSK open rides the kernel's deferred teardown of a previous
+  capture's socket (EBUSY, bounded 2s retry — the XSKMAP holds the
+  socket, the program the map, the bpf_link the program, so the
+  bind slot frees a grace period after the holder exits):
+  back-to-back captures on one interface just work.
 - **Static verifier-shape checker** (`wrex-ebpf::verify`): the
   kernel verifier's known rules enforced at COMPILE time — every
   `compile_*` abstract-interprets the emitted program
