@@ -13,14 +13,18 @@ fn driver_tests_enabled() -> bool {
     std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1")
 }
 
-/// XDP attaches are exclusive per interface: two concurrent
-/// `capture -i lo` children race for `lo`'s single XDP slot (the
-/// second attach gets EBUSY — the step-tagged downgrade note — and
-/// the no-note regression assert goes flaky). The two XDP-attaching
-/// ground truths serialize on this lock for the capture child's
-/// lifetime; every other driver test rides AF_PACKET (`recv`,
-/// `-i any` cooked capture) and never contends.
-static XDP_ATTACH: Mutex<()> = Mutex::new(());
+/// The `lo` interface is SHARED STATE for this whole suite: an
+/// XDP-redirect-attached `lo` CONSUMES frames by design (the tap
+/// never sees them — that is what redirect is), so an attaching test
+/// eats the traffic every sibling depends on (the redirect-all stub
+/// swallows sibling probes for its attach window; the filtered
+/// capture eats exactly the cooked test's discard-port probe —
+/// `send_udp_on_lo` targets 127.0.0.1:9). AF_PACKET coexistence was
+/// never the issue — taps don't consume — and every argument for
+/// parallel coexistence predates the redirect datapath. The five
+/// ground truths serialize on this lock; the cost (~40s serial) buys
+/// determinism on a shared interface.
+static LO_DRIVER_LOCK: Mutex<()> = Mutex::new(());
 
 /// Capability probe (shared in wrex-test): `lo` + optional IPv6.
 fn loopback_ready(v6: bool) -> bool {
@@ -50,15 +54,30 @@ fn spawn_recv_bounded(count: u64, timeout: &str) -> Child {
         .expect("spawn wrex recv")
 }
 
-/// Spawn `wrex recv -i lo --count 1 --format raw --filter F` with piped
-/// stdout — the roundtrip test's byte-compare capture. The filter is
-/// load-bearing (sibling tests share `lo` and cargo runs them in
-/// parallel), and the send's paced repeats guarantee a match within
-/// seconds (verified in CI), so an unbounded recv is safe here.
+/// Spawn `wrex recv -i lo --count 1 --timeout 10s --format raw
+/// --filter F` with piped stdout — the roundtrip test's byte-compare
+/// capture. The filter is load-bearing (the discard-port probe must
+/// not leak in), and the timeout is EXPLICIT — the old comment
+/// claimed an unbounded recv was safe "because paced repeats
+/// guarantee a match", which was wrong twice over: the verb already
+/// capped it at a 2s DEFAULT (tighter than the send's own duration)
+/// and an XDP-redirect sibling could eat the frames entirely (the
+/// suite-wide lock now prevents that; the explicit timeout is the
+/// second belt — the hopopts incident's lesson, applied here).
 fn spawn_recv_filtered(filter: &str) -> Child {
     Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
-            "recv", "-i", "lo", "--count", "1", "--format", "raw", "--filter", filter,
+            "recv",
+            "-i",
+            "lo",
+            "--count",
+            "1",
+            "--timeout",
+            "10s",
+            "--format",
+            "raw",
+            "--filter",
+            filter,
         ])
         .stdout(Stdio::piped())
         .spawn()
@@ -528,10 +547,10 @@ fn capture_xdp_fallback_note_matches_privileges() {
     assert!(loopback_ready(false), "lo must be up");
     let dir = wrex_test::tempdir();
     let cap = dir.path().join("cap.pcap");
-    // Hold the attach lock through the capture child's lifetime —
-    // the filtered-capture sibling attaches too (one XDP program per
-    // iface; concurrent attaches race, this is the serialization).
-    let _attach = XDP_ATTACH.lock().unwrap_or_else(|p| p.into_inner());
+    // The suite-wide `lo` lock (see LO_DRIVER_LOCK): this capture
+    // engages the redirect-all XDP stub — it would eat every sibling
+    // test's live-lo frames for its attach window.
+    let _attach = LO_DRIVER_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "capture",
@@ -602,9 +621,9 @@ fn filtered_xdp_capture_delivers_matching_frames() {
     let dir = wrex_test::tempdir();
     let cap = dir.path().join("filtered.pcap");
 
-    // Serialize with the fallback-note test: `lo` takes ONE XDP
-    // program; a concurrent attach takes EBUSY, not a turn.
-    let _attach = XDP_ATTACH.lock().unwrap_or_else(|p| p.into_inner());
+    // The suite-wide `lo` lock (see LO_DRIVER_LOCK) — this filtered
+    // capture eats the cooked test's discard-port probe otherwise.
+    let _attach = LO_DRIVER_LOCK.lock().unwrap_or_else(|p| p.into_inner());
     let mut capture = Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "capture",

@@ -25,6 +25,29 @@ fn driver_tests_enabled() -> bool {
     std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1") && wrex_test::loopback_ready(false)
 }
 
+/// Serializes the driver-gated workflow tests — `lo` is SHARED STATE:
+/// an XDP-redirect-attached `lo` (the capture default since tranche
+/// 23b/c — wf07's live-traffic capture engages the redirect-ALL stub
+/// for its window) CONSUMES every sibling's live-lo frame BY DESIGN,
+/// and the old AF_PACKET-tap coexistence argument died with the
+/// redirect datapath. The wedged-runner incident: wf07's stub ate
+/// wf14's single dport-5999 probe and wf14's recv (no --timeout, the
+/// verb's one-hour default) slept on a fresh hour-long window per
+/// poll — a 60-minute hang cargo reported at 60 seconds. All gated
+/// tests lock through [`driver_gate`]; the offline workflows never
+/// touch live frames.
+static LO_DRIVER: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The env gate AND the `lo` lock in one step — a gated test either
+/// skips, or runs serialized for its whole body (the guard rides the
+/// caller's return).
+fn driver_gate() -> Option<std::sync::MutexGuard<'static, ()>> {
+    if !driver_tests_enabled() {
+        return None;
+    }
+    Some(LO_DRIVER.lock().unwrap_or_else(|p| p.into_inner()))
+}
+
 fn tmpdir(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("wrex-wf-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -606,10 +629,10 @@ fn wf23_fuzz_a_tls_service() {
 /// bound TCP listener: open.
 #[test]
 fn wf02_scan_for_listeners() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf02: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().unwrap().port().to_string();
     std::thread::spawn(move || {
@@ -634,10 +657,10 @@ fn wf02_scan_for_listeners() {
 /// capture under live traffic, then replay the capture.
 #[test]
 fn wf07_capture_then_inspect() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf07: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let dir = tmpdir("07");
     let cap = dir.join("cap.pcap");
     // Live traffic: a concurrent wrex send onto lo while capture runs.
@@ -678,10 +701,10 @@ fn wf07_capture_then_inspect() {
 /// wire and a concurrent recv sees it.
 #[test]
 fn wf14_send_the_frame() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf14 send: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let recv = std::process::Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "recv",
@@ -689,6 +712,11 @@ fn wf14_send_the_frame() {
             "lo",
             "--count",
             "1",
+            // EXPLICIT timeout: the verb's no-flag default is a full
+            // hour (the Ctrl-C sniffing experience) — a missed frame
+            // here must end the test in seconds, not wedge CI.
+            "--timeout",
+            "10s",
             "--format",
             "jsonl",
             "--filter",
@@ -729,10 +757,10 @@ fn wf14_send_the_frame() {
 /// every outcome" — baseline + rounds against a bound responder.
 #[test]
 fn wf21_probe_a_service() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf21: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     // A UDP responder on lo.
     let sock = std::net::UdpSocket::bind("127.0.0.1:0").expect("bind");
     let port = sock.local_addr().unwrap().port().to_string();
@@ -771,10 +799,10 @@ fn wf21_probe_a_service() {
 /// the wire verbatim.
 #[test]
 fn wf24_replay_the_probe_corpus() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf24 replay: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let dir = tmpdir("24");
     let cap = dir.join("prod.pcap");
     write_pcap(&cap, &corpus_frames("udp"));
@@ -836,10 +864,10 @@ fn wf_dns_reply(query: &[u8], answer: (&[u8], &[u8])) -> Vec<u8> {
 /// dissection asserts udp_size + DO), and the reply renders.
 #[test]
 fn wf28_edns_do_on_the_wire() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf28: skipping (driver tests disabled)");
         return;
-    }
+    };
     use std::net::UdpSocket;
     let sock = UdpSocket::bind("127.0.0.1:0").expect("bind stub");
     let port = sock.local_addr().unwrap().port();
@@ -904,10 +932,10 @@ fn wf28_edns_do_on_the_wire() {
 /// env-gated job's recorded limitation).
 #[test]
 fn wf29_mdns_multicast_query() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf29: skipping (driver tests disabled)");
         return;
-    }
+    };
     use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
     const GROUP: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 251);
     let port = {
@@ -1002,10 +1030,10 @@ fn wf29_mdns_multicast_query() {
 /// answer values.
 #[test]
 fn wf30_doh_post_end_to_end() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf30: skipping (driver tests disabled)");
         return;
-    }
+    };
     use std::io::{Read as _, Write as _};
     use std::net::TcpListener;
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind stub");
@@ -1063,10 +1091,10 @@ fn wf30_doh_post_end_to_end() {
 /// unbound port (closed), plus the ACK mode's unfiltered mapping.
 #[test]
 fn wf31_scan_variants() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf31: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let open_l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let open = open_l.local_addr().unwrap().port();
     let closed = {
@@ -1106,10 +1134,10 @@ fn wf31_scan_variants() {
 /// speaks NDP for its own addresses — the kernel answers NS for ::1).
 #[test]
 fn wf32_host_discovery() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf32: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let out = stdout_of(wrex().args([
         "scan",
         "-i",
@@ -1132,10 +1160,10 @@ fn wf32_host_discovery() {
 /// walk to `lo`: one hop, reached.
 #[test]
 fn wf33_trace_the_path() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf33: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let out = stdout_of(wrex().args([
         "trace",
         "-i",
@@ -1160,10 +1188,10 @@ fn wf33_trace_the_path() {
 /// `--service` post-pass against a stub SSH banner.
 #[test]
 fn wf34_service_version_probe() {
-    if !driver_tests_enabled() {
+    let Some(_lo) = driver_gate() else {
         eprintln!("wf34: skipping (WREX_DRIVER_TESTS != 1)");
         return;
-    }
+    };
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().unwrap().port().to_string();
     let stub = std::thread::spawn(move || {
