@@ -161,8 +161,6 @@ impl BpfProgram {
         attr.u32_at(24, 1);
         attr.u32_at(28, log.len() as u32);
         attr.u64_at(32, log.as_ptr() as u64);
-        attr.u32_at(28, 0);
-        attr.u64_at(32, 0);
         attr.u32_at(40, 0);
         attr.u32_at(44, 0);
         match bpf_sys(BPF_PROG_LOAD, &attr) {
@@ -907,6 +905,35 @@ mod tests {
     use super::*;
 
     /// The datapath probe's verdict tracks the privilege CLASS and
+    /// The PROG_LOAD attr byte layout, pinned: the live strace round
+    /// caught stale zeroing lines overwriting the log fields AFTER
+    /// they were set (log_level=1 with a NULL log buffer — the
+    /// kernel's EINVAL). Every field's offset is asserted so the
+    /// class can't regress.
+    #[test]
+    fn prog_load_attr_offsets_pinned() {
+        let mut attr = BpfAttr::zeroed();
+        attr.u32_at(0, BPF_PROG_TYPE_XDP);
+        attr.u32_at(4, 11);
+        attr.u64_at(8, 0xdead_beef_0000_0001);
+        attr.u64_at(16, 0xdead_beef_0000_0002);
+        attr.u32_at(24, 1);
+        attr.u32_at(28, 0x10000);
+        attr.u64_at(32, 0xdead_beef_0000_0003);
+        let b = &attr.0;
+        let u32 = |o: usize| u32::from_le_bytes(b[o..o + 4].try_into().expect("4"));
+        let u64 = |o: usize| u64::from_le_bytes(b[o..o + 8].try_into().expect("8"));
+        assert_eq!(u32(0), 6, "prog_type @0");
+        assert_eq!(u32(4), 11, "insn_cnt @4");
+        assert_eq!(u64(8), 0xdead_beef_0000_0001, "insns @8");
+        assert_eq!(u64(16), 0xdead_beef_0000_0002, "license @16");
+        assert_eq!(u32(24), 1, "log_level @24");
+        assert_eq!(u32(28), 0x10000, "log_size @28");
+        assert_eq!(u64(32), 0xdead_beef_0000_0003, "log_buf @32");
+        assert_eq!(u32(40), 0, "kern_version @40");
+        assert_eq!(u32(44), 0, "prog_flags @44");
+    }
+
     /// The LD_IMM64 map-fd rewrite keeps the WHOLE first 32 bits — the
     /// first live run's EINVAL was a mask zeroing dst/src, which turned
     /// the pseudo-fd load into a plain immediate and handed the
