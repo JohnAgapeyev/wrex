@@ -404,15 +404,17 @@ struct UmemReg {
     tx_metadata_len: u32,
 }
 
-/// `struct xdp_ring_offset`: the producer/consumer/desc offsets within
-/// each mmap'd ring (getsockopt XDP_MMAP_OFFSETS).
+/// `struct xdp_ring_offset` (uapi, /usr/include/linux/if_xdp.h): the
+/// producer/consumer/desc offsets within each mmap'd ring — **u64
+/// members** (a header pass caught a u32 misread: the getsockopt size
+/// check and every offset value would have been wrong).
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 struct RingOffsets {
-    producer: u32,
-    consumer: u32,
-    desc: u32,
-    flags: u32,
+    producer: u64,
+    consumer: u64,
+    desc: u64,
+    flags: u64,
 }
 
 /// `struct xdp_desc`.
