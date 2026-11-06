@@ -336,10 +336,12 @@ pub enum XdpUnavailable {
     /// `bpf()` refused on capabilities — checked against the INITIAL
     /// user namespace (the unshare sandbox unlocks neither).
     Privileges(io::Error),
-    /// The kernel accepts BPF but has no AF_XDP support compiled in
-    /// (`CONFIG_XDP_SOCKETS` off — e.g. some hardened distro builds):
-    /// the XSKMAP map type is unregistered and every datapath step
-    /// would refuse. EINVAL on the map create, not a permission.
+    /// The kernel accepts plain BPF but refuses the XSKMAP create —
+    /// the AF_XDP-adjacent map type is unavailable HERE. The refusal
+    /// is reported, not diagnosed: unregistered (a build without
+    /// `CONFIG_XDP_SOCKETS`) and live-build restriction (the
+    /// 7.2.11-arch1 machine — `CONFIG_XDP_SOCKETS=y` — still refuses)
+    /// are both observed; the create-matrix distinguishes them.
     KernelBuild(io::Error),
 }
 
@@ -352,7 +354,9 @@ impl core::fmt::Display for XdpUnavailable {
             ),
             Self::KernelBuild(e) => write!(
                 f,
-                "AF_XDP unavailable in this kernel build ({e}: CONFIG_XDP_SOCKETS off — the XSKMAP map type is not registered)"
+                "AF_XDP unavailable in this kernel ({e} creating the XSKMAP: the map type is \
+                 unregistered or restricted in this build — the common cause is \
+                 CONFIG_XDP_SOCKETS off, but live builds refusing it land here too)"
             ),
         }
     }
