@@ -676,8 +676,24 @@ fn filtered_xdp_capture_delivers_matching_frames() {
     assert!(probes >= 1, "the pacer must have run (sent {probes})");
     let mut inventory = Vec::new();
     for rec in &file.records {
-        let json = wrex_test::dissect(&rec.bytes, &["--format", "json", "--start", "auto"]);
-        let parsed: serde_json::Value = serde_json::from_str(&json).expect("dissect json");
+        // The hopopts pattern, not the wrex-test helper: the helper's
+        // PATH fallback cannot see `target-sudo/debug` under the sudo
+        // env; `CARGO_BIN_EXE_wrex` is this package's own compile-time
+        // guarantee (the sibling ground truths use the same).
+        let mut dissect = Command::new(env!("CARGO_BIN_EXE_wrex"))
+            .args(["dissect", "--format", "json", "--start", "auto"])
+            .stdout(Stdio::piped())
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("spawn wrex dissect");
+        dissect
+            .stdin
+            .take()
+            .expect("dissect stdin")
+            .write_all(&rec.bytes)
+            .expect("pipe the captured frame");
+        let dis = dissect.wait_with_output().expect("collect dissect");
+        let parsed: serde_json::Value = serde_json::from_slice(&dis.stdout).expect("dissect json");
         let layers = parsed["layers"].as_array().cloned().unwrap_or_default();
         let kinds: Vec<&str> = layers
             .iter()
@@ -687,13 +703,18 @@ fn filtered_xdp_capture_delivers_matching_frames() {
             .iter()
             .find(|l| l["kind"] == "udp")
             .and_then(|l| l["fields"]["dport"].as_u64());
-        inventory.push(format!("{} -> udp.dport {udp_dport:?}", kinds.join(",")));
+        inventory.push(format!(
+            "{} -> {}",
+            hex::encode(&rec.bytes),
+            kinds.join(",")
+        ));
         assert_eq!(
             udp_dport,
             Some(9),
-            "every captured frame is the probe (filter leakage?): {json}"
+            "every captured frame is the probe (filter leakage?): {}",
+            parsed
         );
-        assert!(kinds.contains(&"ipv4"), "the probe rides ipv4: {json}");
+        assert!(kinds.contains(&"ipv4"), "the probe rides ipv4: {parsed}");
     }
     eprintln!("filtered capture inventory:\n{}", inventory.join("\n"));
 }
