@@ -1,0 +1,71 @@
+pub mod wrex_proto_sll
+pub mod wrex_proto_sll::strategy
+pub fn wrex_proto_sll::strategy::sll() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub fn wrex_proto_sll::strategy::sll2() -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::LayerSpec>
+pub struct wrex_proto_sll::Sll2Codec
+impl wrex_core::codec::Codec for wrex_proto_sll::Sll2Codec
+pub fn wrex_proto_sll::Sll2Codec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_sll::Sll2Codec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_sll::Sll2Codec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_sll::Sll2Codec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_sll::Sll2Codec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_sll::Sll2Codec
+impl core::marker::Send for wrex_proto_sll::Sll2Codec
+impl core::marker::Sync for wrex_proto_sll::Sll2Codec
+impl core::marker::Unpin for wrex_proto_sll::Sll2Codec
+impl core::marker::UnsafeUnpin for wrex_proto_sll::Sll2Codec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_sll::Sll2Codec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_sll::Sll2Codec
+impl<T, U> core::convert::Into<U> for wrex_proto_sll::Sll2Codec where U: core::convert::From<T>
+pub fn wrex_proto_sll::Sll2Codec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_sll::Sll2Codec where U: core::convert::Into<T>
+pub type wrex_proto_sll::Sll2Codec::Error = never
+pub fn wrex_proto_sll::Sll2Codec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_sll::Sll2Codec where U: core::convert::TryFrom<T>
+pub type wrex_proto_sll::Sll2Codec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_sll::Sll2Codec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_sll::Sll2Codec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_sll::Sll2Codec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_sll::Sll2Codec where T: ?core::marker::Sized
+pub fn wrex_proto_sll::Sll2Codec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_sll::Sll2Codec where T: ?core::marker::Sized
+pub fn wrex_proto_sll::Sll2Codec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_sll::Sll2Codec
+pub fn wrex_proto_sll::Sll2Codec::from(T) -> T
+pub struct wrex_proto_sll::SllCodec
+impl wrex_core::codec::Codec for wrex_proto_sll::SllCodec
+pub fn wrex_proto_sll::SllCodec::header_len(&self, &wrex_core::spec::LayerSpec) -> core::result::Result<usize, wrex_core::error::EncodeError>
+pub fn wrex_proto_sll::SllCodec::layouts(&self) -> &'static [(&'static str, wrex_core::schema::Layout)]
+pub fn wrex_proto_sll::SllCodec::read<'a>(&self, &'a [u8], &mut wrex_core::dissect::DecodeCtx<'a>) -> wrex_core::codec::ReadOutcome
+pub fn wrex_proto_sll::SllCodec::schema(&self) -> &'static wrex_core::schema::LayerSchema
+pub fn wrex_proto_sll::SllCodec::write(&self, &wrex_core::spec::LayerSpec, &mut wrex_core::encode::EncodeCtx<'_>) -> core::result::Result<(), wrex_core::error::EncodeError>
+impl core::marker::Freeze for wrex_proto_sll::SllCodec
+impl core::marker::Send for wrex_proto_sll::SllCodec
+impl core::marker::Sync for wrex_proto_sll::SllCodec
+impl core::marker::Unpin for wrex_proto_sll::SllCodec
+impl core::marker::UnsafeUnpin for wrex_proto_sll::SllCodec
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_proto_sll::SllCodec
+impl core::panic::unwind_safe::UnwindSafe for wrex_proto_sll::SllCodec
+impl<T, U> core::convert::Into<U> for wrex_proto_sll::SllCodec where U: core::convert::From<T>
+pub fn wrex_proto_sll::SllCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_proto_sll::SllCodec where U: core::convert::Into<T>
+pub type wrex_proto_sll::SllCodec::Error = never
+pub fn wrex_proto_sll::SllCodec::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_proto_sll::SllCodec where U: core::convert::TryFrom<T>
+pub type wrex_proto_sll::SllCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_proto_sll::SllCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_proto_sll::SllCodec where T: 'static + ?core::marker::Sized
+pub fn wrex_proto_sll::SllCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_proto_sll::SllCodec where T: ?core::marker::Sized
+pub fn wrex_proto_sll::SllCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_proto_sll::SllCodec where T: ?core::marker::Sized
+pub fn wrex_proto_sll::SllCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_proto_sll::SllCodec
+pub fn wrex_proto_sll::SllCodec::from(T) -> T
+pub const wrex_proto_sll::KIND: &str
+pub const wrex_proto_sll::KIND2: &str
+pub const wrex_proto_sll::SLL_PKTTYPES: [&str; 5]
+pub static wrex_proto_sll::CODEC: wrex_proto_sll::SllCodec
+pub static wrex_proto_sll::CODEC2: wrex_proto_sll::Sll2Codec
+pub fn wrex_proto_sll::named_to_u16(&str) -> core::option::Option<u16>
+pub fn wrex_proto_sll::register(&mut wrex_core::codec::Registry)

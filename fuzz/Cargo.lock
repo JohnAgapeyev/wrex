@@ -146,6 +146,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_fs"
+version = "1.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ecf5c70ca07b7f80220bce936f0556a960ca6fb00fc2bd4125b5e581b218137"
+dependencies = [
+ "anstyle",
+ "globwalk",
+ "predicates",
+ "predicates-core",
+ "predicates-tree",
+ "tempfile",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -413,6 +427,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "790eea4361631c5e7d22598ecd5723ff611904e3344ce8720784c93e3d83d40b"
 
 [[package]]
+name = "crossbeam-deque"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "622f3fc73690be383c7214310406f28a90e6edeadc3cea882f9d71e495b9711a"
+dependencies = [
+ "crossbeam-epoch",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-epoch"
+version = "0.9.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc74980687109a3b14c72fd458107bf0baa1da1a1a805e178d15501ba9b86d9d"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-utils"
+version = "0.8.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
+
+[[package]]
 name = "crypto-common"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -615,6 +654,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "globset"
+version = "0.4.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f98b0d85522dc0a824cfebbc9594ff4a9b289c568bea0370319dfbdf20ccdd2d"
+dependencies = [
+ "aho-corasick",
+ "bstr",
+ "log",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
+name = "globwalk"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bf760ebf69878d9fd8f110c89703d90ce35095324d1f1edcb595c63945ee757"
+dependencies = [
+ "bitflags",
+ "ignore",
+ "walkdir",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -779,6 +842,22 @@ checksum = "c0a05c691e1fae256cf7013d99dad472dc52d5543322761f83ec8d47eab40d2b"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "ignore"
+version = "0.4.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "484be5657551d7868d67587df967fb4fcbe9d266a761cc855aaa148fda0b3cc7"
+dependencies = [
+ "crossbeam-deque",
+ "globset",
+ "log",
+ "memchr",
+ "regex-automata",
+ "same-file",
+ "walkdir",
+ "winapi-util",
 ]
 
 [[package]]
@@ -1979,6 +2058,7 @@ dependencies = [
  "tracing-subscriber",
  "wrex-core",
  "wrex-dns",
+ "wrex-ebpf",
  "wrex-frag",
  "wrex-fuzz 0.1.0",
  "wrex-h2",
@@ -1990,12 +2070,14 @@ dependencies = [
  "wrex-proto-dhcp",
  "wrex-proto-dhcp6",
  "wrex-proto-dns",
+ "wrex-proto-dot11",
  "wrex-proto-eth",
  "wrex-proto-icmp",
  "wrex-proto-icmpv6",
  "wrex-proto-ip",
  "wrex-proto-ip6",
  "wrex-proto-ip6ext",
+ "wrex-proto-sll",
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-proto-vlan",
@@ -2027,6 +2109,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-ebpf"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+ "wrex-core",
+]
+
+[[package]]
 name = "wrex-frag"
 version = "0.1.0"
 dependencies = [
@@ -2042,6 +2132,7 @@ dependencies = [
  "libfuzzer-sys",
  "wrex",
  "wrex-core",
+ "wrex-ebpf",
  "wrex-frag",
  "wrex-fuzz 0.1.0",
  "wrex-h2",
@@ -2107,6 +2198,7 @@ dependencies = [
  "libc",
  "serde",
  "thiserror",
+ "wrex-ebpf",
 ]
 
 [[package]]
@@ -2166,6 +2258,15 @@ dependencies = [
  "proptest",
  "wrex-core",
  "wrex-proto-udp",
+]
+
+[[package]]
+name = "wrex-proto-dot11"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "proptest",
+ "wrex-core",
 ]
 
 [[package]]
@@ -2235,6 +2336,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "wrex-proto-sll"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "proptest",
+ "wrex-core",
+ "wrex-proto-arp",
+ "wrex-proto-eth",
+ "wrex-proto-ip",
+ "wrex-proto-ip6",
+ "wrex-proto-vlan",
+]
+
+[[package]]
 name = "wrex-proto-tcp"
 version = "0.1.0"
 dependencies = [
@@ -2294,6 +2409,7 @@ name = "wrex-test"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "assert_fs",
  "bytes",
  "dhcproto",
  "etherparse",
@@ -2314,12 +2430,14 @@ dependencies = [
  "wrex-proto-dhcp",
  "wrex-proto-dhcp6",
  "wrex-proto-dns",
+ "wrex-proto-dot11",
  "wrex-proto-eth",
  "wrex-proto-icmp",
  "wrex-proto-icmpv6",
  "wrex-proto-ip",
  "wrex-proto-ip6",
  "wrex-proto-ip6ext",
+ "wrex-proto-sll",
  "wrex-proto-tcp",
  "wrex-proto-udp",
  "wrex-proto-vlan",

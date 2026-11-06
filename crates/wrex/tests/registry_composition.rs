@@ -50,16 +50,23 @@ fn no_dangling_parents() {
     feature = "proto-tcp",
     feature = "proto-dns",
     feature = "proto-dhcp",
-    feature = "proto-dhcp6"
+    feature = "proto-dhcp6",
+    feature = "proto-sll",
+    feature = "proto-dot11"
 ))]
 #[test]
 fn standard_registration_order_pinned() {
     let r = standard();
+    // Tranche 23a: sll/sll2 register right after vlan (the cooked view
+    // dispatches into the same children), dot11 as a root after the
+    // ip family (the registration order is chartered byte-identity:
+    // `wrex fields`, man pages, completions enumerate by it).
     assert_eq!(
         r.kinds(),
         &[
-            "eth", "arp", "vlan", "ipv4", "ipv6", "hopopts", "dstopts", "routing", "frag", "ah",
-            "esp", "nonext", "icmp", "icmpv6", "udp", "tcp", "dns", "dhcp", "dhcp6",
+            "eth", "arp", "vlan", "sll", "sll2", "ipv4", "ipv6", "dot11", "hopopts", "dstopts",
+            "routing", "frag", "ah", "esp", "nonext", "icmp", "icmpv6", "udp", "tcp", "dns",
+            "dhcp", "dhcp6",
         ]
     );
 }

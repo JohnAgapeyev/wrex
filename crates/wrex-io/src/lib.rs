@@ -5,6 +5,7 @@
 //! This is the ONLY crate in the workspace permitted to contain `unsafe`;
 //! every block carries a `// SAFETY:` comment.
 
+pub mod cooked;
 pub mod driver;
 pub mod iface;
 pub mod ndp;
@@ -13,15 +14,18 @@ pub mod replay;
 pub mod rng;
 pub mod tcp;
 pub mod udp;
+pub mod xdp;
 
 pub(crate) mod rx;
 
+pub use cooked::CookedDriver;
 pub use driver::{Driver, DriverError, Frame, RawEthDriver, RawIpDriver, RawIpv6Driver};
 pub use iface::{IfEntry, IfTable};
 pub use replay::{FakeClock, ReplayDriver, ScriptedDriver};
 pub use rng::Rng;
 pub use tcp::TcpDriver;
 pub use udp::UdpDriver;
+pub use xdp::{BpfMap, BpfProgram, XdpCapture, XskDriver};
 
 use std::time::Instant;
 

@@ -56,14 +56,26 @@ const GLOBAL_LEN: usize = 24;
 /// Per-record header size.
 const RECORD_LEN: usize = 16;
 
-/// pcap link types we speak (`wrex capture` writes EN10MB).
+/// pcap link types we speak (`wrex capture` writes EN10MB by default;
+/// `capture -i any` writes LINUX_SLL — tranche 23a).
 pub mod linktype {
     /// Ethernet (`DLT_EN10MB`).
     pub const EN10MB: u32 = 1;
-    /// Raw IP (`LINKTYPE_RAW`): read-side only in this tranche.
+    /// BSD loopback (`LINKTYPE_NULL`): a 4-byte host-order AF value
+    /// prefix. Read-side (tranche 23a).
+    pub const NULL: u32 = 0;
+    /// OpenBSD loopback (`LINKTYPE_LOOP`): the same 4-byte AF prefix,
+    /// big-endian host order. Read-side (tranche 23a).
+    pub const LOOPBACK: u32 = 108;
+    /// Raw IP (`LINKTYPE_RAW`): read-side only in this tranche (the
+    /// first nibble picks the family).
     pub const RAW: u32 = 101;
-    /// Linux cooked capture (`LINKTYPE_LINUX_SLL`): read-side only.
+    /// 802.11 (no radiotap) — dissect-only (ADR-0004; tranche 23a).
+    pub const IEEE802_11: u32 = 105;
+    /// Linux cooked capture (`LINKTYPE_LINUX_SLL`): `capture -i any`.
     pub const LINUX_SLL: u32 = 113;
+    /// Linux cooked capture v2 (`LINKTYPE_LINUX_SLL2`): read-side.
+    pub const LINUX_SLL2: u32 = 276;
 }
 
 /// Errors from parsing a classic pcap.
@@ -175,6 +187,61 @@ pub struct PcapFile {
     pub pcapng: bool,
     /// Records in file order.
     pub records: Vec<PcapRecord>,
+}
+
+impl PcapFile {
+    /// The byte prefix the start kind consumes (tranche 23a): the BSD
+    /// loopback family forms carry a 4-byte AF value INSIDE the
+    /// record — the dissection view must skip it (the stored bytes
+    /// stay verbatim: send mode re-sends what was captured, the T5
+    /// contract). Zero for every other linktype.
+    pub fn start_offset(&self) -> usize {
+        match self.linktype {
+            linktype::NULL | linktype::LOOPBACK => 4,
+            _ => 0,
+        }
+    }
+
+    /// Start kind for dissecting this file's records (tranche 23a): the
+    /// link type picks the layer the frame bytes begin with — Ethernet
+    /// files keep `eth`, cooked files start `sll`/`sll2`, 802.11 files
+    /// `dot11` (all registry-gated on the caller's side — an unregistered
+    /// kind synthesizes the honest `unknown` layer, never fatal); RAW and
+    /// the BSD loopback family forms peek the record's own bytes (first
+    /// nibble / the 4-byte host-order AF value) so the family is
+    /// per-record; anything unknown keeps `auto` (the tranche-5 behavior).
+    pub fn start_kind(&self, frame: &[u8]) -> &'static str {
+        match self.linktype {
+            linktype::EN10MB => "eth",
+            linktype::LINUX_SLL => "sll",
+            linktype::LINUX_SLL2 => "sll2",
+            linktype::IEEE802_11 => "dot11",
+            linktype::RAW => match frame.first().map(|b| b >> 4) {
+                Some(4) => "ipv4",
+                Some(6) => "ipv6",
+                _ => "unknown",
+            },
+            // BSD loopback: a 4-byte host-order AF value prefixes the
+            // packet; both byte orders and the AF_INET6 spellings
+            // (Linux 10 / BSD 24) pick the family, anything else is an
+            // honest unknown.
+            linktype::NULL | linktype::LOOPBACK => {
+                let af = frame
+                    .get(..4)
+                    .map(|b| u32::from_ne_bytes(b.try_into().expect("4 bytes")))
+                    .unwrap_or(0);
+                // Both host byte orders (the NULL writer's endianness
+                // follows the capturing machine): AF_INET 2, AF_INET6
+                // 10 (Linux) / 24 (BSD).
+                match af {
+                    2 | 0x0200_0000 => "ipv4",
+                    10 | 24 | 0x0a00_0000 | 0x1800_0000 => "ipv6",
+                    _ => "unknown",
+                }
+            }
+            _ => "auto",
+        }
+    }
 }
 
 /// `(ts_sec, ts_frac)` of a timestamp; before-EPOCH clamps to zero.
@@ -563,14 +630,21 @@ pub struct PcapWriter<W: Write> {
 
 impl<W: Write> PcapWriter<W> {
     /// Write the global header (version 2.4, snaplen 65535, EN10MB).
-    pub fn new(mut inner: W) -> std::io::Result<Self> {
+    pub fn new(inner: W) -> std::io::Result<Self> {
+        Self::with_linktype(inner, linktype::EN10MB)
+    }
+
+    /// [`PcapWriter::new`] with an explicit link type (tranche 23a:
+    /// `capture -i any` writes LINUX_SLL; `new` keeps EN10MB
+    /// byte-identical).
+    pub fn with_linktype(mut inner: W, linktype: u32) -> std::io::Result<Self> {
         let mut hdr = [0u8; GLOBAL_LEN];
         hdr[..4].copy_from_slice(&MAGIC_US_LE.to_le_bytes());
         hdr[4..6].copy_from_slice(&2u16.to_le_bytes()); // version major
         hdr[6..8].copy_from_slice(&4u16.to_le_bytes()); // version minor
         // thiszone = 0 (UTC), sigfigs = 0
         hdr[16..20].copy_from_slice(&65535u32.to_le_bytes()); // snaplen
-        hdr[20..].copy_from_slice(&linktype::EN10MB.to_le_bytes());
+        hdr[20..].copy_from_slice(&linktype.to_le_bytes());
         inner.write_all(&hdr)?;
         Ok(Self { inner })
     }
@@ -638,13 +712,14 @@ pub struct PcapngWriter<W: Write> {
 impl<W: Write> PcapngWriter<W> {
     /// Write the SHB (byte-order magic 0x1A2B3C4D, version 1.0,
     /// unspecified section length) + IDB (EN10MB, snaplen 65535).
-    pub fn new(mut inner: W) -> std::io::Result<Self> {
-        // Spec SHB layout (pcapng §3.2 / tranches: the BOM sits at
-        // offset 8, AFTER the block total length — the pass-2
-        // foreign-fixture fix: wrex previously wrote BOM at 4 (self-
-        // consistent roundtrip, unreadable by Wireshark/text2pcap).
-        // type(4) + total len(4) + BOM(4) + major(2) + minor(2) +
-        // section length u64(-1) + trailing total len(4) = 28.
+    pub fn new(inner: W) -> std::io::Result<Self> {
+        Self::with_linktype(inner, linktype::EN10MB)
+    }
+
+    /// [`PcapngWriter::new`] with an explicit link type (tranche 23a):
+    /// `capture -i any --pcapng` writes a LINUX_SLL IDB; `new` keeps
+    /// EN10MB byte-identical.
+    pub fn with_linktype(mut inner: W, linktype: u32) -> std::io::Result<Self> {
         let mut shb = [0u8; SHB_LEN];
         shb[..4].copy_from_slice(&PCAPNG_SHB_TYPE.to_le_bytes());
         shb[4..8].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
@@ -658,9 +733,9 @@ impl<W: Write> PcapngWriter<W> {
         let mut idb = [0u8; IDB_LEN];
         idb[..4].copy_from_slice(&PCAPNG_IDB_TYPE.to_le_bytes());
         idb[4..8].copy_from_slice(&(IDB_LEN as u32).to_le_bytes());
-        idb[8..10].copy_from_slice(&(linktype::EN10MB as u16).to_le_bytes());
         // reserved u16 at 10..12 stays zero
         idb[12..16].copy_from_slice(&65535u32.to_le_bytes()); // snaplen
+        idb[8..10].copy_from_slice(&(linktype as u16).to_le_bytes());
         idb[16..].copy_from_slice(&(IDB_LEN as u32).to_le_bytes());
         inner.write_all(&idb)?;
         Ok(Self {
@@ -672,8 +747,18 @@ impl<W: Write> PcapngWriter<W> {
     /// [`PcapngWriter::new`] with an explicit `if_tsresol` option on the
     /// IDB (tranche T18b): the EPB timestamps follow the resolution
     /// (µs value 6 / ns value 9), so the file is self-describing.
-    pub fn with_resol(mut inner: W, resol: TsResol) -> std::io::Result<Self> {
-        // Same SHB as `new`.
+    pub fn with_resol(inner: W, resol: TsResol) -> std::io::Result<Self> {
+        Self::with_linktype_and_resol(inner, linktype::EN10MB, resol)
+    }
+
+    /// [`PcapngWriter::new`] with an explicit link type AND `if_tsresol`
+    /// (tranche 23a + T18b): a cooked `-i any --pcapng --pcapng-ns`
+    /// capture writes a LINUX_SLL + ns IDB.
+    pub fn with_linktype_and_resol(
+        mut inner: W,
+        linktype: u32,
+        resol: TsResol,
+    ) -> std::io::Result<Self> {
         let mut shb = [0u8; SHB_LEN];
         shb[..4].copy_from_slice(&PCAPNG_SHB_TYPE.to_le_bytes());
         shb[4..8].copy_from_slice(&(SHB_LEN as u32).to_le_bytes());
@@ -689,7 +774,7 @@ impl<W: Write> PcapngWriter<W> {
         let mut idb = vec![0u8; total];
         idb[..4].copy_from_slice(&PCAPNG_IDB_TYPE.to_le_bytes());
         idb[4..8].copy_from_slice(&(total as u32).to_le_bytes());
-        idb[8..10].copy_from_slice(&(linktype::EN10MB as u16).to_le_bytes());
+        idb[8..10].copy_from_slice(&(linktype as u16).to_le_bytes());
         idb[12..16].copy_from_slice(&65535u32.to_le_bytes());
         // Options start right after snaplen (offset 16, the fixed
         // header end); the trailing length moves to the block end.
@@ -1027,6 +1112,85 @@ mod tests {
         let file = read(&buf).unwrap();
         assert_eq!(file.records[0].bytes, &frame[..10]);
         assert_eq!(file.records[0].orig_len, 100);
+    }
+
+    /// Tranche 23a: `with_linktype` writes the link type into both global
+    /// headers; `new` keeps EN10MB byte-identical.
+    #[test]
+    fn with_linktype_roundtrips_both_writers() {
+        let frame = [0x33u8; 32];
+        for pcapng in [false, true] {
+            let mut plain = Vec::new();
+            let mut cooked = Vec::new();
+            if pcapng {
+                let mut w = PcapngWriter::new(&mut plain).unwrap();
+                w.write_record(UNIX_EPOCH, &frame, 65535).unwrap();
+                w.flush().unwrap();
+                let mut w = PcapngWriter::with_linktype(&mut cooked, linktype::LINUX_SLL).unwrap();
+                w.write_record(UNIX_EPOCH, &frame, 65535).unwrap();
+                w.flush().unwrap();
+            } else {
+                let mut w = PcapWriter::new(&mut plain).unwrap();
+                w.write_record(UNIX_EPOCH, &frame, 65535).unwrap();
+                w.flush().unwrap();
+                let mut w = PcapWriter::with_linktype(&mut cooked, linktype::LINUX_SLL).unwrap();
+                w.write_record(UNIX_EPOCH, &frame, 65535).unwrap();
+                w.flush().unwrap();
+            }
+            let f = read(&plain).unwrap();
+            assert_eq!(f.linktype, linktype::EN10MB, "pcapng={pcapng}");
+            let f = read(&cooked).unwrap();
+            assert_eq!(f.linktype, linktype::LINUX_SLL, "pcapng={pcapng}");
+            assert_eq!(f.records[0].bytes, &frame[..], "pcapng={pcapng}");
+            // `new` is byte-identical to a with_linktype(EN10MB) file.
+            let mut via_new = Vec::new();
+            let mut via_ctor = Vec::new();
+            if pcapng {
+                PcapngWriter::new(&mut via_new).unwrap();
+                PcapngWriter::with_linktype(&mut via_ctor, linktype::EN10MB).unwrap();
+            } else {
+                PcapWriter::new(&mut via_new).unwrap();
+                PcapWriter::with_linktype(&mut via_ctor, linktype::EN10MB).unwrap();
+            }
+            assert_eq!(via_new, via_ctor, "pcapng={pcapng}");
+        }
+    }
+
+    /// Tranche 23a: the read-side start dispatch — cooked/sll/sll2/dot11
+    /// map directly, RAW peeks the first nibble per record, NULL/
+    /// LOOPBACK peek the 4-byte AF value, unknown link types keep `auto`.
+    #[test]
+    fn start_kind_dispatches_per_linktype() {
+        let file = |lt: u32| PcapFile {
+            linktype: lt,
+            snaplen: 65535,
+            nanosecond: false,
+            big_endian: false,
+            pcapng: false,
+            records: vec![],
+        };
+        assert_eq!(file(linktype::EN10MB).start_kind(&[0xff; 60]), "eth");
+        assert_eq!(file(linktype::LINUX_SLL).start_kind(&[0xff; 60]), "sll");
+        assert_eq!(file(linktype::LINUX_SLL2).start_kind(&[0xff; 60]), "sll2");
+        assert_eq!(file(linktype::IEEE802_11).start_kind(&[0x80; 40]), "dot11");
+        // RAW: the first nibble picks the family, per record.
+        let raw = file(linktype::RAW);
+        assert_eq!(raw.start_kind(&[0x45, 0, 0, 0]), "ipv4");
+        assert_eq!(raw.start_kind(&[0x60, 0, 0, 0]), "ipv6");
+        assert_eq!(raw.start_kind(&[0x00, 0, 0, 0]), "unknown");
+        // NULL/LOOPBACK: the 4-byte host-order AF value, both orders.
+        let nullt = file(linktype::NULL);
+        assert_eq!(nullt.start_kind(&2u32.to_le_bytes()), "ipv4");
+        assert_eq!(nullt.start_kind(&10u32.to_le_bytes()), "ipv6");
+        assert_eq!(nullt.start_kind(&24u32.to_le_bytes()), "ipv6");
+        assert_eq!(nullt.start_kind(&2u32.to_be_bytes()), "ipv4");
+        assert_eq!(
+            file(linktype::LOOPBACK).start_kind(&0x18u32.to_be_bytes()),
+            "ipv6"
+        );
+        assert_eq!(nullt.start_kind(&[0, 0]), "unknown");
+        // Anything else keeps the tranche-5 `auto` behavior.
+        assert_eq!(file(196).start_kind(&[0xff; 60]), "auto");
     }
 
     /// Tranche 14: the explicit `orig_len` passthrough — a truncated

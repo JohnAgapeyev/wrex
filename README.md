@@ -213,6 +213,31 @@ against `--max-bytes` — with curl's byte-exact
 --compressed -x` arms (capability-probed per codec) beside the
 reqwest in-process oracle.
 
+**Tranche 23** (delivered): linktypes + the kernel datapath.
+`capture -i any` writes the Linux cooked view (`wrex-proto-sll`:
+SLL/SLL2 codecs, wire-pinned against tcpdump; LINKTYPE_LINUX_SLL
+stores, replay dissects from `sll`), RAW/NULL/LOOPBACK files read with
+per-record start dispatch, and 802.11 management frames dissect
+(`wrex-proto-dot11`, ADR-0004: FC word + addresses + seq/frag + the
+`elt` element records; radiotap/monitor-mode are won't-dos). The
+capture datapath on a real interface is now **compiled eBPF by
+default**: the `--filter` compiles to an XDP prefilter over the
+codecs' own layout tables (`wrex-ebpf` — programs are compiled
+artifacts of the schema, never hand-written BPF), matching frames
+redirect into an AF_XDP socket, and everything else passes to the
+kernel; any failure (capabilities, a filter beyond the kernel subset)
+falls back to the AF_PACKET path with a printed note. `--no-xdp`
+forces the userspace path; the same codegen drives the XDP
+translator (same-width rewrites + RFC 1624 incremental checksums,
+byte-identical with `wrex patch --set`), the ICMP-echo XDP_TX
+responder, and the 4-tuple flow counter — pinned by a userspace-VM
+verdict differential against the filter engine over every corpus
+frame (`tests/ebpf_differential.rs`). `--rotate-size`/
+`--rotate-count` chunk capture stores (the tcpdump -C/-W rules);
+`patch --snaplen` landed. ADR-0005 records the loader and syscall
+decisions (the hand-rolled `bpf(2)`/netlink, the VM's swap trigger,
+the nix candidate).
+
 **Tranche 5** (delivered): `wrex capture`/`wrex replay` — an in-house
 classic pcap reader/writer (`wrex-pcap`, no libpcap; all four magic
 variants read, streaming LE-µs write), the AF_PACKET capture tap
@@ -391,6 +416,7 @@ crates/wrex-tls       rustls-backed TLS Driver adapter composing the kernel TCP 
 crates/wrex-pcap      classic pcap + pcapng readers/writers (no libpcap)
 crates/wrex-mut       seeded, dissect-aware mutation engine (tranche 6a)
 crates/wrex-fuzz      stateful recording prober session (tranche 6b)
+crates/wrex-ebpf      schema→eBPF codegen + the userspace VM (tranche 23c)
 crates/wrex-test      test-support: strategies, oracles (+hickory/dig/reqwest), corpus, CLI harness, TLS stub
 crates/wrex-proto-*   eth arp ip icmp udp tcp dns (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)

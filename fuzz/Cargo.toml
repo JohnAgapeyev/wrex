@@ -21,6 +21,9 @@ path = "../crates/wrex-core"
 [dependencies.wrex-io]
 path = "../crates/wrex-io"
 
+[dependencies.wrex-ebpf]
+path = "../crates/wrex-ebpf"
+
 [dependencies.wrex-scan]
 path = "../crates/wrex-scan"
 

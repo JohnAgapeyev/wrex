@@ -2108,9 +2108,107 @@ rationale in [verification.md](verification.md)):
 
 ### Wave 2 — the analysis plane (tshark closure)
 
-- **T23 — linktypes + capture performance** — wave 2; rides
-  T5/T8b.
+- **T23 — linktypes + the kernel datapath (T29 pulled forward)** — ✅
+  delivered (2026-11-06; chartered at the T23 planning pass as the
+  wave-2 opener with the standing re-scope recorded there: XSK is the
+  DEFAULT capture datapath with a transparent fallback — not an opt-in
+  flag — and the full 29-d extension surface chartered in; the
+  TPACKET_V3 deletion budget answered the strongest way: **it was
+  never built**). Closes UC-7 (advance). As-delivered, per
+  sub-tranche:
+  - **T23a — linktypes**: the new `wrex-proto-sll` crate (kinds `sll`
+    113 + `sll2` 276 — the multi-kind T17 ip6ext precedent; ADR-3
+    shaped, the cooked view's children are real deps so the closure
+    is parent-complete), wire formats pinned against live
+    `tcpdump -i any` captures (tshark agreed field-for-field; the two
+    committed `sll-cooked`/`sll2-cooked` foreign corpora are those
+    real frames, committed with CLI-generated goldens). `capture -i
+    any` synthesizes the 16-byte SLL header from `sockaddr_ll`
+    (`AF_PACKET`/`SOCK_DGRAM`, the libpcap trick — send pointedly
+    unsupported, `-i any` is a tap not a wire) and the store carries
+    LINKTYPE_LINUX_SLL (both writers grew `with_linktype`; `new`
+    stays EN10MB byte-identical). Read-side dispatch: `PcapFile::
+    start_kind/start_offset` drive `replay`/`mut -r`/`patch -r` —
+    113/276 → `sll`/`sll2`, 105 → `dot11`, RAW per-record first-nibble,
+    NULL/LOOPBACK the 4-byte host-order AF value (stripped from the
+    DISSECTION view; stored bytes stay verbatim for send mode, the T5
+    contract). **802.11 dissect-only** per [ADR-0004](adr/0004-802-11-scope.md):
+    the new `wrex-proto-dot11` crate — FC word (version/type/subtype +
+    the to_ds..order aggregate), duration, addr1..3 (+4 under DS bits),
+    the seq word (12+4, both craftable), management elements as the
+    dissect-only `elt` record section (`elt.0.ssid`, `elt.1.chan`,
+    …); radiotap/monitor-mode are the recorded won't-dos. `patch
+    --snaplen` (the T14 deferral). `--rotate-size`/`--rotate-count`
+    chunk the capture store (`FILE`, `FILE.1`, … — the tcpdump
+    -C/-W rules; the count knob rides the size knob by clap
+    `requires`, the sharper grammar error). **T29b absorbed**: the
+    XSK driver (`wrex-io::xdp`, AF_XDP + UMEM + fill/RX rings, RX
+    only — the TX ring is the recorded line-rate follow-up) with the
+    compiled XDP prefilter as the capture DEFAULT: `bpf_available()`
+    probe → whole-filter compile → attach; every failure (capabilities
+    — `bpf()` checks the INITIAL user namespace, the unshare sandbox
+    unlocks neither — attach, or a filter beyond the kernel subset)
+    falls back to the AF_PACKET path with a pointed downgrade note
+    (the ALPN auto-downgrade pattern); `--no-xdp` forces the userspace
+    path (the debug/benchmark escape hatch); a residual userspace
+    filter keeps semantics exact when the kernel subset cannot express
+    the whole expression (the kernel runs the always-redirect stub
+    then — semantics exact, acceleration partial, the honest split).
+  - **T23c — `wrex-ebpf`** (the schema→codegen, [ADR-0005](adr/0005-ebpf-loader-and-syscall-surface.md)):
+    programs are **compiled artifacts of the layout tables** — every
+    field offset comes from the codecs' own `layouts()`, never
+    hand-written BPF (the standing T29 rule, now executable). The
+    filter AST → XDP walk: the auto_start mirror (first-nibble raw
+    gates), eth → bounded 4-hop VLAN chain → family nibble → ihl
+    walk / the RFC 8200 ext-chain bounded skip (frag offset-0 rule
+    included) → proto dispatch, per-term loads bounds-checked with
+    jumps to the sound fallback (`XDP_PASS` — never a silent wrong
+    answer); scalar ints (u32-domain JMP32 compares — the sign-extend
+    rule), CIDR both families (64-bit constants in registers),
+    MAC/bytes per-byte, flag aggregates and bits. Unsupported terms
+    (record sections, Str fields, u64/u128) are POINTED compile
+    errors. **The translator** (29c): same-width rewrites + RFC 1624
+    incremental checksums via `csum_diff` (word-aligned diffs — the
+    odd-offset gotcha the differential caught), byte-identical with
+    the T14 engine for the subset (the oracle). **The responder**
+    (29-d's XDP_TX arm): ICMPv4 echo in place — addr swaps are
+    sum-preserving, the type word folds through the one's-complement
+    complement (engine-verified). **The flow table** (29-d): v4
+    4-tuple counters into a hash map, the live-stats substrate.
+    **The userspace VM** (`wrex-ebpf::vm`): the per-commit executor —
+    full u32→u64 semantics (sign-extended 64-bit immediates, the
+    BPF_MEM modes, pointer-backed map cells so `*ptr += 1`
+    persists), `tests/ebpf_differential.rs`: the verdict
+    differential vs the filter engine over EVERY corpus frame × a
+    37-expression battery, translator byte-identity vs the T14
+    engine, responder checksum validity (engine dissect-side verify),
+    ACL drop shapes, flow counting, pointed-error boundary — plus
+    the hand-rolled `bpf(2)`/netlink loader for the kernel side.
+    The swap triggers (rbpf, aya, nix) are recorded in ADR-0005 and
+    the ledger.
+  - Deliberate deferrals recorded in the ledger: the XSK TX ring
+    (line-rate `replay --xdp`; send keeps AF_PACKET), TC egress
+    (cls_bpf — the one 29-d carry-over; the XDP translator composes,
+    the egress attach is its own netlink surface), tracepoint
+    telemetry (the counter program exists; the attach surface rides
+    the same follow-up), SLL2 capture WRITE (read-side only —
+    `-i any` writes v1 like libpcap), 802.11 radiotap.
+  - Verification: codec units + G1 strategy audits (the gate caught
+    two real gaps on first run — sll2.reserved, dot11.frag — and the
+    dot11 seq/frag packing was fixed to match), the tcpdump/tshark
+    foreign fixtures as committed corpora (population/identity/
+    normalize gates sweep them automatically), `fuzz_dissect_sll` +
+    `fuzz_dissect_dot11` + `fuzz_ebpf_vm` in the fuzz gate (seeds
+    committed), env-gated `lo` ground truth (`capture -i any` → SLL
+    store → replay from `sll` → filters speak cooked paths; the
+    XDP fallback note printed exactly when the probe fails),
+    `tests/linktypes.rs` (cooked/RAW/NULL roundtrips, the AF-strip
+    view, patch --snaplen, dot11 CLI, rotation grammar),
+    `tests/ebpf_differential.rs` (above), man pages + completions +
+    API snapshots regenerated, the registry order pin extended
+    (sll/sll2/dot11).
 
+  Charter sketch as planned (kept for the record):
   - **23a — linktypes**: SLL/SLL2 write + `capture -i any` (Linux
     cooked; the read-side constants exist); RAW/NULL/LOOPBACK
     read with start-layer dispatch; `--snaplen` on write (the T14

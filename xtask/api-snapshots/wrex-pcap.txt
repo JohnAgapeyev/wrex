@@ -1,7 +1,11 @@
 pub mod wrex_pcap
 pub mod wrex_pcap::linktype
 pub const wrex_pcap::linktype::EN10MB: u32
+pub const wrex_pcap::linktype::IEEE802_11: u32
 pub const wrex_pcap::linktype::LINUX_SLL: u32
+pub const wrex_pcap::linktype::LINUX_SLL2: u32
+pub const wrex_pcap::linktype::LOOPBACK: u32
+pub const wrex_pcap::linktype::NULL: u32
 pub const wrex_pcap::linktype::RAW: u32
 pub enum wrex_pcap::PcapError
 pub wrex_pcap::PcapError::BadMagic
@@ -93,6 +97,9 @@ pub wrex_pcap::PcapFile::nanosecond: bool
 pub wrex_pcap::PcapFile::pcapng: bool
 pub wrex_pcap::PcapFile::records: alloc::vec::Vec<wrex_pcap::PcapRecord>
 pub wrex_pcap::PcapFile::snaplen: u32
+impl wrex_pcap::PcapFile
+pub fn wrex_pcap::PcapFile::start_kind(&self, &[u8]) -> &'static str
+pub fn wrex_pcap::PcapFile::start_offset(&self) -> usize
 impl core::clone::Clone for wrex_pcap::PcapFile
 pub fn wrex_pcap::PcapFile::clone(&self) -> Self
 impl core::fmt::Debug for wrex_pcap::PcapFile
@@ -176,6 +183,7 @@ impl<W: core::io::write::Write> wrex_pcap::PcapWriter<W>
 pub fn wrex_pcap::PcapWriter<W>::flush(&mut self) -> core::io::error::Result<()>
 pub fn wrex_pcap::PcapWriter<W>::into_inner(self) -> W
 pub fn wrex_pcap::PcapWriter<W>::new(W) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapWriter<W>::with_linktype(W, u32) -> core::io::error::Result<Self>
 pub fn wrex_pcap::PcapWriter<W>::write_record(&mut self, std::time::SystemTime, &[u8], usize) -> core::io::error::Result<()>
 pub fn wrex_pcap::PcapWriter<W>::write_record_orig(&mut self, std::time::SystemTime, &[u8], u32, usize) -> core::io::error::Result<()>
 impl<W> core::marker::Freeze for wrex_pcap::PcapWriter<W> where W: core::marker::Freeze
@@ -207,6 +215,8 @@ pub fn wrex_pcap::PcapngWriter<W>::flush(&mut self) -> core::io::error::Result<(
 pub fn wrex_pcap::PcapngWriter<W>::into_inner(self) -> W
 pub fn wrex_pcap::PcapngWriter<W>::new(W) -> core::io::error::Result<Self>
 pub fn wrex_pcap::PcapngWriter<W>::new_multi(W, &[u16]) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapngWriter<W>::with_linktype(W, u32) -> core::io::error::Result<Self>
+pub fn wrex_pcap::PcapngWriter<W>::with_linktype_and_resol(W, u32, wrex_pcap::TsResol) -> core::io::error::Result<Self>
 pub fn wrex_pcap::PcapngWriter<W>::with_resol(W, wrex_pcap::TsResol) -> core::io::error::Result<Self>
 pub fn wrex_pcap::PcapngWriter<W>::write_record(&mut self, std::time::SystemTime, &[u8], usize) -> core::io::error::Result<()>
 pub fn wrex_pcap::PcapngWriter<W>::write_record_opts(&mut self, std::time::SystemTime, &[u8], u32, usize, u32) -> core::io::error::Result<()>

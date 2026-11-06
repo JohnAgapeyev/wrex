@@ -8,6 +8,43 @@ tranche.
 
 ## [Unreleased]
 
+### Added — tranche 23: linktypes + the kernel datapath (T29 pulled forward)
+
+Three sub-tranches, all additive; the capture store contract grows
+new linktypes only, every pinned pre-T23 byte stays identical. Closes
+the T5/T14 deferral lines; ADR-0004 (802.11) + ADR-0005 (the eBPF
+loader/syscall decisions) recorded at the same pass.
+
+- **Linux cooked capture** (`wrex-proto-sll`): kinds `sll`/`sll2`,
+  wire-pinned against live tcpdump; `capture -i any` (AF_PACKET
+  SOCK_DGRAM, the SLL header synthesized from sockaddr_ll) writes
+  LINKTYPE_LINUX_SLL — the committed `sll-cooked`/`sll2-cooked`
+  corpora ARE those real frames.
+- **Read-side start dispatch**: `replay`/`mut -r`/`patch -r` dissect
+  by linktype — SLL/SLL2, RAW (first-nibble peek), NULL/LOOPBACK
+  (the 4-byte AF value, stripped from the dissection view), 802.11.
+- **802.11 dissect-only** (`wrex-proto-dot11`, ADR-0004): the FC word,
+  addresses, seq/frag, management elements as the `elt` record
+  section; radiotap/monitor-mode are won't-dos.
+- **The kernel datapath is the capture default** (`wrex-io::xdp`):
+  the filter compiles to an XDP prefilter over the codecs' own layout
+  tables (`wrex-ebpf` — programs are compiled artifacts of the
+  schema, never hand-written BPF), redirects matching frames into an
+  AF_XDP socket; every failure (capabilities, attach, terms beyond the
+  kernel subset) falls back to AF_PACKET with a pointed note. The
+  translator (same-width rewrites + RFC 1624 incremental checksums,
+  byte-identical with the T14 engine), the ICMP-echo XDP_TX
+  responder, and the 4-tuple flow-table counter ride the same
+  codegen; `tests/ebpf_differential.rs` runs the userspace-VM verdict
+  differential against the filter engine over every corpus frame.
+- **Capture knobs**: `--no-xdp` (force the userspace datapath),
+  `--rotate-size`/`--rotate-count` (the tcpdump -C/-W chunk rules),
+  `patch --snaplen` (the T14 deferral).
+- Fuzz targets `fuzz_dissect_sll`, `fuzz_dissect_dot11`,
+  `fuzz_ebpf_vm`; G1 strategies for every new field (the audit caught
+  two real gaps on its first run).
+
+
 ### Added — tranche 22: L3/L4 options read-side typing (the last T11 dynamic region)
 
 All additive: every pinned pre-T22 wire byte is identical; the output

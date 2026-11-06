@@ -7,6 +7,7 @@ license.workspace = true
 description = "wrex io: Clock, Driver, Linux AF_PACKET raw driver, replay driver, interface table"
 
 [dependencies]
+wrex-ebpf = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 libc = { workspace = true }

@@ -399,3 +399,148 @@ fn lo_loopback_send_recv_roundtrip() {
         hex::encode(&want)
     );
 }
+
+// --- tranche 23a: the cooked capture ground truth ---------------------------
+
+/// `capture -i any` on `lo`: the store carries LINKTYPE_LINUX_SLL and
+/// every recorded frame starts with the synthesized 16-byte SLL header
+/// (pkttype host/outgoing, hatype ether, halen 6, lo's MAC, the inner
+/// ethertype) — replay of the store dissects from `sll` and the filter
+/// engine speaks the cooked paths. The T5 capture round-trip,
+/// transposed to the cooked view.
+#[test]
+fn cooked_capture_and_replay_roundtrip() {
+    if !driver_tests_enabled() {
+        eprintln!("skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    assert!(
+        loopback_ready(false),
+        "lo must be up for the cooked capture"
+    );
+    let dir = wrex_test::tempdir();
+    let cap = dir.path().join("cooked.pcap");
+
+    // Generate loopback traffic while a bounded capture runs.
+    let capture = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "capture",
+            "-i",
+            "any",
+            "--count",
+            "1",
+            "--timeout",
+            "3s",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn wrex capture");
+    std::thread::sleep(Duration::from_millis(300));
+    wrex_test::send_udp_on_lo();
+    let out = capture.wait_with_output().expect("capture exits");
+    assert!(out.status.success(), "capture must end cleanly");
+
+    // The store is a LINKTYPE_LINUX_SLL classic pcap whose records
+    // carry the synthesized header + payload.
+    let bytes = std::fs::read(&cap).expect("the capture file exists");
+    let file = wrex_pcap::read(&bytes).expect("the capture parses");
+    assert_eq!(file.linktype, wrex_pcap::linktype::LINUX_SLL);
+    assert!(!file.records.is_empty(), "at least one frame");
+    let rec = &file.records[0];
+    assert!(rec.bytes.len() >= 16, "the SLL header is present");
+    // SLL: the hatype/halen/pkttype fields are KERNEL METADATA (on
+    // `lo` the hatype is ARPHRD_LOOPBACK 772, not ether) — the pinned
+    // invariants are the structural ones: pkttype ∈ {host, outgoing}
+    // (u16 BE at +0) and the inner ethertype BE at +14 names the
+    // family (the udp probe rides ipv4; sibling v6 noise is fine).
+    let pkttype = u16::from_be_bytes([rec.bytes[0], rec.bytes[1]]);
+    assert!(pkttype == 0 || pkttype == 4, "pkttype {pkttype}");
+    let ethertype = u16::from_be_bytes([rec.bytes[14], rec.bytes[15]]);
+    assert!(
+        ethertype == 0x0800 || ethertype == 0x86dd,
+        "the probe rides an ip ethertype, got {ethertype:#06x}"
+    );
+
+    // Replay dissects from `sll` (the linktype-driven start) and the
+    // filter engine speaks the cooked path.
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "replay",
+            cap.to_str().unwrap(),
+            "--format",
+            "jsonl",
+            "--count",
+            "1",
+        ])
+        .output()
+        .expect("spawn wrex replay");
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("\"kind\":\"sll\""),
+        "replay must dissect from sll: {stdout}"
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "replay",
+            cap.to_str().unwrap(),
+            "--format",
+            "hex",
+            "--count",
+            "1",
+            "--filter",
+            "sll.protocol=0x0800",
+        ])
+        .output()
+        .expect("spawn wrex replay (filtered)");
+    assert!(out.status.success());
+    assert!(
+        !out.stdout.is_empty() || ethertype != 0x0800,
+        "the ipv4 filter selects the probe frame"
+    );
+}
+
+/// The XDP datapath's fallback honesty: unprivileged (the unshare
+/// sandbox), the probe reports eBPF unavailable and capture falls
+/// back to the AF_PACKET path with the downgrade note (pointed, never
+/// a failure). Under the privileged CI gate the probe flips and the
+/// XDP path engages — the note is absent.
+#[test]
+fn capture_xdp_fallback_note_matches_privileges() {
+    if !driver_tests_enabled() {
+        eprintln!("skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    assert!(loopback_ready(false), "lo must be up");
+    let dir = wrex_test::tempdir();
+    let cap = dir.path().join("cap.pcap");
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "capture",
+            "-i",
+            "lo",
+            "--count",
+            "1",
+            "--timeout",
+            "1s",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .output()
+        .expect("spawn wrex capture");
+    assert!(out.status.success(), "capture exits cleanly either way");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if wrex_io::xdp::bpf_available() {
+        assert!(
+            !stderr.contains("using the AF_PACKET path"),
+            "privileged: the XDP datapath engages, no downgrade note: {stderr}"
+        );
+    } else {
+        assert!(
+            stderr.contains("using the AF_PACKET path"),
+            "unprivileged: the downgrade note must be printed: {stderr}"
+        );
+    }
+}

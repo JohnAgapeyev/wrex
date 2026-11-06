@@ -1,0 +1,67 @@
+.TH WREX-DOT11 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-dot11 \- dot11 layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIdot11\fR \fB--dot11\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIdot11\fR
+
+.SH DESCRIPTION
+IEEE 802.11 MAC frame (LINKTYPE_IEEE802_11, no radiotap): frame control (version 2 bits, type, subtype, the to_ds..order flag aggregate), duration, addresses 1\-3 (+ address 4 under to_ds+from_ds), sequence (12\-bit seq + 4\-bit frag). A management body dissects into the elt record section (elt.0.ssid, elt.0.chan, …); control/data bodies stay payload. Management element crafting rides the payload verbatim (dissect\-only typing). Root layer (rank 10).
+.
+
+.SH ENCAPSULATION
+Rank 10 (valid stack start: no parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --dot11-version).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-dot11\-version=\fIINT\fR\fR
+protocol version (2 bits; 0) Type u8. Default: 0.
+.TP
+\fB\-\-dot11\-type=\fIINT\fR\fR
+frame type: mgmt|ctrl|data|ext or a bare 0\-3 number Type str. Default: mgmt.
+.TP
+\fB\-\-dot11\-subtype=\fIINT\fR\fR
+frame subtype (4 bits; the management names: 8 = beacon, 4 = probe_req, …) Type u8. Default: 0.
+.TP
+\fB\-\-dot11\-flags\fR
+frame\-control byte 1 bit aggregate: to_ds,from_ds,more_frag,retry,pwr_mgt,more_data,protected,order Type flagset. Default: 0.
+.TP
+\fB\-\-dot11\-duration=\fIINT\fR\fR
+duration/ID (µs, or the PS\-Poll AID) Type u16. Default: 0.
+.TP
+\fB\-\-dot11\-addr1=\fIMAC\fR\fR
+address 1 (receiver) Type mac. Default: 00:00:00:00:00:00.
+.TP
+\fB\-\-dot11\-addr2=\fIMAC\fR\fR
+address 2 (transmitter) Type mac. Default: 00:00:00:00:00:00.
+.TP
+\fB\-\-dot11\-addr3=\fIMAC\fR\fR
+address 3 (bssid/filter) Type mac. Default: 00:00:00:00:00:00.
+.TP
+\fB\-\-dot11\-seq=\fIINT\fR\fR
+sequence control: 12\-bit sequence number + 4\-bit fragment (see frag) Type u16. Default: 0.
+.TP
+\fB\-\-dot11\-frag=\fIINT\fR\fR
+fragment number (high 4 bits of the sequence word) Type u8. Default: 0.
+
+.SH "RECORD SECTIONS"
+Repeated record sections; dissected fields carry indexed paths (elt.0.field).
+
+.TP
+\fBelt\fR (dissect\-only)
+management information\-element TLVs (dissect\-only; indexed paths elt.0.*, …). Control/data bodies stay payload.
+  id (u8; default 0). element id (0 = ssid, 1 = rates, 3 = channel/ds)
+  len (u8; default 0). element length (autofill: the value region)
+  ssid (str; default ). typed view of a 0\-ssid element (the broadcast empty ssid is empty)
+  chan (u8; default 0). typed view of a 3\-ds\-channel element (the first value byte)
+  value (bytes; default ). raw element value bytes (the wire truth)
+
+.SH EXAMPLES
+wrex fields dot11
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-sll\fR(7), \fBwrex\-sll2\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7), \fBwrex\-dhcp6\fR(7)

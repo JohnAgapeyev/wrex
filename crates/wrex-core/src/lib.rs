@@ -24,7 +24,7 @@ pub use dissect::{
 };
 pub use encode::{EncodeCtx, EncodeOpts, Encoded, Patch, Violation, encode, serialize_field_value};
 pub use error::{DecodeError, EncodeError, FilterError, SpecError};
-pub use filter::{Filter, Op as FilterOp};
+pub use filter::{Filter, Op as FilterOp, Term as FilterTerm, TermValue as FilterTermValue};
 pub use patch::{Edit, PatchError, Scope, patch};
 pub use schema::{
     ChecksumEnd, Derived, FieldKind, FieldSchema, LayerSchema, Layout, LengthBase, PseudoSource,

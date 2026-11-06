@@ -41,10 +41,10 @@ instead; open *decisions* live in the roadmap's extension section.
 | Item | Origin | Status |
 |------|--------|--------|
 | BPF filter compilation | T5 (re-affirmed T14) | Open — T25 (cBPF rung) |
-| Non-Ethernet capture linktypes | T5 | Open — T23a (SLL/SLL2 write, RAW/NULL/LOOP read) |
-| Ring-buffer / rotation | T5 | Open — T23b |
-| Raw-IP capture | T5 | Open — T23a (subsumed by the RAW linktype read) |
-| `--snaplen` on patch/capture write | T14 | Open — T23a |
+| Non-Ethernet capture linktypes | T5 | **Closed by T23a** (SLL write + RAW/NULL/LOOP read; 802.11 read per ADR-0004) |
+| Ring-buffer / rotation | T5 | **Closed by T23b** (`--rotate-size`/`--rotate-count`; the mmap RX-ring budget answered by the XSK datapath — TPACKET_V3 never built) |
+| Raw-IP capture | T5 | **Closed by T23a** (the RAW linktype read + replay start dispatch) |
+| `--snaplen` on patch/capture write | T14 | **Closed by T23a** (`patch --snaplen`) |
 | pcapng multi-interface write | T8b | Closed by T18b (`new_multi`) |
 | IDB/EPB write options (`if_tsresol`, `epb_flags`) | T8b | Closed by T18b |
 | Simple Packet Block read / write | T8b | Read closed by T18b; **write parked** (no timestamp — capture needs one), P3 |
@@ -158,6 +158,19 @@ instead; open *decisions* live in the roadmap's extension section.
 | Item | Origin | Status |
 |------|--------|--------|
 | Userspace TCP stack | T4; re-deferred at T6, T9b, T10a (the roadmap's own count reaches "fourth" by T10a) | Open — T31; **trigger formally met** ("mutate TCP state itself and continue the exchange"); reuse-first (smoltcp) behind the frozen `Driver` contract |
+
+## Kernel datapath (tranche 23)
+
+| Item | Origin | Status |
+|------|--------|--------|
+| XSK TX ring (line-rate `replay --xdp`) | T23b (the 29-b absorption) | Open — the recorded follow-up; `send`/`replay` keep the AF_PACKET path; the capture datapath is RX-only by design |
+| TC egress arm (cls_bpf attach) | T23 (the full-29-d charter) | Open — the one 29-d carry-over: the XDP translator composes, the egress attach is its own netlink surface (qdisc clsact + filter add); rides the next datapath tranche |
+| Tracepoint telemetry attach | T23 (the full-29-d charter) | Open — the counter program surface exists (`compile_flow_table`); the tracepoint link surface rides the same follow-up |
+| Kernel-side filtering beyond the eBPF subset | T23c | Standing split: the kernel prefilter compiles what it can, the residual filter rides userspace (semantics exact, acceleration partial — never a silent wrong answer) |
+| The in-crate userspace eBPF VM | T23c (ADR-0005) | Swap-triggered: retire for rbpf if the VM ever needs loops/JIT/verifier-grade checks; the kernel (`BPF_PROG_TEST_RUN` + live attach in the privileged CI job) is the authoritative gate |
+| nix/rustix consolidation of wrex-io's generic syscall surface | T23b (ADR-0005) | Candidate: chartered refactor pass if the unsafe footprint keeps growing (AF_XDP TX, TC egress) — the T17-0 retrofit precedent |
+| SLL2 capture write | T23a | Read-side only; `-i any` writes v1 like libpcap — write when a consumer appears |
+| 802.11 radiotap (linktype 127) | ADR-0004 | Won't-do unless a corpus demands it; monitor-mode injection is a recorded won't-do |
 | Cross-stack differential targets | T6 | Closed by T12 (`diff`) |
 | TLS-wrapped app probes | T9b | Closed by T13b |
 | v6 app-layer fuzz targets | T9b | Closed by T10a |
