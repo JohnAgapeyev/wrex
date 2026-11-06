@@ -537,10 +537,12 @@ fn capture_xdp_fallback_note_matches_privileges() {
             // Privileged on an AF_XDP-capable kernel: the datapath must
             // ENGAGE (probe → compile → XSK open → prog load → attach —
             // every step's refusal is step-tagged in the note). A
-            // downgrade note here is a real regression, so it FAILS;
-            // the live-root runs on the developer's hardened Arch
-            // kernel (CONFIG_XDP_SOCKETS off) verified the fallback
-            // half, the ubuntu CI runners carry the capable-kernel half.
+            // downgrade note here is a real regression, so it FAILS.
+            // NOTE (the live-root findings): the XSKMAP create is
+            // refused EINVAL on EVERY current machine (arch1 AND the
+            // ubuntu runner — see the ledger), so this arm is the
+            // forward-looking gate, not a verified-live one: the
+            // moment the constant/floor resolves, it starts gating.
             assert!(
                 !stderr.contains("using the AF_PACKET path"),
                 "XDP-capable kernel: the datapath must engage, got the downgrade note: {stderr}"
