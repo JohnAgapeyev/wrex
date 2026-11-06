@@ -695,29 +695,62 @@ pub struct XdpCapture {
 }
 
 impl XdpCapture {
+    /// Wire the whole datapath, with the error naming the FAILING
+    /// STEP (diagnosability the first live root runs demanded: a bare
+    /// "attach failed" hid which of the five kernel calls refused).
     pub fn attach(
         iface: &str,
         ifindex: i32,
         prog: &wrex_ebpf::Program,
     ) -> Result<Self, DriverError> {
-        let xskmap = BpfMap::create(BPF_MAP_TYPE_XSKMAP, 4, 4, 64).map_err(io_to_driver)?;
-        let xsk = XskDriver::open(iface, ifindex)?;
+        let xskmap = BpfMap::create(BPF_MAP_TYPE_XSKMAP, 4, 4, 64)
+            .map_err(|e| step("map create (XSKMAP)", e))?;
+        let xsk = XskDriver::open(iface, ifindex).map_err(|e| step_driver("xsk open", e))?;
         // XSKMAP values are SOCKET fds: the XSK's own socket joins at
         // the queue key 0 (the compiled redirect uses rx_queue as key).
         let key = 0u32.to_le_bytes();
         let value = (xsk.fd as u32).to_le_bytes();
-        xskmap.update(&key, &value).map_err(io_to_driver)?;
+        xskmap
+            .update(&key, &value)
+            .map_err(|e| step("xskmap update (socket fd at queue 0)", e))?;
         // Map index 0 in the compiled stream = the XSKMAP (the
         // compiled-artifact contract).
-        let program =
-            BpfProgram::load_xdp(&prog.to_bits(), &[xskmap.fd()]).map_err(io_to_driver)?;
-        xdp_attach(ifindex, program.fd()).map_err(io_to_driver)?;
+        let program = BpfProgram::load_xdp(&prog.to_bits(), &[xskmap.fd()])
+            .map_err(|e| step("prog load (BPF_PROG_LOAD)", e))?;
+        xdp_attach(ifindex, program.fd()).map_err(|e| step("netlink xdp attach", e))?;
         Ok(Self {
             _program: program,
             _xskmap: xskmap,
             xsk,
             ifindex,
         })
+    }
+}
+
+/// The step-tagging wrapper: the pointed CLI note names the exact
+/// kernel call that refused. `step_driver` keeps the inner DriverError
+/// text (XskDriver::open already maps its own io errors) on the step.
+fn step_driver(name: &str, e: DriverError) -> DriverError {
+    match e {
+        DriverError::Io { source } => DriverError::Io {
+            source: io::Error::other(format!("{name}: {source}")),
+        },
+        other => DriverError::Io {
+            source: io::Error::other(format!("{name}: {other}")),
+        },
+    }
+}
+
+/// The step-tagging wrapper for raw io errors.
+fn step(name: &str, e: io::Error) -> DriverError {
+    let hint = match e.raw_os_error() {
+        Some(libc::EPERM) | Some(libc::EACCES) => {
+            format!("{name}: {e} (capabilities checked in the initial user namespace)")
+        }
+        _ => format!("{name}: {e}"),
+    };
+    DriverError::Io {
+        source: io::Error::other(hint),
     }
 }
 
