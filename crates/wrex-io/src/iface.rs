@@ -169,7 +169,12 @@ mod tests {
         use std::sync::atomic::{AtomicU32, Ordering};
         static SEQ: AtomicU32 = AtomicU32::new(0);
         let n = SEQ.fetch_add(1, Ordering::SeqCst);
-        let dir = std::env::temp_dir().join(format!("wrex-iftable-test-{n}"));
+        // Pid-unique: privileged and unprivileged test runs must never
+        // share a fixture dir — hardened sysctls (fs.protected_regular)
+        // deny cross-user writes in sticky /tmp EVEN TO ROOT, so a
+        // sudo-run's leftovers would brick the next user-run's fixtures.
+        let dir =
+            std::env::temp_dir().join(format!("wrex-iftable-test-{}-{n}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         for (name, mac, mtu, flags) in [
             ("lo", "00:00:00:00:00:00", "65536", "0x10049"),

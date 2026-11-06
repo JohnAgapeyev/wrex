@@ -159,11 +159,11 @@ fn replay_raw_count_and_filter() {
 /// Bad pcap files are data outcomes: exit 1 (not usage).
 #[test]
 fn replay_bad_pcap_exits_1() {
-    let path = std::env::temp_dir().join("wrex-t5-bad.pcap");
-    // Remove any stale fixture first: hardened distros (Arch's
-    // fs.protected_regular=2) deny root O_CREAT-writes to ANOTHER
-    // user's file in sticky /tmp — a fixture left by an unprivileged
-    // run must not break the privileged one (and vice versa).
+    // Pid-unique fixtures: hardened distros (Arch's
+    // fs.protected_regular=2) deny cross-user O_CREAT-writes in
+    // sticky /tmp EVEN TO ROOT — fixtures shared between privileged
+    // and unprivileged runs brick whichever runs second.
+    let path = std::env::temp_dir().join(format!("wrex-t5-bad-{}.pcap", std::process::id()));
     let _ = std::fs::remove_file(&path);
     std::fs::write(&path, b"not a pcap at all, nope nope").unwrap();
     wrex()
@@ -172,7 +172,7 @@ fn replay_bad_pcap_exits_1() {
         .failure()
         .code(1);
     // Missing file: runtime too.
-    let missing = std::env::temp_dir().join("wrex-t5-missing.pcap");
+    let missing = std::env::temp_dir().join(format!("wrex-t5-missing-{}.pcap", std::process::id()));
     let _ = std::fs::remove_file(&missing);
     wrex()
         .args(["replay", missing.to_str().unwrap()])
