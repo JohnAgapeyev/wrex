@@ -132,6 +132,38 @@ fn filter_verdict_differential_over_corpora() {
     assert!(compared > 1000, "the differential must be exercised");
 }
 
+/// The empty-frame pin (the live verifier's first lesson): a compiled
+/// program on a ZERO-LENGTH packet (data == data_end) must return a
+/// clean verdict, never a VM Bounds error — the first live review
+/// rejected the `ptr + need - 1` bounds pattern for letting the last
+/// read byte sit AT data_end; the VM differential had missed it
+/// because no corpus frame puts a read boundary there. The VM is the
+/// executor, the verifier proves for ALL frames — this pin closes the
+/// gap for the degenerate frame the verifier cares about most.
+#[test]
+fn empty_packet_yields_clean_verdicts_never_bounds() {
+    let reg = registry();
+    for expr in [
+        "eth.type=0x0800",
+        "udp.dport=53",
+        "tcp.flags.syn=true",
+        "ipv4.src=10.0.0.0/8",
+        "ipv6.src=2001:db8::/32",
+        "",
+    ] {
+        let f = Filter::parse(&reg, expr).unwrap();
+        let prog = ebpf::compile_capture_prefilter(&reg, &f).unwrap();
+        let mut machine = vm::Vm::new_default();
+        machine.declare_program_maps(&prog);
+        machine.maps.set(ebpf::MAP_IDX_XSK, &0u32.to_le_bytes(), 1);
+        let got = machine.run(&prog, b"");
+        assert!(
+            got.is_ok(),
+            "`{expr}` on an empty packet must resolve cleanly (got {got:?})"
+        );
+    }
+}
+
 /// The pointed-error boundary: terms the kernel subset cannot express
 /// refuse compilation (record sections, Str fields, u64+ ints, layers
 /// outside the walk) — never a silent wrong answer. The userspace

@@ -307,11 +307,15 @@ fn emit_action(e: &mut E, action: Action, maps: &mut Vec<MapDecl>) {
 // --- the walk ---------------------------------------------------------------
 
 /// Bounds-check a POINTER in `ptr` (need bytes readable), miss on
-/// overrun. `ptr` must be a packet address (r6-relative); the check is
-/// `ptr + need - 1 <= data_end`.
+/// overrun: `ptr + need > data_end → miss`. The +need (not +need−1)
+/// form is the STRICT one the kernel verifier demands — the first
+/// live review rejected `ptr + need − 1 <= data_end` because it lets
+/// the last read byte sit exactly AT data_end (the VM differential
+/// missed it: no corpus frame puts a read boundary at data_end; the
+/// verifier proves for ALL frames).
 fn emit_ptr_bounds(e: &mut E, ptr: u8, need: usize, miss: u32) {
     e.raw(Insn::mov64_reg(R5, ptr));
-    e.raw(Insn::add64_imm(R5, need.saturating_sub(1) as i32));
+    e.raw(Insn::add64_imm(R5, need as i32));
     e.jump_reg(JmpOp::Gt, R5, P_END, miss);
 }
 

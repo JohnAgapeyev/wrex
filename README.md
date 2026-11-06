@@ -526,3 +526,16 @@ What it will and won't fix: most of the wall time is WAIT-bound
 subprocess churn) — those 20-40s suites keep their waits, but they
 stop queueing behind each other. The doc-test binary and Miri keep
 their own invocations.
+
+**Mixing `sudo cargo test` with unprivileged builds** poisons the
+shared `target/` (root-owned fingerprints brick the next user-run —
+the same `fs.protected_regular` cross-user class as the tmp
+fixtures). Run the privileged suites with their own target dir:
+
+```sh
+sudo -E env "PATH=$PATH" CARGO_TARGET_DIR=target-sudo \
+  WREX_DRIVER_TESTS=1 cargo test --all-features -p wrex-io -p wrex
+```
+
+A one-time `sudo chown -R "$USER" target/` repairs an already-poisoned
+tree.

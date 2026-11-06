@@ -166,20 +166,20 @@ impl BpfProgram {
         match bpf_sys(BPF_PROG_LOAD, &attr) {
             Ok(fd) => Ok(Self { fd: fd as i32 }),
             Err(e) => {
-                // The verifier's reasoning rides the error (the note
-                // prints it — the pointed refusal, self-describing).
+                // The verifier's reasoning rides the error in FULL
+                // (the REASON lines precede the trailing stats line —
+                // the stats alone say nothing, the first live notes
+                // showed exactly that truncation).
                 let said = log
                     .iter()
                     .position(|&b| b == 0)
                     .map(|end| String::from_utf8_lossy(&log[..end]).into_owned())
                     .unwrap_or_default();
+                let said = said.trim();
                 if said.is_empty() {
                     Err(e)
                 } else {
-                    Err(io::Error::other(format!(
-                        "{e}; verifier: {}",
-                        said.lines().last().unwrap_or("")
-                    )))
+                    Err(io::Error::other(format!("{e}; verifier: {said}")))
                 }
             }
         }
