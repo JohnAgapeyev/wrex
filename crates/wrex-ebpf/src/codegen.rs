@@ -681,11 +681,23 @@ fn emit_l4_dispatch(
             e.place(is_ext);
             // The ext header lives AT P_L4: its len byte at +1, and
             // frag(44) checks its 13-bit offset (BE u16 at +2) — a
-            // non-initial fragment is terminal (the T17a rule).
+            // non-initial fragment is terminal (the T17a rule). The
+            // v6 entry check covered only P_L3..P_L3+40; the ext
+            // header at P_L3+40 is OUTSIDE it — its OWN 8-byte check
+            // first (the verifier's third live lesson, insn 160:
+            // "invalid access, off=55, R4 min value is outside of the
+            // allowed memory range"). The bounds check's scratch is
+            // r5 — the ext TYPE rides R2 past it (the register-ferry
+            // rule the chain-pointer fix taught; forgotten at this
+            // call site, the corpus differential caught it in one
+            // run: the frag/AH dispatches read the clobbered r5 and
+            // a fragment walked past its terminal rule).
+            e.raw(Insn::mov64_reg(R2, R5));
             e.raw(Insn::mov64_reg(R4, P_DATA));
             e.raw(Insn::add64_reg(R4, P_L4));
+            emit_ptr_bounds(e, R4, 8, miss);
             let not_frag = e.label();
-            e.jump(Some((JmpOp::Ne, R5, 44)), not_frag);
+            e.jump(Some((JmpOp::Ne, R2, 44)), not_frag);
             e.raw(Insn::ldx_b(R3, R4, 2));
             e.raw(Insn::and64_imm(R3, 0x1f));
             e.jump(Some((JmpOp::Ne, R3, 0)), miss);
@@ -699,7 +711,7 @@ fn emit_l4_dispatch(
             let ah = e.label();
             let units8 = e.label();
             let shared_advance = e.label();
-            e.jump(Some((JmpOp::Eq, R5, 51)), ah);
+            e.jump(Some((JmpOp::Eq, R2, 51)), ah);
             e.jump(None, units8);
             e.place(ah);
             e.raw(Insn::add64_imm(R3, 2));
@@ -707,7 +719,7 @@ fn emit_l4_dispatch(
             e.jump(None, shared_advance);
             e.place(units8);
             let not_frag_sz = e.label();
-            e.jump(Some((JmpOp::Ne, R5, 44)), not_frag_sz);
+            e.jump(Some((JmpOp::Ne, R2, 44)), not_frag_sz);
             e.raw(Insn::mov64_imm(R3, 8));
             e.jump(None, shared_advance);
             e.place(not_frag_sz);

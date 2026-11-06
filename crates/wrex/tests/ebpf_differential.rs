@@ -195,15 +195,30 @@ fn boundary_length_sweep_never_bounds() {
         machine.declare_program_maps(&prog);
         machine.maps.set(ebpf::MAP_IDX_XSK, &0u32.to_le_bytes(), 1);
         for len in 0..=60usize {
-            // Every byte 0x45/0x60/etc pattern would be its own test;
-            // zeros + one length-family sweep suffice for the class —
-            // the walk's reads are position-driven, not value-driven.
-            let frame = vec![0u8; len];
-            let got = machine.run(&prog, &frame);
-            assert!(
-                got.is_ok(),
-                "`{expr}` on a {len}-byte frame must resolve cleanly (got {got:?})"
-            );
+            // Pattern families, not one zero-fill: the reads are
+            // position-driven but the WALK is value-gated — the zero
+            // frame's family nibble is 0, so it never reaches the v4/v6
+            // arms and the ext chain was dead code under the first
+            // sweep (the verifier's third live lesson hid in exactly
+            // that gap). Each family drives one arm:
+            for pattern in [
+                vec![0u8; len],           // zeros: the L2/eth arm
+                vec![0x60; len],          // 0x60-fill: the raw-v6 arm
+                b"\x60\x00\x00\x00\x00\x00\x00\x00".to_vec(), // raw v6, next 0 = hopopts → the ext chain
+                b"\x45\x00\x00\x00\x00\x00\x00\x00".to_vec(),  // raw v4: the ihl walk
+                b"\xff\xff\xff\xff\xff\xff\x00\x11\x22\x33\x44\x55\x86\xdd\x60\x00\x00\x00\x00\x00\x00\x00"
+                    .to_vec(),            // eth+v6: the eth walk into the v6 arm
+                b"\xff\xff\xff\xff\xff\xff\x00\x11\x22\x33\x44\x55\x08\x00\x45\x00\x00\x00\x00\x00\x00\x00"
+                    .to_vec(),            // eth+v4: the eth walk into the ihl arm
+            ] {
+                let mut frame = pattern.clone();
+                frame.resize(len, 0);
+                let got = machine.run(&prog, &frame);
+                assert!(
+                    got.is_ok(),
+                    "`{expr}` on a {len}-byte {pattern:?} frame must resolve cleanly (got {got:?})"
+                );
+            }
         }
     }
 }
