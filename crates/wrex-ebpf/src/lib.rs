@@ -16,6 +16,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod insn;
+pub mod verify;
 pub mod vm;
 
 mod codegen;

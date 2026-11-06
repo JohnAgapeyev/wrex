@@ -37,6 +37,16 @@ loader/syscall decisions) recorded at the same pass.
   responder, and the 4-tuple flow-table counter ride the same
   codegen; `tests/ebpf_differential.rs` runs the userspace-VM verdict
   differential against the filter engine over every corpus frame.
+- **Static verifier-shape checker** (`wrex-ebpf::verify`): the
+  kernel verifier's known rules enforced at COMPILE time — every
+  `compile_*` abstract-interprets the emitted program
+  (per-register-instance read/store proofs, the constant-add
+  range shift, dead-code detection) and refuses violations with
+  pointed, disassembly-windowed errors — never a load-time
+  surprise. Its first sweep found three bug classes the live
+  rounds never reached (the translate dispatch nibble read, the
+  post-`csum_diff` checksum store, the dead-arm shapes in
+  `compile_filter`), all fixed pre-attach.
 - **Capture knobs**: `--no-xdp` (force the userspace datapath),
   `--rotate-size`/`--rotate-count` (the tcpdump -C/-W chunk rules),
   `patch --snaplen` (the T14 deferral).

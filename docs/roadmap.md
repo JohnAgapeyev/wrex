@@ -2183,9 +2183,21 @@ rationale in [verification.md](verification.md)):
     37-expression battery, translator byte-identity vs the T14
     engine, responder checksum validity (engine dissect-side verify),
     ACL drop shapes, flow counting, pointed-error boundary — plus
-    the hand-rolled `bpf(2)`/netlink loader for the kernel side.
-    The swap triggers (rbpf, aya, nix) are recorded in ADR-0005 and
-    the ledger.
+    the hand-rolled `bpf(2)` loader + `BPF_LINK_CREATE` attach for
+    the kernel side (the netlink attach is deleted — the incident
+    rule, ADR-0005). **The static verifier-shape checker**
+    (`wrex-ebpf::verify`, the fifth lesson: stop iterating against
+    the live machine — its rules are known): every `compile_*`
+    abstract-interprets the emitted program against them
+    (per-register-instance read/store proofs, the constant-add
+    window shift, unreachable instructions) and refuses violations
+    with pointed, disassembly-windowed errors. Its first sweep
+    caught three bug classes no live round had reached — the
+    translate dispatch nibble read, the post-`csum_diff` store
+    (the call clobbered the seed read's proof), and the dead-arm
+    shapes in `compile_filter` — all fixed pre-attach. The swap
+    triggers (rbpf, aya, nix) are recorded in ADR-0005 and the
+    ledger.
   - Deliberate deferrals recorded in the ledger: the XSK TX ring
     (line-rate `replay --xdp`; send keeps AF_PACKET), TC egress
     (cls_bpf — the one 29-d carry-over; the XDP translator composes,

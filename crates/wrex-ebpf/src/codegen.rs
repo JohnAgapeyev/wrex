@@ -133,6 +133,11 @@ pub enum CompileError {
     UnsupportedValue { term: String, why: String },
     /// A rewrite at a layer/path the translator subset does not cover.
     UnsupportedEdit { edit: String, why: String },
+    /// The static verifier-shape checker refused the generated program
+    /// (lesson #5: the kernel verifier's rules are known — enforce
+    /// them at compile time, never on a live attach). Each violation
+    /// names its instruction.
+    VerifierShape { violations: String },
 }
 
 impl core::fmt::Display for CompileError {
@@ -144,6 +149,9 @@ impl core::fmt::Display for CompileError {
             Self::UnsupportedField { term, why } => write!(f, "term `{term}`: {why}"),
             Self::UnsupportedValue { term, why } => write!(f, "term `{term}`: {why}"),
             Self::UnsupportedEdit { edit, why } => write!(f, "edit `{edit}`: {why}"),
+            Self::VerifierShape { violations } => {
+                write!(f, "verifier-shape violations: {violations}")
+            }
         }
     }
 }
@@ -493,19 +501,24 @@ pub fn compile_filter(
             e.jump(Some((JmpOp::Eq, R5, 6)), raw_v6);
             e.jump(None, ethish);
             // Raw families: P_L3 = 0 (the frame IS the ip datagram);
-            // eth/vlan layers are absent — their terms are false.
+            // eth/vlan layers are absent — their terms are false, so
+            // an eth/vlan-bearing plan misses here and the family
+            // continuation below cannot run (it would be dead code —
+            // the checker caught this third instance of the class).
             e.place(raw_v4);
             e.raw(Insn::mov64_imm(P_L3, 0));
             if plan.l2_eth || plan.vlan {
                 e.jump(None, miss);
+            } else {
+                e.jump(None, v4);
             }
-            e.jump(None, v4);
             e.place(raw_v6);
             e.raw(Insn::mov64_imm(P_L3, 0));
             if plan.l2_eth || plan.vlan {
                 e.jump(None, miss);
+            } else {
+                e.jump(None, v6);
             }
-            e.jump(None, v6);
             // The eth (+ tag chain) path — the frame is ≥14 bytes here.
             e.place(ethish);
             emit_l3_walk(&mut e, miss);
@@ -532,62 +545,70 @@ pub fn compile_filter(
             e.jump(Some((JmpOp::Eq, R5, 4)), v4);
             e.jump(Some((JmpOp::Eq, R5, 6)), v6);
             e.jump(None, miss);
-            // v4 branch: symmetric v6-only gate.
+            // v4 branch: a v6-only term set misses every v4 frame (the
+            // engine's absent-layer rule) — and NOTHING below can run,
+            // so the arm's continuation would be dead code (the kernel
+            // refuses unreachable instructions; the checker caught the
+            // ipv6-only filter shape pre-attach).
             e.place(v4);
             if plan.v6 {
                 e.jump(None, miss);
-            }
-            emit_term_chain(
-                &mut e,
-                registry,
-                terms.iter().filter(|t| t.layer == "ipv4"),
-                Base::L3,
-                miss,
-            )?;
-            if plan.needs_l4() {
-                let l4 = emit_l4_dispatch(&mut e, 4, &plan, miss);
-                for (kind, _, lbl) in &l4 {
-                    e.place(*lbl);
-                    emit_term_chain(
-                        &mut e,
-                        registry,
-                        terms.iter().filter(|t| t.layer == *kind),
-                        Base::L4,
-                        miss,
-                    )?;
+            } else {
+                emit_term_chain(
+                    &mut e,
+                    registry,
+                    terms.iter().filter(|t| t.layer == "ipv4"),
+                    Base::L3,
+                    miss,
+                )?;
+                if plan.needs_l4() {
+                    let l4 = emit_l4_dispatch(&mut e, 4, &plan, miss);
+                    for (kind, _, lbl) in &l4 {
+                        e.place(*lbl);
+                        emit_term_chain(
+                            &mut e,
+                            registry,
+                            terms.iter().filter(|t| t.layer == *kind),
+                            Base::L4,
+                            miss,
+                        )?;
+                        e.jump(None, matched);
+                    }
+                } else {
                     e.jump(None, matched);
                 }
-            } else {
-                e.jump(None, matched);
             }
-            // v6 branch: a v4-only term set misses here (the engine's
-            // absent-layer rule — every v6 frame fails an ipv4 term).
+            // v6 branch: symmetric — a v4-only term set misses here
+            // (every v6 frame fails an ipv4 term), and the arm's
+            // continuation would be dead code (the checker caught the
+            // ipv4-only filter shape at insn 115 pre-attach).
             e.place(v6);
             if plan.v4 {
                 e.jump(None, miss);
-            }
-            emit_term_chain(
-                &mut e,
-                registry,
-                terms.iter().filter(|t| t.layer == "ipv6"),
-                Base::L3,
-                miss,
-            )?;
-            if plan.needs_l4() {
-                let l4 = emit_l4_dispatch(&mut e, 6, &plan, miss);
-                for (kind, _, lbl) in &l4 {
-                    e.place(*lbl);
-                    emit_term_chain(
-                        &mut e,
-                        registry,
-                        terms.iter().filter(|t| t.layer == *kind),
-                        Base::L4,
-                        miss,
-                    )?;
+            } else {
+                emit_term_chain(
+                    &mut e,
+                    registry,
+                    terms.iter().filter(|t| t.layer == "ipv6"),
+                    Base::L3,
+                    miss,
+                )?;
+                if plan.needs_l4() {
+                    let l4 = emit_l4_dispatch(&mut e, 6, &plan, miss);
+                    for (kind, _, lbl) in &l4 {
+                        e.place(*lbl);
+                        emit_term_chain(
+                            &mut e,
+                            registry,
+                            terms.iter().filter(|t| t.layer == *kind),
+                            Base::L4,
+                            miss,
+                        )?;
+                        e.jump(None, matched);
+                    }
+                } else {
                     e.jump(None, matched);
                 }
-            } else {
-                e.jump(None, matched);
             }
         }
     }
@@ -610,10 +631,52 @@ pub fn compile_filter(
         e.raw(Insn::mov64_imm(0, XDP_PASS));
         e.raw(Insn::exit());
     }
+    finish(name, maps, e.finish())
+}
+
+/// The shared program tail: run the static verifier-shape check
+/// (lesson #5 — the kernel's rules enforced at compile time; the
+/// five live lessons each cost a kernel round-trip, this closes the
+/// class), then hand back the program.
+fn finish(name: &str, maps: Vec<MapDecl>, insns: Vec<Insn>) -> Result<Program, CompileError> {
+    if let Err(violations) = crate::verify::verify_shape(&insns) {
+        // Each violation carries its instruction's disassembly and a
+        // one-insn context — the refusing site, legible without a
+        // debugger.
+        let dis = |pc: usize| -> alloc::string::String {
+            match insns.get(pc) {
+                Some(i) => format!(
+                    "[{pc}] code={:#04x} dst={} src={} off={} imm={} | ",
+                    i.code, i.dst, i.src, i.off, i.imm
+                ),
+                None => alloc::string::String::new(),
+            }
+        };
+        // A six-insn window around each violation — the refusing site
+        // in full context, legible without a debugger.
+        let window = |pc: usize| -> alloc::string::String {
+            let mut out = alloc::string::String::new();
+            let lo = pc.saturating_sub(6);
+            for i in lo..(pc + 2).min(insns.len()) {
+                out.push_str(&dis(i));
+            }
+            out
+        };
+        let mut out = alloc::string::String::new();
+        for v in violations {
+            out.push_str(&format!(
+                "insn {}: {} window: {}; ",
+                v.insn,
+                v.msg,
+                window(v.insn)
+            ));
+        }
+        return Err(CompileError::VerifierShape { violations: out });
+    }
     Ok(Program {
         name: name.to_string(),
         maps,
-        insns: e.finish(),
+        insns,
     })
 }
 
@@ -1318,6 +1381,13 @@ pub fn compile_translate(
         let b = e.label();
         e.raw(Insn::mov64_reg(R4, P_DATA));
         e.raw(Insn::add64_reg(R4, P_L3));
+        // The version nibble at r8 needs its OWN bounds check: the
+        // walk proved the ETHERTYPE readable (r8-2..r8), not the byte
+        // AT r8 — a frame ending at the L3 boundary would OOB-read
+        // (the verifier's second live lesson, caught at insn 93 in the
+        // filter's twin dispatch; the static checker caught this copy
+        // at insn 83 before any live round).
+        emit_ptr_bounds(&mut e, R4, 1, miss);
         e.raw(Insn::ldx_b(R5, R4, 0));
         e.raw(Insn::rsh64_imm(R5, 4));
         e.raw(Insn::and64_imm(R5, 0xf));
@@ -1349,11 +1419,7 @@ pub fn compile_translate(
     e.place(miss);
     e.raw(Insn::mov64_imm(0, XDP_PASS));
     e.raw(Insn::exit());
-    Ok(Program {
-        name: "translate".to_string(),
-        maps: Vec::new(),
-        insns: e.finish(),
-    })
+    finish("translate", Vec::new(), e.finish())
 }
 
 /// The per-family edit body: rewrites at runtime layer bases, then the
@@ -1481,13 +1547,22 @@ fn emit_edit_body(
                 e.raw(Insn::add64_reg(R5, R3));
             }
             e.raw(Insn::xor64_imm(R5, 0xffff));
-            cbase.emit_ptr(e, R4, c.at as i32);
+            // The store address needs its OWN bounds check: the
+            // csum_diff call clobbered r0-r5, so the seed read's proof
+            // on r4 died with the call. And emit_ptr_bounds' scratch is
+            // r5 — the checksum must not ride it — so split the stored
+            // bytes FIRST and ferry the low byte in r1 past the check
+            // (r1 is free here: the csum_diff args are dead and the
+            // next checksum's arg setup overwrites it).
             e.raw(Insn::mov64_reg(R3, R5));
             e.raw(Insn::rsh64_imm(R3, 8));
             e.raw(Insn::and64_imm(R3, 0xff));
-            e.raw(Insn::and64_imm(R5, 0xff));
+            e.raw(Insn::mov64_reg(R1, R5));
+            e.raw(Insn::and64_imm(R1, 0xff));
+            cbase.emit_ptr(e, R4, c.at as i32);
+            emit_ptr_bounds(e, R4, 2, miss);
             e.raw(Insn::stx_b(R4, 0, R3));
-            e.raw(Insn::stx_b(R4, 1, R5));
+            e.raw(Insn::stx_b(R4, 1, R1));
         }
     }
     let _ = (registry, done);
@@ -1587,10 +1662,18 @@ pub fn compile_responder() -> Program {
     e.place(miss);
     e.raw(Insn::mov64_imm(0, XDP_PASS));
     e.raw(Insn::exit());
+    let insns = e.finish();
+    if let Err(violations) = crate::verify::verify_shape(&insns) {
+        let mut out = alloc::string::String::new();
+        for v in violations {
+            out.push_str(&format!("insn {}: {}; ", v.insn, v.msg));
+        }
+        panic!("responder shape regression: {out}");
+    }
     Program {
         name: "icmp-echo-responder".to_string(),
         maps: Vec::new(),
-        insns: e.finish(),
+        insns,
     }
 }
 
@@ -1685,6 +1768,14 @@ pub fn compile_flow_table() -> Program {
     e.place(done);
     e.raw(Insn::mov64_imm(0, XDP_PASS));
     e.raw(Insn::exit());
+    let insns = e.finish();
+    if let Err(violations) = crate::verify::verify_shape(&insns) {
+        let mut out = alloc::string::String::new();
+        for v in violations {
+            out.push_str(&format!("insn {}: {}; ", v.insn, v.msg));
+        }
+        panic!("flow-table shape regression: {out}");
+    }
     Program {
         name: "flow-table".to_string(),
         maps: vec![MapDecl {
@@ -1694,7 +1785,7 @@ pub fn compile_flow_table() -> Program {
             value_size: 4,
             max_entries: 65536,
         }],
-        insns: e.finish(),
+        insns,
     }
 }
 

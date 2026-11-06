@@ -80,3 +80,23 @@ egress) — the T17-0 retrofit precedent is the vehicle.
   link fd the attachment's owner: the kernel detaches when the fd
   closes — on any exit path, SIGKILL included. No ack to wait for,
   nothing that CAN stick. The netlink attach code is deleted.
+- **The kernel verifier's rules are enforced at compile time** (the
+  attach rounds' fifth lesson): the four live lessons were each an
+  instance of a known, documented verifier rule, learned at the cost
+  of a privileged round. `wrex-ebpf::verify` abstract-interprets
+  every compiled program — per-register-instance read/store proofs
+  (a constant add shifts the proven window exactly as the kernel's
+  range tracking does; re-derivations spend it), unreachable
+  instruction detection — and every `compile_*` path refuses a
+  violating program with a pointed, disassembly-windowed
+  `VerifierShape` error. It is a compile-time gate over the
+  known-rule class, not a kernel substitute — decision 2's
+  authoritative gate (the privileged CI job's live load) stands.
+  Its first sweep found three bug classes no live round had
+  reached (the translate dispatch nibble read, the post-`csum_diff`
+  store, the dead-arm shapes in `compile_filter`) — all fixed
+  before a single further attach. Known limit, recorded: pointers
+  whose offset folds a runtime scalar (the IHL base, the v6 ext
+  chain) decay to an untracked class in the checker — every such
+  emit site is `emit_ptr` + `emit_ptr_bounds` by audited
+  discipline, and extending the checker there is a swap trigger.
