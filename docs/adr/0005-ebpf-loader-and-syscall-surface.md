@@ -71,3 +71,12 @@ egress) — the T17-0 retrofit precedent is the vehicle.
   refusing kernel call, and the kernel floor that remains is the
   cheap one: a build without `CONFIG_XDP_SOCKETS` refuses the XSKMAP
   and the transparent AF_PACKET fallback carries capture.
+- **The XDP attach is a bpf_link, never raw rtnetlink** (the incident
+  rule): the first live attach round's netlink message — no NLM_F_ACK —
+  hung the capture in a blocking recv-from (successful netlink XDP
+  attaches are SILENT), and the SIGINT that killed it skipped Rust's
+  Drop, leaving the XDP program attached to the machine's loopback
+  until manual `ip link set lo xdp off`. `BPF_LINK_CREATE` makes the
+  link fd the attachment's owner: the kernel detaches when the fd
+  closes — on any exit path, SIGKILL included. No ack to wait for,
+  nothing that CAN stick. The netlink attach code is deleted.

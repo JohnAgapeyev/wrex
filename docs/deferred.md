@@ -163,6 +163,7 @@ instead; open *decisions* live in the roadmap's extension section.
 
 | Item | Origin | Status |
 |------|--------|--------|
+| Graceful SIGINT for `capture` (flush the buffered pcap tail) | T23b (the hang incident's sibling) | Open — the BufWriter tail is lost on interrupt today (pre-existing for AF_PACKET too); the XDP attach orphaning it co-occurred with is closed structurally by the bpf_link fd |
 | XSK TX ring (line-rate `replay --xdp`) | T23b (the 29-b absorption) | Open — the recorded follow-up; `send`/`replay` keep the AF_PACKET path; the capture datapath is RX-only by design |
 | TC egress arm (cls_bpf attach) | T23 (the full-29-d charter) | Open — the one 29-d carry-over: the XDP translator composes, the egress attach is its own netlink surface (qdisc clsact + filter add); rides the next datapath tranche |
 | Tracepoint telemetry attach | T23 (the full-29-d charter) | Open — the counter program surface exists (`compile_flow_table`); the tracepoint link surface rides the same follow-up |

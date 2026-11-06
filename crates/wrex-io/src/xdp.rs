@@ -26,10 +26,14 @@ const SYS_BPF: libc::c_long = 321;
 #[cfg(target_arch = "aarch64")]
 const SYS_BPF: libc::c_long = 280;
 
-/// linux/bpf.h command ids.
+/// linux/bpf.h command ids (counted from the header's enum bpf_cmd —
+/// the constants come from /usr/include, never memory).
 const BPF_MAP_CREATE: libc::c_int = 0;
 const BPF_MAP_UPDATE_ELEM: libc::c_int = 2;
 const BPF_PROG_LOAD: libc::c_int = 5;
+const BPF_LINK_CREATE: libc::c_int = 28;
+/// `enum bpf_attach_type`: BPF_XDP (counted from the header).
+const BPF_XDP: libc::c_int = 37;
 
 /// `enum bpf_map_type` — values COPIED FROM /usr/include/linux/bpf.h
 /// (count the enum, never trust memory: the tranche's live runs
@@ -197,142 +201,37 @@ impl Drop for BpfProgram {
     }
 }
 
-// --- netlink XDP attach ------------------------------------------------------
+// --- XDP attach: BPF_LINK_CREATE (the link fd owns the attachment) ------
+//
+// The first live attach round used raw rtnetlink (RTM_NEWLINK +
+// IFLA_XDP) and taught two hard lessons: a netlink XDP attach WITHOUT
+// NLM_F_ACK is SILENT — a blocking recv-from waits forever for an ack
+// that never comes (the "capture hangs" incident) — and an interface
+// attach holds a kernel reference past process death: a SIGINT kill
+// skips Rust's Drop, and the orphaned XDP program kept intercepting
+// the machine's loopback until manual `ip link set lo xdp off`.
+// bpf(BPF_LINK_CREATE) closes the entire class: the LINK FD owns the
+// attachment, and the kernel auto-detaches when the fd closes —
+// including on SIGINT, SIGTERM or SIGKILL (every process death closes
+// its fds). No ack to wait for, nothing that CAN stick.
 
-const NLMSG_ERROR: u16 = 2;
-const RTM_NEWLINK: u16 = 16;
-const IFLA_XDP: u16 = 43;
-const IFLA_XDP_FD: u16 = 1;
-const IFLA_XDP_FLAGS: u16 = 3;
-/// `XDP_FLAGS_SKB_MODE` — generic XDP (every interface, lo/veth
-/// included; native mode is the perf path).
+/// `XDP_FLAGS_SKB_MODE` (linux/if_link.h): generic XDP — every
+/// interface including lo/veth (native mode is the perf path).
 const XDP_FLAGS_SKB_MODE: u32 = 2;
 
-#[repr(C)]
-struct NlMsgHdr {
-    len: u32,
-    ty: u16,
-    flags: u16,
-    seq: u32,
-    pid: u32,
-}
-
-#[repr(C)]
-struct IfInfoMsg {
-    family: u8,
-    _pad: u8,
-    ifi_type: u16,
-    index: i32,
-    flags: u32,
-    change: u32,
-}
-
-fn nlattr(ty: u16, payload: &[u8]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(8 + payload.len());
-    let len = (4 + payload.len()) as u16;
-    out.extend_from_slice(&len.to_le_bytes());
-    out.extend_from_slice(&ty.to_le_bytes());
-    out.extend_from_slice(payload);
-    while out.len() % 4 != 0 {
-        out.push(0);
-    }
-    out
-}
-
-/// Attach (fd ≥ 0) or detach (fd = -1) an XDP program on `ifindex`,
-/// generic (SKB) mode. Privilege honesty: `bpf()` and the netlink
-/// attach check capabilities against the INITIAL user namespace —
-/// the `unshare -Urn` sandbox trick unlocks neither.
-pub fn xdp_attach(ifindex: i32, prog_fd: i32) -> io::Result<()> {
-    let mut xdp_nested = Vec::new();
-    xdp_nested.extend_from_slice(&nlattr(IFLA_XDP_FD, &prog_fd.to_le_bytes()));
-    xdp_nested.extend_from_slice(&nlattr(IFLA_XDP_FLAGS, &XDP_FLAGS_SKB_MODE.to_le_bytes()));
-    let xdp_attr = nlattr(IFLA_XDP, &xdp_nested);
-
-    let payload = std::mem::size_of::<IfInfoMsg>() + xdp_attr.len();
-    let total = std::mem::size_of::<NlMsgHdr>() + payload;
-    let mut buf = vec![0u8; total];
-    // SAFETY: writing into a zeroed, owned buffer through typed
-    // references at computed offsets within its bounds.
-    unsafe {
-        let hdr = &mut *(buf.as_mut_ptr() as *mut NlMsgHdr);
-        hdr.len = total as u32;
-        hdr.ty = RTM_NEWLINK;
-        hdr.flags = 0x1; // NLM_F_REQUEST
-        hdr.seq = 1;
-        let ifi = &mut *(buf.as_mut_ptr().add(std::mem::size_of::<NlMsgHdr>()) as *mut IfInfoMsg);
-        ifi.family = libc::AF_UNSPEC as u8;
-        ifi.index = ifindex;
-    }
-    buf[std::mem::size_of::<NlMsgHdr>() + std::mem::size_of::<IfInfoMsg>()..]
-        .copy_from_slice(&xdp_attr);
-
-    // SAFETY: `socket` returns an owned descriptor used only in this
-    // function and closed on every path.
-    let fd = unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW, libc::NETLINK_ROUTE) };
-    if fd < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    let result = (|| -> io::Result<()> {
-        // SAFETY: sockaddr_nl is all-POD; a zeroed instance is valid.
-        let mut sa: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
-        sa.nl_family = libc::AF_NETLINK as u16;
-        // SAFETY: `bind` reads the (owned) sockaddr; `fd` is owned here.
-        let ret = unsafe {
-            libc::bind(
-                fd,
-                &sa as *const libc::sockaddr_nl as *const libc::sockaddr,
-                std::mem::size_of::<libc::sockaddr_nl>() as libc::socklen_t,
-            )
-        };
-        if ret < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        // SAFETY: `sendto` reads `buf`; `fd` is owned.
-        let n = unsafe {
-            libc::sendto(
-                fd,
-                buf.as_ptr() as *const libc::c_void,
-                buf.len(),
-                0,
-                std::ptr::null(),
-                0,
-            )
-        };
-        if n < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let mut ack = [0u8; 4096];
-        // SAFETY: `recvfrom` writes at most `ack.len()`; `fd` is owned.
-        let n = unsafe {
-            libc::recvfrom(
-                fd,
-                ack.as_mut_ptr() as *mut libc::c_void,
-                ack.len(),
-                0,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            )
-        };
-        if n < 0 {
-            return Err(io::Error::last_os_error());
-        }
-        let hdr_len = std::mem::size_of::<NlMsgHdr>();
-        if (n as usize) < hdr_len {
-            return Err(io::Error::other("short netlink reply"));
-        }
-        let ty = u16::from_le_bytes([ack[2], ack[3]]);
-        if ty == NLMSG_ERROR {
-            let err = i32::from_le_bytes(ack[hdr_len..hdr_len + 4].try_into().expect("4"));
-            if err != 0 {
-                return Err(io::Error::from_raw_os_error(-err));
-            }
-        }
-        Ok(())
-    })();
-    // SAFETY: releasing our own descriptor exactly once.
-    unsafe { libc::close(fd) };
-    result
+/// Attach `prog_fd` to `ifindex` as an XDP program and return the
+/// LINK fd whose lifetime owns the attachment (close = detach, on any
+/// exit path). `flags` carries the XDP flags (SKB mode = generic XDP).
+fn xdp_link_create(prog_fd: i32, ifindex: i32, flags: u32) -> io::Result<i32> {
+    // link_create layout (the header's union member): prog_fd @0,
+    // target_ifindex @4, attach_type @8, flags @12.
+    let mut attr = BpfAttr::zeroed();
+    attr.u32_at(0, prog_fd as u32);
+    attr.u32_at(4, ifindex as u32);
+    attr.u32_at(8, BPF_XDP as u32);
+    attr.u32_at(12, flags);
+    let fd = bpf_sys(BPF_LINK_CREATE, &attr)?;
+    Ok(fd as i32)
 }
 
 /// Capability probe: can this process use the eBPF machinery? The
@@ -813,8 +712,22 @@ impl Drop for XskDriver {
 pub struct XdpCapture {
     _program: BpfProgram,
     _xskmap: BpfMap,
+    /// The bpf_link fd: the attachment's owner. Closing it (Drop, or
+    /// any process death) detaches the program — the orphaned-attach
+    /// class is structurally impossible.
+    _link: LinkFd,
     pub xsk: XskDriver,
-    ifindex: i32,
+}
+
+/// A bpf link fd (the attachment's owner; plain close = detach).
+struct LinkFd(i32);
+
+impl Drop for LinkFd {
+    fn drop(&mut self) {
+        // SAFETY: uniquely owned descriptor; closing it makes the
+        // kernel detach the program (the link owns the attachment).
+        unsafe { libc::close(self.0) };
+    }
 }
 
 impl XdpCapture {
@@ -840,12 +753,16 @@ impl XdpCapture {
         // compiled-artifact contract).
         let program = BpfProgram::load_xdp(&prog.to_bits(), &[xskmap.fd()])
             .map_err(|e| step("prog load (BPF_PROG_LOAD)", e))?;
-        xdp_attach(ifindex, program.fd()).map_err(|e| step("netlink xdp attach", e))?;
+        // The LINK owns the attachment: generic (SKB) mode via flags,
+        // auto-detach when the fd closes (Drop, SIGINT, SIGKILL —
+        // every process death).
+        let link = xdp_link_create(program.fd(), ifindex, XDP_FLAGS_SKB_MODE)
+            .map_err(|e| step("xdp link create (BPF_LINK_CREATE)", e))?;
         Ok(Self {
             _program: program,
             _xskmap: xskmap,
+            _link: LinkFd(link),
             xsk,
-            ifindex,
         })
     }
 }
@@ -879,14 +796,6 @@ fn step(name: &str, e: io::Error) -> DriverError {
     };
     DriverError::Io {
         source: io::Error::other(hint),
-    }
-}
-
-impl Drop for XdpCapture {
-    fn drop(&mut self) {
-        // Detach before the fds close — keeps the interface state
-        // honest (the kernel would clean up an orphaned attach too).
-        let _ = xdp_attach(self.ifindex, -1);
     }
 }
 

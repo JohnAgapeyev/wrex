@@ -537,9 +537,10 @@ fn capture_xdp_fallback_note_matches_privileges() {
     match wrex_io::xdp::xdp_datapath_available() {
         Ok(()) => {
             // Privileged on an AF_XDP-capable kernel: the datapath must
-            // ENGAGE (probe → compile → XSK open → prog load → attach —
-            // every step's refusal is step-tagged in the note). A
-            // downgrade note here is a real regression, so it FAILS.
+            // ENGAGE (probe → compile → XSK open → prog load → LINK
+            // create — every refusal step-tagged in the note; the
+            // bpf_link fd owns the attachment, so a killed capture
+            // can never orphan it). A downgrade note is a regression.
             // NOTE (the live-root post-mortem): the first two live
             // rounds showed EINVAL everywhere — that was OUR wrong
             // uapi constant (XSKMAP 42 vs the header's 17), not the
