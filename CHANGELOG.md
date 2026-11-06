@@ -56,8 +56,14 @@ loader/syscall decisions) recorded at the same pass.
   `--rotate-size`/`--rotate-count` (the tcpdump -C/-W chunk rules),
   `patch --snaplen` (the T14 deferral).
 - Fuzz targets `fuzz_dissect_sll`, `fuzz_dissect_dot11`,
-  `fuzz_ebpf_vm`; G1 strategies for every new field (the audit caught
-  two real gaps on its first run).
+  `fuzz_ebpf_vm` (registered as `[[bin]]`s and wired into the CI
+  smoke, the fuzz gate, and the Miri crate list); G1 strategies for
+  every new field (the audit caught two real gaps on its first run).
+  The VM target's first smoke caught two real VM-soundness classes —
+  raw register indices (r11..r15 must be the pointed refusal, not an
+  out-of-bounds regs index) and wrapping `addr + size` span math
+  (checked adds → the pointed Bounds) — both fixed and pinned by
+  unit tests.
 
 
 ### Added — tranche 22: L3/L4 options read-side typing (the last T11 dynamic region)

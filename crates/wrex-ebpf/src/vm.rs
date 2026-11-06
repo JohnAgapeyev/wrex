@@ -222,17 +222,23 @@ impl Vm {
         {
             return Ok(v);
         }
+        // Crafted streams reach the VM with ATTACKER-arbitrary addresses
+        // (any register value): the end-of-span add must be
+        // OVERFLOW-PROOF — a wrapping `addr + size` would sail past the
+        // region checks and index out of bounds (checked_add → the
+        // pointed Bounds refusal instead).
+        let end = addr.checked_add(size as u64);
+        let in_pkt = end.is_some_and(|e| addr >= PACKET_ADDR && e <= self.data_end);
+        let in_stack = end.is_some_and(|e| addr >= STACK_ADDR && e <= STACK_ADDR + 512);
         #[cfg(all(debug_assertions, feature = "std"))]
-        if !(addr >= PACKET_ADDR && addr + size as u64 <= self.data_end)
-            && !(addr >= STACK_ADDR && addr + size as u64 <= STACK_ADDR + 512)
-        {
+        if !(in_pkt || in_stack) {
             // Differential debugging aid: name the faulting read.
             std::eprintln!(
                 "vm read_mem OOB: addr={addr:#x} size={size} end={:#x}",
                 self.data_end
             );
         }
-        if addr >= PACKET_ADDR && addr + size as u64 <= self.data_end {
+        if in_pkt {
             let off = (addr - PACKET_ADDR) as usize;
             let mut v = 0u64;
             for i in (0..size as usize).rev() {
@@ -240,7 +246,7 @@ impl Vm {
             }
             return Ok(v);
         }
-        if addr >= STACK_ADDR && addr + size as u64 <= STACK_ADDR + 512 {
+        if in_stack {
             let off = (addr - STACK_ADDR) as usize;
             let mut v = 0u64;
             for i in (0..size as usize).rev() {
@@ -261,14 +267,16 @@ impl Vm {
                 .ok_or(VmError::Bounds)
                 .map(|_| ());
         }
-        if addr >= PACKET_ADDR && addr + size as u64 <= self.data_end {
+        // Same overflow-proof span math as read_mem.
+        let end = addr.checked_add(size as u64);
+        if end.is_some_and(|e| addr >= PACKET_ADDR && e <= self.data_end) {
             let off = (addr - PACKET_ADDR) as usize;
             for i in 0..size as usize {
                 self.ctx.data[off + i] = ((value >> (8 * i)) & 0xff) as u8;
             }
             return Ok(());
         }
-        if addr >= STACK_ADDR && addr + size as u64 <= STACK_ADDR + 512 {
+        if end.is_some_and(|e| addr >= STACK_ADDR && e <= STACK_ADDR + 512) {
             let off = (addr - STACK_ADDR) as usize;
             for i in 0..size as usize {
                 self.stack[off + i] = ((value >> (8 * i)) & 0xff) as u8;
@@ -320,6 +328,17 @@ impl Vm {
             let size = code & 0x18;
             let src_bit = code & 0x08 != 0 && matches!(class, 0x04..=0x07);
             let (dst, src) = (insn.dst as usize, insn.src as usize);
+            // Register fields are 4-bit on the wire; the kernel verifier
+            // rejects r11..r15 outright ("invalid register") — the VM
+            // answers the same way, pointedly. (The fuzz target found the
+            // raw-index panic this guard closes: a crafted stream's
+            // dst=0xf on a MOV reached regs[15] out of bounds.) Every
+            // executed class rides this one guard; the LD_IMM64 slot-2
+            // pseudo-data never reaches here (it is skipped, not
+            // executed).
+            if dst > 10 || src > 10 {
+                return Err(VmError::Unsupported(code));
+            }
             let next = pc + 1;
             match class {
                 0x00 if code == BPF_LD_IMM64_CODE => {
@@ -479,7 +498,7 @@ impl Vm {
         match id {
             BPF_FUNC_redirect_map => {
                 let map = Self::map_idx(self.regs[1])?;
-                let key = self.reg_bytes(self.regs[2], self.maps.key_size(map));
+                let key = self.reg_bytes(self.regs[2], self.maps.key_size(map))?;
                 if self.maps.lookup_cell(map, &key).is_some() {
                     self.regs[0] = XDP_REDIRECT as u64;
                 } else {
@@ -501,9 +520,13 @@ impl Vm {
                 let key = self.read_key(self.regs[2], self.maps.key_size(map))?;
                 let val = if self.regs[3] >= STACK_ADDR {
                     let off = (self.regs[3] - STACK_ADDR) as usize;
+                    // Overflow-proof range end (the raw register is
+                    // attacker-arbitrary): `off + 8` would panic on
+                    // wrap in debug and wrap past the slice in release.
+                    let end = off.checked_add(8).ok_or(VmError::Bounds)?;
                     u64::from_le_bytes(
                         self.stack
-                            .get(off..off + 8)
+                            .get(off..end)
                             .and_then(|s| s.try_into().ok())
                             .ok_or(VmError::Bounds)?,
                     )
@@ -537,14 +560,19 @@ impl Vm {
                 ] {
                     let mut off = 0usize;
                     while off + 1 < len {
-                        let hi = self.read_mem(base + off as u64, 1)?;
-                        let lo = self.read_mem(base + off as u64 + 1, 1)?;
+                        // Overflow-proof address math (base is a raw
+                        // register value — attacker-arbitrary).
+                        let a = base.checked_add(off as u64).ok_or(VmError::Bounds)?;
+                        let b2 = a.checked_add(1).ok_or(VmError::Bounds)?;
+                        let hi = self.read_mem(a, 1)?;
+                        let lo = self.read_mem(b2, 1)?;
                         let w = (hi << 8) | lo;
                         acc += if negate { 0xffff - w } else { w };
                         off += 2;
                     }
                     if len % 2 == 1 {
-                        let b = self.read_mem(base + off as u64, 1)?;
+                        let b =
+                            self.read_mem(base.checked_add(off as u64).ok_or(VmError::Bounds)?, 1)?;
                         let w = b << 8;
                         acc += if negate { 0xffff - w } else { w };
                     }
@@ -564,8 +592,15 @@ impl Vm {
         Ok(())
     }
 
-    fn reg_bytes(&self, r: u64, n: usize) -> Vec<u8> {
-        r.to_le_bytes()[..n].to_vec()
+    /// The raw-value key (redirect_map takes the index VALUE, not a
+    /// pointer): the register's own bytes. Keys wider than a register
+    /// are outside the emitted subset (the XSKMAP key is u32) — the
+    /// pointed refusal, never a slice panic on `[..n]`.
+    fn reg_bytes(&self, r: u64, n: usize) -> Result<Vec<u8>, VmError> {
+        if n > 8 {
+            return Err(VmError::Bounds);
+        }
+        Ok(r.to_le_bytes()[..n].to_vec())
     }
 
     /// Read a map KEY from a pointer (map_lookup_elem/update_elem take
@@ -610,6 +645,38 @@ mod tests {
         let p = prog(vec![
             Insn::ldx_w(6, 1, XDP_MD_DATA),
             Insn::ldx_b(9, 6, 1000),
+            Insn::mov64_imm(0, 2),
+            Insn::exit(),
+        ]);
+        let mut vm = Vm::new_default();
+        assert_eq!(vm.run(&p, &[0; 4]).unwrap_err(), VmError::Bounds);
+    }
+
+    /// The fuzz target's first find (crash-9daa47ef): a crafted
+    /// stream's dst=0xf — register fields are 4-bit on the wire, the
+    /// kernel verifier rejects r11..r15 outright, and the VM answers
+    /// the same way instead of indexing regs out of bounds.
+    #[test]
+    fn invalid_register_is_pointed() {
+        // 0xffff_ff6a_ffff_fcb7: MOV imm with dst=0xf, src=0xc.
+        let p = prog(vec![
+            Insn::from_bits(0xffff_ff6a_ffff_fcb7),
+            Insn::mov64_imm(0, 2),
+            Insn::exit(),
+        ]);
+        let mut vm = Vm::new_default();
+        assert_eq!(vm.run(&p, &[0; 4]).unwrap_err(), VmError::Unsupported(0xb7));
+    }
+
+    /// The same fuzz round's sibling hazard, pinned: an address whose
+    /// span end WRAPS (u64::MAX + 1) must be the pointed Bounds — a
+    /// raw `addr + size` sails past the region check and indexes out
+    /// of bounds.
+    #[test]
+    fn wrapping_span_is_bounds() {
+        let p = prog(vec![
+            Insn::mov64_imm(9, -1), // r9 = u64::MAX (MOV imm sign-extends)
+            Insn::stx_b(9, 0, 0),   // *(u8*)(r9+0) = r0 → the span end wraps
             Insn::mov64_imm(0, 2),
             Insn::exit(),
         ]);
