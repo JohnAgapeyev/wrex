@@ -6,11 +6,21 @@
 
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 fn driver_tests_enabled() -> bool {
     std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1")
 }
+
+/// XDP attaches are exclusive per interface: two concurrent
+/// `capture -i lo` children race for `lo`'s single XDP slot (the
+/// second attach gets EBUSY — the step-tagged downgrade note — and
+/// the no-note regression assert goes flaky). The two XDP-attaching
+/// ground truths serialize on this lock for the capture child's
+/// lifetime; every other driver test rides AF_PACKET (`recv`,
+/// `-i any` cooked capture) and never contends.
+static XDP_ATTACH: Mutex<()> = Mutex::new(());
 
 /// Capability probe (shared in wrex-test): `lo` + optional IPv6.
 fn loopback_ready(v6: bool) -> bool {
@@ -518,6 +528,10 @@ fn capture_xdp_fallback_note_matches_privileges() {
     assert!(loopback_ready(false), "lo must be up");
     let dir = wrex_test::tempdir();
     let cap = dir.path().join("cap.pcap");
+    // Hold the attach lock through the capture child's lifetime —
+    // the filtered-capture sibling attaches too (one XDP program per
+    // iface; concurrent attaches race, this is the serialization).
+    let _attach = XDP_ATTACH.lock().unwrap_or_else(|p| p.into_inner());
     let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
             "capture",
@@ -564,4 +578,122 @@ fn capture_xdp_fallback_note_matches_privileges() {
             eprintln!("XDP unavailable ({why}) — the fallback engaged");
         }
     }
+}
+
+/// The FILTERED XDP datapath, end to end: `capture -i lo --filter
+/// udp.dport=9` runs the filter walk (probe → compile → XSK open →
+/// prog load → bpf_link) and the MATCHING frames must flow through
+/// the XSK into the store — the one clean load the tranche's live
+/// rounds never reached, now a ground truth instead of a manual
+/// confirmation. Race-free by construction: paced probes run for the
+/// capture's whole window (repeats defeat the startup attach race —
+/// the roundtrip rule), `--count` ends the capture as soon as the
+/// frames land, and the deadline bounds a broken datapath. The frame
+/// assertions hold on EITHER datapath (the fallback's residual
+/// userspace filter keeps semantics exact); only the note assert
+/// branches on capability — the honest-split gate.
+#[test]
+fn filtered_xdp_capture_delivers_matching_frames() {
+    if !driver_tests_enabled() {
+        eprintln!("skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    assert!(loopback_ready(false), "lo must be up");
+    let dir = wrex_test::tempdir();
+    let cap = dir.path().join("filtered.pcap");
+
+    // Serialize with the fallback-note test: `lo` takes ONE XDP
+    // program; a concurrent attach takes EBUSY, not a turn.
+    let _attach = XDP_ATTACH.lock().unwrap_or_else(|p| p.into_inner());
+    let mut capture = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "capture",
+            "-i",
+            "lo",
+            "--filter",
+            "udp.dport=9",
+            "--count",
+            "3",
+            "--timeout",
+            "12s",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn wrex capture");
+
+    // Paced probes for the whole window: plain UDP to the discard
+    // port (no capabilities — the stack reflects it through `lo`'s
+    // ingress, where the XDP filter runs). Whenever the attach
+    // completes, the next probe redirects; `--count 3` ends the
+    // capture; the deadline bounds the broken case. The kernel's
+    // ICMP port-unreachable replies to the probes are icmp — the
+    // filter excludes them, so only probes fill the count.
+    let sock = std::net::UdpSocket::bind("127.0.0.1:0").expect("bind probe socket");
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let mut probes = 0u32;
+    while Instant::now() < deadline {
+        if capture.try_wait().expect("poll capture").is_some() {
+            break;
+        }
+        sock.send_to(b"wrex-xdp-probe", "127.0.0.1:9")
+            .expect("send probe");
+        probes += 1;
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    let out = capture.wait_with_output().expect("capture exits");
+    drop(_attach);
+    assert!(out.status.success(), "capture exited {}", out.status);
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+
+    // Datapath honesty (the fallback test's rule, on the FILTER
+    // program this time): a capable kernel must ENGAGE the whole
+    // chain — a downgrade note here is a regression; an unavailable
+    // datapath must print it and name the honest cause.
+    match wrex_io::xdp::xdp_datapath_available() {
+        Ok(()) => assert!(
+            !stderr.contains("using the AF_PACKET path"),
+            "XDP-capable kernel: the FILTERED datapath must engage, got the downgrade note: {stderr}"
+        ),
+        Err(why) => assert!(
+            stderr.contains("using the AF_PACKET path"),
+            "the downgrade note must print when the datapath is unavailable ({why}): {stderr}"
+        ),
+    }
+
+    // The frames flowed and the filter selected exactly them — on
+    // either datapath (the store is the contract, not the road).
+    let bytes = std::fs::read(&cap).expect("the capture file exists");
+    let file = wrex_pcap::read(&bytes).expect("the capture parses");
+    assert_eq!(file.linktype, wrex_pcap::linktype::EN10MB);
+    assert_eq!(
+        file.records.len(),
+        3,
+        "--count 3 must fill from the paced probes (sent {probes}); \
+         the datapath dropped or never delivered matching frames"
+    );
+    assert!(probes >= 1, "the pacer must have run (sent {probes})");
+    let mut inventory = Vec::new();
+    for rec in &file.records {
+        let json = wrex_test::dissect(&rec.bytes, &["--format", "json", "--start", "auto"]);
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("dissect json");
+        let layers = parsed["layers"].as_array().cloned().unwrap_or_default();
+        let kinds: Vec<&str> = layers
+            .iter()
+            .map(|l| l["kind"].as_str().unwrap_or("?"))
+            .collect();
+        let udp_dport = layers
+            .iter()
+            .find(|l| l["kind"] == "udp")
+            .and_then(|l| l["fields"]["dport"].as_u64());
+        inventory.push(format!("{} -> udp.dport {udp_dport:?}", kinds.join(",")));
+        assert_eq!(
+            udp_dport,
+            Some(9),
+            "every captured frame is the probe (filter leakage?): {json}"
+        );
+        assert!(kinds.contains(&"ipv4"), "the probe rides ipv4: {json}");
+    }
+    eprintln!("filtered capture inventory:\n{}", inventory.join("\n"));
 }
