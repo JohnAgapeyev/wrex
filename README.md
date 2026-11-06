@@ -508,3 +508,21 @@ the recurring planning views:
 ## License
 
 MIT OR Apache-2.0.
+### Faster local test runs (cargo-nextest)
+
+The CI gates run plain `cargo test` (the suite-time ratchet parses its
+output format), but locally [cargo-nextest](https://nexte.st) cuts the
+wall-clock: it runs the test *binaries* in parallel, so the total lands
+near the slowest single binary instead of the sum of ~68:
+
+```sh
+cargo install cargo-nextest --locked
+cargo nextest run --workspace --all-features            # everything, parallel
+cargo nextest run -p wrex --test ebpf_differential      # one suite
+```
+
+What it will and won't fix: most of the wall time is WAIT-bound
+(env-gated ground truth sleeps, stub timeouts, the tshark/dig
+subprocess churn) — those 20-40s suites keep their waits, but they
+stop queueing behind each other. The doc-test binary and Miri keep
+their own invocations.

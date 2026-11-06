@@ -868,8 +868,13 @@ fn step_driver(name: &str, e: DriverError) -> DriverError {
 
 /// The step-tagging wrapper for raw io errors.
 fn step(name: &str, e: io::Error) -> DriverError {
+    // EACCES is the VERIFIER's rejection errno — the error's own
+    // message carries the verifier's last line ("verifier: …"); the
+    // step wrapper must not discard it for a capabilities guess (the
+    // live runs caught exactly that: the log rode the message, the
+    // wrapper replaced it). Only EPERM is the privilege refusal.
     let hint = match e.raw_os_error() {
-        Some(libc::EPERM) | Some(libc::EACCES) => {
+        Some(libc::EPERM) => {
             format!("{name}: {e} (capabilities checked in the initial user namespace)")
         }
         _ => format!("{name}: {e}"),
