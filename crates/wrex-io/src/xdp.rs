@@ -384,10 +384,10 @@ const XDP_MMAP_OFFSETS: libc::c_int = 1;
 /// mmap pgoffs: RX = 0, FILL = 0x100000000, COMPLETION = 0x180000000.
 const XDP_PGOFF_RX_RING: libc::off_t = 0;
 const XDP_UMEM_PGOFF_FILL_RING: libc::off_t = 0x1_0000_0000;
+const XDP_UMEM_PGOFF_COMPLETION_RING: libc::off_t = 0x1_8000_0000;
 
 const UMEM_FRAMES: usize = 256;
 const FRAME_SIZE: usize = 4096;
-const PAGE: usize = 4096;
 
 /// `struct xdp_umem_reg` (uapi, /usr/include/linux/if_xdp.h): addr, len,
 /// chunk_size, headroom, flags, tx_metadata_len — SIX fields, 32 bytes;
@@ -415,6 +415,20 @@ struct RingOffsets {
     consumer: u64,
     desc: u64,
     flags: u64,
+}
+
+/// `struct xdp_mmap_offsets` (uapi): ONE `getsockopt(XDP_MMAP_OFFSETS)`
+/// returns the offsets of ALL FOUR rings (rx, tx, fill, completion) —
+/// 128 bytes; the kernel's `optlen != sizeof(...)` check refuses the
+/// per-ring fetch the first open() attempt made (the live EINVAL the
+/// step-tagged note caught).
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct MmapOffsets {
+    rx: RingOffsets,
+    tx: RingOffsets,
+    fr: RingOffsets,
+    cr: RingOffsets,
 }
 
 /// `struct xdp_desc`.
@@ -513,8 +527,10 @@ impl Ring {
     }
 }
 
-/// Declare a ring (setsockopt its size) and fetch the mmap offsets.
-fn declare_ring(fd: i32, opt: libc::c_int, entries: u32) -> io::Result<RingOffsets> {
+/// Declare a ring's size (setsockopt, one u32) — the mmap offsets
+/// come from ONE `getsockopt(XDP_MMAP_OFFSETS)` for all rings after
+/// every declaration (the uapi contract).
+fn declare_ring(fd: i32, opt: libc::c_int, entries: u32) -> io::Result<()> {
     // SAFETY: `setsockopt` reads `entries` (u32, stack-owned).
     let ret = unsafe {
         libc::setsockopt(
@@ -528,15 +544,22 @@ fn declare_ring(fd: i32, opt: libc::c_int, entries: u32) -> io::Result<RingOffse
     if ret < 0 {
         return Err(io::Error::last_os_error());
     }
-    let mut offsets = RingOffsets::default();
-    // SAFETY: `getsockopt` writes `offsets` (struct-owned, sized).
-    let mut optlen = std::mem::size_of::<RingOffsets>() as libc::socklen_t;
+    Ok(())
+}
+
+/// Fetch all four rings' mmap offsets (the 128-byte
+/// `struct xdp_mmap_offsets`).
+fn mmap_offsets(fd: i32) -> io::Result<MmapOffsets> {
+    let mut offsets = MmapOffsets::default();
+    // SAFETY: `getsockopt` writes `offsets` (struct-owned, 128 bytes —
+    // the size the kernel's check demands).
+    let mut optlen = std::mem::size_of::<MmapOffsets>() as libc::socklen_t;
     let ret = unsafe {
         libc::getsockopt(
             fd,
             SOL_XDP,
             XDP_MMAP_OFFSETS,
-            &mut offsets as *mut RingOffsets as *mut libc::c_void,
+            &mut offsets as *mut MmapOffsets as *mut libc::c_void,
             &mut optlen,
         )
     };
@@ -600,21 +623,33 @@ impl XskDriver {
                 });
             }
             let entries = UMEM_FRAMES as u32;
-            let fill_off = declare_ring(fd, XDP_UMEM_FILL_RING, entries).map_err(io_to_driver)?;
-            // Completion ring: declared (required for the UMEM
-            // contract), not mmap'd — RX never consumes it.
+            // Declare every ring first (fill + completion for the UMEM
+            // contract, rx for the datapath), THEN one offsets fetch
+            // for all four (the uapi: a single 128-byte
+            // struct xdp_mmap_offsets).
+            declare_ring(fd, XDP_UMEM_FILL_RING, entries).map_err(io_to_driver)?;
             declare_ring(fd, XDP_UMEM_COMPLETION_RING, entries).map_err(io_to_driver)?;
-            let rx_off = declare_ring(fd, XDP_RX_RING, entries).map_err(io_to_driver)?;
-            // mmap lengths: off.desc + desc_sz * entries (desc already
-            // points past the counter pages) — the af_xdp.rst formula.
-            let fill_len = fill_off.desc as usize + 8 * entries as usize + PAGE;
-            let rx_len =
-                rx_off.desc as usize + std::mem::size_of::<XdpDesc>() * entries as usize + PAGE;
-            // SAFETY: shared mappings of the socket's declared regions.
+            declare_ring(fd, XDP_RX_RING, entries).map_err(io_to_driver)?;
+            let offs = mmap_offsets(fd).map_err(io_to_driver)?;
+            // mmap lengths: the af_xdp.rst formula, EXACT (off.desc
+            // already points past the counter pages) — no slack: the
+            // kernel maps the declared regions and nothing beyond.
+            let fill_off = offs.fr;
+            let rx_off = offs.rx;
+            let fill_len = fill_off.desc as usize + 8 * entries as usize;
+            let rx_len = rx_off.desc as usize + std::mem::size_of::<XdpDesc>() * entries as usize;
+            // SAFETY: shared mappings of the socket's declared regions
+            // (pgoffs from if_xdp.h: FILL=0x100000000, COMPLETION=
+            // 0x180000000, RX=0).
             let fill_map = unsafe { Mmap::shared(fd, XDP_UMEM_PGOFF_FILL_RING, fill_len) }
                 .map_err(io_to_driver)?;
-            // SAFETY: same region contract (the RX ring's declared
-            // pgoff/len from getsockopt).
+            let comp_len = offs.cr.desc as usize + 8 * entries as usize;
+            // SAFETY: the completion ring maps alongside (libbpf maps
+            // every ring; RX never consumes it but the UMEM contract
+            // keeps the pair symmetric).
+            let _comp_map = unsafe { Mmap::shared(fd, XDP_UMEM_PGOFF_COMPLETION_RING, comp_len) }
+                .map_err(io_to_driver)?;
+            // SAFETY: the RX ring's declared region.
             let rx_map =
                 unsafe { Mmap::shared(fd, XDP_PGOFF_RX_RING, rx_len) }.map_err(io_to_driver)?;
             // Bind to (ifindex, queue 0).
