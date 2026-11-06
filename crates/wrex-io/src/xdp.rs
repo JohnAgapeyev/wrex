@@ -309,8 +309,53 @@ pub fn xdp_attach(ifindex: i32, prog_fd: i32) -> io::Result<()> {
 
 /// Capability probe: can this process use the eBPF machinery? The
 /// capture datapath routes its fallback decision through here.
-pub fn bpf_available() -> bool {
-    BpfMap::create(BPF_MAP_TYPE_HASH, 4, 4, 1).is_ok()
+/// Capability + kernel-build probe for the capture datapath: does
+/// THIS kernel, under THIS process, accept the exact map the datapath
+/// needs (an XSKMAP)? The first live runs caught the distinction:
+/// a HASH map succeeds on kernels whose build lacks
+/// `CONFIG_XDP_SOCKETS` — BPF_MAP_TYPE_XSKMAP is registered by
+/// net/xdp/xskmap.c, which only compiles under that config — and the
+/// XSKMAP create then returns EINVAL (an UNREGISTERED map type, not a
+/// permission refusal). Probing the XSKMAP itself makes the fallback
+/// note honest about the cause.
+pub fn xdp_datapath_available() -> Result<(), XdpUnavailable> {
+    match BpfMap::create(BPF_MAP_TYPE_XSKMAP, 4, 4, 64) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(match e.raw_os_error() {
+            Some(libc::EPERM) | Some(libc::EACCES) => XdpUnavailable::Privileges(e),
+            _ => XdpUnavailable::KernelBuild(e),
+        }),
+    }
+}
+
+/// The probe's verdict: the pointed reason the capture datapath
+/// cannot engage (printed as the downgrade note; the AF_PACKET path
+/// carries on either way).
+#[derive(Debug)]
+pub enum XdpUnavailable {
+    /// `bpf()` refused on capabilities — checked against the INITIAL
+    /// user namespace (the unshare sandbox unlocks neither).
+    Privileges(io::Error),
+    /// The kernel accepts BPF but has no AF_XDP support compiled in
+    /// (`CONFIG_XDP_SOCKETS` off — e.g. some hardened distro builds):
+    /// the XSKMAP map type is unregistered and every datapath step
+    /// would refuse. EINVAL on the map create, not a permission.
+    KernelBuild(io::Error),
+}
+
+impl core::fmt::Display for XdpUnavailable {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Privileges(e) => write!(
+                f,
+                "eBPF unavailable ({e}: CAP_BPF/CAP_NET_ADMIN checked in the initial user namespace)"
+            ),
+            Self::KernelBuild(e) => write!(
+                f,
+                "AF_XDP unavailable in this kernel build ({e}: CONFIG_XDP_SOCKETS off — the XSKMAP map type is not registered)"
+            ),
+        }
+    }
 }
 
 // --- AF_XDP (XSK) ------------------------------------------------------------
@@ -776,35 +821,52 @@ fn io_to_driver(e: io::Error) -> DriverError {
 mod tests {
     use super::*;
 
-    /// The capability probe tracks the privilege CLASS, not the env
-    /// gate: eBPF needs capabilities in the INITIAL user namespace —
-    /// so `bpf_available()` is true only for real-root runs (the sudo
-    /// CI job), and false both unprivileged AND inside the `unshare
-    /// -Urn` sandbox (which grants CAP_NET_RAW for the packet
-    /// sockets but never `bpf()`). The probe IS the honest fallback
-    /// decision the capture datapath rides.
+    /// The datapath probe's verdict tracks the privilege CLASS and
+    /// the KERNEL BUILD, not the env gate: eBPF needs capabilities in
+    /// the INITIAL user namespace, and the XSKMAP additionally needs
+    /// `CONFIG_XDP_SOCKETS` compiled in — the developer's hardened
+    /// Arch kernel (7.2.11-arch1) caught the distinction live: a HASH
+    /// map creates fine while the XSKMAP returns EINVAL (an
+    /// unregistered map type, not a permission). The probe IS the
+    /// honest fallback decision the capture datapath rides.
     #[cfg_attr(miri, ignore = "libc syscalls; not Miri-safe")]
     #[test]
-    fn bpf_capability_probe_tracks_the_privilege_class() {
+    fn datapath_probe_tracks_the_privilege_class() {
         let in_userns = std::fs::read_to_string("/proc/self/uid_map")
             .map(|m| m.lines().count() > 1 || m.split_whitespace().nth(1) != Some("0"))
             .unwrap_or(true);
-        let avail = bpf_available();
-        if in_userns {
-            // A user namespace never carries initial-namespace bpf
-            // privileges (the documented honesty).
-            assert!(!avail, "bpf() must be unavailable inside a user namespace");
-        } else if avail {
-            // Real root with the capability: the sudo CI path.
-            assert_eq!(
-                std::os::unix::fs::MetadataExt::uid(
-                    &std::fs::metadata("/proc/self").expect("proc")
-                ),
-                0,
-                "bpf available implies real root"
-            );
+        match xdp_datapath_available() {
+            Ok(()) => {
+                // Only real root on an AF_XDP-capable kernel reaches
+                // here (the sudo CI job on the ubuntu runners).
+                assert!(
+                    !in_userns,
+                    "bpf() must be unavailable inside a user namespace"
+                );
+                assert_eq!(
+                    std::os::unix::fs::MetadataExt::uid(
+                        &std::fs::metadata("/proc/self").expect("proc")
+                    ),
+                    0,
+                    "datapath available implies real root"
+                );
+            }
+            Err(XdpUnavailable::Privileges(_)) => {
+                // The unprivileged/user-namespace classes.
+                assert!(
+                    in_userns || !nix_uid_is_root(),
+                    "a capabilities refusal implies not real root here"
+                );
+            }
+            Err(XdpUnavailable::KernelBuild(_)) => {
+                // A build without CONFIG_XDP_SOCKETS: the refusal is
+                // orthogonal to privileges — record it, assert only
+                // that the fallback (the driver test) handles it.
+            }
         }
-        // Unprivileged outside a namespace: unavailable — nothing to
-        // assert beyond consistency (the fallback test pins the note).
+    }
+
+    fn nix_uid_is_root() -> bool {
+        std::os::unix::fs::MetadataExt::uid(&std::fs::metadata("/proc/self").expect("proc")) == 0
     }
 }

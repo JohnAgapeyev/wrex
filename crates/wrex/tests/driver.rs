@@ -532,21 +532,30 @@ fn capture_xdp_fallback_note_matches_privileges() {
         .expect("spawn wrex capture");
     assert!(out.status.success(), "capture exits cleanly either way");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    if wrex_io::xdp::bpf_available() {
-        // Privileged (the sudo CI job): the XDP datapath should ENGAGE.
-        // The attach path is the one surface this tranche could not
-        // pre-verify unprivileged, so a failure here is a LOUD
-        // diagnostic (never a silent fallback) rather than a hard
-        // assert — inspect before promoting the datapath to trusted.
-        if stderr.contains("using the AF_PACKET path") {
-            eprintln!("XDP DOWNGRADE under privileges on this kernel — inspect the note: {stderr}");
-        } else {
+    match wrex_io::xdp::xdp_datapath_available() {
+        Ok(()) => {
+            // Privileged on an AF_XDP-capable kernel: the datapath must
+            // ENGAGE (probe → compile → XSK open → prog load → attach —
+            // every step's refusal is step-tagged in the note). A
+            // downgrade note here is a real regression, so it FAILS;
+            // the live-root runs on the developer's hardened Arch
+            // kernel (CONFIG_XDP_SOCKETS off) verified the fallback
+            // half, the ubuntu CI runners carry the capable-kernel half.
+            assert!(
+                !stderr.contains("using the AF_PACKET path"),
+                "XDP-capable kernel: the datapath must engage, got the downgrade note: {stderr}"
+            );
             eprintln!("XDP datapath engaged (no downgrade note)");
         }
-    } else {
-        assert!(
-            stderr.contains("using the AF_PACKET path"),
-            "unprivileged: the downgrade note must be printed: {stderr}"
-        );
+        Err(why) => {
+            // No XDP for this process/kernel (privileges — the sandbox
+            // class — or a build without CONFIG_XDP_SOCKETS): the
+            // fallback note MUST print and name the honest cause.
+            assert!(
+                stderr.contains("using the AF_PACKET path"),
+                "the downgrade note must print when the datapath is unavailable: {stderr}"
+            );
+            eprintln!("XDP unavailable ({why}) — the fallback engaged");
+        }
     }
 }

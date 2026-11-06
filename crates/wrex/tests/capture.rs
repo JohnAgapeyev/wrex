@@ -160,6 +160,11 @@ fn replay_raw_count_and_filter() {
 #[test]
 fn replay_bad_pcap_exits_1() {
     let path = std::env::temp_dir().join("wrex-t5-bad.pcap");
+    // Remove any stale fixture first: hardened distros (Arch's
+    // fs.protected_regular=2) deny root O_CREAT-writes to ANOTHER
+    // user's file in sticky /tmp — a fixture left by an unprivileged
+    // run must not break the privileged one (and vice versa).
+    let _ = std::fs::remove_file(&path);
     std::fs::write(&path, b"not a pcap at all, nope nope").unwrap();
     wrex()
         .args(["replay", path.to_str().unwrap()])

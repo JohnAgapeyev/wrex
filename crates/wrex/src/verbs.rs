@@ -1066,8 +1066,8 @@ fn open_xdp_datapath(
     table: &IfTable,
     filter: &Option<Filter>,
 ) -> Result<(wrex_io::XdpCapture, Option<Filter>), String> {
-    if !wrex_io::xdp::bpf_available() {
-        return Err("eBPF unavailable (CAP_BPF/CAP_NET_ADMIN in the initial user namespace needed) — using the AF_PACKET path".into());
+    if let Err(why) = wrex_io::xdp::xdp_datapath_available() {
+        return Err(format!("{why} — using the AF_PACKET path"));
     }
     let Some(entry) = table.get(iface) else {
         return Err(format!("unknown iface `{iface}`"));

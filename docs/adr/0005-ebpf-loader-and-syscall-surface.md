@@ -60,3 +60,11 @@ egress) — the T17-0 retrofit precedent is the vehicle.
 - The committed deviation from the roadmap's aya recommendation is
   recorded here and in the tranche entry; the swap triggers are
   ledger lines, not silent drift.
+- **The kernel floor is part of the contract** (the first live root
+  runs caught it): `BPF_MAP_TYPE_XSKMAP` is registered by
+  net/xdp/xskmap.c, which only compiles under `CONFIG_XDP_SOCKETS` —
+  kernels built without it accept plain BPF (HASH maps create fine)
+  but return EINVAL on the XSKMAP. The datapath probe therefore tests
+  the XSKMAP itself, not BPF in general, and the fallback note
+  distinguishes the privilege refusal from the build refusal. The
+  step-tagged attach errors name whichever kernel call refuses.
