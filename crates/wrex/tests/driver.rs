@@ -452,11 +452,13 @@ fn cooked_capture_and_replay_roundtrip() {
     assert!(rec.bytes.len() >= 16, "the SLL header is present");
     // SLL: the hatype/halen/pkttype fields are KERNEL METADATA (on
     // `lo` the hatype is ARPHRD_LOOPBACK 772, not ether) — the pinned
-    // invariants are the structural ones: pkttype ∈ {host, outgoing}
-    // (u16 BE at +0) and the inner ethertype BE at +14 names the
-    // family (the udp probe rides ipv4; sibling v6 noise is fine).
+    // invariants are the structural ones: pkttype is a defined kernel
+    // class (u16 BE at +0, 0..=4; the live runs saw 1 = broadcast —
+    // lo's reflected frames classify by their eth.dst) and the inner
+    // ethertype BE at +14 names the family (the udp probe rides ipv4;
+    // sibling v6 noise is fine).
     let pkttype = u16::from_be_bytes([rec.bytes[0], rec.bytes[1]]);
-    assert!(pkttype == 0 || pkttype == 4, "pkttype {pkttype}");
+    assert!(pkttype <= 4, "pkttype {pkttype} is a defined class");
     let ethertype = u16::from_be_bytes([rec.bytes[14], rec.bytes[15]]);
     assert!(
         ethertype == 0x0800 || ethertype == 0x86dd,

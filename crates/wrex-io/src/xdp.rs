@@ -129,16 +129,26 @@ impl BpfProgram {
             let raw = owned[i];
             let src = ((raw >> 12) & 0xf) as u8;
             if (raw & 0xff) == 0x18 && src == 1 {
-                // LD_IMM64 | BPF_PSEUDO_MAP_FD: imm carries the map index.
+                // LD_IMM64 | BPF_PSEUDO_MAP_FD: imm carries the map
+                // index. The rewrite REPLACES ONLY the imm — keep the
+                // whole first 32 bits (code, dst, src, off): the first
+                // live run caught a bad mask zeroing dst/src, which
+                // turned the pseudo-fd load into a plain immediate
+                // into r0 and handed the verifier a bogus map arg.
                 let idx = ((raw >> 32) & 0xffff_ffff) as usize;
                 let fd = map_fds
                     .get(idx)
                     .copied()
                     .ok_or_else(|| io::Error::other("program references an unprovided map"))?;
-                owned[i] = (raw & 0xffff_ffff_0000_00ff) | ((fd as u64) << 32);
+                owned[i] = (raw & 0xffff_ffff) | ((fd as u64) << 32);
             }
             i += 1;
         }
+        // The VERIFIER LOG: on any refusal the kernel writes its exact
+        // reasoning here (the live EACCES runs demanded it — the errno
+        // alone says "rejected", the log says WHY, and the note carries
+        // it to the user).
+        let log = vec![0u8; 64 * 1024];
         let license = b"GPL\0";
         let mut attr = BpfAttr::zeroed();
         // PROG_LOAD offsets: prog_type @0, insn_cnt @4, insns @8,
@@ -148,17 +158,33 @@ impl BpfProgram {
         attr.u32_at(4, owned.len() as u32);
         attr.u64_at(8, owned.as_ptr() as u64);
         attr.u64_at(16, license.as_ptr() as u64);
-        // No log buffer: the errno carries the failure class; the
-        // verifier refusal surfaces as EACCES/EINVAL with the pointed
-        // CLI note (the compile-time discipline keeps programs clean —
-        // guarded loads, no loops).
-        attr.u32_at(24, 0);
+        attr.u32_at(24, 1);
+        attr.u32_at(28, log.len() as u32);
+        attr.u64_at(32, log.as_ptr() as u64);
         attr.u32_at(28, 0);
         attr.u64_at(32, 0);
         attr.u32_at(40, 0);
         attr.u32_at(44, 0);
-        let fd = bpf_sys(BPF_PROG_LOAD, &attr)?;
-        Ok(Self { fd: fd as i32 })
+        match bpf_sys(BPF_PROG_LOAD, &attr) {
+            Ok(fd) => Ok(Self { fd: fd as i32 }),
+            Err(e) => {
+                // The verifier's reasoning rides the error (the note
+                // prints it — the pointed refusal, self-describing).
+                let said = log
+                    .iter()
+                    .position(|&b| b == 0)
+                    .map(|end| String::from_utf8_lossy(&log[..end]).into_owned())
+                    .unwrap_or_default();
+                if said.is_empty() {
+                    Err(e)
+                } else {
+                    Err(io::Error::other(format!(
+                        "{e}; verifier: {}",
+                        said.lines().last().unwrap_or("")
+                    )))
+                }
+            }
+        }
     }
 
     pub fn fd(&self) -> i32 {
@@ -876,6 +902,29 @@ mod tests {
     use super::*;
 
     /// The datapath probe's verdict tracks the privilege CLASS and
+    /// The LD_IMM64 map-fd rewrite keeps the WHOLE first 32 bits — the
+    /// first live run's EINVAL was a mask zeroing dst/src, which turned
+    /// the pseudo-fd load into a plain immediate and handed the
+    /// verifier a bogus helper-arg. Pin the encoding.
+    #[test]
+    fn map_fd_rewrite_preserves_dst_src_and_writes_imm() {
+        use wrex_ebpf::insn::{BPF_PSEUDO_MAP_FD, Insn, R1};
+        // LD_IMM64 r1, imm=0, src=PSEUDO_MAP_FD (map index 0).
+        let [a, b] = Insn::ld_imm64(R1, 0, 0, Some(0));
+        let raw = a.to_bits();
+        let rewritten = (raw & 0xffff_ffff) | ((7i32 as u64) << 32);
+        let insn = Insn::from_bits(rewritten);
+        assert_eq!(insn.code, 0x18);
+        assert_eq!(insn.dst, R1, "dst must survive the rewrite");
+        assert_eq!(
+            insn.src, BPF_PSEUDO_MAP_FD,
+            "the pseudo-map-fd marker must survive"
+        );
+        assert_eq!(insn.off, 0);
+        assert_eq!(insn.imm, 7, "the map fd lands in imm");
+        assert_eq!(b.to_bits(), 0, "the second slot stays zero");
+    }
+
     /// the KERNEL BUILD, not the env gate: eBPF needs capabilities in
     /// the INITIAL user namespace, and the XSKMAP additionally needs
     /// `CONFIG_XDP_SOCKETS` compiled in — the developer's hardened
