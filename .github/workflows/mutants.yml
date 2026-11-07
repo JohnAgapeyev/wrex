@@ -87,15 +87,15 @@ jobs:
       #      RotatingWriter store, the `-i any` dispatch, the pcap
       #      start dispatch, and Filter::terms all GREW their killing
       #      unit tests when the gate first flagged them.
-      #   3. Per-mutant, the same discipline for the five provably
+      #   3. Per-mutant, the same discipline for the four provably
       #      unkillable by unprivileged `cargo test` (the -E set):
       #      CaptureRx::recv and the capture loop's no-timeout
       #      deadline + rotate-count exit are reachable only through
       #      real interface drivers — killed by the env-gated driver
-      #      ground truths in the privileged CI job; and
-      #      RotatingWriter::finish's mutant is behaviorally
-      #      equivalent (the FrameWriter's BufWriter drop-flushes —
-      #      the stored bytes are identical either way).
+      #      ground truths in the privileged CI job. The regexes are
+      #      LINE-scoped and fail OPEN: an edit that moves the line
+      #      stops the match and the mutant reappears in the gate
+      #      (a red to re-triage, never a silently hidden gap).
       - name: Mutate the PR's touched lines
         run: >
           cargo mutants --in-place --in-diff pr.diff
@@ -106,11 +106,10 @@ jobs:
           --exclude 'crates/wrex-proto-dot11/**'
           --exclude 'crates/wrex-test/**'
           --exclude 'xtask/**'
-          --exclude-re '^replace CaptureRx::recv -> '
-          --exclude-re ' in CaptureRx::recv$'
-          --exclude-re '^replace \+ with - in capture$'
-          --exclude-re '^replace >= with < in capture$'
-          --exclude-re '^replace RotatingWriter::finish -> Result<\(\), std::io::Error> with Ok\(\(\)\)$'
+          --exclude-re 'verbs.rs:913:.*replace CaptureRx::recv'
+          --exclude-re 'verbs.rs:915:.*replace >= with < in CaptureRx::recv'
+          --exclude-re 'verbs.rs:1019:.*replace \+ with - in capture'
+          --exclude-re 'verbs.rs:1051:.*replace >= with < in capture'
           -- --all-features
         env:
           PROPTEST_RNG_SEED: "31337"

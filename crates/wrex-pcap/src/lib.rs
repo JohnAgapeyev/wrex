@@ -1969,6 +1969,53 @@ mod tests {
         assert_eq!(f.records[0].bytes, &[7]);
         assert_eq!(f.records[1].bytes, &[8]);
     }
+
+    /// Tranche 23a's start dispatch, pinned IN-CRATE: the BSD loopback
+    /// family's records carry the 4-byte host-order AF value INSIDE the
+    /// record (the dissection view skips it; stored bytes stay
+    /// verbatim) — `start_offset` is 4 there and 0 for every other
+    /// linktype; `start_kind` follows the linktype with the per-record
+    /// family peek for NULL/LOOPBACK/RAW, and unknown linktypes keep
+    /// the tranche-5 `auto`. (The per-PR mutants gate caught this
+    /// accessor pair surviving: exercised only from the `wrex` crate's
+    /// linktype suites until now.)
+    #[test]
+    fn t23a_start_dispatch_in_crate() {
+        // Two probe shapes: the BSD loopback family prefixes the packet
+        // with a 4-byte HOST-ORDER AF value (AF_INET 2, AF_INET6 10),
+        // while RAW's first byte IS the ip header — the version nibble
+        // rides the high half of byte 0 (0x45 ⇒ ipv4).
+        let af4 = [2u8, 0, 0, 0, 0x45, 0, 0, 0];
+        let af6 = [10u8, 0, 0, 0, 0x65, 0, 0, 0];
+        let raw = [0x45u8, 0, 0, 0, 0, 0, 0, 0];
+        for (lt, probe, off, kind) in [
+            (linktype::EN10MB, af4, 0, "eth"),
+            (linktype::LINUX_SLL, af4, 0, "sll"),
+            (linktype::LINUX_SLL2, af4, 0, "sll2"),
+            (linktype::IEEE802_11, af4, 0, "dot11"),
+            (linktype::RAW, raw, 0, "ipv4"),
+            (linktype::NULL, af4, 4, "ipv4"),
+            (linktype::NULL, af6, 4, "ipv6"),
+            (linktype::LOOPBACK, af4, 4, "ipv4"),
+        ] {
+            let mut buf = Vec::new();
+            let mut w = PcapWriter::with_linktype(&mut buf, lt).unwrap();
+            w.write_record(std::time::UNIX_EPOCH, &probe, 65535)
+                .unwrap();
+            w.flush().unwrap();
+            let f = read(&buf).unwrap();
+            assert_eq!(f.start_offset(), off, "start_offset for linktype {lt}");
+            assert_eq!(f.start_kind(&probe), kind, "start_kind for linktype {lt}");
+        }
+        // Unknown linktypes keep the tranche-5 behavior.
+        let mut buf = Vec::new();
+        let mut w = PcapWriter::with_linktype(&mut buf, 147).unwrap();
+        w.write_record(std::time::UNIX_EPOCH, &af4, 65535).unwrap();
+        w.flush().unwrap();
+        let f = read(&buf).unwrap();
+        assert_eq!(f.start_offset(), 0);
+        assert_eq!(f.start_kind(&af4), "auto");
+    }
 }
 
 #[cfg(kani)]
@@ -2008,48 +2055,5 @@ mod proofs {
         assert_eq!(ts_low, d_low);
         assert_eq!(cap_len, d_cap);
         assert_eq!(orig, d_orig);
-    }
-
-    /// Tranche 23a's start dispatch, pinned IN-CRATE: the BSD loopback
-    /// family's records carry the 4-byte host-order AF value INSIDE the
-    /// record (the dissection view skips it; stored bytes stay
-    /// verbatim) — `start_offset` is 4 there and 0 for every other
-    /// linktype; `start_kind` follows the linktype with the per-record
-    /// family peek for NULL/LOOPBACK/RAW, and unknown linktypes keep
-    /// the tranche-5 `auto`. (The per-PR mutants gate caught this
-    /// accessor pair surviving: exercised only from the `wrex` crate's
-    /// linktype suites until now.)
-    #[test]
-    fn t23a_start_dispatch_in_crate() {
-        // AF_INET (host-order) + a v4 nibble: exercises both the
-        // offset skip and the NULL/LOOPBACK family peek.
-        let probe = [4u8, 0, 0, 0, 0x45, 0, 0, 0];
-        for (lt, off, kind) in [
-            (linktype::EN10MB, 0, "eth"),
-            (linktype::LINUX_SLL, 0, "sll"),
-            (linktype::LINUX_SLL2, 0, "sll2"),
-            (linktype::IEEE802_11, 0, "dot11"),
-            (linktype::RAW, 0, "ipv4"),
-            (linktype::NULL, 4, "ipv4"),
-            (linktype::LOOPBACK, 4, "ipv4"),
-        ] {
-            let mut buf = Vec::new();
-            let mut w = PcapWriter::with_linktype(&mut buf, lt).unwrap();
-            w.write_record(std::time::UNIX_EPOCH, &probe, 65535)
-                .unwrap();
-            w.flush().unwrap();
-            let f = read(&buf).unwrap();
-            assert_eq!(f.start_offset(), off, "start_offset for linktype {lt}");
-            assert_eq!(f.start_kind(&probe), kind, "start_kind for linktype {lt}");
-        }
-        // Unknown linktypes keep the tranche-5 behavior.
-        let mut buf = Vec::new();
-        let mut w = PcapWriter::with_linktype(&mut buf, 147).unwrap();
-        w.write_record(std::time::UNIX_EPOCH, &probe, 65535)
-            .unwrap();
-        w.flush().unwrap();
-        let f = read(&buf).unwrap();
-        assert_eq!(f.start_offset(), 0);
-        assert_eq!(f.start_kind(&probe), "auto");
     }
 }
