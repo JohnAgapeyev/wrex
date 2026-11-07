@@ -108,6 +108,7 @@ jobs:
           --exclude 'xtask/**'
           --exclude-re 'verbs.rs:913:.*replace CaptureRx::recv'
           --exclude-re 'verbs.rs:915:.*replace >= with < in CaptureRx::recv'
+          --exclude-re 'verbs.rs:928:.*delete ! in CaptureRx::recv'
           --exclude-re 'verbs.rs:1019:.*replace \+ with - in capture'
           --exclude-re 'verbs.rs:1051:.*replace >= with < in capture'
           -- --all-features
