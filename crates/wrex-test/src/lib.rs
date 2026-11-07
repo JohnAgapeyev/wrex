@@ -13,7 +13,9 @@ pub mod strategies;
 pub mod tls_stub;
 
 pub use gates::{audit_strategy, codec_strategy};
-pub use harness::{craft_bytes, craft_hex, dissect, loopback_ready, wrex_bin};
+pub use harness::{
+    craft_bytes, craft_hex, dissect, loopback_ready, send_udp_on_lo, tempdir, wrex_bin,
+};
 pub use oracle::{Oracle, PcapWriter};
 pub use strategies::{packet_strategy, stacks};
 

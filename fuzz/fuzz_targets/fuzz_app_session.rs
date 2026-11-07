@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;
 use wrex_fuzz::{AppConfig, AppOutcome, AppSession};
-use wrex_session::{Session, SessionAction};
+use wrex_session::Session;
 
 /// One scripted event: a chunk of response bytes, a timeout tick, or
 /// an orderly EOF (the stream convention).

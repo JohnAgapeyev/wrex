@@ -1,0 +1,634 @@
+pub mod wrex_ebpf
+pub mod wrex_ebpf::insn
+pub enum wrex_ebpf::insn::JmpOp
+pub wrex_ebpf::insn::JmpOp::Eq
+pub wrex_ebpf::insn::JmpOp::Ge
+pub wrex_ebpf::insn::JmpOp::Gt
+pub wrex_ebpf::insn::JmpOp::Le
+pub wrex_ebpf::insn::JmpOp::Lt
+pub wrex_ebpf::insn::JmpOp::Ne
+impl core::clone::Clone for wrex_ebpf::insn::JmpOp
+pub fn wrex_ebpf::insn::JmpOp::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::insn::JmpOp
+impl core::cmp::PartialEq for wrex_ebpf::insn::JmpOp
+pub fn wrex_ebpf::insn::JmpOp::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::insn::JmpOp
+pub fn wrex_ebpf::insn::JmpOp::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_ebpf::insn::JmpOp
+impl core::marker::StructuralPartialEq for wrex_ebpf::insn::JmpOp
+impl core::marker::Freeze for wrex_ebpf::insn::JmpOp
+impl core::marker::Send for wrex_ebpf::insn::JmpOp
+impl core::marker::Sync for wrex_ebpf::insn::JmpOp
+impl core::marker::Unpin for wrex_ebpf::insn::JmpOp
+impl core::marker::UnsafeUnpin for wrex_ebpf::insn::JmpOp
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::insn::JmpOp
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::insn::JmpOp
+impl<T, U> core::convert::Into<U> for wrex_ebpf::insn::JmpOp where U: core::convert::From<T>
+pub fn wrex_ebpf::insn::JmpOp::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::insn::JmpOp where U: core::convert::Into<T>
+pub type wrex_ebpf::insn::JmpOp::Error = never
+pub fn wrex_ebpf::insn::JmpOp::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::insn::JmpOp where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::insn::JmpOp::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::insn::JmpOp::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::insn::JmpOp where T: core::clone::Clone
+pub type wrex_ebpf::insn::JmpOp::Owned = T
+pub fn wrex_ebpf::insn::JmpOp::clone_into(&self, &mut T)
+pub fn wrex_ebpf::insn::JmpOp::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::insn::JmpOp where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::insn::JmpOp::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::insn::JmpOp where T: ?core::marker::Sized
+pub fn wrex_ebpf::insn::JmpOp::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::insn::JmpOp where T: ?core::marker::Sized
+pub fn wrex_ebpf::insn::JmpOp::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::insn::JmpOp where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::insn::JmpOp::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::insn::JmpOp
+pub fn wrex_ebpf::insn::JmpOp::from(T) -> T
+pub struct wrex_ebpf::insn::Insn
+pub wrex_ebpf::insn::Insn::code: u8
+pub wrex_ebpf::insn::Insn::dst: u8
+pub wrex_ebpf::insn::Insn::imm: i32
+pub wrex_ebpf::insn::Insn::off: i16
+pub wrex_ebpf::insn::Insn::src: u8
+impl wrex_ebpf::insn::Insn
+pub const fn wrex_ebpf::insn::Insn::add64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::add64_reg(u8, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::and64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::and64_reg(u8, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::call(i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::exit() -> Self
+pub const fn wrex_ebpf::insn::Insn::from_bits(u64) -> Self
+pub const fn wrex_ebpf::insn::Insn::j32_imm(wrex_ebpf::insn::JmpOp, u8, i32, i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::j64_imm(wrex_ebpf::insn::JmpOp, u8, i32, i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::j64_reg(wrex_ebpf::insn::JmpOp, u8, u8, i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::ja(i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::ld_imm64(u8, u32, u32, core::option::Option<u8>) -> [Self; 2]
+pub const fn wrex_ebpf::insn::Insn::ldx_b(u8, u8, i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::ldx_h(u8, u8, i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::ldx_w(u8, u8, i16) -> Self
+pub const fn wrex_ebpf::insn::Insn::lsh64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::mov32_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::mov64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::mov64_reg(u8, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::new(u8, u8, u8, i16, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::or64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::or64_reg(u8, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::rsh64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::st_b(u8, i16, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::stx_b(u8, i16, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::stx_h(u8, i16, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::stx_w(u8, i16, u8) -> Self
+pub const fn wrex_ebpf::insn::Insn::sub64_imm(u8, i32) -> Self
+pub const fn wrex_ebpf::insn::Insn::to_bits(self) -> u64
+pub const fn wrex_ebpf::insn::Insn::xor64_imm(u8, i32) -> Self
+impl core::clone::Clone for wrex_ebpf::insn::Insn
+pub fn wrex_ebpf::insn::Insn::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::insn::Insn
+impl core::cmp::PartialEq for wrex_ebpf::insn::Insn
+pub fn wrex_ebpf::insn::Insn::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::insn::Insn
+pub fn wrex_ebpf::insn::Insn::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_ebpf::insn::Insn
+impl core::marker::StructuralPartialEq for wrex_ebpf::insn::Insn
+impl core::marker::Freeze for wrex_ebpf::insn::Insn
+impl core::marker::Send for wrex_ebpf::insn::Insn
+impl core::marker::Sync for wrex_ebpf::insn::Insn
+impl core::marker::Unpin for wrex_ebpf::insn::Insn
+impl core::marker::UnsafeUnpin for wrex_ebpf::insn::Insn
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::insn::Insn
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::insn::Insn
+impl<T, U> core::convert::Into<U> for wrex_ebpf::insn::Insn where U: core::convert::From<T>
+pub fn wrex_ebpf::insn::Insn::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::insn::Insn where U: core::convert::Into<T>
+pub type wrex_ebpf::insn::Insn::Error = never
+pub fn wrex_ebpf::insn::Insn::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::insn::Insn where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::insn::Insn::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::insn::Insn::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::insn::Insn where T: core::clone::Clone
+pub type wrex_ebpf::insn::Insn::Owned = T
+pub fn wrex_ebpf::insn::Insn::clone_into(&self, &mut T)
+pub fn wrex_ebpf::insn::Insn::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::insn::Insn where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::insn::Insn::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::insn::Insn where T: ?core::marker::Sized
+pub fn wrex_ebpf::insn::Insn::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::insn::Insn where T: ?core::marker::Sized
+pub fn wrex_ebpf::insn::Insn::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::insn::Insn where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::insn::Insn::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::insn::Insn
+pub fn wrex_ebpf::insn::Insn::from(T) -> T
+pub const wrex_ebpf::insn::BPF_FUNC_csum_diff: i32
+pub const wrex_ebpf::insn::BPF_FUNC_map_lookup_elem: i32
+pub const wrex_ebpf::insn::BPF_FUNC_map_update_elem: i32
+pub const wrex_ebpf::insn::BPF_FUNC_redirect_map: i32
+pub const wrex_ebpf::insn::BPF_PSEUDO_MAP_FD: u8
+pub const wrex_ebpf::insn::R0: u8
+pub const wrex_ebpf::insn::R1: u8
+pub const wrex_ebpf::insn::R2: u8
+pub const wrex_ebpf::insn::R3: u8
+pub const wrex_ebpf::insn::R6: u8
+pub const wrex_ebpf::insn::R7: u8
+pub const wrex_ebpf::insn::R8: u8
+pub const wrex_ebpf::insn::R9: u8
+pub const wrex_ebpf::insn::XDP_ABORTED: i32
+pub const wrex_ebpf::insn::XDP_DROP: i32
+pub const wrex_ebpf::insn::XDP_MD_DATA: i16
+pub const wrex_ebpf::insn::XDP_MD_DATA_END: i16
+pub const wrex_ebpf::insn::XDP_MD_RX_QUEUE: i16
+pub const wrex_ebpf::insn::XDP_PASS: i32
+pub const wrex_ebpf::insn::XDP_REDIRECT: i32
+pub const wrex_ebpf::insn::XDP_TX: i32
+pub mod wrex_ebpf::vm
+pub enum wrex_ebpf::vm::Verdict
+pub wrex_ebpf::vm::Verdict::Aborted
+pub wrex_ebpf::vm::Verdict::Drop
+pub wrex_ebpf::vm::Verdict::Pass
+pub wrex_ebpf::vm::Verdict::Redirect
+pub wrex_ebpf::vm::Verdict::Tx
+impl wrex_ebpf::vm::Verdict
+pub fn wrex_ebpf::vm::Verdict::from_action(u64) -> Self
+impl core::clone::Clone for wrex_ebpf::vm::Verdict
+pub fn wrex_ebpf::vm::Verdict::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::vm::Verdict
+impl core::cmp::PartialEq for wrex_ebpf::vm::Verdict
+pub fn wrex_ebpf::vm::Verdict::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::vm::Verdict
+pub fn wrex_ebpf::vm::Verdict::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_ebpf::vm::Verdict
+impl core::marker::StructuralPartialEq for wrex_ebpf::vm::Verdict
+impl core::marker::Freeze for wrex_ebpf::vm::Verdict
+impl core::marker::Send for wrex_ebpf::vm::Verdict
+impl core::marker::Sync for wrex_ebpf::vm::Verdict
+impl core::marker::Unpin for wrex_ebpf::vm::Verdict
+impl core::marker::UnsafeUnpin for wrex_ebpf::vm::Verdict
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::vm::Verdict
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::vm::Verdict
+impl<T, U> core::convert::Into<U> for wrex_ebpf::vm::Verdict where U: core::convert::From<T>
+pub fn wrex_ebpf::vm::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::vm::Verdict where U: core::convert::Into<T>
+pub type wrex_ebpf::vm::Verdict::Error = never
+pub fn wrex_ebpf::vm::Verdict::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::vm::Verdict where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::vm::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::vm::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::vm::Verdict where T: core::clone::Clone
+pub type wrex_ebpf::vm::Verdict::Owned = T
+pub fn wrex_ebpf::vm::Verdict::clone_into(&self, &mut T)
+pub fn wrex_ebpf::vm::Verdict::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::vm::Verdict where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::vm::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::vm::Verdict where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::vm::Verdict where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::vm::Verdict where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::vm::Verdict::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::vm::Verdict
+pub fn wrex_ebpf::vm::Verdict::from(T) -> T
+pub enum wrex_ebpf::vm::VmError
+pub wrex_ebpf::vm::VmError::Bounds
+pub wrex_ebpf::vm::VmError::Budget
+pub wrex_ebpf::vm::VmError::Helper(i32)
+pub wrex_ebpf::vm::VmError::NoMap(u32)
+pub wrex_ebpf::vm::VmError::Unsupported(u8)
+impl core::cmp::Eq for wrex_ebpf::vm::VmError
+impl core::cmp::PartialEq for wrex_ebpf::vm::VmError
+pub fn wrex_ebpf::vm::VmError::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::vm::VmError
+pub fn wrex_ebpf::vm::VmError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_ebpf::vm::VmError
+impl core::marker::Freeze for wrex_ebpf::vm::VmError
+impl core::marker::Send for wrex_ebpf::vm::VmError
+impl core::marker::Sync for wrex_ebpf::vm::VmError
+impl core::marker::Unpin for wrex_ebpf::vm::VmError
+impl core::marker::UnsafeUnpin for wrex_ebpf::vm::VmError
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::vm::VmError
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::vm::VmError
+impl<T, U> core::convert::Into<U> for wrex_ebpf::vm::VmError where U: core::convert::From<T>
+pub fn wrex_ebpf::vm::VmError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::vm::VmError where U: core::convert::Into<T>
+pub type wrex_ebpf::vm::VmError::Error = never
+pub fn wrex_ebpf::vm::VmError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::vm::VmError where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::vm::VmError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::vm::VmError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_ebpf::vm::VmError where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::vm::VmError where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::vm::VmError where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_ebpf::vm::VmError
+pub fn wrex_ebpf::vm::VmError::from(T) -> T
+pub struct wrex_ebpf::vm::Vm
+pub wrex_ebpf::vm::Vm::maps: wrex_ebpf::vm::VmMaps
+impl wrex_ebpf::vm::Vm
+pub fn wrex_ebpf::vm::Vm::declare_program_maps(&mut self, &wrex_ebpf::Program)
+pub fn wrex_ebpf::vm::Vm::new_default() -> Self
+pub fn wrex_ebpf::vm::Vm::run(&mut self, &wrex_ebpf::Program, &[u8]) -> core::result::Result<wrex_ebpf::vm::Verdict, wrex_ebpf::vm::VmError>
+pub fn wrex_ebpf::vm::Vm::run_with_packet(&mut self, &wrex_ebpf::Program, &[u8]) -> core::result::Result<alloc::vec::Vec<u8>, wrex_ebpf::vm::VmError>
+pub fn wrex_ebpf::vm::Vm::with_ctx(wrex_ebpf::vm::VmCtx) -> Self
+impl core::marker::Freeze for wrex_ebpf::vm::Vm
+impl core::marker::Send for wrex_ebpf::vm::Vm
+impl core::marker::Sync for wrex_ebpf::vm::Vm
+impl core::marker::Unpin for wrex_ebpf::vm::Vm
+impl core::marker::UnsafeUnpin for wrex_ebpf::vm::Vm
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::vm::Vm
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::vm::Vm
+impl<T, U> core::convert::Into<U> for wrex_ebpf::vm::Vm where U: core::convert::From<T>
+pub fn wrex_ebpf::vm::Vm::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::vm::Vm where U: core::convert::Into<T>
+pub type wrex_ebpf::vm::Vm::Error = never
+pub fn wrex_ebpf::vm::Vm::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::vm::Vm where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::vm::Vm::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::vm::Vm::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_ebpf::vm::Vm where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::vm::Vm::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::vm::Vm where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::Vm::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::vm::Vm where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::Vm::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_ebpf::vm::Vm
+pub fn wrex_ebpf::vm::Vm::from(T) -> T
+pub struct wrex_ebpf::vm::VmCtx
+pub wrex_ebpf::vm::VmCtx::data: alloc::vec::Vec<u8>
+pub wrex_ebpf::vm::VmCtx::ingress_ifindex: u32
+pub wrex_ebpf::vm::VmCtx::rx_queue: u32
+impl core::clone::Clone for wrex_ebpf::vm::VmCtx
+pub fn wrex_ebpf::vm::VmCtx::clone(&self) -> Self
+impl core::fmt::Debug for wrex_ebpf::vm::VmCtx
+pub fn wrex_ebpf::vm::VmCtx::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_ebpf::vm::VmCtx
+impl core::marker::Send for wrex_ebpf::vm::VmCtx
+impl core::marker::Sync for wrex_ebpf::vm::VmCtx
+impl core::marker::Unpin for wrex_ebpf::vm::VmCtx
+impl core::marker::UnsafeUnpin for wrex_ebpf::vm::VmCtx
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::vm::VmCtx
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::vm::VmCtx
+impl<T, U> core::convert::Into<U> for wrex_ebpf::vm::VmCtx where U: core::convert::From<T>
+pub fn wrex_ebpf::vm::VmCtx::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::vm::VmCtx where U: core::convert::Into<T>
+pub type wrex_ebpf::vm::VmCtx::Error = never
+pub fn wrex_ebpf::vm::VmCtx::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::vm::VmCtx where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::vm::VmCtx::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::vm::VmCtx::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::vm::VmCtx where T: core::clone::Clone
+pub type wrex_ebpf::vm::VmCtx::Owned = T
+pub fn wrex_ebpf::vm::VmCtx::clone_into(&self, &mut T)
+pub fn wrex_ebpf::vm::VmCtx::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::vm::VmCtx where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmCtx::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::vm::VmCtx where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmCtx::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::vm::VmCtx where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmCtx::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::vm::VmCtx where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::vm::VmCtx::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::vm::VmCtx
+pub fn wrex_ebpf::vm::VmCtx::from(T) -> T
+pub struct wrex_ebpf::vm::VmMaps
+impl wrex_ebpf::vm::VmMaps
+pub fn wrex_ebpf::vm::VmMaps::declare(&mut self, u32, u32)
+pub fn wrex_ebpf::vm::VmMaps::dump(&self, u32) -> alloc::vec::Vec<(alloc::vec::Vec<u8>, u64)>
+pub fn wrex_ebpf::vm::VmMaps::set(&mut self, u32, &[u8], u64)
+impl core::default::Default for wrex_ebpf::vm::VmMaps
+pub fn wrex_ebpf::vm::VmMaps::default() -> Self
+impl core::marker::Freeze for wrex_ebpf::vm::VmMaps
+impl core::marker::Send for wrex_ebpf::vm::VmMaps
+impl core::marker::Sync for wrex_ebpf::vm::VmMaps
+impl core::marker::Unpin for wrex_ebpf::vm::VmMaps
+impl core::marker::UnsafeUnpin for wrex_ebpf::vm::VmMaps
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::vm::VmMaps
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::vm::VmMaps
+impl<T, U> core::convert::Into<U> for wrex_ebpf::vm::VmMaps where U: core::convert::From<T>
+pub fn wrex_ebpf::vm::VmMaps::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::vm::VmMaps where U: core::convert::Into<T>
+pub type wrex_ebpf::vm::VmMaps::Error = never
+pub fn wrex_ebpf::vm::VmMaps::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::vm::VmMaps where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::vm::VmMaps::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::vm::VmMaps::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_ebpf::vm::VmMaps where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmMaps::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::vm::VmMaps where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmMaps::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::vm::VmMaps where T: ?core::marker::Sized
+pub fn wrex_ebpf::vm::VmMaps::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_ebpf::vm::VmMaps
+pub fn wrex_ebpf::vm::VmMaps::from(T) -> T
+pub enum wrex_ebpf::Action
+pub wrex_ebpf::Action::Drop
+pub wrex_ebpf::Action::Redirect
+impl core::clone::Clone for wrex_ebpf::Action
+pub fn wrex_ebpf::Action::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::Action
+impl core::cmp::PartialEq for wrex_ebpf::Action
+pub fn wrex_ebpf::Action::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::Action
+pub fn wrex_ebpf::Action::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_ebpf::Action
+impl core::marker::StructuralPartialEq for wrex_ebpf::Action
+impl core::marker::Freeze for wrex_ebpf::Action
+impl core::marker::Send for wrex_ebpf::Action
+impl core::marker::Sync for wrex_ebpf::Action
+impl core::marker::Unpin for wrex_ebpf::Action
+impl core::marker::UnsafeUnpin for wrex_ebpf::Action
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::Action
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::Action
+impl<T, U> core::convert::Into<U> for wrex_ebpf::Action where U: core::convert::From<T>
+pub fn wrex_ebpf::Action::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::Action where U: core::convert::Into<T>
+pub type wrex_ebpf::Action::Error = never
+pub fn wrex_ebpf::Action::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::Action where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::Action::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::Action::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::Action where T: core::clone::Clone
+pub type wrex_ebpf::Action::Owned = T
+pub fn wrex_ebpf::Action::clone_into(&self, &mut T)
+pub fn wrex_ebpf::Action::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::Action where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::Action::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::Action where T: ?core::marker::Sized
+pub fn wrex_ebpf::Action::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::Action where T: ?core::marker::Sized
+pub fn wrex_ebpf::Action::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::Action where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::Action::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::Action
+pub fn wrex_ebpf::Action::from(T) -> T
+pub enum wrex_ebpf::CompileError
+pub wrex_ebpf::CompileError::UnsupportedEdit
+pub wrex_ebpf::CompileError::UnsupportedEdit::edit: alloc::string::String
+pub wrex_ebpf::CompileError::UnsupportedEdit::why: alloc::string::String
+pub wrex_ebpf::CompileError::UnsupportedField
+pub wrex_ebpf::CompileError::UnsupportedField::term: alloc::string::String
+pub wrex_ebpf::CompileError::UnsupportedField::why: alloc::string::String
+pub wrex_ebpf::CompileError::UnsupportedLayer
+pub wrex_ebpf::CompileError::UnsupportedLayer::term: alloc::string::String
+pub wrex_ebpf::CompileError::UnsupportedValue
+pub wrex_ebpf::CompileError::UnsupportedValue::term: alloc::string::String
+pub wrex_ebpf::CompileError::UnsupportedValue::why: alloc::string::String
+impl core::clone::Clone for wrex_ebpf::CompileError
+pub fn wrex_ebpf::CompileError::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::CompileError
+impl core::cmp::PartialEq for wrex_ebpf::CompileError
+pub fn wrex_ebpf::CompileError::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::CompileError
+pub fn wrex_ebpf::CompileError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for wrex_ebpf::CompileError
+pub fn wrex_ebpf::CompileError::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_ebpf::CompileError
+impl core::marker::Freeze for wrex_ebpf::CompileError
+impl core::marker::Send for wrex_ebpf::CompileError
+impl core::marker::Sync for wrex_ebpf::CompileError
+impl core::marker::Unpin for wrex_ebpf::CompileError
+impl core::marker::UnsafeUnpin for wrex_ebpf::CompileError
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::CompileError
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::CompileError
+impl<T, U> core::convert::Into<U> for wrex_ebpf::CompileError where U: core::convert::From<T>
+pub fn wrex_ebpf::CompileError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::CompileError where U: core::convert::Into<T>
+pub type wrex_ebpf::CompileError::Error = never
+pub fn wrex_ebpf::CompileError::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::CompileError where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::CompileError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::CompileError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::CompileError where T: core::clone::Clone
+pub type wrex_ebpf::CompileError::Owned = T
+pub fn wrex_ebpf::CompileError::clone_into(&self, &mut T)
+pub fn wrex_ebpf::CompileError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for wrex_ebpf::CompileError where T: core::fmt::Display + ?core::marker::Sized
+pub fn wrex_ebpf::CompileError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for wrex_ebpf::CompileError where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::CompileError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::CompileError where T: ?core::marker::Sized
+pub fn wrex_ebpf::CompileError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::CompileError where T: ?core::marker::Sized
+pub fn wrex_ebpf::CompileError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::CompileError where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::CompileError::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::CompileError
+pub fn wrex_ebpf::CompileError::from(T) -> T
+pub enum wrex_ebpf::MapKind
+pub wrex_ebpf::MapKind::Hash
+pub wrex_ebpf::MapKind::XskMap
+impl wrex_ebpf::MapKind
+pub const fn wrex_ebpf::MapKind::kernel_id(self) -> u32
+impl core::clone::Clone for wrex_ebpf::MapKind
+pub fn wrex_ebpf::MapKind::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::MapKind
+impl core::cmp::PartialEq for wrex_ebpf::MapKind
+pub fn wrex_ebpf::MapKind::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::MapKind
+pub fn wrex_ebpf::MapKind::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_ebpf::MapKind
+impl core::marker::StructuralPartialEq for wrex_ebpf::MapKind
+impl core::marker::Freeze for wrex_ebpf::MapKind
+impl core::marker::Send for wrex_ebpf::MapKind
+impl core::marker::Sync for wrex_ebpf::MapKind
+impl core::marker::Unpin for wrex_ebpf::MapKind
+impl core::marker::UnsafeUnpin for wrex_ebpf::MapKind
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::MapKind
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::MapKind
+impl<T, U> core::convert::Into<U> for wrex_ebpf::MapKind where U: core::convert::From<T>
+pub fn wrex_ebpf::MapKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::MapKind where U: core::convert::Into<T>
+pub type wrex_ebpf::MapKind::Error = never
+pub fn wrex_ebpf::MapKind::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::MapKind where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::MapKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::MapKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::MapKind where T: core::clone::Clone
+pub type wrex_ebpf::MapKind::Owned = T
+pub fn wrex_ebpf::MapKind::clone_into(&self, &mut T)
+pub fn wrex_ebpf::MapKind::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::MapKind where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::MapKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::MapKind where T: ?core::marker::Sized
+pub fn wrex_ebpf::MapKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::MapKind where T: ?core::marker::Sized
+pub fn wrex_ebpf::MapKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::MapKind where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::MapKind::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::MapKind
+pub fn wrex_ebpf::MapKind::from(T) -> T
+pub struct wrex_ebpf::ChecksumTarget
+pub wrex_ebpf::ChecksumTarget::at: usize
+pub wrex_ebpf::ChecksumTarget::contrib: alloc::vec::Vec<usize>
+pub wrex_ebpf::ChecksumTarget::kind: &'static str
+impl core::clone::Clone for wrex_ebpf::ChecksumTarget
+pub fn wrex_ebpf::ChecksumTarget::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::ChecksumTarget
+impl core::cmp::PartialEq for wrex_ebpf::ChecksumTarget
+pub fn wrex_ebpf::ChecksumTarget::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::ChecksumTarget
+pub fn wrex_ebpf::ChecksumTarget::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_ebpf::ChecksumTarget
+impl core::marker::Freeze for wrex_ebpf::ChecksumTarget
+impl core::marker::Send for wrex_ebpf::ChecksumTarget
+impl core::marker::Sync for wrex_ebpf::ChecksumTarget
+impl core::marker::Unpin for wrex_ebpf::ChecksumTarget
+impl core::marker::UnsafeUnpin for wrex_ebpf::ChecksumTarget
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::ChecksumTarget
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::ChecksumTarget
+impl<T, U> core::convert::Into<U> for wrex_ebpf::ChecksumTarget where U: core::convert::From<T>
+pub fn wrex_ebpf::ChecksumTarget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::ChecksumTarget where U: core::convert::Into<T>
+pub type wrex_ebpf::ChecksumTarget::Error = never
+pub fn wrex_ebpf::ChecksumTarget::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::ChecksumTarget where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::ChecksumTarget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::ChecksumTarget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::ChecksumTarget where T: core::clone::Clone
+pub type wrex_ebpf::ChecksumTarget::Owned = T
+pub fn wrex_ebpf::ChecksumTarget::clone_into(&self, &mut T)
+pub fn wrex_ebpf::ChecksumTarget::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::ChecksumTarget where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::ChecksumTarget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::ChecksumTarget where T: ?core::marker::Sized
+pub fn wrex_ebpf::ChecksumTarget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::ChecksumTarget where T: ?core::marker::Sized
+pub fn wrex_ebpf::ChecksumTarget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::ChecksumTarget where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::ChecksumTarget::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::ChecksumTarget
+pub fn wrex_ebpf::ChecksumTarget::from(T) -> T
+pub struct wrex_ebpf::Edit
+pub wrex_ebpf::Edit::at: usize
+pub wrex_ebpf::Edit::kind: &'static str
+pub wrex_ebpf::Edit::value: alloc::vec::Vec<u8>
+pub wrex_ebpf::Edit::width: usize
+impl core::clone::Clone for wrex_ebpf::Edit
+pub fn wrex_ebpf::Edit::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::Edit
+impl core::cmp::PartialEq for wrex_ebpf::Edit
+pub fn wrex_ebpf::Edit::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::Edit
+pub fn wrex_ebpf::Edit::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_ebpf::Edit
+impl core::marker::Freeze for wrex_ebpf::Edit
+impl core::marker::Send for wrex_ebpf::Edit
+impl core::marker::Sync for wrex_ebpf::Edit
+impl core::marker::Unpin for wrex_ebpf::Edit
+impl core::marker::UnsafeUnpin for wrex_ebpf::Edit
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::Edit
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::Edit
+impl<T, U> core::convert::Into<U> for wrex_ebpf::Edit where U: core::convert::From<T>
+pub fn wrex_ebpf::Edit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::Edit where U: core::convert::Into<T>
+pub type wrex_ebpf::Edit::Error = never
+pub fn wrex_ebpf::Edit::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::Edit where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::Edit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::Edit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::Edit where T: core::clone::Clone
+pub type wrex_ebpf::Edit::Owned = T
+pub fn wrex_ebpf::Edit::clone_into(&self, &mut T)
+pub fn wrex_ebpf::Edit::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::Edit where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::Edit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::Edit where T: ?core::marker::Sized
+pub fn wrex_ebpf::Edit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::Edit where T: ?core::marker::Sized
+pub fn wrex_ebpf::Edit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::Edit where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::Edit::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::Edit
+pub fn wrex_ebpf::Edit::from(T) -> T
+pub struct wrex_ebpf::MapDecl
+pub wrex_ebpf::MapDecl::idx: u32
+pub wrex_ebpf::MapDecl::key_size: u32
+pub wrex_ebpf::MapDecl::kind: wrex_ebpf::MapKind
+pub wrex_ebpf::MapDecl::max_entries: u32
+pub wrex_ebpf::MapDecl::value_size: u32
+impl core::clone::Clone for wrex_ebpf::MapDecl
+pub fn wrex_ebpf::MapDecl::clone(&self) -> Self
+impl core::cmp::Eq for wrex_ebpf::MapDecl
+impl core::cmp::PartialEq for wrex_ebpf::MapDecl
+pub fn wrex_ebpf::MapDecl::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_ebpf::MapDecl
+pub fn wrex_ebpf::MapDecl::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for wrex_ebpf::MapDecl
+impl core::marker::StructuralPartialEq for wrex_ebpf::MapDecl
+impl core::marker::Freeze for wrex_ebpf::MapDecl
+impl core::marker::Send for wrex_ebpf::MapDecl
+impl core::marker::Sync for wrex_ebpf::MapDecl
+impl core::marker::Unpin for wrex_ebpf::MapDecl
+impl core::marker::UnsafeUnpin for wrex_ebpf::MapDecl
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::MapDecl
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::MapDecl
+impl<T, U> core::convert::Into<U> for wrex_ebpf::MapDecl where U: core::convert::From<T>
+pub fn wrex_ebpf::MapDecl::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::MapDecl where U: core::convert::Into<T>
+pub type wrex_ebpf::MapDecl::Error = never
+pub fn wrex_ebpf::MapDecl::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::MapDecl where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::MapDecl::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::MapDecl::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::MapDecl where T: core::clone::Clone
+pub type wrex_ebpf::MapDecl::Owned = T
+pub fn wrex_ebpf::MapDecl::clone_into(&self, &mut T)
+pub fn wrex_ebpf::MapDecl::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::MapDecl where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::MapDecl::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::MapDecl where T: ?core::marker::Sized
+pub fn wrex_ebpf::MapDecl::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::MapDecl where T: ?core::marker::Sized
+pub fn wrex_ebpf::MapDecl::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::MapDecl where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::MapDecl::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::MapDecl
+pub fn wrex_ebpf::MapDecl::from(T) -> T
+pub struct wrex_ebpf::Program
+pub wrex_ebpf::Program::insns: alloc::vec::Vec<wrex_ebpf::insn::Insn>
+pub wrex_ebpf::Program::maps: alloc::vec::Vec<wrex_ebpf::MapDecl>
+pub wrex_ebpf::Program::name: alloc::string::String
+impl wrex_ebpf::Program
+pub fn wrex_ebpf::Program::to_bits(&self) -> alloc::vec::Vec<u64>
+impl core::clone::Clone for wrex_ebpf::Program
+pub fn wrex_ebpf::Program::clone(&self) -> Self
+impl core::fmt::Debug for wrex_ebpf::Program
+pub fn wrex_ebpf::Program::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for wrex_ebpf::Program
+impl core::marker::Send for wrex_ebpf::Program
+impl core::marker::Sync for wrex_ebpf::Program
+impl core::marker::Unpin for wrex_ebpf::Program
+impl core::marker::UnsafeUnpin for wrex_ebpf::Program
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_ebpf::Program
+impl core::panic::unwind_safe::UnwindSafe for wrex_ebpf::Program
+impl<T, U> core::convert::Into<U> for wrex_ebpf::Program where U: core::convert::From<T>
+pub fn wrex_ebpf::Program::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_ebpf::Program where U: core::convert::Into<T>
+pub type wrex_ebpf::Program::Error = never
+pub fn wrex_ebpf::Program::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_ebpf::Program where U: core::convert::TryFrom<T>
+pub type wrex_ebpf::Program::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_ebpf::Program::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_ebpf::Program where T: core::clone::Clone
+pub type wrex_ebpf::Program::Owned = T
+pub fn wrex_ebpf::Program::clone_into(&self, &mut T)
+pub fn wrex_ebpf::Program::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_ebpf::Program where T: 'static + ?core::marker::Sized
+pub fn wrex_ebpf::Program::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_ebpf::Program where T: ?core::marker::Sized
+pub fn wrex_ebpf::Program::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_ebpf::Program where T: ?core::marker::Sized
+pub fn wrex_ebpf::Program::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_ebpf::Program where T: core::clone::Clone
+pub unsafe fn wrex_ebpf::Program::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_ebpf::Program
+pub fn wrex_ebpf::Program::from(T) -> T
+pub const wrex_ebpf::MAP_IDX_FLOW: u32
+pub const wrex_ebpf::MAP_IDX_XSK: u32
+pub fn wrex_ebpf::compile_acl(&wrex_core::codec::Registry, &wrex_core::filter::Filter) -> core::result::Result<wrex_ebpf::Program, wrex_ebpf::CompileError>
+pub fn wrex_ebpf::compile_capture_prefilter(&wrex_core::codec::Registry, &wrex_core::filter::Filter) -> core::result::Result<wrex_ebpf::Program, wrex_ebpf::CompileError>
+pub fn wrex_ebpf::compile_filter(&wrex_core::codec::Registry, &wrex_core::filter::Filter, &str, wrex_ebpf::Action) -> core::result::Result<wrex_ebpf::Program, wrex_ebpf::CompileError>
+pub fn wrex_ebpf::compile_flow_table() -> wrex_ebpf::Program
+pub fn wrex_ebpf::compile_responder() -> wrex_ebpf::Program
+pub fn wrex_ebpf::compile_translate(&wrex_core::codec::Registry, &[wrex_ebpf::Edit], &[wrex_ebpf::ChecksumTarget]) -> core::result::Result<wrex_ebpf::Program, wrex_ebpf::CompileError>

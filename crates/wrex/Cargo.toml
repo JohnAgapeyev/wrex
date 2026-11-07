@@ -26,6 +26,7 @@ wrex-pcap = { workspace = true }
 wrex-mut = { workspace = true }
 wrex-fuzz = { workspace = true }
 wrex-frag = { workspace = true }
+wrex-ebpf = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
@@ -49,9 +50,11 @@ wrex-proto-dns = { workspace = true, optional = true }
 wrex-proto-vlan = { workspace = true, optional = true }
 wrex-proto-dhcp = { workspace = true, optional = true }
 wrex-proto-dhcp6 = { workspace = true, optional = true }
+wrex-proto-sll = { workspace = true, optional = true }
+wrex-proto-dot11 = { workspace = true, optional = true }
 
 [features]
-default = ["proto-eth", "proto-arp", "proto-ip", "proto-ip6", "proto-ip6ext", "proto-icmp", "proto-icmpv6", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan", "proto-dhcp", "proto-dhcp6"]
+default = ["proto-eth", "proto-arp", "proto-ip", "proto-ip6", "proto-ip6ext", "proto-icmp", "proto-icmpv6", "proto-udp", "proto-tcp", "proto-dns", "proto-vlan", "proto-dhcp", "proto-dhcp6", "proto-sll", "proto-dot11"]
 proto-eth = ["dep:wrex-proto-eth"]
 proto-arp = ["dep:wrex-proto-arp"]
 proto-ip = ["dep:wrex-proto-ip"]
@@ -65,12 +68,15 @@ proto-dns = ["dep:wrex-proto-dns"]
 proto-vlan = ["dep:wrex-proto-vlan"]
 proto-dhcp = ["dep:wrex-proto-dhcp"]
 proto-dhcp6 = ["dep:wrex-proto-dhcp6"]
+proto-sll = ["dep:wrex-proto-sll"]
+proto-dot11 = ["dep:wrex-proto-dot11"]
 
 [dev-dependencies]
 wrex-test = { workspace = true }
 wrex-pcap = { workspace = true }
 proptest = { workspace = true }
 assert_cmd = { workspace = true }
+assert_fs = "1"
 predicates = { workspace = true }
 hex = { workspace = true }
 serde_json = { workspace = true }

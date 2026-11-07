@@ -61,6 +61,20 @@ pub fn loopback_ready(v6: bool) -> bool {
     true
 }
 
+/// Send one plain-UDP datagram to `127.0.0.1` (no capabilities): the
+/// kernel reflects it through `lo`, where the AF_PACKET taps (`capture
+/// -i any`, `recv -i lo`) observe it — the traffic source for the
+/// cooked-capture ground truth (tranche 23a).
+pub fn send_udp_on_lo() {
+    let sock = std::net::UdpSocket::bind("127.0.0.1:0").expect("bind");
+    let _ = sock.send_to(b"wrex-cooked-probe", "127.0.0.1:9");
+}
+
+/// A test-scoped temp dir (assert_fs wrapped for the driver suites).
+pub fn tempdir() -> assert_fs::TempDir {
+    assert_fs::TempDir::new().expect("tempdir")
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

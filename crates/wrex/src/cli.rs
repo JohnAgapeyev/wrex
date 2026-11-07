@@ -19,10 +19,10 @@ FIELD FLAGS:
 
 LAYER KINDS:
   eth, arp, vlan, ipv4 (CLI alias: ip), ipv6 (CLI aliases: ip6, v6),
-  icmp, icmpv6, udp, tcp, dns, dhcp.
+  icmp, icmpv6, udp, tcp, dns, dhcp, dhcp6, sll/sll2 (Linux cooked
+  capture — `capture -i any` stores), dot11 (802.11 mgmt dissect).
   Ranks: eth 10; vlan 15; arp/ipv4/ipv6 20; icmp/icmpv6/udp/tcp 30
-  (stack on ipv4|ipv6); dns 40 (port-53 datagrams dissect into it);
-  dhcp 40 (port-67/68 datagrams dissect into it).
+  (stack on ipv4|ipv6); dns/dhcp/dhcp6 40; sll/sll2/dot11 10 (roots).
   Man pages: wrex(1), wrex-<kind>(7) in man/ of the source checkout.
 
 VALUE GRAMMAR:
@@ -37,6 +37,13 @@ FILTERS (recv --filter, send --wait-reply, patch --filter):
   space-separated AND-terms: path OP value, OP in = != < <= > >=
   ipv4 = accepts CIDR (10.0.0.0/8); flagset = accepts bit names;
   bytes = is a hex-prefix match; a path absent from a frame is false
+
+CAPTURE DATAPATH (tranche 23):
+  the default on a real interface is the compiled XDP prefilter + the
+  AF_XDP socket (the filter rides the kernel when the eBPF subset can
+  express it); capabilities or terms beyond the subset fall back to
+  AF_PACKET with a printed note; --no-xdp forces the userspace path.
+  -i any is the cooked tap (LINKTYPE_LINUX_SLL store).
 
 EXIT CODES:
   0  success (recv timeout end included)
@@ -670,6 +677,19 @@ pub struct CaptureArgs {
     /// Usage error without `--pcapng`.
     #[arg(long, requires = "pcapng")]
     pub pcapng_ns: bool,
+    /// Rotate the store when a chunk exceeds this many stored bytes:
+    /// `FILE`, `FILE.1`, `FILE.2`, … (tranche 23b; the tcpdump -C rule).
+    #[arg(long, value_name = "BYTES")]
+    pub rotate_size: Option<usize>,
+    /// Cap the number of rotation chunk files (rides `--rotate-size`;
+    /// a full ring ends the capture with exit 0 — the tcpdump -W rule).
+    #[arg(long, value_name = "N", requires = "rotate_size")]
+    pub rotate_count: Option<u64>,
+    /// Force the AF_PACKET datapath (the default is the compiled XDP
+    /// prefilter + XSK with a transparent fallback; this knob is the
+    /// debug/benchmark escape hatch — tranche 23b).
+    #[arg(long)]
+    pub no_xdp: bool,
 }
 
 /// `wrex replay`: offline dissection or re-send of a pcap (classic or
@@ -988,6 +1008,10 @@ pub struct PatchArgs {
     /// original timestamps kept).
     #[arg(short = 'w', long = "write", value_name = "FILE")]
     pub write: Option<String>,
+    /// Max stored bytes per written frame (default 65535; wire length
+    /// kept via orig_len) — tranche 23a, the T14 deferral.
+    #[arg(long)]
+    pub snaplen: Option<usize>,
     /// Write pcapng instead of classic pcap (with -w).
     #[arg(long)]
     pub pcapng: bool,

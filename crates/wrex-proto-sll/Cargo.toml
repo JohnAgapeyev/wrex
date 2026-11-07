@@ -1,0 +1,29 @@
+[package]
+name = "wrex-proto-sll"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex Linux cooked capture (SLL/SLL2) codecs"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+# ADR 3: the cooked header dispatches into the same children eth does,
+# so the whole L3/L4 closure is a real dep of this crate — any feature
+# selection that includes proto-sll is parent-complete by construction.
+wrex-proto-eth = { workspace = true }
+wrex-proto-arp = { workspace = true }
+wrex-proto-vlan = { workspace = true }
+wrex-proto-ip = { workspace = true }
+wrex-proto-ip6 = { workspace = true }
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

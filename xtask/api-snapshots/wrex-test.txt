@@ -33,6 +33,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::corpus::Corpus where T: ?core:
 pub fn wrex_test::corpus::Corpus::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::corpus::Corpus
 pub fn wrex_test::corpus::Corpus::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::corpus::Corpus
+pub type wrex_test::corpus::Corpus::Init = T
+pub const wrex_test::corpus::Corpus::ALIGN: usize
+pub unsafe fn wrex_test::corpus::Corpus::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::corpus::Corpus::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::corpus::Corpus::drop(usize)
+pub unsafe fn wrex_test::corpus::Corpus::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::corpus::Corpus
 impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::Corpus
 impl<T> typenum::type_operators::Same for wrex_test::corpus::Corpus
@@ -66,6 +73,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::corpus::CorpusFrame where T: ?
 pub fn wrex_test::corpus::CorpusFrame::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::corpus::CorpusFrame
 pub fn wrex_test::corpus::CorpusFrame::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::corpus::CorpusFrame
+pub type wrex_test::corpus::CorpusFrame::Init = T
+pub const wrex_test::corpus::CorpusFrame::ALIGN: usize
+pub unsafe fn wrex_test::corpus::CorpusFrame::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::corpus::CorpusFrame::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::corpus::CorpusFrame::drop(usize)
+pub unsafe fn wrex_test::corpus::CorpusFrame::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::corpus::CorpusFrame
 impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::CorpusFrame
 impl<T> typenum::type_operators::Same for wrex_test::corpus::CorpusFrame
@@ -102,6 +116,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::corpus::Manifest where T: ?cor
 pub fn wrex_test::corpus::Manifest::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::corpus::Manifest
 pub fn wrex_test::corpus::Manifest::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::corpus::Manifest
+pub type wrex_test::corpus::Manifest::Init = T
+pub const wrex_test::corpus::Manifest::ALIGN: usize
+pub unsafe fn wrex_test::corpus::Manifest::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::corpus::Manifest::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::corpus::Manifest::drop(usize)
+pub unsafe fn wrex_test::corpus::Manifest::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> serde_core::de::DeserializeOwned for wrex_test::corpus::Manifest where T: for<'de> serde_core::de::Deserialize<'de>
 impl<T> tracing::instrument::Instrument for wrex_test::corpus::Manifest
 impl<T> tracing::instrument::WithSubscriber for wrex_test::corpus::Manifest
@@ -151,6 +172,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::gates::StrategyAudit where T: 
 pub fn wrex_test::gates::StrategyAudit::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::gates::StrategyAudit
 pub fn wrex_test::gates::StrategyAudit::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::gates::StrategyAudit
+pub type wrex_test::gates::StrategyAudit::Init = T
+pub const wrex_test::gates::StrategyAudit::ALIGN: usize
+pub unsafe fn wrex_test::gates::StrategyAudit::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::gates::StrategyAudit::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::gates::StrategyAudit::drop(usize)
+pub unsafe fn wrex_test::gates::StrategyAudit::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::gates::StrategyAudit
 impl<T> tracing::instrument::WithSubscriber for wrex_test::gates::StrategyAudit
 impl<T> typenum::type_operators::Same for wrex_test::gates::StrategyAudit
@@ -196,6 +224,13 @@ impl<T> core::clone::CloneToUninit for wrex_test::h2_stub::AlpnPick where T: cor
 pub unsafe fn wrex_test::h2_stub::AlpnPick::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_test::h2_stub::AlpnPick
 pub fn wrex_test::h2_stub::AlpnPick::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::h2_stub::AlpnPick
+pub type wrex_test::h2_stub::AlpnPick::Init = T
+pub const wrex_test::h2_stub::AlpnPick::ALIGN: usize
+pub unsafe fn wrex_test::h2_stub::AlpnPick::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::h2_stub::AlpnPick::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::h2_stub::AlpnPick::drop(usize)
+pub unsafe fn wrex_test::h2_stub::AlpnPick::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::AlpnPick
 impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::AlpnPick
 impl<T> typenum::type_operators::Same for wrex_test::h2_stub::AlpnPick
@@ -227,6 +262,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::h2_stub::H2Stub where T: ?core
 pub fn wrex_test::h2_stub::H2Stub::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::h2_stub::H2Stub
 pub fn wrex_test::h2_stub::H2Stub::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::h2_stub::H2Stub
+pub type wrex_test::h2_stub::H2Stub::Init = T
+pub const wrex_test::h2_stub::H2Stub::ALIGN: usize
+pub unsafe fn wrex_test::h2_stub::H2Stub::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::h2_stub::H2Stub::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::h2_stub::H2Stub::drop(usize)
+pub unsafe fn wrex_test::h2_stub::H2Stub::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::H2Stub
 impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::H2Stub
 impl<T> typenum::type_operators::Same for wrex_test::h2_stub::H2Stub
@@ -256,6 +298,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::h2_stub::H2cStub where T: ?cor
 pub fn wrex_test::h2_stub::H2cStub::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::h2_stub::H2cStub
 pub fn wrex_test::h2_stub::H2cStub::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::h2_stub::H2cStub
+pub type wrex_test::h2_stub::H2cStub::Init = T
+pub const wrex_test::h2_stub::H2cStub::ALIGN: usize
+pub unsafe fn wrex_test::h2_stub::H2cStub::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::h2_stub::H2cStub::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::h2_stub::H2cStub::drop(usize)
+pub unsafe fn wrex_test::h2_stub::H2cStub::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::h2_stub::H2cStub
 impl<T> tracing::instrument::WithSubscriber for wrex_test::h2_stub::H2cStub
 impl<T> typenum::type_operators::Same for wrex_test::h2_stub::H2cStub
@@ -267,6 +316,8 @@ pub fn wrex_test::harness::craft_bytes<I, S>(I) -> alloc::vec::Vec<u8> where I: 
 pub fn wrex_test::harness::craft_hex<I, S>(I) -> alloc::string::String where I: core::iter::traits::collect::IntoIterator<Item = S>, S: core::convert::AsRef<std::ffi::os_str::OsStr>
 pub fn wrex_test::harness::dissect(&[u8], &[&str]) -> alloc::string::String
 pub fn wrex_test::harness::loopback_ready(bool) -> bool
+pub fn wrex_test::harness::send_udp_on_lo()
+pub fn wrex_test::harness::tempdir() -> assert_fs::fixture::dir::TempDir
 pub fn wrex_test::harness::wrex_bin() -> assert_cmd::cmd::Command
 pub mod wrex_test::oracle
 pub struct wrex_test::oracle::DiffReport
@@ -302,6 +353,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::DiffReport where T: ?c
 pub fn wrex_test::oracle::DiffReport::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::oracle::DiffReport
 pub fn wrex_test::oracle::DiffReport::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::oracle::DiffReport
+pub type wrex_test::oracle::DiffReport::Init = T
+pub const wrex_test::oracle::DiffReport::ALIGN: usize
+pub unsafe fn wrex_test::oracle::DiffReport::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::oracle::DiffReport::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::oracle::DiffReport::drop(usize)
+pub unsafe fn wrex_test::oracle::DiffReport::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::DiffReport
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::DiffReport
 impl<T> typenum::type_operators::Same for wrex_test::oracle::DiffReport
@@ -336,6 +394,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::EtherparseOracle where
 pub fn wrex_test::oracle::EtherparseOracle::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::oracle::EtherparseOracle
 pub fn wrex_test::oracle::EtherparseOracle::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::oracle::EtherparseOracle
+pub type wrex_test::oracle::EtherparseOracle::Init = T
+pub const wrex_test::oracle::EtherparseOracle::ALIGN: usize
+pub unsafe fn wrex_test::oracle::EtherparseOracle::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::oracle::EtherparseOracle::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::oracle::EtherparseOracle::drop(usize)
+pub unsafe fn wrex_test::oracle::EtherparseOracle::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::EtherparseOracle
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::EtherparseOracle
 impl<T> typenum::type_operators::Same for wrex_test::oracle::EtherparseOracle
@@ -370,6 +435,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::PcapWriter where T: ?c
 pub fn wrex_test::oracle::PcapWriter::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::oracle::PcapWriter
 pub fn wrex_test::oracle::PcapWriter::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::oracle::PcapWriter
+pub type wrex_test::oracle::PcapWriter::Init = T
+pub const wrex_test::oracle::PcapWriter::ALIGN: usize
+pub unsafe fn wrex_test::oracle::PcapWriter::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::oracle::PcapWriter::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::oracle::PcapWriter::drop(usize)
+pub unsafe fn wrex_test::oracle::PcapWriter::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::PcapWriter
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::PcapWriter
 impl<T> typenum::type_operators::Same for wrex_test::oracle::PcapWriter
@@ -406,6 +478,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::TsharkOracle where T: 
 pub fn wrex_test::oracle::TsharkOracle::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::oracle::TsharkOracle
 pub fn wrex_test::oracle::TsharkOracle::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::oracle::TsharkOracle
+pub type wrex_test::oracle::TsharkOracle::Init = T
+pub const wrex_test::oracle::TsharkOracle::ALIGN: usize
+pub unsafe fn wrex_test::oracle::TsharkOracle::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::oracle::TsharkOracle::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::oracle::TsharkOracle::drop(usize)
+pub unsafe fn wrex_test::oracle::TsharkOracle::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::TsharkOracle
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::TsharkOracle
 impl<T> typenum::type_operators::Same for wrex_test::oracle::TsharkOracle
@@ -467,6 +546,13 @@ impl<T> core::clone::CloneToUninit for wrex_test::tls_stub::StubRequest where T:
 pub unsafe fn wrex_test::tls_stub::StubRequest::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_test::tls_stub::StubRequest
 pub fn wrex_test::tls_stub::StubRequest::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::tls_stub::StubRequest
+pub type wrex_test::tls_stub::StubRequest::Init = T
+pub const wrex_test::tls_stub::StubRequest::ALIGN: usize
+pub unsafe fn wrex_test::tls_stub::StubRequest::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::tls_stub::StubRequest::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::tls_stub::StubRequest::drop(usize)
+pub unsafe fn wrex_test::tls_stub::StubRequest::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::tls_stub::StubRequest
 impl<T> tracing::instrument::WithSubscriber for wrex_test::tls_stub::StubRequest
 impl<T> typenum::type_operators::Same for wrex_test::tls_stub::StubRequest
@@ -498,6 +584,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::tls_stub::TlsStub where T: ?co
 pub fn wrex_test::tls_stub::TlsStub::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::tls_stub::TlsStub
 pub fn wrex_test::tls_stub::TlsStub::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::tls_stub::TlsStub
+pub type wrex_test::tls_stub::TlsStub::Init = T
+pub const wrex_test::tls_stub::TlsStub::ALIGN: usize
+pub unsafe fn wrex_test::tls_stub::TlsStub::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::tls_stub::TlsStub::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::tls_stub::TlsStub::drop(usize)
+pub unsafe fn wrex_test::tls_stub::TlsStub::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::tls_stub::TlsStub
 impl<T> tracing::instrument::WithSubscriber for wrex_test::tls_stub::TlsStub
 impl<T> typenum::type_operators::Same for wrex_test::tls_stub::TlsStub
@@ -533,6 +626,13 @@ impl<T> core::borrow::BorrowMut<T> for wrex_test::oracle::PcapWriter where T: ?c
 pub fn wrex_test::oracle::PcapWriter::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_test::oracle::PcapWriter
 pub fn wrex_test::oracle::PcapWriter::from(T) -> T
+impl<T> crossbeam_epoch::atomic::Pointable for wrex_test::oracle::PcapWriter
+pub type wrex_test::oracle::PcapWriter::Init = T
+pub const wrex_test::oracle::PcapWriter::ALIGN: usize
+pub unsafe fn wrex_test::oracle::PcapWriter::deref<'a>(usize) -> &'a T
+pub unsafe fn wrex_test::oracle::PcapWriter::deref_mut<'a>(usize) -> &'a mut T
+pub unsafe fn wrex_test::oracle::PcapWriter::drop(usize)
+pub unsafe fn wrex_test::oracle::PcapWriter::init(<T as crossbeam_epoch::atomic::Pointable>::Init) -> usize
 impl<T> tracing::instrument::Instrument for wrex_test::oracle::PcapWriter
 impl<T> tracing::instrument::WithSubscriber for wrex_test::oracle::PcapWriter
 impl<T> typenum::type_operators::Same for wrex_test::oracle::PcapWriter
@@ -558,5 +658,7 @@ pub fn wrex_test::craft_hex<I, S>(I) -> alloc::string::String where I: core::ite
 pub fn wrex_test::dissect(&[u8], &[&str]) -> alloc::string::String
 pub fn wrex_test::loopback_ready(bool) -> bool
 pub fn wrex_test::packet_strategy(&str) -> proptest::strategy::traits::BoxedStrategy<wrex_core::spec::PacketSpec>
+pub fn wrex_test::send_udp_on_lo()
 pub fn wrex_test::stacks() -> &'static [&'static str]
+pub fn wrex_test::tempdir() -> assert_fs::fixture::dir::TempDir
 pub fn wrex_test::wrex_bin() -> assert_cmd::cmd::Command

@@ -213,6 +213,31 @@ against `--max-bytes` — with curl's byte-exact
 --compressed -x` arms (capability-probed per codec) beside the
 reqwest in-process oracle.
 
+**Tranche 23** (delivered): linktypes + the kernel datapath.
+`capture -i any` writes the Linux cooked view (`wrex-proto-sll`:
+SLL/SLL2 codecs, wire-pinned against tcpdump; LINKTYPE_LINUX_SLL
+stores, replay dissects from `sll`), RAW/NULL/LOOPBACK files read with
+per-record start dispatch, and 802.11 management frames dissect
+(`wrex-proto-dot11`, ADR-0004: FC word + addresses + seq/frag + the
+`elt` element records; radiotap/monitor-mode are won't-dos). The
+capture datapath on a real interface is now **compiled eBPF by
+default**: the `--filter` compiles to an XDP prefilter over the
+codecs' own layout tables (`wrex-ebpf` — programs are compiled
+artifacts of the schema, never hand-written BPF), matching frames
+redirect into an AF_XDP socket, and everything else passes to the
+kernel; any failure (capabilities, a filter beyond the kernel subset)
+falls back to the AF_PACKET path with a printed note. `--no-xdp`
+forces the userspace path; the same codegen drives the XDP
+translator (same-width rewrites + RFC 1624 incremental checksums,
+byte-identical with `wrex patch --set`), the ICMP-echo XDP_TX
+responder, and the 4-tuple flow counter — pinned by a userspace-VM
+verdict differential against the filter engine over every corpus
+frame (`tests/ebpf_differential.rs`). `--rotate-size`/
+`--rotate-count` chunk capture stores (the tcpdump -C/-W rules);
+`patch --snaplen` landed. ADR-0005 records the loader and syscall
+decisions (the hand-rolled `bpf(2)`/netlink, the VM's swap trigger,
+the nix candidate).
+
 **Tranche 5** (delivered): `wrex capture`/`wrex replay` — an in-house
 classic pcap reader/writer (`wrex-pcap`, no libpcap; all four magic
 variants read, streaming LE-µs write), the AF_PACKET capture tap
@@ -391,6 +416,7 @@ crates/wrex-tls       rustls-backed TLS Driver adapter composing the kernel TCP 
 crates/wrex-pcap      classic pcap + pcapng readers/writers (no libpcap)
 crates/wrex-mut       seeded, dissect-aware mutation engine (tranche 6a)
 crates/wrex-fuzz      stateful recording prober session (tranche 6b)
+crates/wrex-ebpf      schema→eBPF codegen + the userspace VM (tranche 23c)
 crates/wrex-test      test-support: strategies, oracles (+hickory/dig/reqwest), corpus, CLI harness, TLS stub
 crates/wrex-proto-*   eth arp ip icmp udp tcp dns (one crate each; no cross-deps)
 fuzz/                 cargo-fuzz targets (excluded from the workspace)
@@ -482,3 +508,34 @@ the recurring planning views:
 ## License
 
 MIT OR Apache-2.0.
+### Faster local test runs (cargo-nextest)
+
+The CI gates run plain `cargo test` (the suite-time ratchet parses its
+output format), but locally [cargo-nextest](https://nexte.st) cuts the
+wall-clock: it runs the test *binaries* in parallel, so the total lands
+near the slowest single binary instead of the sum of ~68:
+
+```sh
+cargo install cargo-nextest --locked
+cargo nextest run --workspace --all-features            # everything, parallel
+cargo nextest run -p wrex --test ebpf_differential      # one suite
+```
+
+What it will and won't fix: most of the wall time is WAIT-bound
+(env-gated ground truth sleeps, stub timeouts, the tshark/dig
+subprocess churn) — those 20-40s suites keep their waits, but they
+stop queueing behind each other. The doc-test binary and Miri keep
+their own invocations.
+
+**Mixing `sudo cargo test` with unprivileged builds** poisons the
+shared `target/` (root-owned fingerprints brick the next user-run —
+the same `fs.protected_regular` cross-user class as the tmp
+fixtures). Run the privileged suites with their own target dir:
+
+```sh
+sudo -E env "PATH=$PATH" CARGO_TARGET_DIR=target-sudo \
+  WREX_DRIVER_TESTS=1 cargo test --all-features -p wrex-io -p wrex
+```
+
+A one-time `sudo chown -R "$USER" target/` repairs an already-poisoned
+tree.

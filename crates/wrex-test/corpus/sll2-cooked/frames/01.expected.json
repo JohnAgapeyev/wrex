@@ -1,0 +1,69 @@
+{
+  "anomalies": [],
+  "layers": [
+    {
+      "fields": {
+        "addr": "1a17ceb3af190000",
+        "halen": 6,
+        "hatype": 1,
+        "ifindex": 3,
+        "pkttype": "outgoing",
+        "protocol": 34525,
+        "reserved": 0
+      },
+      "kind": "sll2",
+      "span": [
+        0,
+        20
+      ]
+    },
+    {
+      "fields": {
+        "dst": "ff02::16",
+        "flow_label": 0,
+        "hop_limit": 1,
+        "next_header": 0,
+        "payload_len": 36,
+        "src": "fe80::1817:ceff:feb3:af19",
+        "traffic_class": 0,
+        "ver": 6
+      },
+      "kind": "ipv6",
+      "span": [
+        20,
+        60
+      ]
+    },
+    {
+      "fields": {
+        "len": 0,
+        "next_header": 58,
+        "options": "050200000100"
+      },
+      "kind": "hopopts",
+      "span": [
+        60,
+        68
+      ]
+    },
+    {
+      "fields": {
+        "checksum": 11352,
+        "code": 0,
+        "mcast.0.addr": "ff02::1:ffb3:af19",
+        "mcast.0.nsrcs": 0,
+        "mcast.0.sources": "",
+        "mcast.0.type": 4,
+        "rest": "00000001",
+        "type": 143
+      },
+      "kind": "icmpv6",
+      "span": [
+        68,
+        76
+      ]
+    }
+  ],
+  "payload_hex": "04000000ff0200000000000000000001ffb3af19",
+  "start": "sll2"
+}

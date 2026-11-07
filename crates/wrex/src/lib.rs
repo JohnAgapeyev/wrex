@@ -56,6 +56,10 @@ pub fn standard() -> wrex_core::Registry {
     wrex_proto_arp::register(&mut r);
     #[cfg(feature = "proto-vlan")]
     wrex_proto_vlan::register(&mut r);
+    #[cfg(feature = "proto-sll")]
+    wrex_proto_sll::register(&mut r);
+    #[cfg(feature = "proto-dot11")]
+    wrex_proto_dot11::register(&mut r);
     #[cfg(feature = "proto-ip")]
     wrex_proto_ip::register(&mut r);
     #[cfg(feature = "proto-ip6")]

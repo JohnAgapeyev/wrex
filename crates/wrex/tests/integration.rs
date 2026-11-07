@@ -996,3 +996,51 @@ fn generate_ip6ext_corpus() {
     );
     std::fs::write(root.join("manifest.toml"), manifest).expect("manifest");
 }
+
+// --- sll corpus generator (dev-time) -----------------------------------------
+//
+// Regenerates the committed `sll-cooked` / `sll2-cooked` expected goldens
+// (the tcpdump `-i any` foreign fixtures, tranche 23a) after any renderer
+// or codec change: `cargo test -p wrex --test integration -- --ignored
+// generate_sll_corpora` then commit the outputs. The frame bytes come
+// from the real captures (the manifest pins their provenance); only the
+// golden dissections are generated.
+
+#[test]
+#[ignore = "dev-time corpus generator"]
+fn generate_sll_corpora() {
+    let reg = wrex::standard();
+    for (name, start) in [("sll-cooked", "sll"), ("sll2-cooked", "sll2")] {
+        // The corpus tree, located RELATIVE to the package root: cargo
+        // runs test binaries with cwd = the package's directory (the
+        // documented contract), so a literal path is deterministic —
+        // and it carries no environment reads, which is what code
+        // scanning demands of a path expression (env!() and file!()
+        // both model as uncontrolled values). The generator fails fast
+        // (expect below) if the contract ever moves.
+        let root = std::path::Path::new("../wrex-test/corpus").join(name);
+        let frames_dir = root.join("frames");
+        for dent in std::fs::read_dir(&frames_dir).expect("frames dir") {
+            let path = dent.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("bin") {
+                continue;
+            }
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .expect("stem")
+                .to_string();
+            let bytes = std::fs::read(&path).expect("bin");
+            let packet = wrex_core::dissect::dissect(&reg, &bytes, start);
+            let expected =
+                serde_json::to_string_pretty(&wrex_core::render::dissect_to_json(&packet))
+                    .expect("json");
+            std::fs::write(
+                frames_dir.join(format!("{stem}.expected.json")),
+                expected + "\n",
+            )
+            .expect("json");
+        }
+        println!("regenerated {name} goldens under {root:?}");
+    }
+}

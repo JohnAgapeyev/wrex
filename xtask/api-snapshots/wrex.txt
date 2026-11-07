@@ -60,9 +60,12 @@ pub struct wrex::cli::CaptureArgs
 pub wrex::cli::CaptureArgs::common: wrex::cli::Common
 pub wrex::cli::CaptureArgs::count: core::option::Option<u64>
 pub wrex::cli::CaptureArgs::filter: core::option::Option<alloc::string::String>
+pub wrex::cli::CaptureArgs::no_xdp: bool
 pub wrex::cli::CaptureArgs::pcapng: bool
 pub wrex::cli::CaptureArgs::pcapng_ns: bool
 pub wrex::cli::CaptureArgs::promisc: bool
+pub wrex::cli::CaptureArgs::rotate_count: core::option::Option<u64>
+pub wrex::cli::CaptureArgs::rotate_size: core::option::Option<usize>
 pub wrex::cli::CaptureArgs::snaplen: core::option::Option<usize>
 pub wrex::cli::CaptureArgs::timeout: core::option::Option<alloc::string::String>
 pub wrex::cli::CaptureArgs::write: alloc::string::String
@@ -626,6 +629,7 @@ pub wrex::cli::PatchArgs::pcapng: bool
 pub wrex::cli::PatchArgs::read: alloc::vec::Vec<alloc::string::String>
 pub wrex::cli::PatchArgs::scope: core::option::Option<alloc::string::String>
 pub wrex::cli::PatchArgs::set: alloc::vec::Vec<alloc::string::String>
+pub wrex::cli::PatchArgs::snaplen: core::option::Option<usize>
 pub wrex::cli::PatchArgs::write: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for wrex::cli::PatchArgs
 pub fn wrex::cli::PatchArgs::augment_args<'b>(clap_builder::builder::command::Command) -> clap_builder::builder::command::Command

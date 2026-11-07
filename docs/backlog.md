@@ -29,7 +29,7 @@ extension pass.
 |------|---|-------|
 | App pack A: RADIUS, CoAP, MQTT | P2 | Small codecs, high lab value; each follows the tranche-1 contract + HP3 doctrine gates |
 | SCTP dissect-only (INIT/DATA/HEARTBEAT chunks) | P2 | |
-| 802.11 management frames dissect-only (linktype 105) | P2 | **Scope decision pending at T23 planning** (recommended: dissect-only; monitor-mode injection out) |
+| 802.11 management frames dissect-only (linktype 105) | — | **Delivered at T23a** (ADR-0004: dissect-only + the elt record section; radiotap/monitor-mode the recorded won't-dos) |
 | Teredo / Geneve dissect | P2 | Ride T28's encapsulation engine if chartered there |
 | App pack B: SNMP BER subset, SIP dissect-only, RTP/RTCP, EAPOL/802.1X | P3 | |
 | DCCP | P3 | |
