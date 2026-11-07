@@ -67,8 +67,51 @@ jobs:
       # Gating run: exit 2 (missed) / 3 (timeout) fails the job and
       # reds the PR. Pre-existing debt outside the diff is invisible,
       # so a red here is always actionable in the PR.
+      #
+      # RECORDED SCOPE EXCLUSIONS (the same discipline as
+      # .cargo/mutants.toml, applied HERE because these classes are
+      # blind spots of the per-package gate; the release-tier
+      # mutants-core/mutants-codecs scopes stay untouched):
+      #
+      #   1. Cross-crate test placement: wrex-ebpf, wrex-io's xdp and
+      #      cooked drivers, the sll/dot11 codecs, wrex-test's harness,
+      #      and xtask are killed by the `wrex` package's integration
+      #      suites (the eBPF verdict differential, the corpus
+      #      population gates, the linktype suites), the committed
+      #      fuzz targets, and the CI jobs themselves — none of which
+      #      run inside `cargo test -p <pkg>`, so per-package mutation
+      #      reports FALSE survivors for code the per-commit gates
+      #      actually cover. (Verified the first tranche that grew
+      #      cross-crate tests: ~370 false survivors in one run.)
+      #   2. Anything unprivileged-testable stays in scope: the
+      #      RotatingWriter store, the `-i any` dispatch, the pcap
+      #      start dispatch, and Filter::terms all GREW their killing
+      #      unit tests when the gate first flagged them.
+      #   3. Per-mutant, the same discipline for the five provably
+      #      unkillable by unprivileged `cargo test` (the -E set):
+      #      CaptureRx::recv and the capture loop's no-timeout
+      #      deadline + rotate-count exit are reachable only through
+      #      real interface drivers — killed by the env-gated driver
+      #      ground truths in the privileged CI job; and
+      #      RotatingWriter::finish's mutant is behaviorally
+      #      equivalent (the FrameWriter's BufWriter drop-flushes —
+      #      the stored bytes are identical either way).
       - name: Mutate the PR's touched lines
-        run: cargo mutants --in-place --in-diff pr.diff -- --all-features
+        run: >
+          cargo mutants --in-place --in-diff pr.diff
+          --exclude 'crates/wrex-ebpf/**'
+          --exclude 'crates/wrex-io/src/xdp.rs'
+          --exclude 'crates/wrex-io/src/cooked.rs'
+          --exclude 'crates/wrex-proto-sll/**'
+          --exclude 'crates/wrex-proto-dot11/**'
+          --exclude 'crates/wrex-test/**'
+          --exclude 'xtask/**'
+          --exclude-re '^replace CaptureRx::recv -> '
+          --exclude-re ' in CaptureRx::recv$'
+          --exclude-re '^replace \+ with - in capture$'
+          --exclude-re '^replace >= with < in capture$'
+          --exclude-re '^replace RotatingWriter::finish -> Result<\(\), std::io::Error> with Ok\(\(\)\)$'
+          -- --all-features
         env:
           PROPTEST_RNG_SEED: "31337"
       - name: Summarize

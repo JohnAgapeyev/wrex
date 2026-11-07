@@ -163,36 +163,34 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// Fixture sysfs tree. Each call gets a unique directory: tests run in
-    /// parallel and share `std::env::temp_dir()`.
-    fn fixture() -> PathBuf {
-        use std::sync::atomic::{AtomicU32, Ordering};
-        static SEQ: AtomicU32 = AtomicU32::new(0);
-        let n = SEQ.fetch_add(1, Ordering::SeqCst);
-        // Pid-unique: privileged and unprivileged test runs must never
-        // share a fixture dir — hardened sysctls (fs.protected_regular)
-        // deny cross-user writes in sticky /tmp EVEN TO ROOT, so a
-        // sudo-run's leftovers would brick the next user-run's fixtures.
-        let dir =
-            std::env::temp_dir().join(format!("wrex-iftable-test-{}-{n}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+    /// Fixture sysfs tree. Each call gets a unique, auto-cleaned
+    /// directory (assert_fs/tempfile — the driver suites' harness):
+    /// tests run in parallel, and privileged/unprivileged runs must
+    /// never share a fixture dir (hardened sysctls
+    /// (fs.protected_regular) deny cross-user writes in sticky /tmp
+    /// EVEN TO ROOT, so a sudo-run's leftovers would brick the next
+    /// user-run's fixtures). The guard drops with the test.
+    fn fixture() -> (assert_fs::TempDir, PathBuf) {
+        let dir = assert_fs::TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
         for (name, mac, mtu, flags) in [
             ("lo", "00:00:00:00:00:00", "65536", "0x10049"),
             ("eth0", "aa:bb:cc:dd:ee:ff", "1500", "0x1043"),
         ] {
-            let d = dir.join(name);
+            let d = root.join(name);
             fs::create_dir_all(&d).unwrap();
             fs::write(d.join("address"), mac).unwrap();
             fs::write(d.join("mtu"), mtu).unwrap();
             fs::write(d.join("flags"), flags).unwrap();
             fs::write(d.join("ifindex"), if name == "lo" { "1" } else { "2" }).unwrap();
         }
-        dir
+        (dir, root)
     }
 
     #[test]
     fn from_sysfs_fixture() {
-        let t = IfTable::from_sysfs(&fixture()).unwrap();
+        let (_guard, root) = fixture();
+        let t = IfTable::from_sysfs(&root).unwrap();
         let names = t.names();
         assert_eq!(names, vec!["eth0".to_string(), "lo".to_string()]);
         let lo = t.get("lo").unwrap();
@@ -228,7 +226,8 @@ mod tests {
 
     #[test]
     fn unknown_iface_errors_list_available() {
-        let t = IfTable::from_sysfs(&fixture()).unwrap();
+        let (_guard, root) = fixture();
+        let t = IfTable::from_sysfs(&root).unwrap();
         assert!(t.get("wlan9").is_none());
         let e = crate::DriverError::IfaceNotFound {
             wanted: "wlan9".into(),
@@ -276,7 +275,8 @@ mod tests {
             mk("eth0", "192.0.2.10".parse().unwrap()),
             mk("wlan9", "198.51.100.7".parse().unwrap()), // not in sysfs: ignored
         ];
-        let t = IfTable::from_sysfs_with_addrs(&fixture(), &addrs).unwrap();
+        let (_guard, root) = fixture();
+        let t = IfTable::from_sysfs_with_addrs(&root, &addrs).unwrap();
         let lo = t.get("lo").unwrap();
         assert_eq!(
             lo.ipv4s,

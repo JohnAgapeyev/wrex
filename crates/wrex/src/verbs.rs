@@ -1189,6 +1189,158 @@ impl RotatingWriter {
     }
 }
 
+/// The rotating-store semantics, pinned unit-side (the per-PR mutants
+/// gate caught this whole cluster surviving: exercised only through
+/// privileged captures until now — the store itself is pure IO).
+#[cfg(test)]
+mod rotating_tests {
+    use super::*;
+
+    fn tmpdir() -> assert_fs::TempDir {
+        assert_fs::TempDir::new().unwrap()
+    }
+
+    fn ts(i: u64) -> std::time::SystemTime {
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(1000 + i)
+    }
+
+    fn chunk(dir: &assert_fs::TempDir, name: &str) -> wrex_pcap::PcapFile {
+        wrex_pcap::read(&std::fs::read(dir.path().join(name)).unwrap()).unwrap()
+    }
+
+    /// Without a limit the sink is exactly the tranche-5 store: one
+    /// file, every record, `files()` == 1.
+    #[test]
+    fn no_limit_writes_one_file() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, None).unwrap();
+        for i in 0..3 {
+            w.write_record(ts(i), &[0x45, 0, 0, 0], 65535).unwrap();
+        }
+        w.finish().unwrap();
+        assert_eq!(w.files(), 1);
+        let file = chunk(&dir, "cap.pcap");
+        assert_eq!(file.records.len(), 3);
+        assert!(!dir.path().join("cap.pcap.1").exists());
+    }
+
+    /// The rotate trigger fires BEFORE the record that would overflow
+    /// the chunk: a record that does not fit the REMAINING budget
+    /// starts the next chunk.
+    #[test]
+    fn size_limit_rotates_before_overflow() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        // Budget 100; records of 60 stored bytes: the first fits, the
+        // second would overflow → FILE.1 carries it.
+        let mut w =
+            RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(100)).unwrap();
+        w.write_record(ts(0), &[0x45u8; 60], 65535).unwrap();
+        w.write_record(ts(1), &[0x46u8; 60], 65535).unwrap();
+        w.finish().unwrap();
+        assert_eq!(w.files(), 2, "the overflow record opened FILE.1");
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(base.records.len(), 1);
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+        assert_eq!(next.records[0].bytes, vec![0x46u8; 60]);
+    }
+
+    /// The boundary is STRICT `>`: a record that lands the chunk
+    /// exactly AT the budget does not rotate — the next one does.
+    #[test]
+    fn at_limit_stays_in_chunk() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(60)).unwrap();
+        w.write_record(ts(0), &[0x45u8; 30], 65535).unwrap();
+        w.write_record(ts(1), &[0x46u8; 30], 65535).unwrap(); // == limit: stays
+        w.write_record(ts(2), &[0x47u8; 30], 65535).unwrap(); // overflows → FILE.1
+        w.finish().unwrap();
+        assert_eq!(w.files(), 2);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(
+            base.records.len(),
+            2,
+            "the at-limit record stays in the chunk"
+        );
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+    }
+
+    /// A first record larger than the whole budget gets its own chunk:
+    /// the `written > 0` guard means no pre-first-record rotation.
+    #[test]
+    fn oversize_first_record_gets_its_own_chunk() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(1)).unwrap();
+        w.write_record(ts(0), &[0x45u8; 100], 65535).unwrap(); // > limit, but written==0
+        w.write_record(ts(1), &[0x46u8; 100], 65535).unwrap(); // now rotates → FILE.1
+        w.finish().unwrap();
+        assert_eq!(w.files(), 2);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(
+            base.records.len(),
+            1,
+            "the oversize first record stays in the base file"
+        );
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+    }
+
+    /// The snaplen clamps the STORED bytes the budget counts — and the
+    /// stored record bytes themselves.
+    #[test]
+    fn budget_counts_stored_bytes_after_snaplen() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(40)).unwrap();
+        for byte in [0x45u8, 0x46, 0x47, 0x48, 0x49] {
+            w.write_record(ts(0), &[byte; 100], 10).unwrap(); // stores 10 each
+        }
+        w.finish().unwrap();
+        // 10×4 == 40 fits exactly; the fifth opens FILE.1.
+        assert_eq!(w.files(), 2);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(base.records.len(), 4);
+        assert_eq!(
+            base.records[0].bytes,
+            vec![0x45u8; 10],
+            "snaplen clamps the stored bytes"
+        );
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+    }
+
+    /// Rotation names are dotted indices in call order, each chunk a
+    /// valid standalone pcap of the captured linktype.
+    #[test]
+    fn rotation_names_are_dotted_indices() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w =
+            RotatingWriter::new(false, false, path.to_str().unwrap(), 113, Some(1)).unwrap();
+        for i in 0..3 {
+            w.write_record(ts(i), &[0x45u8; 100], 65535).unwrap(); // each rotates the next
+        }
+        w.finish().unwrap();
+        assert_eq!(w.files(), 3);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(
+            base.linktype, 113,
+            "the base chunk is a standalone SLL pcap"
+        );
+        assert_eq!(base.records.len(), 1);
+        for n in [1u64, 2] {
+            let next = chunk(&dir, &format!("cap.pcap.{n}"));
+            assert_eq!(next.linktype, 113, "chunk {n} is a standalone SLL pcap");
+            assert_eq!(next.records.len(), 1);
+        }
+    }
+}
+
 /// A replay-eligible frame: the captured bytes, their dissection and
 /// the capture timestamp (send-mode pacing).
 struct ReplayFrame {

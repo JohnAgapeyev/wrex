@@ -49,7 +49,8 @@ fn golden_pcap(path: &std::path::Path) {
 /// Offline replay prints one dissected packet per line (jsonl default).
 #[test]
 fn replay_offline_default_jsonl() {
-    let pcap = std::env::temp_dir().join("wrex-t5-offline-default.pcap");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let pcap = dir.path().join("wrex-t5-offline-default.pcap");
     golden_pcap(&pcap);
     let out = wrex()
         .args(["replay", pcap.to_str().unwrap()])
@@ -81,14 +82,14 @@ fn replay_offline_default_jsonl() {
         String::from_utf8(dissect).unwrap().trim(),
         "replay jsonl must equal dissect jsonl of the same frame"
     );
-    let _ = std::fs::remove_file(&pcap);
 }
 
 /// `--format raw` concatenates the captured bytes byte-transparently;
 /// `--count` and `--filter` gate before printing.
 #[test]
 fn replay_raw_count_and_filter() {
-    let pcap = std::env::temp_dir().join("wrex-t5-offline-raw.pcap");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let pcap = dir.path().join("wrex-t5-offline-raw.pcap");
     golden_pcap(&pcap);
     let golden = hex::decode(GOLDEN_HEX).unwrap();
     let runt = vec![0xde, 0xad, 0xbe, 0xef];
@@ -153,18 +154,18 @@ fn replay_raw_count_and_filter() {
         .stdout
         .clone();
     assert!(none.is_empty());
-    let _ = std::fs::remove_file(&pcap);
 }
 
 /// Bad pcap files are data outcomes: exit 1 (not usage).
 #[test]
 fn replay_bad_pcap_exits_1() {
-    // Pid-unique fixtures: hardened distros (Arch's
-    // fs.protected_regular=2) deny cross-user O_CREAT-writes in
-    // sticky /tmp EVEN TO ROOT — fixtures shared between privileged
-    // and unprivileged runs brick whichever runs second.
-    let path = std::env::temp_dir().join(format!("wrex-t5-bad-{}.pcap", std::process::id()));
-    let _ = std::fs::remove_file(&path);
+    // Auto-cleaned, unique-per-run fixtures (assert_fs/tempfile — the
+    // driver suites' harness): hardened distros (Arch's
+    // fs.protected_regular=2) deny cross-user O_CREAT-writes in sticky
+    // /tmp EVEN TO ROOT — shared fixtures between privileged and
+    // unprivileged runs brick whichever runs second.
+    let dir = assert_fs::TempDir::new().unwrap();
+    let path = dir.path().join("bad.pcap");
     std::fs::write(&path, b"not a pcap at all, nope nope").unwrap();
     wrex()
         .args(["replay", path.to_str().unwrap()])
@@ -172,8 +173,7 @@ fn replay_bad_pcap_exits_1() {
         .failure()
         .code(1);
     // Missing file: runtime too.
-    let missing = std::env::temp_dir().join(format!("wrex-t5-missing-{}.pcap", std::process::id()));
-    let _ = std::fs::remove_file(&missing);
+    let missing = dir.path().join("missing.pcap");
     wrex()
         .args(["replay", missing.to_str().unwrap()])
         .assert()
@@ -184,7 +184,8 @@ fn replay_bad_pcap_exits_1() {
 /// Grammar gates are usage errors: exit 2.
 #[test]
 fn replay_and_capture_usage_errors() {
-    let pcap = std::env::temp_dir().join("wrex-t5-usage.pcap");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let pcap = dir.path().join("wrex-t5-usage.pcap");
     golden_pcap(&pcap);
     let p = pcap.to_str().unwrap();
     // Pacing flags are mutually exclusive.
@@ -215,7 +216,6 @@ fn replay_and_capture_usage_errors() {
         .assert()
         .failure()
         .code(2);
-    let _ = std::fs::remove_file(&pcap);
 }
 
 /// A big-endian microsecond pcap (written by hand) replays identically:
@@ -223,7 +223,8 @@ fn replay_and_capture_usage_errors() {
 #[test]
 fn replay_be_pcap_variant() {
     // Big-endian global header + one BE record (sec 1, frac 2, len 4).
-    let path = std::env::temp_dir().join("wrex-t5-be.pcap");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let path = dir.path().join("be.pcap");
     let mut bytes = vec![0xa1, 0xb2, 0xc3, 0xd4];
     bytes.extend_from_slice(&[0x00, 0x02, 0x00, 0x04]); // version 2.4
     bytes.extend_from_slice(&[0u8; 8]); // thiszone + sigfigs
@@ -241,7 +242,6 @@ fn replay_be_pcap_variant() {
         .stdout
         .clone();
     assert_eq!(out, vec![1, 2, 3, 4]);
-    let _ = std::fs::remove_file(&path);
 }
 
 // --- pcapng (tranche 8b) ------------------------------------------------------
@@ -273,7 +273,8 @@ fn golden_pcapng(path: &std::path::Path) {
 /// file prints the same jsonl as `wrex dissect` of the same bytes.
 #[test]
 fn replay_pcapng_default_jsonl() {
-    let pcap = std::env::temp_dir().join("wrex-t8b-offline-default.pcapng");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let pcap = dir.path().join("wrex-t8b-offline-default.pcapng");
     golden_pcapng(&pcap);
     let out = wrex()
         .args(["replay", pcap.to_str().unwrap()])
@@ -301,14 +302,14 @@ fn replay_pcapng_default_jsonl() {
         String::from_utf8(dissect).unwrap().trim(),
         "replay jsonl must equal dissect jsonl of the same frame"
     );
-    let _ = std::fs::remove_file(&pcap);
 }
 
 /// `--format raw` concatenates the pcapng record bytes
 /// byte-transparently; `--count` and `--filter` gate identically.
 #[test]
 fn replay_pcapng_raw_count_and_filter() {
-    let pcap = std::env::temp_dir().join("wrex-t8b-offline-raw.pcapng");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let pcap = dir.path().join("wrex-t8b-offline-raw.pcapng");
     golden_pcapng(&pcap);
     let golden = hex::decode(GOLDEN_HEX).unwrap();
     let runt = vec![0xde, 0xad, 0xbe, 0xef];
@@ -356,14 +357,14 @@ fn replay_pcapng_raw_count_and_filter() {
         .stdout
         .clone();
     assert_eq!(filtered, golden);
-    let _ = std::fs::remove_file(&pcap);
 }
 
 /// `wrex mut -r` seeds from a pcapng file through the same shared
 /// reader (the corpus-import path delegates to it identically).
 #[test]
 fn mut_reads_pcapng_seeds() {
-    let pcap = std::env::temp_dir().join("wrex-t8b-mut-seeds.pcapng");
+    let dir = assert_fs::TempDir::new().unwrap();
+    let pcap = dir.path().join("wrex-t8b-mut-seeds.pcapng");
     golden_pcapng(&pcap);
     // One seed per record (the runt included: seeds are raw bytes).
     let out = wrex()
@@ -390,5 +391,4 @@ fn mut_reads_pcapng_seeds() {
             .unwrap_or_else(|e| panic!("jsonl line must parse: {e}\n{line}"));
         assert!(v.get("layers").is_some(), "mutant dissected: {line}");
     }
-    let _ = std::fs::remove_file(&pcap);
 }

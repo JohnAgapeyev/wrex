@@ -252,6 +252,43 @@ fn dot11_enumerates_in_fields() {
 
 // --- the datapath knobs -------------------------------------------------------
 
+/// The `-i any` dispatch: the argument names the cooked tap, never an
+/// interface lookup — in every privilege mode `capture -i any` must
+/// not fail as "unknown iface" (the inverted dispatch would: "any" is
+/// not in the interface table). Privileged, the cooked store carries
+/// LINKTYPE_LINUX_SLL (the tranche-23a contract); unprivileged the tap
+/// fails at its socket-open — either way the DISPATCH is what this
+/// pins.
+#[test]
+fn capture_dash_i_any_is_the_cooked_path_not_an_unknown_iface() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let cap = dir.path().join("any.pcap");
+    let out = wrex()
+        .args([
+            "capture",
+            "-i",
+            "any",
+            "--timeout",
+            "200ms",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("not found"),
+        "the -i any dispatch is the cooked tap (binds ifindex 0), \
+         never an interface lookup: {stderr}"
+    );
+    if out.status.success() {
+        // Privileged: the store is the cooked capture's SLL shape.
+        let bytes = std::fs::read(&cap).unwrap();
+        let file = wrex_pcap::read(&bytes).unwrap();
+        assert_eq!(file.linktype, wrex_pcap::linktype::LINUX_SLL);
+    }
+}
+
 /// `--rotate-count` without `--rotate-size` is the pointed usage error
 /// (the tcpdump -W/-C rule); `--rotate-size 0` likewise.
 #[test]

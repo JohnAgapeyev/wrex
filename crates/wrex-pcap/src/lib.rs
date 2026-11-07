@@ -2009,4 +2009,47 @@ mod proofs {
         assert_eq!(cap_len, d_cap);
         assert_eq!(orig, d_orig);
     }
+
+    /// Tranche 23a's start dispatch, pinned IN-CRATE: the BSD loopback
+    /// family's records carry the 4-byte host-order AF value INSIDE the
+    /// record (the dissection view skips it; stored bytes stay
+    /// verbatim) — `start_offset` is 4 there and 0 for every other
+    /// linktype; `start_kind` follows the linktype with the per-record
+    /// family peek for NULL/LOOPBACK/RAW, and unknown linktypes keep
+    /// the tranche-5 `auto`. (The per-PR mutants gate caught this
+    /// accessor pair surviving: exercised only from the `wrex` crate's
+    /// linktype suites until now.)
+    #[test]
+    fn t23a_start_dispatch_in_crate() {
+        // AF_INET (host-order) + a v4 nibble: exercises both the
+        // offset skip and the NULL/LOOPBACK family peek.
+        let probe = [4u8, 0, 0, 0, 0x45, 0, 0, 0];
+        for (lt, off, kind) in [
+            (linktype::EN10MB, 0, "eth"),
+            (linktype::LINUX_SLL, 0, "sll"),
+            (linktype::LINUX_SLL2, 0, "sll2"),
+            (linktype::IEEE802_11, 0, "dot11"),
+            (linktype::RAW, 0, "ipv4"),
+            (linktype::NULL, 4, "ipv4"),
+            (linktype::LOOPBACK, 4, "ipv4"),
+        ] {
+            let mut buf = Vec::new();
+            let mut w = PcapWriter::with_linktype(&mut buf, lt).unwrap();
+            w.write_record(std::time::UNIX_EPOCH, &probe, 65535)
+                .unwrap();
+            w.flush().unwrap();
+            let f = read(&buf).unwrap();
+            assert_eq!(f.start_offset(), off, "start_offset for linktype {lt}");
+            assert_eq!(f.start_kind(&probe), kind, "start_kind for linktype {lt}");
+        }
+        // Unknown linktypes keep the tranche-5 behavior.
+        let mut buf = Vec::new();
+        let mut w = PcapWriter::with_linktype(&mut buf, 147).unwrap();
+        w.write_record(std::time::UNIX_EPOCH, &probe, 65535)
+            .unwrap();
+        w.flush().unwrap();
+        let f = read(&buf).unwrap();
+        assert_eq!(f.start_offset(), 0);
+        assert_eq!(f.start_kind(&probe), "auto");
+    }
 }

@@ -1011,7 +1011,13 @@ fn generate_ip6ext_corpus() {
 fn generate_sll_corpora() {
     let reg = wrex::standard();
     for (name, start) in [("sll-cooked", "sll"), ("sll2-cooked", "sll2")] {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        // file!() is the compiler's own absolute source path — a
+        // compile-time constant, unlike env!() (which code scanning
+        // treats as an uncontrolled environment read).
+        let root = std::path::Path::new(file!())
+            .parent() // .../crates/wrex/tests
+            .and_then(std::path::Path::parent) // .../crates/wrex
+            .expect("test source path")
             .join("../wrex-test/corpus")
             .join(name);
         let frames_dir = root.join("frames");

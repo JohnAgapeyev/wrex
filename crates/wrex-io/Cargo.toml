@@ -13,3 +13,9 @@ thiserror = { workspace = true }
 libc = { workspace = true }
 if-addrs = { workspace = true }
 serde = { workspace = true }
+
+[dev-dependencies]
+# Test fixtures build auto-cleaned unique temp dirs through it (the
+# driver suites' harness) — code scanning treats hand-rolled
+# env::temp_dir paths as uncontrolled data in path expressions.
+assert_fs = "1"

@@ -808,6 +808,26 @@ mod tests {
         assert!(e.to_string().contains("not a valid base"), "{e}");
     }
 
+    /// The AST accessor the eBPF compiler walks (tranche 23a): the
+    /// parsed AND-terms are observable — count and layer — from this
+    /// crate's own tests, not only through the cross-crate compiler
+    /// (the per-PR mutants gate caught the accessor surviving because
+    /// every caller lived outside the package).
+    #[test]
+    fn parsed_terms_are_visible_through_the_ast_accessor() {
+        let r = test_registry();
+        let f = Filter::parse(&r, "tcp.sport=80 tcp.flags=syn,ack").unwrap();
+        let terms = f.terms();
+        assert_eq!(terms.len(), 2, "one Term per AND-term");
+        assert_eq!(terms[0].layer, "tcp");
+        assert_eq!(terms[1].layer, "tcp");
+        assert!(!f.is_empty(), "a parsed expression is never empty");
+        assert!(
+            Filter::default().terms().is_empty(),
+            "the empty filter exposes no terms"
+        );
+    }
+
     #[test]
     fn ops_evaluate() {
         let r = test_registry();
