@@ -1011,15 +1011,14 @@ fn generate_ip6ext_corpus() {
 fn generate_sll_corpora() {
     let reg = wrex::standard();
     for (name, start) in [("sll-cooked", "sll"), ("sll2-cooked", "sll2")] {
-        // file!() is the compiler's own absolute source path — a
-        // compile-time constant, unlike env!() (which code scanning
-        // treats as an uncontrolled environment read).
-        let root = std::path::Path::new(file!())
-            .parent() // .../crates/wrex/tests
-            .and_then(std::path::Path::parent) // .../crates/wrex
-            .expect("test source path")
-            .join("../wrex-test/corpus")
-            .join(name);
+        // The corpus tree, located RELATIVE to the package root: cargo
+        // runs test binaries with cwd = the package's directory (the
+        // documented contract), so a literal path is deterministic —
+        // and it carries no environment reads, which is what code
+        // scanning demands of a path expression (env!() and file!()
+        // both model as uncontrolled values). The generator fails fast
+        // (expect below) if the contract ever moves.
+        let root = std::path::Path::new("../wrex-test/corpus").join(name);
         let frames_dir = root.join("frames");
         for dent in std::fs::read_dir(&frames_dir).expect("frames dir") {
             let path = dent.expect("dir entry").path();
