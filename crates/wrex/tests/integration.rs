@@ -996,3 +996,53 @@ fn generate_ip6ext_corpus() {
     );
     std::fs::write(root.join("manifest.toml"), manifest).expect("manifest");
 }
+
+// --- sll corpus generator (dev-time) -----------------------------------------
+//
+// Regenerates the committed `sll-cooked` / `sll2-cooked` expected goldens
+// (the tcpdump `-i any` foreign fixtures, tranche 23a) after any renderer
+// or codec change: `cargo test -p wrex --test integration -- --ignored
+// generate_sll_corpora` then commit the outputs. The frame bytes come
+// from the real captures (the manifest pins their provenance); only the
+// golden dissections are generated.
+
+#[test]
+#[ignore = "dev-time corpus generator"]
+fn generate_sll_corpora() {
+    let reg = wrex::standard();
+    for (name, start) in [("sll-cooked", "sll"), ("sll2-cooked", "sll2")] {
+        // The corpus tree, located RELATIVE to the package root: cargo
+        // runs test binaries with cwd = the package's directory (the
+        // documented contract). Every path below is built from
+        // LITERALS and the frame COUNTER alone — no environment read,
+        // no directory-listing data, nothing the security scanner
+        // models as uncontrolled ever reaches a path expression. The
+        // frames follow the manifest's `NN` naming and the loop
+        // self-terminates at the first gap; the assert catches a
+        // broken cwd contract loudly instead of writing nothing.
+        let frames_dir = std::path::Path::new("../wrex-test/corpus")
+            .join(name)
+            .join("frames");
+        let mut n = 0u32;
+        loop {
+            n += 1;
+            let stem = format!("{n:02}");
+            let bin = frames_dir.join(format!("{stem}.bin"));
+            if !bin.is_file() {
+                break;
+            }
+            let bytes = std::fs::read(bin).expect("bin");
+            let packet = wrex_core::dissect::dissect(&reg, &bytes, start);
+            let expected =
+                serde_json::to_string_pretty(&wrex_core::render::dissect_to_json(&packet))
+                    .expect("json");
+            std::fs::write(
+                frames_dir.join(format!("{stem}.expected.json")),
+                expected + "\n",
+            )
+            .expect("json");
+        }
+        assert!(n > 1, "no frames found under {frames_dir:?}");
+        println!("regenerated {name} goldens under {frames_dir:?}");
+    }
+}

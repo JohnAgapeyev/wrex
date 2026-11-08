@@ -1,4 +1,38 @@
 pub mod wrex_io
+pub mod wrex_io::cooked
+pub struct wrex_io::cooked::CookedDriver
+impl wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::open(&str, bool, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::cooked::CookedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::cooked::CookedDriver
+impl core::marker::Send for wrex_io::cooked::CookedDriver
+impl core::marker::Sync for wrex_io::cooked::CookedDriver
+impl core::marker::Unpin for wrex_io::cooked::CookedDriver
+impl core::marker::UnsafeUnpin for wrex_io::cooked::CookedDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::cooked::CookedDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::cooked::CookedDriver
+impl<T, U> core::convert::Into<U> for wrex_io::cooked::CookedDriver where U: core::convert::From<T>
+pub fn wrex_io::cooked::CookedDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::cooked::CookedDriver where U: core::convert::Into<T>
+pub type wrex_io::cooked::CookedDriver::Error = never
+pub fn wrex_io::cooked::CookedDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::cooked::CookedDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::cooked::CookedDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::cooked::CookedDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::cooked::CookedDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::cooked::CookedDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::cooked::CookedDriver where T: ?core::marker::Sized
+pub fn wrex_io::cooked::CookedDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::cooked::CookedDriver where T: ?core::marker::Sized
+pub fn wrex_io::cooked::CookedDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::from(T) -> T
+pub const wrex_io::cooked::DRIVER_TESTS_ENV: &str
+pub const wrex_io::cooked::SLL_HEADER_LEN: usize
 pub mod wrex_io::driver
 pub enum wrex_io::driver::DriverError
 pub wrex_io::driver::DriverError::IfaceNotFound
@@ -173,6 +207,9 @@ pub const wrex_io::driver::PERMISSION_HINT: &str
 pub trait wrex_io::driver::Driver: core::marker::Send
 pub fn wrex_io::driver::Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::driver::Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::cooked::CookedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
 impl wrex_io::driver::Driver for wrex_io::driver::RawEthDriver
 pub fn wrex_io::driver::RawEthDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::driver::RawEthDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
@@ -194,6 +231,9 @@ pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Resul
 impl wrex_io::driver::Driver for wrex_io::udp::UdpDriver
 pub fn wrex_io::udp::UdpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::udp::UdpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::xdp::XskDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
 pub fn wrex_io::driver::poll_timeout_for(std::time::Instant) -> u32
 pub mod wrex_io::iface
 pub struct wrex_io::iface::IfEntry
@@ -581,6 +621,131 @@ impl<T> core::borrow::BorrowMut<T> for wrex_io::udp::UdpDriver where T: ?core::m
 pub fn wrex_io::udp::UdpDriver::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_io::udp::UdpDriver
 pub fn wrex_io::udp::UdpDriver::from(T) -> T
+pub mod wrex_io::xdp
+pub struct wrex_io::xdp::BpfMap
+impl wrex_io::xdp::BpfMap
+pub fn wrex_io::xdp::BpfMap::create(u32, u32, u32, u32) -> core::io::error::Result<Self>
+pub fn wrex_io::xdp::BpfMap::fd(&self) -> i32
+pub fn wrex_io::xdp::BpfMap::update(&self, &[u8], &[u8]) -> core::io::error::Result<()>
+impl core::ops::drop::Drop for wrex_io::xdp::BpfMap
+pub fn wrex_io::xdp::BpfMap::drop(&mut self)
+impl core::marker::Freeze for wrex_io::xdp::BpfMap
+impl core::marker::Send for wrex_io::xdp::BpfMap
+impl core::marker::Sync for wrex_io::xdp::BpfMap
+impl core::marker::Unpin for wrex_io::xdp::BpfMap
+impl core::marker::UnsafeUnpin for wrex_io::xdp::BpfMap
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::BpfMap
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::BpfMap
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::BpfMap where U: core::convert::From<T>
+pub fn wrex_io::xdp::BpfMap::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::BpfMap where U: core::convert::Into<T>
+pub type wrex_io::xdp::BpfMap::Error = never
+pub fn wrex_io::xdp::BpfMap::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::BpfMap where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::BpfMap::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::BpfMap::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::BpfMap where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::BpfMap::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::BpfMap where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfMap::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::BpfMap where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfMap::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::BpfMap
+pub fn wrex_io::xdp::BpfMap::from(T) -> T
+pub struct wrex_io::xdp::BpfProgram
+impl wrex_io::xdp::BpfProgram
+pub fn wrex_io::xdp::BpfProgram::fd(&self) -> i32
+pub fn wrex_io::xdp::BpfProgram::load_xdp(&[u64], &[i32]) -> core::io::error::Result<Self>
+impl core::ops::drop::Drop for wrex_io::xdp::BpfProgram
+pub fn wrex_io::xdp::BpfProgram::drop(&mut self)
+impl core::marker::Freeze for wrex_io::xdp::BpfProgram
+impl core::marker::Send for wrex_io::xdp::BpfProgram
+impl core::marker::Sync for wrex_io::xdp::BpfProgram
+impl core::marker::Unpin for wrex_io::xdp::BpfProgram
+impl core::marker::UnsafeUnpin for wrex_io::xdp::BpfProgram
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::BpfProgram
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::BpfProgram
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::BpfProgram where U: core::convert::From<T>
+pub fn wrex_io::xdp::BpfProgram::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::BpfProgram where U: core::convert::Into<T>
+pub type wrex_io::xdp::BpfProgram::Error = never
+pub fn wrex_io::xdp::BpfProgram::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::BpfProgram where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::BpfProgram::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::BpfProgram::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::BpfProgram where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::BpfProgram::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::BpfProgram where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfProgram::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::BpfProgram where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfProgram::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::BpfProgram
+pub fn wrex_io::xdp::BpfProgram::from(T) -> T
+pub struct wrex_io::xdp::XdpCapture
+pub wrex_io::xdp::XdpCapture::xsk: wrex_io::xdp::XskDriver
+impl wrex_io::xdp::XdpCapture
+pub fn wrex_io::xdp::XdpCapture::attach(&str, i32, &wrex_ebpf::codegen::Program) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::xdp::XdpCapture
+pub fn wrex_io::xdp::XdpCapture::drop(&mut self)
+impl core::marker::Freeze for wrex_io::xdp::XdpCapture
+impl core::marker::Send for wrex_io::xdp::XdpCapture
+impl !core::marker::Sync for wrex_io::xdp::XdpCapture
+impl core::marker::Unpin for wrex_io::xdp::XdpCapture
+impl core::marker::UnsafeUnpin for wrex_io::xdp::XdpCapture
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::XdpCapture
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::XdpCapture
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::XdpCapture where U: core::convert::From<T>
+pub fn wrex_io::xdp::XdpCapture::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::XdpCapture where U: core::convert::Into<T>
+pub type wrex_io::xdp::XdpCapture::Error = never
+pub fn wrex_io::xdp::XdpCapture::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::XdpCapture where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::XdpCapture::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::XdpCapture::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::XdpCapture where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::XdpCapture::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::XdpCapture where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XdpCapture::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::XdpCapture where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XdpCapture::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::XdpCapture
+pub fn wrex_io::xdp::XdpCapture::from(T) -> T
+pub struct wrex_io::xdp::XskDriver
+impl wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::open(&str, i32) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::xdp::XskDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::xdp::XskDriver
+impl core::marker::Send for wrex_io::xdp::XskDriver
+impl !core::marker::Sync for wrex_io::xdp::XskDriver
+impl core::marker::Unpin for wrex_io::xdp::XskDriver
+impl core::marker::UnsafeUnpin for wrex_io::xdp::XskDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::XskDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::XskDriver
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::XskDriver where U: core::convert::From<T>
+pub fn wrex_io::xdp::XskDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::XskDriver where U: core::convert::Into<T>
+pub type wrex_io::xdp::XskDriver::Error = never
+pub fn wrex_io::xdp::XskDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::XskDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::XskDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::XskDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::XskDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::XskDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::XskDriver where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XskDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::XskDriver where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XskDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::from(T) -> T
+pub const wrex_io::xdp::BPF_MAP_TYPE_HASH: u32
+pub const wrex_io::xdp::BPF_MAP_TYPE_XSKMAP: u32
+pub const wrex_io::xdp::BPF_PROG_TYPE_XDP: u32
+pub fn wrex_io::xdp::bpf_available() -> bool
+pub fn wrex_io::xdp::xdp_attach(i32, i32) -> core::io::error::Result<()>
 pub enum wrex_io::DriverError
 pub wrex_io::DriverError::IfaceNotFound
 pub wrex_io::DriverError::IfaceNotFound::available: alloc::string::String
@@ -620,6 +785,96 @@ impl<T> core::borrow::BorrowMut<T> for wrex_io::driver::DriverError where T: ?co
 pub fn wrex_io::driver::DriverError::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_io::driver::DriverError
 pub fn wrex_io::driver::DriverError::from(T) -> T
+pub struct wrex_io::BpfMap
+impl wrex_io::xdp::BpfMap
+pub fn wrex_io::xdp::BpfMap::create(u32, u32, u32, u32) -> core::io::error::Result<Self>
+pub fn wrex_io::xdp::BpfMap::fd(&self) -> i32
+pub fn wrex_io::xdp::BpfMap::update(&self, &[u8], &[u8]) -> core::io::error::Result<()>
+impl core::ops::drop::Drop for wrex_io::xdp::BpfMap
+pub fn wrex_io::xdp::BpfMap::drop(&mut self)
+impl core::marker::Freeze for wrex_io::xdp::BpfMap
+impl core::marker::Send for wrex_io::xdp::BpfMap
+impl core::marker::Sync for wrex_io::xdp::BpfMap
+impl core::marker::Unpin for wrex_io::xdp::BpfMap
+impl core::marker::UnsafeUnpin for wrex_io::xdp::BpfMap
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::BpfMap
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::BpfMap
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::BpfMap where U: core::convert::From<T>
+pub fn wrex_io::xdp::BpfMap::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::BpfMap where U: core::convert::Into<T>
+pub type wrex_io::xdp::BpfMap::Error = never
+pub fn wrex_io::xdp::BpfMap::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::BpfMap where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::BpfMap::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::BpfMap::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::BpfMap where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::BpfMap::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::BpfMap where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfMap::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::BpfMap where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfMap::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::BpfMap
+pub fn wrex_io::xdp::BpfMap::from(T) -> T
+pub struct wrex_io::BpfProgram
+impl wrex_io::xdp::BpfProgram
+pub fn wrex_io::xdp::BpfProgram::fd(&self) -> i32
+pub fn wrex_io::xdp::BpfProgram::load_xdp(&[u64], &[i32]) -> core::io::error::Result<Self>
+impl core::ops::drop::Drop for wrex_io::xdp::BpfProgram
+pub fn wrex_io::xdp::BpfProgram::drop(&mut self)
+impl core::marker::Freeze for wrex_io::xdp::BpfProgram
+impl core::marker::Send for wrex_io::xdp::BpfProgram
+impl core::marker::Sync for wrex_io::xdp::BpfProgram
+impl core::marker::Unpin for wrex_io::xdp::BpfProgram
+impl core::marker::UnsafeUnpin for wrex_io::xdp::BpfProgram
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::BpfProgram
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::BpfProgram
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::BpfProgram where U: core::convert::From<T>
+pub fn wrex_io::xdp::BpfProgram::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::BpfProgram where U: core::convert::Into<T>
+pub type wrex_io::xdp::BpfProgram::Error = never
+pub fn wrex_io::xdp::BpfProgram::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::BpfProgram where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::BpfProgram::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::BpfProgram::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::BpfProgram where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::BpfProgram::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::BpfProgram where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfProgram::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::BpfProgram where T: ?core::marker::Sized
+pub fn wrex_io::xdp::BpfProgram::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::BpfProgram
+pub fn wrex_io::xdp::BpfProgram::from(T) -> T
+pub struct wrex_io::CookedDriver
+impl wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::open(&str, bool, &wrex_io::iface::IfTable) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::cooked::CookedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::cooked::CookedDriver
+impl core::marker::Send for wrex_io::cooked::CookedDriver
+impl core::marker::Sync for wrex_io::cooked::CookedDriver
+impl core::marker::Unpin for wrex_io::cooked::CookedDriver
+impl core::marker::UnsafeUnpin for wrex_io::cooked::CookedDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::cooked::CookedDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::cooked::CookedDriver
+impl<T, U> core::convert::Into<U> for wrex_io::cooked::CookedDriver where U: core::convert::From<T>
+pub fn wrex_io::cooked::CookedDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::cooked::CookedDriver where U: core::convert::Into<T>
+pub type wrex_io::cooked::CookedDriver::Error = never
+pub fn wrex_io::cooked::CookedDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::cooked::CookedDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::cooked::CookedDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::cooked::CookedDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::cooked::CookedDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::cooked::CookedDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::cooked::CookedDriver where T: ?core::marker::Sized
+pub fn wrex_io::cooked::CookedDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::cooked::CookedDriver where T: ?core::marker::Sized
+pub fn wrex_io::cooked::CookedDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::from(T) -> T
 pub struct wrex_io::FakeClock
 impl wrex_io::replay::FakeClock
 pub fn wrex_io::replay::FakeClock::advance(&self, core::time::Duration)
@@ -1080,6 +1335,66 @@ impl<T> core::borrow::BorrowMut<T> for wrex_io::udp::UdpDriver where T: ?core::m
 pub fn wrex_io::udp::UdpDriver::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for wrex_io::udp::UdpDriver
 pub fn wrex_io::udp::UdpDriver::from(T) -> T
+pub struct wrex_io::XdpCapture
+pub wrex_io::XdpCapture::xsk: wrex_io::xdp::XskDriver
+impl wrex_io::xdp::XdpCapture
+pub fn wrex_io::xdp::XdpCapture::attach(&str, i32, &wrex_ebpf::codegen::Program) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::xdp::XdpCapture
+pub fn wrex_io::xdp::XdpCapture::drop(&mut self)
+impl core::marker::Freeze for wrex_io::xdp::XdpCapture
+impl core::marker::Send for wrex_io::xdp::XdpCapture
+impl !core::marker::Sync for wrex_io::xdp::XdpCapture
+impl core::marker::Unpin for wrex_io::xdp::XdpCapture
+impl core::marker::UnsafeUnpin for wrex_io::xdp::XdpCapture
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::XdpCapture
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::XdpCapture
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::XdpCapture where U: core::convert::From<T>
+pub fn wrex_io::xdp::XdpCapture::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::XdpCapture where U: core::convert::Into<T>
+pub type wrex_io::xdp::XdpCapture::Error = never
+pub fn wrex_io::xdp::XdpCapture::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::XdpCapture where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::XdpCapture::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::XdpCapture::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::XdpCapture where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::XdpCapture::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::XdpCapture where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XdpCapture::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::XdpCapture where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XdpCapture::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::XdpCapture
+pub fn wrex_io::xdp::XdpCapture::from(T) -> T
+pub struct wrex_io::XskDriver
+impl wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::open(&str, i32) -> core::result::Result<Self, wrex_io::driver::DriverError>
+impl core::ops::drop::Drop for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::drop(&mut self)
+impl wrex_io::driver::Driver for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::xdp::XskDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl core::marker::Freeze for wrex_io::xdp::XskDriver
+impl core::marker::Send for wrex_io::xdp::XskDriver
+impl !core::marker::Sync for wrex_io::xdp::XskDriver
+impl core::marker::Unpin for wrex_io::xdp::XskDriver
+impl core::marker::UnsafeUnpin for wrex_io::xdp::XskDriver
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_io::xdp::XskDriver
+impl core::panic::unwind_safe::UnwindSafe for wrex_io::xdp::XskDriver
+impl<T, U> core::convert::Into<U> for wrex_io::xdp::XskDriver where U: core::convert::From<T>
+pub fn wrex_io::xdp::XskDriver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_io::xdp::XskDriver where U: core::convert::Into<T>
+pub type wrex_io::xdp::XskDriver::Error = never
+pub fn wrex_io::xdp::XskDriver::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_io::xdp::XskDriver where U: core::convert::TryFrom<T>
+pub type wrex_io::xdp::XskDriver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_io::xdp::XskDriver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for wrex_io::xdp::XskDriver where T: 'static + ?core::marker::Sized
+pub fn wrex_io::xdp::XskDriver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_io::xdp::XskDriver where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XskDriver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_io::xdp::XskDriver where T: ?core::marker::Sized
+pub fn wrex_io::xdp::XskDriver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::from(T) -> T
 pub trait wrex_io::Clock: core::marker::Send + core::marker::Sync
 pub fn wrex_io::Clock::fast_forward(&self, std::time::Instant)
 pub fn wrex_io::Clock::now(&self) -> std::time::Instant
@@ -1092,6 +1407,9 @@ pub fn wrex_io::replay::FakeClock::now(&self) -> std::time::Instant
 pub trait wrex_io::Driver: core::marker::Send
 pub fn wrex_io::Driver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::Driver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::cooked::CookedDriver
+pub fn wrex_io::cooked::CookedDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::cooked::CookedDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
 impl wrex_io::driver::Driver for wrex_io::driver::RawEthDriver
 pub fn wrex_io::driver::RawEthDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::driver::RawEthDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
@@ -1113,3 +1431,6 @@ pub fn wrex_io::tcp::TcpDriver::send(&mut self, &[u8]) -> core::io::error::Resul
 impl wrex_io::driver::Driver for wrex_io::udp::UdpDriver
 pub fn wrex_io::udp::UdpDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
 pub fn wrex_io::udp::UdpDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>
+impl wrex_io::driver::Driver for wrex_io::xdp::XskDriver
+pub fn wrex_io::xdp::XskDriver::recv(&mut self, std::time::Instant) -> core::io::error::Result<core::option::Option<wrex_io::driver::Frame>>
+pub fn wrex_io::xdp::XskDriver::send(&mut self, &[u8]) -> core::io::error::Result<()>

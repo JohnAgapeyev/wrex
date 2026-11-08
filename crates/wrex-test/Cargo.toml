@@ -24,6 +24,8 @@ wrex-proto-tcp = { workspace = true, features = ["test-util"] }
 wrex-proto-dns = { workspace = true, features = ["test-util"] }
 wrex-proto-dhcp = { workspace = true, features = ["test-util"] }
 wrex-proto-dhcp6 = { workspace = true, features = ["test-util"] }
+wrex-proto-sll = { workspace = true, features = ["test-util"] }
+wrex-proto-dot11 = { workspace = true, features = ["test-util"] }
 bytes = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
@@ -39,6 +41,7 @@ hickory-proto = { workspace = true }
 # workspace floor — see the workspace pin note).
 dhcproto = { workspace = true }
 assert_cmd = { workspace = true }
+assert_fs = "1"
 predicates = { workspace = true }
 # In-test TLS stub server (tranche 8a): rustls ServerConnection in a
 # std thread over a rcgen self-signed cert — the https/DoT oracle

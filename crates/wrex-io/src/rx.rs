@@ -17,22 +17,27 @@ use std::time::Duration;
 /// tranche-1 recv sizing).
 const RX_BUF: usize = 16 * 1024;
 
-/// Open an `AF_PACKET`/`SOCK_RAW` socket bound to `ifindex` for protocol
-/// `protocol_be` (ethertype in network byte order, e.g.
-/// `htons(ETH_P_ALL)` or `htons(ETH_P_IP)`).
+/// Open an `AF_PACKET` socket of `sock_type` (`SOCK_RAW` or `SOCK_DGRAM`
+/// — the cooked tap) bound to `ifindex` for protocol `protocol_be`.
 ///
 /// The receive buffer is grown first (best-effort, see
-/// [`TAP_RCVBUF_BYTES`]): the kernel default
-/// (`net.core.rmem_default`, typically 212992 ≈ 222 frames at the
-/// ~960-byte `skb` truesize of a small frame) silently DROPS the tail
-/// of any reply burst that outpaces the drain loop — a 256-probe
-/// in-flight scan lost exactly 34 replies (256 − 222) and every loss
-/// paid the double 1s timeout, the perf-diff scan finding.
+/// [`TAP_RCVBUF_BYTES`]): the kernel default silently DROPS the tail of
+/// any reply burst that outpaces the drain loop — a 256-probe in-flight
+/// scan lost exactly 34 replies (256 − 222) and every loss paid the
+/// double 1s timeout, the perf-diff scan finding.
+///
+/// The `SOCK_DGRAM` variant (tranche 23a) is the cooked-capture path:
+/// the kernel strips the link-layer header and the receiver synthesizes
+/// the SLL pseudo-header from the `sockaddr_ll` metadata.
 ///
 /// SAFETY: caller owns the returned descriptor; `close` releases it.
-pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::Result<i32> {
+pub(crate) unsafe fn open_packet_socket_typed(
+    ifindex: i32,
+    protocol_be: u16,
+    sock_type: i32,
+) -> io::Result<i32> {
     // SAFETY: `socket` is a simple libc syscall with integer args.
-    let fd = unsafe { libc::socket(libc::AF_PACKET, libc::SOCK_RAW, protocol_be as i32) };
+    let fd = unsafe { libc::socket(libc::AF_PACKET, sock_type, protocol_be as i32) };
     if fd < 0 {
         return Err(io::Error::last_os_error());
     }
@@ -91,6 +96,16 @@ pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::R
     Ok(fd)
 }
 
+/// Open an `AF_PACKET`/`SOCK_RAW` socket bound to `ifindex` for protocol
+/// `protocol_be` (ethertype in network byte order, e.g.
+/// `htons(ETH_P_ALL)` or `htons(ETH_P_IP)`).
+///
+/// SAFETY: caller owns the returned descriptor; `close` releases it.
+pub(crate) unsafe fn open_packet_socket(ifindex: i32, protocol_be: u16) -> io::Result<i32> {
+    // SAFETY: delegates to the typed constructor with SOCK_RAW.
+    unsafe { open_packet_socket_typed(ifindex, protocol_be, libc::SOCK_RAW) }
+}
+
 /// Tap receive-buffer request: ~8 MiB ≈ 8000 frames of headroom —
 /// covers a `--concurrent`-bounded burst window (both directions land
 /// on the tap on loopback) many times over.
@@ -104,12 +119,22 @@ pub(crate) struct RxFrame {
     pub pkttype: u8,
 }
 
+/// One received frame's bytes plus its full `sockaddr_ll` (the cooked
+/// driver synthesizes its SLL header from it, tranche 23a).
+#[derive(Debug)]
+pub(crate) struct RxAddr {
+    pub bytes: Vec<u8>,
+    pub pkttype: u8,
+    pub addr: libc::sockaddr_ll,
+}
+
 /// Receive one frame before `deadline` (`Ok(None)` on timeout), polling
-/// with the deadline as the poll timeout so partial waits are honored.
+/// with the deadline as the poll timeout so partial waits are honored,
+/// keeping the full `sockaddr_ll` (the cooked driver's metadata source).
 ///
 /// Does NOT skip outgoing copies; callers decide (both current drivers
 /// skip them — kept explicit so the eth driver could someday opt out).
-pub(crate) fn recv_raw(fd: i32, deadline: Instant) -> io::Result<Option<RxFrame>> {
+pub(crate) fn recv_raw_with_addr(fd: i32, deadline: Instant) -> io::Result<Option<RxAddr>> {
     loop {
         let now = Instant::now();
         if now >= deadline {
@@ -174,11 +199,26 @@ pub(crate) fn recv_raw(fd: i32, deadline: Instant) -> io::Result<Option<RxFrame>
             continue;
         }
         buf.truncate(n as usize);
-        return Ok(Some(RxFrame {
-            bytes: buf,
+        return Ok(Some(RxAddr {
             pkttype: addr.sll_pkttype,
+            bytes: buf,
+            addr,
         }));
     }
+}
+
+/// Receive one frame before `deadline` (`Ok(None)` on timeout), polling
+/// with the deadline as the poll timeout so partial waits are honored.
+///
+/// Does NOT skip outgoing copies; callers decide (both current drivers
+/// skip them — kept explicit so the eth driver could someday opt out).
+pub(crate) fn recv_raw(fd: i32, deadline: Instant) -> io::Result<Option<RxFrame>> {
+    // Delegate to the addr-keeping loop and drop the metadata (the eth
+    // and ip drivers only ever wanted the pkttype byte).
+    Ok(recv_raw_with_addr(fd, deadline)?.map(|rx| RxFrame {
+        bytes: rx.bytes,
+        pkttype: rx.pkttype,
+    }))
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@
 .SH NAME
 patch \- Deterministic surgical edits of real frames (span\-patch engine) → stdout / pcap
 .SH SYNOPSIS
-\fBpatch\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-r\fR|\fB\-\-read\fR] [\fB\-\-set\fR] [\fB\-\-insert\fR] [\fB\-\-delete\fR] [\fB\-\-scope\fR] [\fB\-\-no\-recompute\fR] [\fB\-\-index\fR] [\fB\-\-filter\fR] [\fB\-w\fR|\fB\-\-write\fR] [\fB\-\-pcapng\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFRAME\fR] 
+\fBpatch\fR [\fB\-i\fR|\fB\-\-iface\fR] [\fB\-\-format\fR] [\fB\-v \fR]... [\fB\-\-no\-autofill\fR] [\fB\-\-strict\fR] [\fB\-r\fR|\fB\-\-read\fR] [\fB\-\-set\fR] [\fB\-\-insert\fR] [\fB\-\-delete\fR] [\fB\-\-scope\fR] [\fB\-\-no\-recompute\fR] [\fB\-\-index\fR] [\fB\-\-filter\fR] [\fB\-w\fR|\fB\-\-write\fR] [\fB\-\-snaplen\fR] [\fB\-\-pcapng\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFRAME\fR] 
 .SH DESCRIPTION
 Deterministic surgical edits of real frames (span\-patch engine) → stdout / pcap
 .SH OPTIONS
@@ -50,6 +50,9 @@ Patch only frames matching this filter expression (the recv grammar; unlike repl
 .TP
 \fB\-w\fR, \fB\-\-write\fR \fI<FILE>\fR
 Write the edited stream as a pcap file (patched + passthrough, original timestamps kept)
+.TP
+\fB\-\-snaplen\fR \fI<SNAPLEN>\fR
+Max stored bytes per written frame (default 65535; wire length kept via orig_len) — tranche 23a, the T14 deferral
 .TP
 \fB\-\-pcapng\fR
 Write pcapng instead of classic pcap (with \-w)

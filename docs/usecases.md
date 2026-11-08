@@ -36,7 +36,7 @@ CLI sugar has a job to justify it.
 
 | UC | The job | How today | Status |
 |----|----------|-----------|--------|
-| UC-7 | "Capture this interface, inspect later" | `wrex capture -i eth0 -w cap.pcap` then `wrex replay cap.pcap --format jsonl` | **WORKS** (WF-7) |
+| UC-7 | "Capture this interface, inspect later" | `wrex capture -i eth0 -w cap.pcap` then `wrex replay cap.pcap --format jsonl`; `capture -i any` writes the cooked view (SLL), wifi mgmt captures dissect 802.11 — the compiled XDP prefilter + XSK is the default datapath with a transparent AF_PACKET fallback | **WORKS** (WF-7; T23a/b) |
 | UC-8 | "Find the TCP conversation in this capture" | — | **GAP → T24a** (stream follow) |
 | UC-9 | "Give me an endpoints/conversations overview" | — | **GAP → T24b** (`wrex stats`) |
 | UC-10 | "Show vendor names for MACs, service names for ports" | — | **GAP → T24b** (name tables) |

@@ -55,6 +55,11 @@ pub fn codec_strategy(kind: &str) -> Option<BoxedStrategy<LayerSpec>> {
         "dns" => Some(wrex_proto_dns::strategy::strategy()),
         "dhcp" => Some(wrex_proto_dhcp::strategy::strategy()),
         "dhcp6" => Some(wrex_proto_dhcp6::strategy::strategy()),
+        // Tranche 23a: the cooked roots + 802.11 (the sll crate exports
+        // one strategy per kind).
+        "sll" => Some(wrex_proto_sll::strategy::sll()),
+        "sll2" => Some(wrex_proto_sll::strategy::sll2()),
+        "dot11" => Some(wrex_proto_dot11::strategy::strategy()),
         _ => None,
     }
 }

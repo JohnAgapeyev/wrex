@@ -8,6 +8,64 @@ tranche.
 
 ## [Unreleased]
 
+### Added — tranche 23: linktypes + the kernel datapath (T29 pulled forward)
+
+Three sub-tranches, all additive; the capture store contract grows
+new linktypes only, every pinned pre-T23 byte stays identical. Closes
+the T5/T14 deferral lines; ADR-0004 (802.11) + ADR-0005 (the eBPF
+loader/syscall decisions) recorded at the same pass.
+
+- **Linux cooked capture** (`wrex-proto-sll`): kinds `sll`/`sll2`,
+  wire-pinned against live tcpdump; `capture -i any` (AF_PACKET
+  SOCK_DGRAM, the SLL header synthesized from sockaddr_ll) writes
+  LINKTYPE_LINUX_SLL — the committed `sll-cooked`/`sll2-cooked`
+  corpora ARE those real frames.
+- **Read-side start dispatch**: `replay`/`mut -r`/`patch -r` dissect
+  by linktype — SLL/SLL2, RAW (first-nibble peek), NULL/LOOPBACK
+  (the 4-byte AF value, stripped from the dissection view), 802.11.
+- **802.11 dissect-only** (`wrex-proto-dot11`, ADR-0004): the FC word,
+  addresses, seq/frag, management elements as the `elt` record
+  section; radiotap/monitor-mode are won't-dos.
+- **The kernel datapath is the capture default** (`wrex-io::xdp`):
+  the filter compiles to an XDP prefilter over the codecs' own layout
+  tables (`wrex-ebpf` — programs are compiled artifacts of the
+  schema, never hand-written BPF), redirects matching frames into an
+  AF_XDP socket; every failure (capabilities, attach, terms beyond the
+  kernel subset) falls back to AF_PACKET with a pointed note. The
+  translator (same-width rewrites + RFC 1624 incremental checksums,
+  byte-identical with the T14 engine), the ICMP-echo XDP_TX
+  responder, and the 4-tuple flow-table counter ride the same
+  codegen; `tests/ebpf_differential.rs` runs the userspace-VM verdict
+  differential against the filter engine over every corpus frame.
+  The XSK open rides the kernel's deferred teardown of a previous
+  capture's socket (EBUSY, bounded 2s retry — the XSKMAP holds the
+  socket, the program the map, the bpf_link the program, so the
+  bind slot frees a grace period after the holder exits):
+  back-to-back captures on one interface just work.
+- **Static verifier-shape checker** (`wrex-ebpf::verify`): the
+  kernel verifier's known rules enforced at COMPILE time — every
+  `compile_*` abstract-interprets the emitted program
+  (per-register-instance read/store proofs, the constant-add
+  range shift, dead-code detection) and refuses violations with
+  pointed, disassembly-windowed errors — never a load-time
+  surprise. Its first sweep found three bug classes the live
+  rounds never reached (the translate dispatch nibble read, the
+  post-`csum_diff` checksum store, the dead-arm shapes in
+  `compile_filter`), all fixed pre-attach.
+- **Capture knobs**: `--no-xdp` (force the userspace datapath),
+  `--rotate-size`/`--rotate-count` (the tcpdump -C/-W chunk rules),
+  `patch --snaplen` (the T14 deferral).
+- Fuzz targets `fuzz_dissect_sll`, `fuzz_dissect_dot11`,
+  `fuzz_ebpf_vm` (registered as `[[bin]]`s and wired into the CI
+  smoke, the fuzz gate, and the Miri crate list); G1 strategies for
+  every new field (the audit caught two real gaps on its first run).
+  The VM target's first smoke caught two real VM-soundness classes —
+  raw register indices (r11..r15 must be the pointed refusal, not an
+  out-of-bounds regs index) and wrapping `addr + size` span math
+  (checked adds → the pointed Bounds) — both fixed and pinned by
+  unit tests.
+
+
 ### Added — tranche 22: L3/L4 options read-side typing (the last T11 dynamic region)
 
 All additive: every pinned pre-T22 wire byte is identical; the output

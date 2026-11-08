@@ -809,7 +809,9 @@ const CAPTURE_DEFAULT_SNAPLEN: usize = 65535;
 
 /// The pcap sink shared by capture (tranche 5/8b) and patch (tranche
 /// 14): classic pcap (default) or pcapng (`--pcapng`) — both writers
-/// share the `write_record`/`write_record_orig`/`flush` shape.
+/// share the `write_record`/`write_record_orig`/`flush` shape. The
+/// link type rides the constructor (tranche 23a: `-i any` captures
+/// write LINUX_SLL; the default keeps EN10MB byte-identical).
 enum FrameWriter {
     Classic(wrex_pcap::PcapWriter<std::io::BufWriter<std::fs::File>>),
     Ng(wrex_pcap::PcapngWriter<std::io::BufWriter<std::fs::File>>),
@@ -819,21 +821,27 @@ impl FrameWriter {
     /// Create the sink: writes the global headers on open (the file is
     /// valid the moment the writer exists). `ns` picks the pcapng
     /// `if_tsresol` 9 IDB (tranche T18b; ignored without `pcapng`).
-    fn new(pcapng: bool, ns: bool, path: &str) -> Result<FrameWriter, CliError> {
+    /// `linktype` is the pcap link type (tranche 23a: `1` the default,
+    /// `113` a cooked `-i any` capture).
+    fn new(pcapng: bool, ns: bool, path: &str, linktype: u32) -> Result<FrameWriter, CliError> {
         let file = std::fs::File::create(path)
             .map_err(|e| CliError::Runtime(format!("cannot create `{path}`: {e}")))?;
         let buf = std::io::BufWriter::new(file);
         if pcapng {
             let writer = if ns {
-                wrex_pcap::PcapngWriter::with_resol(buf, wrex_pcap::TsResol::Nanos)
+                wrex_pcap::PcapngWriter::with_linktype_and_resol(
+                    buf,
+                    linktype,
+                    wrex_pcap::TsResol::Nanos,
+                )
             } else {
-                wrex_pcap::PcapngWriter::new(buf)
+                wrex_pcap::PcapngWriter::with_linktype(buf, linktype)
             }
             .map_err(|e| CliError::Runtime(format!("`{path}`: {e}")))?;
             Ok(FrameWriter::Ng(writer))
         } else {
             Ok(FrameWriter::Classic(
-                wrex_pcap::PcapWriter::new(buf)
+                wrex_pcap::PcapWriter::with_linktype(buf, linktype)
                     .map_err(|e| CliError::Runtime(format!("`{path}`: {e}")))?,
             ))
         }
@@ -874,10 +882,68 @@ impl FrameWriter {
     }
 }
 
-/// `wrex capture`: AF_PACKET recv loop into a pcap file (classic by
-/// default, pcapng with `--pcapng`), with an optional `--format` tee to
-/// stdout (the same per-frame shapes as recv). Stop conditions and exit
-/// codes mirror recv: count/timeout → 0.
+/// The capture receive datapath (tranche 23b): the compiled XDP
+/// prefilter + XSK is the DEFAULT on a real interface — every load
+/// failure (capabilities, attach, a filter the kernel subset cannot
+/// express) falls back to the AF_PACKET path with a pointed note (the
+/// auto-downgrade pattern). `--no-xdp` forces the userspace path; `-i
+/// any` is the cooked tap (XDP is per-interface — `any` has no
+/// ifindex).
+enum CaptureRx {
+    /// The compiled kernel datapath. `residual` carries the userspace
+    /// filter when the kernel prefilter could not express the whole
+    /// expression (the kernel runs the always-redirect stub then; the
+    /// semantics stay exact, the acceleration partial).
+    Xdp(Box<wrex_io::XdpCapture>, Option<Filter>),
+    /// The AF_PACKET path (fallback or `--no-xdp`).
+    Packet(Box<RawEthDriver>, Option<Filter>),
+    /// `-i any`: the cooked tap.
+    Cooked(Box<wrex_io::CookedDriver>, Option<Filter>),
+}
+
+impl CaptureRx {
+    /// One filtered frame before `deadline` (`Ok(None)` on timeout).
+    /// The residual userspace filter loops internally — a rejected
+    /// frame is consumed, not a timeout.
+    fn recv(
+        &mut self,
+        deadline: Instant,
+        registry: &Registry,
+    ) -> Result<Option<wrex_io::Frame>, CliError> {
+        loop {
+            let now = Instant::now();
+            if now >= deadline {
+                return Ok(None);
+            }
+            let (frame, resid, start) = match self {
+                Self::Xdp(cap, f) => (cap.xsk.recv(deadline), f.as_ref(), "auto"),
+                Self::Packet(d, f) => (d.recv(deadline), f.as_ref(), "auto"),
+                Self::Cooked(d, f) => (d.recv(deadline), f.as_ref(), "sll"),
+            };
+            let Some(frame) = frame.map_err(|e| CliError::Runtime(format!("recv: {e}")))? else {
+                return Ok(None);
+            };
+            if let Some(f) = resid {
+                let p = dissect(registry, &frame.bytes, start);
+                if !f.matches(&p) {
+                    continue; // consumed by the residual filter
+                }
+            }
+            return Ok(Some(frame));
+        }
+    }
+}
+
+/// `wrex capture`: the recv loop into a pcap file (classic by default,
+/// pcapng with `--pcapng`), an optional `--format` tee to stdout, and
+/// the tranche-23b datapath: on a real interface the compiled XDP
+/// prefilter + XSK is the DEFAULT with a transparent AF_PACKET
+/// fallback (a pointed note on every downgrade); `--no-xdp` forces the
+/// userspace path. `-i any` is the Linux cooked tap (`SOCK_DGRAM`):
+/// the store carries LINKTYPE_LINUX_SLL with the synthesized 16-byte
+/// SLL header per frame (tranche 23a). `--rotate-size`/`--rotate-count`
+/// chunk the store. Stop conditions and exit codes mirror recv:
+/// count/timeout → 0.
 fn capture(
     registry: &Registry,
     common: &Common,
@@ -894,41 +960,79 @@ fn capture(
         None => None,
     };
     let snaplen = args.snaplen.unwrap_or(CAPTURE_DEFAULT_SNAPLEN);
+    // Rotation grammar (tranche 23b): --rotate-count rides --rotate-size.
+    let rotate_limit = match args.rotate_size {
+        Some(0) => {
+            return Err(usage("capture: --rotate-size must be > 0"));
+        }
+        s => s.map(|b| b as u64),
+    };
+    // --rotate-count-without-size is clap's `requires` (the sharper
+    // grammar error); the verb keeps the zero-size check below.
+    let rotate_files = args.rotate_count.map(|c| c.max(1));
 
     let table = IfTable::from_system()
         .map_err(|e| CliError::Runtime(format!("reading interfaces: {e}")))?;
-    let mut driver = RawEthDriver::open(iface, args.promisc, &table)?;
-    let mut writer = FrameWriter::new(args.pcapng, args.pcapng_ns, &args.write)?;
+    // `-i any`: the cooked tap (SLL frames, LINKTYPE_LINUX_SLL store);
+    // a real interface: raw Ethernet (EN10MB store, the tranche-5 shape).
+    let cooked = iface == "any";
+    let linktype = if cooked {
+        wrex_pcap::linktype::LINUX_SLL
+    } else {
+        wrex_pcap::linktype::EN10MB
+    };
+    let mut writer = RotatingWriter::new(
+        args.pcapng,
+        args.pcapng_ns,
+        &args.write,
+        linktype,
+        rotate_limit,
+    )?;
+
+    // The datapath pick (tranche 23b): XDP default-on, honest fallback.
+    let mut rx = if cooked {
+        CaptureRx::Cooked(
+            Box::new(wrex_io::CookedDriver::open(iface, args.promisc, &table)?),
+            filter,
+        )
+    } else if args.no_xdp {
+        CaptureRx::Packet(
+            Box::new(RawEthDriver::open(iface, args.promisc, &table)?),
+            filter,
+        )
+    } else {
+        match open_xdp_datapath(registry, iface, &table, &filter) {
+            Ok((cap, resid)) => CaptureRx::Xdp(Box::new(cap), resid),
+            Err(note) => {
+                eprintln!("! capture: {note}");
+                CaptureRx::Packet(
+                    Box::new(RawEthDriver::open(iface, args.promisc, &table)?),
+                    filter,
+                )
+            }
+        }
+    };
 
     let mut seen: u64 = 0;
     let deadline = timeout.map(|d| Instant::now() + d);
     loop {
         let next_deadline = deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(3600));
-        let Some(frame) = driver
-            .recv(next_deadline)
-            .map_err(|e| CliError::Runtime(format!("recv: {e}")))?
-        else {
+        let Some(frame) = rx.recv(next_deadline, registry)? else {
             // Timeout end → success (exit 0), pcap valid as-is.
             writer
-                .flush()
-                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+                .finish()
+                .map_err(|e| CliError::Runtime(format!("capture: {e}")))?;
             return Ok(());
         };
-        // Dissect on demand: no filter and no tee → the capture hot
-        // loop never dissects (raw pcap writing only).
-        let packet = if filter.is_some() || tee.is_some() {
-            Some(dissect(registry, &frame.bytes, "auto"))
+        // Dissect on demand: no tee → the capture hot loop never
+        // dissects (the datapath already filtered).
+        let start = if cooked { "sll" } else { "auto" };
+        let packet = if tee.is_some() {
+            Some(dissect(registry, &frame.bytes, start))
         } else {
             None
         };
-        if let (Some(f), Some(p)) = (&filter, &packet)
-            && !f.matches(p)
-        {
-            continue;
-        }
-        writer
-            .write_record(frame.ts, &frame.bytes, snaplen)
-            .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+        writer.write_record(frame.ts, &frame.bytes, snaplen)?;
         if let (Some(fmt), Some(p)) = (&tee, &packet) {
             print_frame(*fmt, p, &frame.bytes)?;
         }
@@ -937,9 +1041,302 @@ fn capture(
             && seen >= c
         {
             writer
-                .flush()
-                .map_err(|e| CliError::Runtime(format!("capture: {}: {e}", args.write)))?;
+                .finish()
+                .map_err(|e| CliError::Runtime(format!("capture: {}", e)))?;
             return Ok(());
+        }
+        // The rotation budget: --rotate-count caps the number of chunk
+        // files (a full ring → success, the tcpdump -W exit).
+        if let Some(files) = rotate_files
+            && writer.files() >= files
+        {
+            writer
+                .finish()
+                .map_err(|e| CliError::Runtime(format!("capture: {}", e)))?;
+            return Ok(());
+        }
+    }
+}
+
+/// Try the compiled kernel datapath; the Err is the pointed downgrade
+/// NOTE (never a failure — the caller falls back transparently).
+fn open_xdp_datapath(
+    registry: &Registry,
+    iface: &str,
+    table: &IfTable,
+    filter: &Option<Filter>,
+) -> Result<(wrex_io::XdpCapture, Option<Filter>), String> {
+    if let Err(why) = wrex_io::xdp::xdp_datapath_available() {
+        return Err(format!("{why} — using the AF_PACKET path"));
+    }
+    let Some(entry) = table.get(iface) else {
+        return Err(format!("unknown iface `{iface}`"));
+    };
+    let ifindex = entry.ifindex;
+    // The prefilter: the whole expression when the kernel subset can
+    // express it; the always-redirect stub + the residual userspace
+    // filter otherwise (semantics exact, acceleration partial).
+    let (prog, resid) = match filter {
+        None => (xsk_stub_program(), None),
+        Some(f) => match wrex_ebpf::compile_capture_prefilter(registry, f) {
+            Ok(p) => (p, None),
+            Err(e) => (xsk_stub_program(), Some((f.clone(), e))),
+        },
+    };
+    let cap = wrex_io::XdpCapture::attach(iface, ifindex, &prog)
+        .map_err(|e| format!("XDP attach failed ({e}) — using the AF_PACKET path"))?;
+    if let Some((_, e)) = &resid {
+        eprintln!("! capture: kernel prefilter: {e} — the filter rides the userspace path");
+    }
+    Ok((cap, resid.map(|(f, _)| f)))
+}
+
+/// The filterless prefilter: every frame redirects into the XSK.
+fn xsk_stub_program() -> wrex_ebpf::Program {
+    let reg = wrex_core::Registry::empty();
+    wrex_ebpf::compile_capture_prefilter(&reg, &Filter::default())
+        .expect("the empty filter always compiles (the stub)")
+}
+
+/// The rotating pcap store (tranche 23b): `--rotate-size BYTES` chunks
+/// the capture into `FILE`, `FILE.1`, `FILE.2`, … (each chunk a valid
+/// standalone pcap — its headers land on open), `--rotate-count N`
+/// caps the file count. Without `--rotate-size` it is exactly the
+/// tranche-5 sink.
+struct RotatingWriter {
+    pcapng: bool,
+    ns: bool,
+    path: String,
+    linktype: u32,
+    writer: Option<FrameWriter>,
+    /// Stored bytes in the current chunk.
+    written: u64,
+    limit: Option<u64>,
+    files: u64,
+}
+
+impl RotatingWriter {
+    fn new(
+        pcapng: bool,
+        ns: bool,
+        path: &str,
+        linktype: u32,
+        limit: Option<u64>,
+    ) -> Result<Self, CliError> {
+        let writer = FrameWriter::new(pcapng, ns, path, linktype)?;
+        Ok(Self {
+            pcapng,
+            ns,
+            path: path.to_string(),
+            linktype,
+            writer: Some(writer),
+            written: 0,
+            limit,
+            files: 1,
+        })
+    }
+
+    fn files(&self) -> u64 {
+        self.files
+    }
+
+    fn write_record(
+        &mut self,
+        ts: std::time::SystemTime,
+        frame: &[u8],
+        snaplen: usize,
+    ) -> Result<(), CliError> {
+        // Rotate BEFORE the record that would overflow the chunk (each
+        // chunk stays within the budget; a record larger than the whole
+        // budget gets its own chunk).
+        if let Some(limit) = self.limit
+            && self.written > 0
+            && self.written + frame.len().min(snaplen) as u64 > limit
+        {
+            self.rotate()?;
+        }
+        let stored = frame.len().min(snaplen) as u64;
+        let w = self.writer.as_mut().expect("writer lives while capturing");
+        w.write_record(ts, frame, snaplen)
+            .map_err(|e| CliError::Runtime(format!("capture: {e}")))?;
+        self.written += stored;
+        Ok(())
+    }
+
+    fn rotate(&mut self) -> Result<(), CliError> {
+        // Flush and release the current chunk, then open the next path.
+        if let Some(mut w) = self.writer.take() {
+            w.flush()
+                .map_err(|e| CliError::Runtime(format!("capture: {e}")))?;
+        }
+        let path = format!("{}.{}", self.path, self.files);
+        self.writer = Some(FrameWriter::new(
+            self.pcapng,
+            self.ns,
+            &path,
+            self.linktype,
+        )?);
+        self.files += 1;
+        self.written = 0;
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<(), std::io::Error> {
+        if let Some(mut w) = self.writer.take() {
+            w.flush()?;
+        }
+        Ok(())
+    }
+}
+
+/// The rotating-store semantics, pinned unit-side (the per-PR mutants
+/// gate caught this whole cluster surviving: exercised only through
+/// privileged captures until now — the store itself is pure IO).
+#[cfg(test)]
+mod rotating_tests {
+    use super::*;
+
+    fn tmpdir() -> assert_fs::TempDir {
+        assert_fs::TempDir::new().unwrap()
+    }
+
+    fn ts(i: u64) -> std::time::SystemTime {
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(1000 + i)
+    }
+
+    fn chunk(dir: &assert_fs::TempDir, name: &str) -> wrex_pcap::PcapFile {
+        wrex_pcap::read(&std::fs::read(dir.path().join(name)).unwrap()).unwrap()
+    }
+
+    /// Without a limit the sink is exactly the tranche-5 store: one
+    /// file, every record, `files()` == 1.
+    #[test]
+    fn no_limit_writes_one_file() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, None).unwrap();
+        for i in 0..3 {
+            w.write_record(ts(i), &[0x45, 0, 0, 0], 65535).unwrap();
+        }
+        w.finish().unwrap();
+        assert_eq!(w.files(), 1);
+        let file = chunk(&dir, "cap.pcap");
+        assert_eq!(file.records.len(), 3);
+        assert!(!dir.path().join("cap.pcap.1").exists());
+    }
+
+    /// The rotate trigger fires BEFORE the record that would overflow
+    /// the chunk: a record that does not fit the REMAINING budget
+    /// starts the next chunk.
+    #[test]
+    fn size_limit_rotates_before_overflow() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        // Budget 100; records of 60 stored bytes: the first fits, the
+        // second would overflow → FILE.1 carries it.
+        let mut w =
+            RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(100)).unwrap();
+        w.write_record(ts(0), &[0x45u8; 60], 65535).unwrap();
+        w.write_record(ts(1), &[0x46u8; 60], 65535).unwrap();
+        w.finish().unwrap();
+        assert_eq!(w.files(), 2, "the overflow record opened FILE.1");
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(base.records.len(), 1);
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+        assert_eq!(next.records[0].bytes, vec![0x46u8; 60]);
+    }
+
+    /// The boundary is STRICT `>`: a record that lands the chunk
+    /// exactly AT the budget does not rotate — the next one does.
+    #[test]
+    fn at_limit_stays_in_chunk() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(60)).unwrap();
+        w.write_record(ts(0), &[0x45u8; 30], 65535).unwrap();
+        w.write_record(ts(1), &[0x46u8; 30], 65535).unwrap(); // == limit: stays
+        w.write_record(ts(2), &[0x47u8; 30], 65535).unwrap(); // overflows → FILE.1
+        w.finish().unwrap();
+        assert_eq!(w.files(), 2);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(
+            base.records.len(),
+            2,
+            "the at-limit record stays in the chunk"
+        );
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+    }
+
+    /// A first record larger than the whole budget gets its own chunk:
+    /// the `written > 0` guard means no pre-first-record rotation.
+    #[test]
+    fn oversize_first_record_gets_its_own_chunk() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(1)).unwrap();
+        w.write_record(ts(0), &[0x45u8; 100], 65535).unwrap(); // > limit, but written==0
+        w.write_record(ts(1), &[0x46u8; 100], 65535).unwrap(); // now rotates → FILE.1
+        w.finish().unwrap();
+        assert_eq!(w.files(), 2);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(
+            base.records.len(),
+            1,
+            "the oversize first record stays in the base file"
+        );
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+    }
+
+    /// The snaplen clamps the STORED bytes the budget counts — and the
+    /// stored record bytes themselves.
+    #[test]
+    fn budget_counts_stored_bytes_after_snaplen() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w = RotatingWriter::new(false, false, path.to_str().unwrap(), 1, Some(40)).unwrap();
+        for byte in [0x45u8, 0x46, 0x47, 0x48, 0x49] {
+            w.write_record(ts(0), &[byte; 100], 10).unwrap(); // stores 10 each
+        }
+        w.finish().unwrap();
+        // 10×4 == 40 fits exactly; the fifth opens FILE.1.
+        assert_eq!(w.files(), 2);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(base.records.len(), 4);
+        assert_eq!(
+            base.records[0].bytes,
+            vec![0x45u8; 10],
+            "snaplen clamps the stored bytes"
+        );
+        let next = chunk(&dir, "cap.pcap.1");
+        assert_eq!(next.records.len(), 1);
+    }
+
+    /// Rotation names are dotted indices in call order, each chunk a
+    /// valid standalone pcap of the captured linktype.
+    #[test]
+    fn rotation_names_are_dotted_indices() {
+        let dir = tmpdir();
+        let path = dir.path().join("cap.pcap");
+        let mut w =
+            RotatingWriter::new(false, false, path.to_str().unwrap(), 113, Some(1)).unwrap();
+        for i in 0..3 {
+            w.write_record(ts(i), &[0x45u8; 100], 65535).unwrap(); // each rotates the next
+        }
+        w.finish().unwrap();
+        assert_eq!(w.files(), 3);
+        let base = chunk(&dir, "cap.pcap");
+        assert_eq!(
+            base.linktype, 113,
+            "the base chunk is a standalone SLL pcap"
+        );
+        assert_eq!(base.records.len(), 1);
+        for n in [1u64, 2] {
+            let next = chunk(&dir, &format!("cap.pcap.{n}"));
+            assert_eq!(next.linktype, 113, "chunk {n} is a standalone SLL pcap");
+            assert_eq!(next.records.len(), 1);
         }
     }
 }
@@ -1002,8 +1399,14 @@ fn replay(
         None => None,
     };
     let mut frames: Vec<ReplayFrame> = Vec::with_capacity(file.records.len());
+    // Tranche 23a: the link type picks the start layer — cooked files
+    // dissect from `sll`, RAW/NULL peek per record, and the loopback
+    // family STRIPS its 4-byte AF prefix from the dissection view (the
+    // stored bytes stay verbatim for send mode, the T5 contract).
+    let strip = file.start_offset();
     for rec in &file.records {
-        let packet = dissect(registry, &rec.bytes, "auto");
+        let view = &rec.bytes[strip.min(rec.bytes.len())..];
+        let packet = dissect(registry, view, file.start_kind(&rec.bytes));
         if let Some(f) = &filter
             && !f.matches(&packet)
         {
@@ -1022,6 +1425,7 @@ fn replay(
     let Some(iface) = common.iface.as_deref() else {
         // Offline mode: dissect-and-print (jsonl default, like recv).
         let format = Format::parse(common, Format::Jsonl)?;
+        let strip = file.start_offset();
         if args.reassemble {
             // Tranche T18a: feed the fragment stream (file order) through
             // the reassembler — complete datagrams re-dissect and print
@@ -1055,7 +1459,8 @@ fn replay(
             return Ok(());
         }
         for f in &frames {
-            print_frame(format, &f.packet, &f.bytes)?;
+            let view = &f.bytes[strip.min(f.bytes.len())..];
+            print_frame(format, &f.packet, view)?;
         }
         return Ok(());
     };
@@ -1565,9 +1970,11 @@ fn patch_verb(
 
     // Seed stream (the mut order): positional hex, then every -r pcap
     // record with its timestamp and orig_len (passthrough fidelity),
-    // then raw stdin when piped and nothing else feeds.
+    // then raw stdin when piped and nothing else feeds. The start kind
+    // rides the seed source: a cooked/sll/RAW capture file dissects from
+    // its link type (tranche 23a), positional hex and stdin stay `auto`.
     let now = std::time::SystemTime::now();
-    let mut frames: Vec<(std::time::SystemTime, Vec<u8>, u32)> = Vec::new();
+    let mut frames: Vec<(std::time::SystemTime, Vec<u8>, u32, &'static str)> = Vec::new();
     for raw in &args.frames {
         let bytes = wrex_core::value::parse_hex_bytes(raw)
             .map_err(|e| usage(format!("bad seed frame `{raw}`: {e}")))?;
@@ -1575,7 +1982,7 @@ fn patch_verb(
             return Err(usage(format!("empty seed frame `{raw}`")));
         }
         let orig = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-        frames.push((now, bytes, orig));
+        frames.push((now, bytes, orig, "auto"));
     }
     for path in &args.read {
         let pcap_bytes = std::fs::read(path)
@@ -1583,7 +1990,8 @@ fn patch_verb(
         let file = wrex_pcap::read(&pcap_bytes)
             .map_err(|e| CliError::Runtime(format!("patch: `{path}`: {e}")))?;
         for rec in &file.records {
-            frames.push((rec.ts, rec.bytes.clone(), rec.orig_len));
+            let start = file.start_kind(&rec.bytes);
+            frames.push((rec.ts, rec.bytes.clone(), rec.orig_len, start));
         }
     }
     {
@@ -1591,7 +1999,7 @@ fn patch_verb(
         if !std::io::stdin().is_terminal() && args.frames.is_empty() && args.read.is_empty() {
             let bytes = read_stdin_capped()?;
             let orig = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-            frames.push((now, bytes, orig));
+            frames.push((now, bytes, orig, "auto"));
         }
     }
     if frames.is_empty() {
@@ -1599,13 +2007,19 @@ fn patch_verb(
             "patch: no seed frames given (positional hex, -r FILE.pcap or stdin)",
         ));
     }
+    let snaplen = args.snaplen.unwrap_or(PATCH_DEFAULT_SNAPLEN);
 
     let mut writer = match &args.write {
-        Some(path) => Some(FrameWriter::new(args.pcapng, false, path)?),
+        Some(path) => Some(FrameWriter::new(
+            args.pcapng,
+            false,
+            path,
+            wrex_pcap::linktype::EN10MB,
+        )?),
         None => None,
     };
 
-    for (i, (ts, bytes, orig_len)) in frames.iter().enumerate() {
+    for (i, (ts, bytes, orig_len, start)) in frames.iter().enumerate() {
         let ordinal = i + 1;
         // Selection: --index picks 1-based ordinals; --filter matches a
         // read-only dissection (the replay/recv engine — selecting never
@@ -1613,7 +2027,7 @@ fn patch_verb(
         let mut packet = None;
         let mut selected = indices.as_ref().is_none_or(|s| s.contains(&ordinal));
         if let Some(f) = &filter {
-            let p = dissect(registry, bytes, "auto");
+            let p = dissect(registry, bytes, start);
             if f.matches(&p) {
                 packet = Some(p);
             } else {
@@ -1621,7 +2035,7 @@ fn patch_verb(
             }
         }
         let out: Vec<u8> = if selected {
-            let p = packet.unwrap_or_else(|| dissect(registry, bytes, "auto"));
+            let p = packet.unwrap_or_else(|| dissect(registry, bytes, start));
             let edits = edit_set
                 .materialize(&p)
                 .map_err(|e| patch_runtime(ordinal, e))?;
@@ -1634,12 +2048,14 @@ fn patch_verb(
         if let Some(w) = writer.as_mut() {
             // Patched frames carry their own length; passthrough keeps
             // the source annotation (truncated captures included).
+            // `--snaplen` caps the stored bytes (tranche 23a, the T14
+            // deferral) with orig_len preserved either way.
             let orig = if selected {
                 u32::try_from(out.len()).unwrap_or(u32::MAX)
             } else {
                 *orig_len
             };
-            w.write_record_orig(*ts, &out, orig, PATCH_DEFAULT_SNAPLEN)
+            w.write_record_orig(*ts, &out, orig, snaplen)
                 .map_err(|e| CliError::Runtime(format!("patch: write: {e}")))?;
         }
         match format {
@@ -1652,7 +2068,7 @@ fn patch_verb(
                 write_stdout(&out)?;
             }
             Format::Text | Format::Json | Format::Jsonl => {
-                let p = dissect(registry, &out, "auto");
+                let p = dissect(registry, &out, start);
                 print_frame(format, &p, &out)?;
             }
         }

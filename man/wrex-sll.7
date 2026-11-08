@@ -1,0 +1,40 @@
+.TH WREX-SLL 7 "2026-10-18" "wrex 0.1.0" "wrex Manual"
+.SH NAME
+wrex-sll \- sll layer for \fBwrex\fR(1)
+
+.SH SYNOPSIS
+\fBwrex\fR \fIcraft\fR|\fIsend\fR [options] \fB--layer\fR \fIsll\fR \fB--sll\-<field>\fR=\fIVALUE\fR ...
+\fBwrex\fR \fIfields\fR \fIsll\fR
+
+.SH DESCRIPTION
+Linux cooked capture v1 (LINKTYPE_LINUX_SLL, `tcpdump \-i any`): 16\-byte pseudo\-header (pkttype/hatype/halen u16, 8\-byte address region, protocol u16) standing in for the link layer. A root layer (rank 10, no parents); protocol drives the chain like eth.type.
+.
+
+.SH ENCAPSULATION
+Rank 10 (valid stack start: no parents).
+
+.SH "FIELD FLAGS"
+Dots in field paths become dashes in flags (ipv4.ttl -> --ipv4-ttl, --sll-pkttype).
+Explicit values always win over autofill and are kept
+unvalidated; \fB\-\-strict\fR re-validates (violations exit 2).
+.TP
+\fB\-\-sll\-pkttype=\fIINT\fR\fR
+packet type: host|broadcast|multicast|otherhost|outgoing or a bare 0\-4 number Type str. Default: host.
+.TP
+\fB\-\-sll\-hatype=\fIINT\fR\fR
+link\-layer address type (ARP hardware code; 1 = ether) Type u16. Default: 0.
+.TP
+\fB\-\-sll\-halen=\fIINT\fR\fR
+link\-layer address length in bytes (autofill: 6) Type u16. Default: 6.
+.TP
+\fB\-\-sll\-addr\fR
+link\-layer address (8\-byte region; MACs occupy the low 6) Type bytes. Default: .
+.TP
+\fB\-\-sll\-protocol=\fIINT\fR\fR
+encapsulated ethertype (autofill: derived from next layer) Type u16. Default: 0.
+
+.SH EXAMPLES
+wrex fields sll
+
+.SH "SEE ALSO"
+\fBwrex\fR(1), \fBwrex\-eth\fR(7), \fBwrex\-arp\fR(7), \fBwrex\-vlan\fR(7), \fBwrex\-sll2\fR(7), \fBwrex\-ipv4\fR(7), \fBwrex\-ipv6\fR(7), \fBwrex\-dot11\fR(7), \fBwrex\-hopopts\fR(7), \fBwrex\-dstopts\fR(7), \fBwrex\-routing\fR(7), \fBwrex\-frag\fR(7), \fBwrex\-ah\fR(7), \fBwrex\-esp\fR(7), \fBwrex\-nonext\fR(7), \fBwrex\-icmp\fR(7), \fBwrex\-icmpv6\fR(7), \fBwrex\-udp\fR(7), \fBwrex\-tcp\fR(7), \fBwrex\-dns\fR(7), \fBwrex\-dhcp\fR(7), \fBwrex\-dhcp6\fR(7)

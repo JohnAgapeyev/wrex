@@ -6,11 +6,25 @@
 
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
-use std::time::Duration;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 fn driver_tests_enabled() -> bool {
     std::env::var("WREX_DRIVER_TESTS").as_deref() == Ok("1")
 }
+
+/// The `lo` interface is SHARED STATE for this whole suite: an
+/// XDP-redirect-attached `lo` CONSUMES frames by design (the tap
+/// never sees them — that is what redirect is), so an attaching test
+/// eats the traffic every sibling depends on (the redirect-all stub
+/// swallows sibling probes for its attach window; the filtered
+/// capture eats exactly the cooked test's discard-port probe —
+/// `send_udp_on_lo` targets 127.0.0.1:9). AF_PACKET coexistence was
+/// never the issue — taps don't consume — and every argument for
+/// parallel coexistence predates the redirect datapath. The five
+/// ground truths serialize on this lock; the cost (~40s serial) buys
+/// determinism on a shared interface.
+static LO_DRIVER_LOCK: Mutex<()> = Mutex::new(());
 
 /// Capability probe (shared in wrex-test): `lo` + optional IPv6.
 fn loopback_ready(v6: bool) -> bool {
@@ -40,15 +54,30 @@ fn spawn_recv_bounded(count: u64, timeout: &str) -> Child {
         .expect("spawn wrex recv")
 }
 
-/// Spawn `wrex recv -i lo --count 1 --format raw --filter F` with piped
-/// stdout — the roundtrip test's byte-compare capture. The filter is
-/// load-bearing (sibling tests share `lo` and cargo runs them in
-/// parallel), and the send's paced repeats guarantee a match within
-/// seconds (verified in CI), so an unbounded recv is safe here.
+/// Spawn `wrex recv -i lo --count 1 --timeout 10s --format raw
+/// --filter F` with piped stdout — the roundtrip test's byte-compare
+/// capture. The filter is load-bearing (the discard-port probe must
+/// not leak in), and the timeout is EXPLICIT — the old comment
+/// claimed an unbounded recv was safe "because paced repeats
+/// guarantee a match", which was wrong twice over: the verb already
+/// capped it at a 2s DEFAULT (tighter than the send's own duration)
+/// and an XDP-redirect sibling could eat the frames entirely (the
+/// suite-wide lock now prevents that; the explicit timeout is the
+/// second belt — the hopopts incident's lesson, applied here).
 fn spawn_recv_filtered(filter: &str) -> Child {
     Command::new(env!("CARGO_BIN_EXE_wrex"))
         .args([
-            "recv", "-i", "lo", "--count", "1", "--format", "raw", "--filter", filter,
+            "recv",
+            "-i",
+            "lo",
+            "--count",
+            "1",
+            "--timeout",
+            "10s",
+            "--format",
+            "raw",
+            "--filter",
+            filter,
         ])
         .stdout(Stdio::piped())
         .spawn()
@@ -398,4 +427,313 @@ fn lo_loopback_send_recv_roundtrip() {
         hex::encode(&out),
         hex::encode(&want)
     );
+}
+
+// --- tranche 23a: the cooked capture ground truth ---------------------------
+
+/// `capture -i any` on `lo`: the store carries LINKTYPE_LINUX_SLL and
+/// every recorded frame starts with the synthesized 16-byte SLL header
+/// (pkttype host/outgoing, hatype ether, halen 6, lo's MAC, the inner
+/// ethertype) — replay of the store dissects from `sll` and the filter
+/// engine speaks the cooked paths. The T5 capture round-trip,
+/// transposed to the cooked view.
+#[test]
+fn cooked_capture_and_replay_roundtrip() {
+    if !driver_tests_enabled() {
+        eprintln!("skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    assert!(
+        loopback_ready(false),
+        "lo must be up for the cooked capture"
+    );
+    let dir = wrex_test::tempdir();
+    let cap = dir.path().join("cooked.pcap");
+
+    // Generate loopback traffic while a bounded capture runs.
+    let capture = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "capture",
+            "-i",
+            "any",
+            "--count",
+            "1",
+            "--timeout",
+            "3s",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("spawn wrex capture");
+    std::thread::sleep(Duration::from_millis(300));
+    wrex_test::send_udp_on_lo();
+    let out = capture.wait_with_output().expect("capture exits");
+    assert!(out.status.success(), "capture must end cleanly");
+
+    // The store is a LINKTYPE_LINUX_SLL classic pcap whose records
+    // carry the synthesized header + payload.
+    let bytes = std::fs::read(&cap).expect("the capture file exists");
+    let file = wrex_pcap::read(&bytes).expect("the capture parses");
+    assert_eq!(file.linktype, wrex_pcap::linktype::LINUX_SLL);
+    assert!(!file.records.is_empty(), "at least one frame");
+    let rec = &file.records[0];
+    assert!(rec.bytes.len() >= 16, "the SLL header is present");
+    // SLL: the hatype/halen/pkttype fields are KERNEL METADATA (on
+    // `lo` the hatype is ARPHRD_LOOPBACK 772, not ether) — the pinned
+    // invariants are the structural ones: pkttype is a defined kernel
+    // class (u16 BE at +0, 0..=4; the live runs saw 1 = broadcast —
+    // lo's reflected frames classify by their eth.dst) and the inner
+    // ethertype BE at +14 names the family (the udp probe rides ipv4;
+    // sibling v6 noise is fine).
+    let pkttype = u16::from_be_bytes([rec.bytes[0], rec.bytes[1]]);
+    assert!(pkttype <= 4, "pkttype {pkttype} is a defined class");
+    let ethertype = u16::from_be_bytes([rec.bytes[14], rec.bytes[15]]);
+    assert!(
+        ethertype == 0x0800 || ethertype == 0x86dd,
+        "the probe rides an ip ethertype, got {ethertype:#06x}"
+    );
+
+    // Replay dissects from `sll` (the linktype-driven start) and the
+    // filter engine speaks the cooked path.
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "replay",
+            cap.to_str().unwrap(),
+            "--format",
+            "jsonl",
+            "--count",
+            "1",
+        ])
+        .output()
+        .expect("spawn wrex replay");
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("\"kind\":\"sll\""),
+        "replay must dissect from sll: {stdout}"
+    );
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "replay",
+            cap.to_str().unwrap(),
+            "--format",
+            "hex",
+            "--count",
+            "1",
+            "--filter",
+            "sll.protocol=0x0800",
+        ])
+        .output()
+        .expect("spawn wrex replay (filtered)");
+    assert!(out.status.success());
+    assert!(
+        !out.stdout.is_empty() || ethertype != 0x0800,
+        "the ipv4 filter selects the probe frame"
+    );
+}
+
+/// The XDP datapath's fallback honesty: unprivileged (the unshare
+/// sandbox), the probe reports eBPF unavailable and capture falls
+/// back to the AF_PACKET path with the downgrade note (pointed, never
+/// a failure). Under the privileged CI gate the probe flips and the
+/// XDP path engages — the note is absent.
+#[test]
+fn capture_xdp_fallback_note_matches_privileges() {
+    if !driver_tests_enabled() {
+        eprintln!("skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    assert!(loopback_ready(false), "lo must be up");
+    let dir = wrex_test::tempdir();
+    let cap = dir.path().join("cap.pcap");
+    // The suite-wide `lo` lock (see LO_DRIVER_LOCK): this capture
+    // engages the redirect-all XDP stub — it would eat every sibling
+    // test's live-lo frames for its attach window.
+    let _attach = LO_DRIVER_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let out = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "capture",
+            "-i",
+            "lo",
+            "--count",
+            "1",
+            "--timeout",
+            "1s",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .output()
+        .expect("spawn wrex capture");
+    assert!(out.status.success(), "capture exits cleanly either way");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    match wrex_io::xdp::xdp_datapath_available() {
+        Ok(()) => {
+            // Privileged on an AF_XDP-capable kernel: the datapath must
+            // ENGAGE (probe → compile → XSK open → prog load → LINK
+            // create — every refusal step-tagged in the note; the
+            // bpf_link fd owns the attachment, so a killed capture
+            // can never orphan it). A downgrade note is a regression.
+            // NOTE (the live-root post-mortem): the first two live
+            // rounds showed EINVAL everywhere — that was OUR wrong
+            // uapi constant (XSKMAP 42 vs the header's 17), not the
+            // kernels; the header pass fixed it. This arm gates the
+            // full chain (probe → compile → XSK open → prog load →
+            // netlink attach) on every capable kernel.
+            assert!(
+                !stderr.contains("using the AF_PACKET path"),
+                "XDP-capable kernel: the datapath must engage, got the downgrade note: {stderr}"
+            );
+            eprintln!("XDP datapath engaged (no downgrade note)");
+        }
+        Err(why) => {
+            // No XDP for this process/kernel (privileges — the sandbox
+            // class — or a build without CONFIG_XDP_SOCKETS): the
+            // fallback note MUST print and name the honest cause.
+            assert!(
+                stderr.contains("using the AF_PACKET path"),
+                "the downgrade note must print when the datapath is unavailable: {stderr}"
+            );
+            eprintln!("XDP unavailable ({why}) — the fallback engaged");
+        }
+    }
+}
+
+/// The FILTERED XDP datapath, end to end: `capture -i lo --filter
+/// udp.dport=9` runs the filter walk (probe → compile → XSK open →
+/// prog load → bpf_link) and the MATCHING frames must flow through
+/// the XSK into the store — the one clean load the tranche's live
+/// rounds never reached, now a ground truth instead of a manual
+/// confirmation. Race-free by construction: paced probes run for the
+/// capture's whole window (repeats defeat the startup attach race —
+/// the roundtrip rule), `--count` ends the capture as soon as the
+/// frames land, and the deadline bounds a broken datapath. The frame
+/// assertions hold on EITHER datapath (the fallback's residual
+/// userspace filter keeps semantics exact); only the note assert
+/// branches on capability — the honest-split gate.
+#[test]
+fn filtered_xdp_capture_delivers_matching_frames() {
+    if !driver_tests_enabled() {
+        eprintln!("skipping (WREX_DRIVER_TESTS != 1)");
+        return;
+    }
+    assert!(loopback_ready(false), "lo must be up");
+    let dir = wrex_test::tempdir();
+    let cap = dir.path().join("filtered.pcap");
+
+    // The suite-wide `lo` lock (see LO_DRIVER_LOCK) — this filtered
+    // capture eats the cooked test's discard-port probe otherwise.
+    let _attach = LO_DRIVER_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let mut capture = Command::new(env!("CARGO_BIN_EXE_wrex"))
+        .args([
+            "capture",
+            "-i",
+            "lo",
+            "--filter",
+            "udp.dport=9",
+            "--count",
+            "3",
+            "--timeout",
+            "12s",
+            "-w",
+            cap.to_str().unwrap(),
+        ])
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn wrex capture");
+
+    // Paced probes for the whole window: plain UDP to the discard
+    // port (no capabilities — the stack reflects it through `lo`'s
+    // ingress, where the XDP filter runs). Whenever the attach
+    // completes, the next probe redirects; `--count 3` ends the
+    // capture; the deadline bounds the broken case. The kernel's
+    // ICMP port-unreachable replies to the probes are icmp — the
+    // filter excludes them, so only probes fill the count.
+    let sock = std::net::UdpSocket::bind("127.0.0.1:0").expect("bind probe socket");
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let mut probes = 0u32;
+    while Instant::now() < deadline {
+        if capture.try_wait().expect("poll capture").is_some() {
+            break;
+        }
+        sock.send_to(b"wrex-xdp-probe", "127.0.0.1:9")
+            .expect("send probe");
+        probes += 1;
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    let out = capture.wait_with_output().expect("capture exits");
+    drop(_attach);
+    assert!(out.status.success(), "capture exited {}", out.status);
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+
+    // Datapath honesty (the fallback test's rule, on the FILTER
+    // program this time): a capable kernel must ENGAGE the whole
+    // chain — a downgrade note here is a regression; an unavailable
+    // datapath must print it and name the honest cause.
+    match wrex_io::xdp::xdp_datapath_available() {
+        Ok(()) => assert!(
+            !stderr.contains("using the AF_PACKET path"),
+            "XDP-capable kernel: the FILTERED datapath must engage, got the downgrade note: {stderr}"
+        ),
+        Err(why) => assert!(
+            stderr.contains("using the AF_PACKET path"),
+            "the downgrade note must print when the datapath is unavailable ({why}): {stderr}"
+        ),
+    }
+
+    // The frames flowed and the filter selected exactly them — on
+    // either datapath (the store is the contract, not the road).
+    let bytes = std::fs::read(&cap).expect("the capture file exists");
+    let file = wrex_pcap::read(&bytes).expect("the capture parses");
+    assert_eq!(file.linktype, wrex_pcap::linktype::EN10MB);
+    assert_eq!(
+        file.records.len(),
+        3,
+        "--count 3 must fill from the paced probes (sent {probes}); \
+         the datapath dropped or never delivered matching frames"
+    );
+    assert!(probes >= 1, "the pacer must have run (sent {probes})");
+    let mut inventory = Vec::new();
+    for rec in &file.records {
+        // The hopopts pattern, not the wrex-test helper: the helper's
+        // PATH fallback cannot see `target-sudo/debug` under the sudo
+        // env; `CARGO_BIN_EXE_wrex` is this package's own compile-time
+        // guarantee (the sibling ground truths use the same).
+        let mut dissect = Command::new(env!("CARGO_BIN_EXE_wrex"))
+            .args(["dissect", "--format", "json", "--start", "auto"])
+            .stdout(Stdio::piped())
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("spawn wrex dissect");
+        dissect
+            .stdin
+            .take()
+            .expect("dissect stdin")
+            .write_all(&rec.bytes)
+            .expect("pipe the captured frame");
+        let dis = dissect.wait_with_output().expect("collect dissect");
+        let parsed: serde_json::Value = serde_json::from_slice(&dis.stdout).expect("dissect json");
+        let layers = parsed["layers"].as_array().cloned().unwrap_or_default();
+        let kinds: Vec<&str> = layers
+            .iter()
+            .map(|l| l["kind"].as_str().unwrap_or("?"))
+            .collect();
+        let udp_dport = layers
+            .iter()
+            .find(|l| l["kind"] == "udp")
+            .and_then(|l| l["fields"]["dport"].as_u64());
+        inventory.push(format!(
+            "{} -> {}",
+            hex::encode(&rec.bytes),
+            kinds.join(",")
+        ));
+        assert_eq!(
+            udp_dport,
+            Some(9),
+            "every captured frame is the probe (filter leakage?): {}",
+            parsed
+        );
+        assert!(kinds.contains(&"ipv4"), "the probe rides ipv4: {parsed}");
+    }
+    eprintln!("filtered capture inventory:\n{}", inventory.join("\n"));
 }

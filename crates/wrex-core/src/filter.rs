@@ -60,8 +60,11 @@ impl Op {
     }
 }
 
+/// A parsed filter value: the compiled comparison operand (tranche 23a
+/// made the term model public — the eBPF codegen consumes the same AST
+/// the userspace engine evaluates, so the two can never drift).
 #[derive(Clone, Debug, PartialEq)]
-enum TermValue {
+pub enum TermValue {
     Int(u128),
     /// IPv4 with optional CIDR prefix (membership on `=`/`!=`).
     Ipv4 {
@@ -86,13 +89,19 @@ enum TermValue {
     Str(String),
 }
 
+/// One AND-term of a [`Filter`]: a layer kind, a field lookup key, an
+/// operator and the operand. Public so the kernel-side compiler
+/// (`wrex-ebpf`) can emit the same predicate the userspace engine
+/// evaluates (the userspace-VM differential pins the equivalence).
 #[derive(Clone, Debug)]
-struct Term {
-    layer: &'static str,
-    /// Aggregate field name (`flags.syn` → `flags`).
-    field: String,
-    op: Op,
-    value: TermValue,
+pub struct Term {
+    /// The layer kind the term addresses.
+    pub layer: &'static str,
+    /// Aggregate field name (`flags.syn` → `flags`) or record key
+    /// (`an.0.type`).
+    pub field: String,
+    pub op: Op,
+    pub value: TermValue,
 }
 
 /// A parsed filter expression (conjunction of terms).
@@ -116,6 +125,12 @@ impl Filter {
 
     pub fn is_empty(&self) -> bool {
         self.terms.is_empty()
+    }
+
+    /// The parsed AND-terms (tranche 23a: the eBPF compiler walks the
+    /// same AST; the userspace-VM differential pins the equivalence).
+    pub fn terms(&self) -> &[Term] {
+        &self.terms
     }
 
     /// All terms must match (AND). Absent paths are false.
@@ -791,6 +806,26 @@ mod tests {
         assert!(e.to_string().contains("only = and !="), "{e}");
         let e = Filter::parse(&r, "tcp.sport=abc").unwrap_err();
         assert!(e.to_string().contains("not a valid base"), "{e}");
+    }
+
+    /// The AST accessor the eBPF compiler walks (tranche 23a): the
+    /// parsed AND-terms are observable — count and layer — from this
+    /// crate's own tests, not only through the cross-crate compiler
+    /// (the per-PR mutants gate caught the accessor surviving because
+    /// every caller lived outside the package).
+    #[test]
+    fn parsed_terms_are_visible_through_the_ast_accessor() {
+        let r = test_registry();
+        let f = Filter::parse(&r, "tcp.sport=80 tcp.flags=syn,ack").unwrap();
+        let terms = f.terms();
+        assert_eq!(terms.len(), 2, "one Term per AND-term");
+        assert_eq!(terms[0].layer, "tcp");
+        assert_eq!(terms[1].layer, "tcp");
+        assert!(!f.is_empty(), "a parsed expression is never empty");
+        assert!(
+            Filter::default().terms().is_empty(),
+            "the empty filter exposes no terms"
+        );
     }
 
     #[test]

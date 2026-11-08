@@ -21,6 +21,9 @@ path = "../crates/wrex-core"
 [dependencies.wrex-io]
 path = "../crates/wrex-io"
 
+[dependencies.wrex-ebpf]
+path = "../crates/wrex-ebpf"
+
 [dependencies.wrex-scan]
 path = "../crates/wrex-scan"
 
@@ -245,3 +248,25 @@ name = "fuzz_frag_reassembly"
 path = "fuzz_targets/fuzz_frag_reassembly.rs"
 test = false
 doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_sll"
+path = "fuzz_targets/fuzz_dissect_sll.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_dissect_dot11"
+path = "fuzz_targets/fuzz_dissect_dot11.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_ebpf_vm"
+path = "fuzz_targets/fuzz_ebpf_vm.rs"
+test = false
+doc = false
+bench = false

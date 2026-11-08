@@ -1,0 +1,24 @@
+[package]
+name = "wrex-proto-dot11"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "wrex IEEE 802.11 dissect-only codec (management-frame TLVs)"
+
+[dependencies]
+wrex-core = { workspace = true }
+bytes = { workspace = true }
+# ADR 3 (recorded at the 23a planning pass): dot11 is a ROOT layer —
+# nothing stacks on it, so it carries no codec deps at all (the eth
+# precedent: parents `&[]` needs no closure calls).
+
+[dependencies.proptest]
+workspace = true
+optional = true
+
+[features]
+test-util = ["proptest"]
+
+[dev-dependencies]
+proptest = { workspace = true }

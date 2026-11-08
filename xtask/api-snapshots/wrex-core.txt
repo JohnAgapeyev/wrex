@@ -945,11 +945,63 @@ impl<T> core::clone::CloneToUninit for wrex_core::filter::Op where T: core::clon
 pub unsafe fn wrex_core::filter::Op::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::filter::Op
 pub fn wrex_core::filter::Op::from(T) -> T
+pub enum wrex_core::filter::TermValue
+pub wrex_core::filter::TermValue::FlagBit
+pub wrex_core::filter::TermValue::FlagBit::name: alloc::string::String
+pub wrex_core::filter::TermValue::FlagBit::set: bool
+pub wrex_core::filter::TermValue::HexPrefix(bytes::bytes::Bytes)
+pub wrex_core::filter::TermValue::Int(u128)
+pub wrex_core::filter::TermValue::Ipv4
+pub wrex_core::filter::TermValue::Ipv4::addr: core::net::ip_addr::Ipv4Addr
+pub wrex_core::filter::TermValue::Ipv4::prefix: core::option::Option<u8>
+pub wrex_core::filter::TermValue::Ipv6
+pub wrex_core::filter::TermValue::Ipv6::addr: core::net::ip_addr::Ipv6Addr
+pub wrex_core::filter::TermValue::Ipv6::prefix: core::option::Option<u8>
+pub wrex_core::filter::TermValue::Mac([u8; 6])
+pub wrex_core::filter::TermValue::Names(alloc::vec::Vec<alloc::string::String>)
+pub wrex_core::filter::TermValue::Str(alloc::string::String)
+impl core::clone::Clone for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::clone(&self) -> Self
+impl core::cmp::PartialEq for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_core::filter::TermValue
+impl !core::marker::Freeze for wrex_core::filter::TermValue
+impl core::marker::Send for wrex_core::filter::TermValue
+impl core::marker::Sync for wrex_core::filter::TermValue
+impl core::marker::Unpin for wrex_core::filter::TermValue
+impl core::marker::UnsafeUnpin for wrex_core::filter::TermValue
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_core::filter::TermValue
+impl core::panic::unwind_safe::UnwindSafe for wrex_core::filter::TermValue
+impl<T, U> core::convert::Into<U> for wrex_core::filter::TermValue where U: core::convert::From<T>
+pub fn wrex_core::filter::TermValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_core::filter::TermValue where U: core::convert::Into<T>
+pub type wrex_core::filter::TermValue::Error = never
+pub fn wrex_core::filter::TermValue::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_core::filter::TermValue where U: core::convert::TryFrom<T>
+pub type wrex_core::filter::TermValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_core::filter::TermValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_core::filter::TermValue where T: core::clone::Clone
+pub type wrex_core::filter::TermValue::Owned = T
+pub fn wrex_core::filter::TermValue::clone_into(&self, &mut T)
+pub fn wrex_core::filter::TermValue::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_core::filter::TermValue where T: 'static + ?core::marker::Sized
+pub fn wrex_core::filter::TermValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_core::filter::TermValue where T: ?core::marker::Sized
+pub fn wrex_core::filter::TermValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_core::filter::TermValue where T: ?core::marker::Sized
+pub fn wrex_core::filter::TermValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_core::filter::TermValue where T: core::clone::Clone
+pub unsafe fn wrex_core::filter::TermValue::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::from(T) -> T
 pub struct wrex_core::filter::Filter
 impl wrex_core::filter::Filter
 pub fn wrex_core::filter::Filter::is_empty(&self) -> bool
 pub fn wrex_core::filter::Filter::matches(&self, &wrex_core::dissect::DissectedPacket) -> bool
 pub fn wrex_core::filter::Filter::parse(&wrex_core::codec::Registry, &str) -> core::result::Result<Self, wrex_core::error::FilterError>
+pub fn wrex_core::filter::Filter::terms(&self) -> &[wrex_core::filter::Term]
 impl core::clone::Clone for wrex_core::filter::Filter
 pub fn wrex_core::filter::Filter::clone(&self) -> Self
 impl core::default::Default for wrex_core::filter::Filter
@@ -985,6 +1037,44 @@ impl<T> core::clone::CloneToUninit for wrex_core::filter::Filter where T: core::
 pub unsafe fn wrex_core::filter::Filter::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::filter::Filter
 pub fn wrex_core::filter::Filter::from(T) -> T
+pub struct wrex_core::filter::Term
+pub wrex_core::filter::Term::field: alloc::string::String
+pub wrex_core::filter::Term::layer: &'static str
+pub wrex_core::filter::Term::op: wrex_core::filter::Op
+pub wrex_core::filter::Term::value: wrex_core::filter::TermValue
+impl core::clone::Clone for wrex_core::filter::Term
+pub fn wrex_core::filter::Term::clone(&self) -> Self
+impl core::fmt::Debug for wrex_core::filter::Term
+pub fn wrex_core::filter::Term::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_core::filter::Term
+impl core::marker::Send for wrex_core::filter::Term
+impl core::marker::Sync for wrex_core::filter::Term
+impl core::marker::Unpin for wrex_core::filter::Term
+impl core::marker::UnsafeUnpin for wrex_core::filter::Term
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_core::filter::Term
+impl core::panic::unwind_safe::UnwindSafe for wrex_core::filter::Term
+impl<T, U> core::convert::Into<U> for wrex_core::filter::Term where U: core::convert::From<T>
+pub fn wrex_core::filter::Term::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_core::filter::Term where U: core::convert::Into<T>
+pub type wrex_core::filter::Term::Error = never
+pub fn wrex_core::filter::Term::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_core::filter::Term where U: core::convert::TryFrom<T>
+pub type wrex_core::filter::Term::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_core::filter::Term::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_core::filter::Term where T: core::clone::Clone
+pub type wrex_core::filter::Term::Owned = T
+pub fn wrex_core::filter::Term::clone_into(&self, &mut T)
+pub fn wrex_core::filter::Term::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_core::filter::Term where T: 'static + ?core::marker::Sized
+pub fn wrex_core::filter::Term::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_core::filter::Term where T: ?core::marker::Sized
+pub fn wrex_core::filter::Term::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_core::filter::Term where T: ?core::marker::Sized
+pub fn wrex_core::filter::Term::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_core::filter::Term where T: core::clone::Clone
+pub unsafe fn wrex_core::filter::Term::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_core::filter::Term
+pub fn wrex_core::filter::Term::from(T) -> T
 pub mod wrex_core::options
 pub fn wrex_core::options::bad(&str, impl core::convert::AsRef<str>) -> wrex_core::error::EncodeError
 pub fn wrex_core::options::named<'a>(&'a str, &[&str]) -> core::option::Option<(&'a str, &'a str)>
@@ -2243,6 +2333,57 @@ impl<T> core::clone::CloneToUninit for wrex_core::filter::Op where T: core::clon
 pub unsafe fn wrex_core::filter::Op::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::filter::Op
 pub fn wrex_core::filter::Op::from(T) -> T
+pub enum wrex_core::FilterTermValue
+pub wrex_core::FilterTermValue::FlagBit
+pub wrex_core::FilterTermValue::FlagBit::name: alloc::string::String
+pub wrex_core::FilterTermValue::FlagBit::set: bool
+pub wrex_core::FilterTermValue::HexPrefix(bytes::bytes::Bytes)
+pub wrex_core::FilterTermValue::Int(u128)
+pub wrex_core::FilterTermValue::Ipv4
+pub wrex_core::FilterTermValue::Ipv4::addr: core::net::ip_addr::Ipv4Addr
+pub wrex_core::FilterTermValue::Ipv4::prefix: core::option::Option<u8>
+pub wrex_core::FilterTermValue::Ipv6
+pub wrex_core::FilterTermValue::Ipv6::addr: core::net::ip_addr::Ipv6Addr
+pub wrex_core::FilterTermValue::Ipv6::prefix: core::option::Option<u8>
+pub wrex_core::FilterTermValue::Mac([u8; 6])
+pub wrex_core::FilterTermValue::Names(alloc::vec::Vec<alloc::string::String>)
+pub wrex_core::FilterTermValue::Str(alloc::string::String)
+impl core::clone::Clone for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::clone(&self) -> Self
+impl core::cmp::PartialEq for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::eq(&self, &Self) -> bool
+impl core::fmt::Debug for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for wrex_core::filter::TermValue
+impl !core::marker::Freeze for wrex_core::filter::TermValue
+impl core::marker::Send for wrex_core::filter::TermValue
+impl core::marker::Sync for wrex_core::filter::TermValue
+impl core::marker::Unpin for wrex_core::filter::TermValue
+impl core::marker::UnsafeUnpin for wrex_core::filter::TermValue
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_core::filter::TermValue
+impl core::panic::unwind_safe::UnwindSafe for wrex_core::filter::TermValue
+impl<T, U> core::convert::Into<U> for wrex_core::filter::TermValue where U: core::convert::From<T>
+pub fn wrex_core::filter::TermValue::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_core::filter::TermValue where U: core::convert::Into<T>
+pub type wrex_core::filter::TermValue::Error = never
+pub fn wrex_core::filter::TermValue::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_core::filter::TermValue where U: core::convert::TryFrom<T>
+pub type wrex_core::filter::TermValue::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_core::filter::TermValue::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_core::filter::TermValue where T: core::clone::Clone
+pub type wrex_core::filter::TermValue::Owned = T
+pub fn wrex_core::filter::TermValue::clone_into(&self, &mut T)
+pub fn wrex_core::filter::TermValue::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_core::filter::TermValue where T: 'static + ?core::marker::Sized
+pub fn wrex_core::filter::TermValue::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_core::filter::TermValue where T: ?core::marker::Sized
+pub fn wrex_core::filter::TermValue::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_core::filter::TermValue where T: ?core::marker::Sized
+pub fn wrex_core::filter::TermValue::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_core::filter::TermValue where T: core::clone::Clone
+pub unsafe fn wrex_core::filter::TermValue::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_core::filter::TermValue
+pub fn wrex_core::filter::TermValue::from(T) -> T
 pub enum wrex_core::Layout
 pub wrex_core::Layout::Bits
 pub wrex_core::Layout::Bits::at: usize
@@ -3155,6 +3296,7 @@ impl wrex_core::filter::Filter
 pub fn wrex_core::filter::Filter::is_empty(&self) -> bool
 pub fn wrex_core::filter::Filter::matches(&self, &wrex_core::dissect::DissectedPacket) -> bool
 pub fn wrex_core::filter::Filter::parse(&wrex_core::codec::Registry, &str) -> core::result::Result<Self, wrex_core::error::FilterError>
+pub fn wrex_core::filter::Filter::terms(&self) -> &[wrex_core::filter::Term]
 impl core::clone::Clone for wrex_core::filter::Filter
 pub fn wrex_core::filter::Filter::clone(&self) -> Self
 impl core::default::Default for wrex_core::filter::Filter
@@ -3190,6 +3332,44 @@ impl<T> core::clone::CloneToUninit for wrex_core::filter::Filter where T: core::
 pub unsafe fn wrex_core::filter::Filter::clone_to_uninit(&self, *mut u8)
 impl<T> core::convert::From<T> for wrex_core::filter::Filter
 pub fn wrex_core::filter::Filter::from(T) -> T
+pub struct wrex_core::FilterTerm
+pub wrex_core::FilterTerm::field: alloc::string::String
+pub wrex_core::FilterTerm::layer: &'static str
+pub wrex_core::FilterTerm::op: wrex_core::filter::Op
+pub wrex_core::FilterTerm::value: wrex_core::filter::TermValue
+impl core::clone::Clone for wrex_core::filter::Term
+pub fn wrex_core::filter::Term::clone(&self) -> Self
+impl core::fmt::Debug for wrex_core::filter::Term
+pub fn wrex_core::filter::Term::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl !core::marker::Freeze for wrex_core::filter::Term
+impl core::marker::Send for wrex_core::filter::Term
+impl core::marker::Sync for wrex_core::filter::Term
+impl core::marker::Unpin for wrex_core::filter::Term
+impl core::marker::UnsafeUnpin for wrex_core::filter::Term
+impl core::panic::unwind_safe::RefUnwindSafe for wrex_core::filter::Term
+impl core::panic::unwind_safe::UnwindSafe for wrex_core::filter::Term
+impl<T, U> core::convert::Into<U> for wrex_core::filter::Term where U: core::convert::From<T>
+pub fn wrex_core::filter::Term::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for wrex_core::filter::Term where U: core::convert::Into<T>
+pub type wrex_core::filter::Term::Error = never
+pub fn wrex_core::filter::Term::try_from(U) -> core::result::Result<T, never>
+impl<T, U> core::convert::TryInto<U> for wrex_core::filter::Term where U: core::convert::TryFrom<T>
+pub type wrex_core::filter::Term::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn wrex_core::filter::Term::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for wrex_core::filter::Term where T: core::clone::Clone
+pub type wrex_core::filter::Term::Owned = T
+pub fn wrex_core::filter::Term::clone_into(&self, &mut T)
+pub fn wrex_core::filter::Term::to_owned(&self) -> T
+impl<T> core::any::Any for wrex_core::filter::Term where T: 'static + ?core::marker::Sized
+pub fn wrex_core::filter::Term::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for wrex_core::filter::Term where T: ?core::marker::Sized
+pub fn wrex_core::filter::Term::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for wrex_core::filter::Term where T: ?core::marker::Sized
+pub fn wrex_core::filter::Term::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for wrex_core::filter::Term where T: core::clone::Clone
+pub unsafe fn wrex_core::filter::Term::clone_to_uninit(&self, *mut u8)
+impl<T> core::convert::From<T> for wrex_core::filter::Term
+pub fn wrex_core::filter::Term::from(T) -> T
 pub struct wrex_core::LayerSchema
 pub wrex_core::LayerSchema::doc: &'static str
 pub wrex_core::LayerSchema::fields: &'static [wrex_core::schema::FieldSchema]
