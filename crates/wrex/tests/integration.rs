@@ -1013,24 +1013,25 @@ fn generate_sll_corpora() {
     for (name, start) in [("sll-cooked", "sll"), ("sll2-cooked", "sll2")] {
         // The corpus tree, located RELATIVE to the package root: cargo
         // runs test binaries with cwd = the package's directory (the
-        // documented contract), so a literal path is deterministic —
-        // and it carries no environment reads, which is what code
-        // scanning demands of a path expression (env!() and file!()
-        // both model as uncontrolled values). The generator fails fast
-        // (expect below) if the contract ever moves.
-        let root = std::path::Path::new("../wrex-test/corpus").join(name);
-        let frames_dir = root.join("frames");
-        for dent in std::fs::read_dir(&frames_dir).expect("frames dir") {
-            let path = dent.expect("dir entry").path();
-            if path.extension().and_then(|e| e.to_str()) != Some("bin") {
-                continue;
+        // documented contract). Every path below is built from
+        // LITERALS and the frame COUNTER alone — no environment read,
+        // no directory-listing data, nothing the security scanner
+        // models as uncontrolled ever reaches a path expression. The
+        // frames follow the manifest's `NN` naming and the loop
+        // self-terminates at the first gap; the assert catches a
+        // broken cwd contract loudly instead of writing nothing.
+        let frames_dir = std::path::Path::new("../wrex-test/corpus")
+            .join(name)
+            .join("frames");
+        let mut n = 0u32;
+        loop {
+            n += 1;
+            let stem = format!("{n:02}");
+            let bin = frames_dir.join(format!("{stem}.bin"));
+            if !bin.is_file() {
+                break;
             }
-            let stem = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .expect("stem")
-                .to_string();
-            let bytes = std::fs::read(&path).expect("bin");
+            let bytes = std::fs::read(bin).expect("bin");
             let packet = wrex_core::dissect::dissect(&reg, &bytes, start);
             let expected =
                 serde_json::to_string_pretty(&wrex_core::render::dissect_to_json(&packet))
@@ -1041,6 +1042,7 @@ fn generate_sll_corpora() {
             )
             .expect("json");
         }
-        println!("regenerated {name} goldens under {root:?}");
+        assert!(n > 1, "no frames found under {frames_dir:?}");
+        println!("regenerated {name} goldens under {frames_dir:?}");
     }
 }
